@@ -170,6 +170,24 @@ const ASSIGNMENT_SELECT = `
   left join staff_scope ss on ss.assignment_id = sa.id`;
 
 export class SqlAdminRepo implements AdminRepo {
+  /** Только provider_id из закрытой auth.identities; metadata пользователя не используется. */
+  public async linkProfileFromVerifiedIdentity(exec:DbExecutor,supabaseUserId:string):Promise<ProfileRecord|null> {
+    const rows=await exec.query<ProfileRow>(`
+      with linked as (
+        update profile p set supabase_user_id=$1
+        from auth.identities i
+        where i.user_id=$1 and i.provider='custom:telegram'
+          and i.provider_id=p.telegram_user_id::text
+          and p.archived_at is null and p.supabase_user_id is null
+          and not exists(select 1 from auth.identities other where other.user_id=i.user_id and other.id<>i.id)
+        returning p.*
+      ), logged as (
+        insert into audit_log(actor_person_id,actor_profile_id,action,entity_type,entity_id,after)
+        select person_id,id,'auth.telegram.link','profile',id,jsonb_build_object('supabase_user_id',supabase_user_id) from linked
+      ) select * from linked`,[supabaseUserId]);
+    return rows[0]?mapProfile(rows[0]):null;
+  }
+
   public async findProfileBySupabaseUserId(
     exec: DbExecutor,
     supabaseUserId: string,
