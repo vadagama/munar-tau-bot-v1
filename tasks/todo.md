@@ -4,35 +4,35 @@
 
 ## Phase 1: Фундамент инструментария
 
-- [ ] Task 1: Каркас монорепозитория — workspaces (core, admin), tsconfig.base, ESLint, Vitest, /source/ вне .gitignore
-- [ ] Task 2: Ядро: config/env + errors (LLD-03 §1.1) + модульные тесты
+- [x] Task 1: Каркас монорепозитория — workspaces (core, admin), tsconfig.base, ESLint, Vitest, /source/ вне .gitignore
+- [x] Task 2: Ядро: config/env + errors (LLD-03 §1.1) + модульные тесты
 
 ## Checkpoint: Foundation
 
-- [ ] install / lint / typecheck / test — зелёные
+- [x] install / lint / typecheck / test — зелёные
 
 ## Phase 2: БД и функции-заглушки
 
-- [ ] Task 3: db/ — миграции 0001 extensions, 0002 cron-шаблон; rls.sql (LLD-02 §16); seed/
-- [ ] Task 4: functions/ — deno.json, supabase/config.toml, заглушки api / bot-webhook / jobs
-- [ ] Task 5: Deno smoke-тесты заглушек (ветки защиты и health)
+- [x] Task 3: db/ — миграции 0001 extensions, 0002 cron-шаблон; rls.sql (LLD-02 §16); seed/
+- [x] Task 4: functions/ — deno.json, supabase/config.toml, заглушки api / bot-webhook / jobs
+- [x] Task 5: Deno smoke-тесты заглушек (ветки защиты и health)
 
 ## Checkpoint: Серверное ядро
 
-- [ ] deno check / lint / test — зелёные
+- [x] deno check / lint / test — зелёные
 
 ## Phase 3: Кабинет
 
-- [ ] Task 6: admin/ — Vite + React + Refine + AntD, SPA-маршрутизация, login-заглушка
+- [x] Task 6: admin/ — Vite + React + Refine + AntD, SPA-маршрутизация, login-заглушка
 
 ## Checkpoint: Кабинет
 
-- [ ] vite build зелёный; /login по прямой ссылке открывается
+- [x] vite build зелёный; /login по прямой ссылке открывается (vite preview + curl, SPA-fallback)
 
 ## Phase 4: CI/CD
 
-- [ ] Task 7: .github/workflows/ci.yml — lint → typecheck → test → build + secret-scan dist
-- [ ] Task 8: deploy job (push main) — supabase db push / functions deploy / wrangler pages deploy; условно по секретам
+- [x] Task 7: .github/workflows/ci.yml — lint → typecheck → test → build + secret-scan dist
+- [x] Task 8: deploy job (push main) — supabase db push / functions deploy / wrangler pages deploy; условно по секретам
 
 ## Checkpoint: CI
 
@@ -40,7 +40,7 @@
 
 ## Phase 5: Документация и приёмка
 
-- [ ] Task 9: AGENTS.md — раздел «Команды», структура, статус
+- [x] Task 9: AGENTS.md — раздел «Команды», структура, статус
 - [ ] Task 10: Приёмка по критерию среза (HLD §20) и DoD LLD-05 §4
 
 ## Checkpoint: Complete
