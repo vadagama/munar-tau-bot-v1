@@ -1,10 +1,27 @@
-import { Button, Card, Form, Typography } from "antd";
+import { Alert, Button, Card, Typography } from "antd";
+import { useState } from "react";
+import { useLogin } from "@refinedev/core";
+
+import { appEnv } from "../lib/env";
 
 const { Paragraph, Text } = Typography;
 
-// Страница входа (VS-0): заглушка. Telegram OIDC + серверная проверка роли
-// появятся в VS-1 (AUTH-01, ADR-001); до тех пор кнопка входа заблокирована.
+// Страница входа (VS-1, AUTH-01): Telegram OIDC через Supabase Auth (ADR-001).
+// Без публичных переменных среды — заглушка VS-0 с пояснением настройки.
 export function LoginPage() {
+  const { mutate: login, isLoading } = useLogin();
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLogin = () => {
+    setError(null);
+    login(
+      {},
+      {
+        onError: (loginError) => setError(loginError.message),
+      },
+    );
+  };
+
   return (
     <div
       style={{
@@ -24,21 +41,32 @@ export function LoginPage() {
           выполняется через Telegram; права определяются ролью и областью домов
           (матрица прав).
         </Paragraph>
-        <Form layout="vertical" disabled>
-          <Form.Item style={{ marginBottom: 8 }}>
-            <Button
-              type="primary"
-              size="large"
-              block
-              disabled
-              title="Вход через Telegram появится со срезом VS-1 (AUTH-01)"
-            >
+        {error !== null && (
+          <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />
+        )}
+        {appEnv.configured ? (
+          <Button
+            type="primary"
+            size="large"
+            block
+            loading={isLoading}
+            onClick={handleLogin}
+          >
+            Войти через Telegram
+          </Button>
+        ) : (
+          <>
+            <Button type="primary" size="large" block disabled>
               Войти через Telegram
             </Button>
-          </Form.Item>
-        </Form>
+            <Paragraph type="secondary" style={{ marginTop: 12, fontSize: 12 }}>
+              Вход отключён: задайте публичные переменные среды VITE_SUPABASE_URL
+              и VITE_SUPABASE_PUBLISHABLE_KEY (см. admin/README.md).
+            </Paragraph>
+          </>
+        )}
         <Text type="secondary" style={{ fontSize: 12 }}>
-          Вход будет открыт после подключения аутентификации (VS-1, AUTH-01).
+          Профиль и полномочия проверяются на сервере (PDP); вход не выдаёт роль.
         </Text>
       </Card>
     </div>
