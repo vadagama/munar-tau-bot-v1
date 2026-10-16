@@ -20,12 +20,15 @@ for dir in "$@"; do
 done
 
 # Паттерны:
-#   sb_secret_             — ключи Supabase нового формата (secret/api)
+#   sb_secret_+тело        — ключи Supabase нового формата (secret/api);
+#                            тело [A-Za-z0-9]{20,} отсекает литерал "sb_secret_"
+#                            из кода @supabase/supabase-js (проверка формата
+#                            ключа в рантайме — не секрет)
 #   service_role           — упоминание сервисной роли (ключ/заголовок)
 #   c2VydmljZV9yb2xl       — base64("service_role"), как в JWT-полезной нагрузке
 #   bot<цифры>:<токен>     — Telegram bot token в форме URL/строки
 #   PRIVATE KEY            — блок приватного ключа
-patterns='sb_secret_|service_role|c2VydmljZV9yb2xl|bot[0-9]{5,}:[A-Za-z0-9_-]{30,}|BEGIN [A-Z ]*PRIVATE KEY'
+patterns='sb_secret_[A-Za-z0-9]{20,}|service_role|c2VydmljZV9yb2xl|bot[0-9]{5,}:[A-Za-z0-9_-]{30,}|BEGIN [A-Z ]*PRIVATE KEY'
 
 found=0
 for dir in "$@"; do

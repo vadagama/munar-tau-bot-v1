@@ -10,7 +10,9 @@
 
 VS-0 «Фундамент» выполнен: монорепозиторий `source/` (npm workspaces: `core`, `admin`), ядро env/ошибок, каркас БД, заглушки функций с защитой, SPA-каркас кабинета, CI с условным деплоем.
 
-VS-1 «Доступ и аудит-скелет» выполнен (ветвь `feature/vs-1-access-audit`): PDP (Actor, `can()`, реестр действий с privileged), сеансы AUTH-06 (12 ч / 30 мин бездействия, отзыв), append-only `audit_log` с чтением по областям (AUD-02), каркас эмуляции (тестовые персоны is_test, сеансы эмуляции, симулятор через общий ScenarioRegistry), функция api с полным конвейером (CORS → JWT → профиль → сеанс → Actor → PDP → обработчик → аудит), кабинет: Telegram-вход (OIDC), журнал, эмуляция, баннер режима; сиды identity_dev.sql. TOTP и ROL-06 — за пределами среза. Далее — срезы VS-2…VS-9 (см. `docs/hld.md`, раздел 27). Команды — в разделе «Команды».
+VS-1 «Доступ и аудит-скелет» выполнен (ветвь `feature/vs-1-access-audit`): PDP (Actor, `can()`, реестр действий с privileged), сеансы AUTH-06 (12 ч / 30 мин бездействия, отзыв), append-only `audit_log` с чтением по областям (AUD-02), каркас эмуляции (тестовые персоны is_test, сеансы эмуляции, симулятор через общий ScenarioRegistry), функция api с полным конвейером (CORS → JWT → профиль → сеанс → Actor → PDP → обработчик → аудит), кабинет: Telegram-вход (OIDC), журнал, эмуляция, баннер режима; сиды identity_dev.sql. TOTP и ROL-06 — за пределами среза.
+
+Инфраструктура тестирования подключена: модульные (Vitest: `core` + `admin`; Deno: `functions`), интеграционные против dev-БД Supabase (`TEST_DATABASE_URL` в `source/.env.local` из `tools/scripts/env.example.txt`; идемпотентные миграции, truncate + сид между тестами, SQL-репозитории, RLS-заслон, append-only), джоба `integration` в CI (без секрета — пропуск с предупреждением). Среда разработки — облачный dev-проект Supabase (вымышленные данные, HLD §20). Далее — срезы VS-2…VS-9 (см. `docs/hld.md`, раздел 27). Команды — в разделе «Команды».
 
 Кабинет развёрнут на Cloudflare Pages (2026-10-16, [ADR-002](docs/decisions/002-admin-cloudflare-pages.md)): Pages-проект `osi-admin`, адрес `https://osi-admin.pages.dev`; развёрнута сборка ветви `feature/vs-1-access-audit`, в статике только публичные переменные (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`). Автодеплой из CI заработает после добавления секретов репозитория: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT`. Вход через Telegram OIDC ещё не настроен (провайдер Supabase + BotFather): пошаговая инструкция — [docs/setup-telegram-oidc.md](docs/setup-telegram-oidc.md); до настройки вход завершается ошибкой на стороне Supabase Auth.
 
@@ -33,7 +35,7 @@ VS-1 «Доступ и аудит-скелет» выполнен (ветвь `f
 - `docs/decisions/` — ADR: контекст → решение → альтернативы → проверки при реализации → источники
 - `tasks/` — план и приёмка текущего среза (VS-0)
 - `source/` — код, монорепозиторий npm workspaces:
-  - `source/core/` — общие модули бота и кабинета: `config/env`, `errors/api` (коды LLD-03 §1.1), `pdp` (Actor, `can()`, реестр действий), `auth` (JWT HS256, политика сеансов AUTH-06), `db` (клиент postgres.js, prepare: false), `bot/registry` (сценарии бота/симулятора), `domains/admin|audit|emulation` (порты, SQL-репозитории, сервисы с аудитом; in-memory фейки в `testing/`)
+  - `source/core/` — общие модули бота и кабинета: `config/env`, `errors/api` (коды LLD-03 §1.1), `pdp` (Actor, `can()`, реестр действий), `auth` (проверка JWT Supabase: подпись ES256 по SUPABASE_JWKS, политика сеансов AUTH-06), `db` (клиент postgres.js, prepare: false), `bot/registry` (сценарии бота/симулятора), `domains/admin|audit|emulation` (порты, SQL-репозитории, сервисы с аудитом; in-memory фейки в `testing/`)
   - `source/admin/` — SPA кабинета (Vite + React + Refine v4 + AntD 5): Telegram-вход, журнал (AUD-02), эмуляция с баннером режима, см. `source/admin/README.md`
   - `source/functions/` — Supabase Edge Functions: `api` (конвейер VS-1: CORS → JWT → профиль → сеанс → Actor → PDP → обработчик → аудит), `bot-webhook`, `jobs` (deno.json — check/lint/test)
   - `source/db/` — миграции `migrations/`, `rls.sql`, сиды `seed/` (identity_dev.sql — привязка supabase_user_id)
@@ -69,16 +71,18 @@ VS-1 «Доступ и аудит-скелет» выполнен (ветвь `f
 | Установка зависимостей | `npm install` (в `source/`) |
 | Линт всего кода (TS/TSX, кроме functions) | `npm run lint` |
 | Тайпчек по workspaces | `npm run typecheck` |
-| Модульные тесты (Vitest, `core`) | `npm test` |
+| Модульные тесты (Vitest: `core`, `admin`) | `npm test` |
+| Интеграционные тесты (ядро против dev-БД) | `npm run test:integration` (нужен `TEST_DATABASE_URL` в `source/.env.local`; без него — пропуск) |
 | Сборка кабинета | `npm run build -w admin` (артефакт `admin/dist`) |
 | Проверка функций Deno | `deno task check`, `deno task lint`, `deno task test` (в `source/`) |
 | Локальный запуск кабинета | `npm run dev -w admin` (dev) / `npm run preview -w admin` (сборка, SPA-fallback) |
 | Локальный запуск функций | `deno run --allow-env functions/api/index.ts` (аналогично `bot-webhook`, `jobs`) |
 | Проверка сборки на секреты | `sh tools/scripts/check-build-secrets.sh admin/dist` |
-| Миграции БД | `npx supabase@^2 db push --project-ref "$SUPABASE_PROJECT_ID"` (нужен `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`; повторное применение безопасно — `IF NOT EXISTS`) |
+| Настройка окружения | `cp tools/scripts/env.example.txt .env.local`, заполнить (не коммитится) |
+| Миграции БД | `npm run db:push` (в `source/`; обёртка над `supabase db push` с env из `.env.local`; повторное применение безопасно — `IF NOT EXISTS`) |
 | Деплой функций | `npx supabase@^2 functions deploy <api\|bot-webhook\|jobs> --project-ref "$SUPABASE_PROJECT_ID"` |
 | Деплой кабинета | `npx wrangler@^4 pages deploy admin/dist --project-name "$CF_PAGES_PROJECT"` (нужен `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) |
-| Настройка секретов функций | `npx supabase@^2 secrets set TELEGRAM_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... X_JOBS_SECRET=... SUPABASE_JWT_SECRET=... SUPABASE_DB_URL=... CABINET_ORIGIN=...` (R3; JWT-секрет и URL пулера БД — для функции api VS-1) |
+| Настройка секретов функций | `npx supabase@^2 secrets set TELEGRAM_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... X_JOBS_SECRET=... CABINET_ORIGIN=...` (R3). Примечание: префикс `SUPABASE_` в секретах запрещён платформой; `SUPABASE_JWKS` и `SUPABASE_DB_URL` инжектируются в функции автоматически (проверка JWT — ES256 по JWKS; см. ADR-001) |
 
 CI (`.github/workflows/ci.yml`) на каждый PR и push в `main`: node-джоба (ci → lint → typecheck → test → build → secret-scan) и deno-джоба (check → lint → test). Деплой — отдельная джоба при push в `main`, шаги выполняются только при наличии соответствующих секретов репозитория: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, `SUPABASE_DB_PASSWORD`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT`; без них — джоба зелёная с предупреждением. До настройки секретов (R3) деплой фактически не выполняется.
 
@@ -96,7 +100,8 @@ CI (`.github/workflows/ci.yml`) на каждый PR и push в `main`: node-д�
 
 - Общие модули обязательны: бот и кабинет работают по одним правилам, правам и данным (ADR-003)
 - Идемпотентность повторов: повторная доставка webhook и повтор фонового задания не создают повторную бизнес-операцию
-- Тесты (по HLD, раздел 19): модульные — переходы состояний, PDP, интервалы TIM, валидация импорта; интеграционные — идемпотентность, транзакции, импорт «все или ничего», подписанные URL по аудиториям; безопасность — сценарии раздела 7 матрицы прав, отсутствие секретов и персональных данных в статической сборке
+- Тесты (по HLD, раздел 19): модульные — переходы состояний, PDP, интервалы TIM, валидация импорта; интеграционные — против dev-БД Supabase (`TEST_DATABASE_URL`): транзакции, идемпотентность миграций, append-only `audit_log`, RLS-заслон, SQL-репозитории; тесты очищают данные (truncate + сид) — только dev-проект, не пилот/prod; безопасность — сценарии раздела 7 матрицы прав, отсутствие секретов и персональных данных в статической сборке
+- Тестовая инфраструктура: `source/supabase/migrations` → symlink на `source/db/migrations` (единый источник миграций для `db push` и интеграционных тестов), `source/supabase/seed.sql` → `db/seed/identity_dev.sql` (сид после `supabase db reset` локально)
 - Проверки ролей — через средство эмуляции (тестовые персоны), без реальных жителей
 
 ## Рабочий процесс

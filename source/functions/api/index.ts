@@ -60,7 +60,7 @@ interface RequestContext {
   url: URL;
   path: string;
   cabinetOrigin: string | undefined;
-  getDeps: () => ApiDeps;
+  getDeps: () => Promise<ApiDeps>;
 }
 
 /**
@@ -78,10 +78,10 @@ async function processRequest(ctx: RequestContext): Promise<Response> {
       return health();
     }
 
-    // ── Аутентификация (ADR-001, LLD-03 §1) ────────────────────────────────
+    // ── Аутентификация (ADR-001, LLD-03 §1) ────────────────────────────
     const token = bearerToken(request);
-    const deps = ctx.getDeps();
-    const claims = await verifyJwt(token, deps.jwtSecret);
+    const deps = await ctx.getDeps();
+    const claims = await verifyJwt(token, deps.jwtKeys);
     if (claims.sessionId === null) {
       throw new ApiError("UNAUTHENTICATED", "В токене нет идентификатора сеанса");
     }
@@ -166,9 +166,10 @@ function readBodyFor(method: string, request: Request): Promise<Record<string, u
 }
 
 /**
- * Продакшн-вход: зависимости из env (SUPABASE_JWT_SECRET, SUPABASE_DB_URL,
- * CABINET_ORIGIN). CORS-заголовки резолвятся до зависимостей — preflight и
- * smoke-запросы без токена не требуют секрета.
+ * Продакшн-вход: зависимости из env. SUPABASE_JWKS и SUPABASE_DB_URL
+ * инжектируются платформой; CABINET_ORIGIN — наш секрет функции. CORS-заголовки
+ * резолвятся до зависимостей — preflight и smoke-запросы без токена не требуют
+ * конфигурации.
  */
 export function handle(request: Request, env: EnvSource): Promise<Response> {
   return processRequest({
@@ -187,7 +188,7 @@ export function handleWithDeps(request: Request, deps: ApiDeps): Promise<Respons
     url: new URL(request.url),
     path: normalizePath(new URL(request.url).pathname),
     cabinetOrigin: deps.cabinetOrigin,
-    getDeps: () => deps,
+    getDeps: () => Promise.resolve(deps),
   });
 }
 

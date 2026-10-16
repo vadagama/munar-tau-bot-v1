@@ -5,7 +5,8 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 
-import { signTestJwt } from "../../core/src/testing/sign-jwt.ts";
+import { buildJwtKeys } from "../../core/src/auth/jwt.ts";
+import { createTestJwtKeyPair } from "../../core/src/testing/sign-jwt.ts";
 import {
   MemoryAdminRepo,
   MemoryAuditRepo,
@@ -21,8 +22,12 @@ import type { TestPersonRecord } from "../../core/src/domains/emulation/port.ts"
 import { ScenarioRegistry } from "../../core/src/bot/registry.ts";
 import { handle, handleWithDeps, type ApiDeps } from "./index.ts";
 
-const SECRET = "test-secret";
 const T0 = "2026-10-16T10:00:00.000Z";
+
+// Ключи подписи и их JWKS — один раз на модуль (top-level await в Deno).
+const PRIMARY = await createTestJwtKeyPair("test-key-1");
+const FOREIGN = await createTestJwtKeyPair("foreign-key");
+const JWT_KEYS = await buildJwtKeys(PRIMARY.jwksJson());
 
 /** Свежая активность: сеансы фикстур живы относительно реального времени. */
 const NOW_ISO = () => new Date().toISOString();
@@ -32,7 +37,7 @@ function makeDeps(): { deps: ApiDeps; admin: MemoryAdminRepo; audit: MemoryAudit
   const audit = new MemoryAuditRepo();
   const emulation = new MemoryEmulationRepo();
   const deps: ApiDeps = {
-    jwtSecret: SECRET,
+    jwtKeys: JWT_KEYS,
     cabinetOrigin: undefined,
     db: new MemoryDb(),
     admin,
@@ -105,12 +110,12 @@ function seedIdentity(
 function token(input: {
   sub: string;
   sessionId: string;
-  secret?: string;
+  /** true — подписать чужим ключом (не из JWKS deps). */
+  foreign?: boolean;
   exp?: number;
 }): Promise<string> {
-  return signTestJwt(
+  return (input.foreign ?? false ? FOREIGN : PRIMARY).sign(
     { sub: input.sub, session_id: input.sessionId, exp: input.exp ?? 4102444800 },
-    input.secret ?? SECRET,
   );
 }
 
@@ -165,7 +170,7 @@ Deno.test("без токена — 401 UNAUTHENTICATED в формате LLD-03 
 
 Deno.test("поддельная подпись токена — 401 UNAUTHENTICATED", async () => {
   const { deps } = makeDeps();
-  const forged = await token({ sub: "00000000-0000-0000-0000-000000000001", sessionId: "s1", secret: "чужой-секрет" });
+  const forged = await token({ sub: "00000000-0000-0000-0000-000000000001", sessionId: "s1", foreign: true });
   const response = await call(deps, "/v1/meta/me", { token: forged });
   assertEquals(response.status, 401);
   assertEquals((await response.json()).error.code, "UNAUTHENTICATED");
@@ -181,7 +186,7 @@ Deno.test("истёкший токен — 401 UNAUTHENTICATED", async () => {
 
 Deno.test("токен без session_id — 401 UNAUTHENTICATED", async () => {
   const { deps } = makeDeps();
-  const noSession = await signTestJwt({ sub: "00000000-0000-0000-0000-000000000001" }, SECRET);
+  const noSession = await PRIMARY.sign({ sub: "00000000-0000-0000-0000-000000000001" });
   const response = await call(deps, "/v1/meta/me", { token: noSession });
   assertEquals(response.status, 401);
   assertEquals((await response.json()).error.code, "UNAUTHENTICATED");
