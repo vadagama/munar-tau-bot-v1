@@ -3,22 +3,20 @@
 project_id = "munar-tau-bot"
 
 # api — REST /v1: Bearer JWT обязателен (LLD-03 §1); проверка профиля — VS-1.
-# import_map — общий imports (postgres → npm:) из source/deno.json, без него
-# серверный бандлер не резолвит bare-импорты в core (деплой --use-api).
+# Деплой — только с --use-api: docker-бандлер edge-runtime не резолвит общий
+# код core через symlink и не принимает import_map из config.toml (флаги
+# упразднены, нужен deno.json); --use-api бандлит на стороне Management API.
 [functions.api]
 entrypoint = "./functions/api/index.ts"
-import_map = "../deno.json"
 verify_jwt = true
 
 # bot-webhook — обновления Telegram: JWT Supabase не приходит, защита своим
 # секретом X-Telegram-Bot-Api-Secret-Token (LLD-03 §6).
 [functions.bot-webhook]
 entrypoint = "./functions/bot-webhook/index.ts"
-import_map = "../deno.json"
 verify_jwt = false
 
 # jobs — вызов pg_cron→pg_net: сервисный JWT + заголовок x-jobs-secret (LLD-01 §2).
 [functions.jobs]
 entrypoint = "./functions/jobs/index.ts"
-import_map = "../deno.json"
 verify_jwt = true

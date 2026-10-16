@@ -98,12 +98,12 @@ jobs:
         if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_ID != ''
         run: npx --yes supabase@^2 db push --project-ref "$SUPABASE_PROJECT_ID"
 
-      - name: Supabase — деплой функций
+      - name: Supabase — деплой функций (--use-api: docker-бандлер не резолвит core через symlink)
         if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_ID != ''
         run: |
-          npx --yes supabase@^2 functions deploy api --project-ref "$SUPABASE_PROJECT_ID"
-          npx --yes supabase@^2 functions deploy bot-webhook --project-ref "$SUPABASE_PROJECT_ID"
-          npx --yes supabase@^2 functions deploy jobs --project-ref "$SUPABASE_PROJECT_ID"
+          npx --yes supabase@^2 functions deploy api --use-api --project-ref "$SUPABASE_PROJECT_ID"
+          npx --yes supabase@^2 functions deploy bot-webhook --use-api --project-ref "$SUPABASE_PROJECT_ID"
+          npx --yes supabase@^2 functions deploy jobs --use-api --project-ref "$SUPABASE_PROJECT_ID"
           echo "::notice::Функции задеплоены. Секреты функций (TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, X_JOBS_SECRET) задаются отдельно: supabase secrets set (R3)."
 
       - name: Cloudflare Pages — публикация статики кабинета
