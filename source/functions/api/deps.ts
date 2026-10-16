@@ -8,6 +8,7 @@ import {
   type DbClient,
 } from "../../core/src/db/client.ts";
 import { optionalEnv, requireEnv, type EnvSource } from "../../core/src/config/env.ts";
+import { buildJwtKeys, type JwtVerifyKey } from "../../core/src/auth/jwt.ts";
 import { ScenarioRegistry } from "../../core/src/bot/registry.ts";
 import { SqlAdminRepo } from "../../core/src/domains/admin/repo.ts";
 import type { AdminRepo } from "../../core/src/domains/admin/port.ts";
@@ -17,8 +18,8 @@ import { SqlEmulationRepo } from "../../core/src/domains/emulation/repo.ts";
 import type { EmulationRepo } from "../../core/src/domains/emulation/port.ts";
 
 export interface ApiDeps {
-  /** Секрет проверки подписи JWT (HS256, Supabase Auth). */
-  jwtSecret: string;
+  /** Ключи проверки подписи JWT из JWKS (Supabase Auth; SUPABASE_JWKS инжектируется платформой). */
+  jwtKeys: readonly JwtVerifyKey[];
   /** Разрешённый origin кабинета; undefined — разрешён localhost (dev). */
   cabinetOrigin: string | undefined;
   /** Исполнитель и владелец транзакций. */
@@ -42,9 +43,11 @@ function sharedDbClient(connectionString: string): DbClient {
 }
 
 /** Зависимости из env. Отсутствие обязательных — ConfigError (500 INTERNAL). */
-export function defaultDeps(env: EnvSource): ApiDeps {
+export async function defaultDeps(env: EnvSource): Promise<ApiDeps> {
   return {
-    jwtSecret: requireEnv(env, "SUPABASE_JWT_SECRET"),
+    // SUPABASE_JWKS и SUPABASE_DB_URL инжектируются платформой (документация
+    // Supabase, Default secrets); CABINET_ORIGIN — наш секрет функции.
+    jwtKeys: await buildJwtKeys(requireEnv(env, "SUPABASE_JWKS")),
     cabinetOrigin: optionalEnv(env, "CABINET_ORIGIN"),
     db: sharedDbClient(requireEnv(env, "SUPABASE_DB_URL")),
     admin: new SqlAdminRepo(),
