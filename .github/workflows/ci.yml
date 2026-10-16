@@ -98,7 +98,7 @@ jobs:
         if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_ID != ''
         run: npx --yes supabase@^2 db push --project-ref "$SUPABASE_PROJECT_ID"
 
-      - name: Supabase — деплой функций (--use-api: docker-бандлер не резолвит core через symlink)
+      - name: "Supabase — деплой функций (--use-api: docker-бандлер не резолвит core через symlink)"
         if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_ID != ''
         run: |
           npx --yes supabase@^2 functions deploy api --use-api --project-ref "$SUPABASE_PROJECT_ID"
