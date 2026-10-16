@@ -10,7 +10,7 @@
 - Атрибуция: каждая мутация фиксирует автора (`actor_person_id`/`actor_profile_id`) и время; история состояний — в таблицах `*_log` (append-only), аудит — `audit_log` (AUD-01).
 - Тестовые данные: `is_test` на `person`/`profile`; тестовые записи исключаются из KPI-01–02 и операционных отчётов (HLD 10.8).
 - Удаление: физическое удаление не применяется к бизнес-записям; `status='archived'` или специализированные состояния; удаление по запросу — через `privacy_request` (PRV-02, правила хранения — OQ-12, открыто).
-- Нумерация документов: таблица `number_sequence(key, year, seq)`; форматы `[допущение]`: обращение `З-ГГ-NNNNN`, инцидент `А-ГГ-NNNNN`, общая работа `ОР-ГГ-NNNNN`, задание `Т-ГГ-NNNNN`. Номер уникален и не переиспользуется (REQ-05).
+- Нумерация документов: таблица `number_sequence(key, year, seq)`; форматы `[согласовано 16.10.2026]`: обращение `З-ГГ-NNNNN`, инцидент `А-ГГ-NNNNN`, общая работа `ОР-ГГ-NNNNN`, задание `Т-ГГ-NNNNN`. Номер уникален и не переиспользуется (REQ-05).
 - Идентификаторы: `uuid` (v4) или `bigserial` для журналов/очередей.
 
 ## 2. Идентичность, реестр, доступ
@@ -91,7 +91,7 @@ UNIQUE (building_id, kind, number) — «номер квартиры совпа�
 | assigned_by, revoked_by | uuid FK person | |
 | created_at | timestamptz | |
 
-`staff_scope`: assignment_id FK, building_id FK, PK (assignment_id, building_id) — область домов; отсутствие строк у активного назначения = весь ОСИ (только для chairman/tech_admin) `[допущение]`. Председатель действует по всему ОСИ без назначения (ROL-02a). Выдача спецправ (financial/registry_export/regulations) проверяется доменом `admin` по матрице (только председатель), не триггером.
+`staff_scope`: assignment_id FK, building_id FK, PK (assignment_id, building_id) — область домов; отсутствие строк у активного назначения = весь ОСИ (только для chairman/tech_admin) `[согласовано 16.10.2026]`. Председатель действует по всему ОСИ без назначения (ROL-02a). Выдача спецправ (financial/registry_export/regulations) проверяется доменом `admin` по матрице (только председатель), не триггером.
 
 ### 2.7. invite — приглашение
 
@@ -141,7 +141,7 @@ id PK, person_id FK NULL (предварительный профиль без T
 | version | int NOT NULL | оптимистическая конкурентность (FLOW-01) |
 | created_at, updated_at | timestamptz | |
 
-Ограничение: черновик без номера (`number NULL` для draft) — частичный уникальный индекс по author для активного черновика `[допущение]` (один черновик на автора).
+Ограничение: черновик без номера (`number NULL` для draft) — частичный уникальный индекс по author для активного черновика `[согласовано 16.10.2026]` (один черновик на автора).
 
 ### 3.2. request_participant, request_category, rating
 
@@ -223,7 +223,7 @@ id PK, number UNIQUE, title, state enum cw_state {planned, in_progress, on_revie
 
 ## 8. Опросы, инициативы, модерация
 
-- `poll`: id PK, question text, options jsonb NOT NULL `[допущение]` (варианты ответов; при необходимости — отдельная таблица), audience jsonb (дома), state enum poll_state {draft, open, closed, canceled}, closes_at timestamptz, created_by, created_at.
+- `poll`: id PK, question text, options jsonb NOT NULL `[согласовано 16.10.2026]` (варианты ответов; при необходимости — отдельная таблица), audience jsonb (дома), state enum poll_state {draft, open, closed, canceled}, closes_at timestamptz, created_by, created_at.
 - `poll_answer`: id PK, poll_id FK, person_id FK, option_key text, answered_at, excluded boolean DEFAULT false, excluded_reason text; UNIQUE (poll_id, person_id) — один ответ на человека (POL-02–03); при потере права — excluded=true, из подсчёта исключён.
 - `initiative`: id PK, author_person_id FK, title, body, audience jsonb (по подтверждённым связям автора), state enum initiative_state {submitted, approved, published, rejected, completed, restricted}, restricted_until, moderator_note, created_at, version int.
 - `initiative_support`: initiative_id FK, person_id FK, created_at, withdrawn_at; UNIQUE (initiative_id, person_id) — отзыв поддержки = withdrawn_at.
@@ -236,7 +236,7 @@ id PK, number UNIQUE, title, state enum cw_state {planned, in_progress, on_revie
 - `time_rule_version`: id PK, rule_id FK, version int, params jsonb NOT NULL, effective_from timestamptz, effective_to timestamptz NULL, created_by, approved_by NULL; UNIQUE (rule_id, version).
 - `timer`: id PK, subject_type text, subject_id uuid, rule_key text, rule_version_id FK (запущенный срок живёт по прежней версии — TIM-04), due_at timestamptz, payload jsonb, state enum timer_state {scheduled, fired, canceled}, fired_at, canceled_at; INDEX (state, due_at).
 
-Стартовые значения реестра `[согласовано]/[допущение]`:
+Стартовые значения реестра (согласованы 16.10.2026):
 
 | Ключ | Значение | Основание |
 | --- | --- | --- |
@@ -248,7 +248,7 @@ id PK, number UNIQUE, title, state enum cw_state {planned, in_progress, on_revie
 | invite_ttl | 72 календарных часа | REG-03/13 |
 | reopen_window | 7 календарных дней | модель процессов, по умолчанию |
 | digest_time | конец смены (следует за work_schedule) | NTF-01, согласовано |
-| backup_age_alert | 24 часа `[допущение]` | OPS-03/RPO |
+| backup_age_alert | 24 часа `[согласовано 16.10.2026]` | OPS-03/RPO |
 | clarification_response, dispute_total, прочие | не заполнены — OQ-04/05, правило не включается без значения | TIM, OQ-04 |
 
 Правовые правила (`kind='legal'`) изменяются только процедурой обновления правового регламента: сервер отклоняет обычную правку за границей (модель процессов раздел 8, сценарий 11).
@@ -260,7 +260,7 @@ id PK, number UNIQUE, title, state enum cw_state {planned, in_progress, on_revie
 
 ## 11. Импорт реестра
 
-- `import_batch`: id PK, file_path text (Storage), state enum import_state {uploaded, validating, validation_failed, validated, committing, committed, failed}, stats jsonb (число строк по листам), errors jsonb `[допущение]` (список: sheet, row, field, code, message — IMP-02), created_by, created_at, committed_at.
+- `import_batch`: id PK, file_path text (Storage), state enum import_state {uploaded, validating, validation_failed, validated, committing, committed, failed}, stats jsonb (число строк по листам), errors jsonb `[согласовано 16.10.2026]` (список: sheet, row, field, code, message — IMP-02), created_by, created_at, committed_at.
 - `import_mapping`: batch_id FK, sheet text, external_ref text (ID строки шаблона), entity_type text, entity_id uuid, PK (batch_id, sheet, external_ref) — постоянные идентификаторы присваиваются при импорте и сохраняются в выгрузке (IMP-04, IMP-08).
 
 Шаблон IMP-06: листы «Здания и паркинги», «Помещения», «Лица», «Связи»; одна строка связи = один человек + одно помещение; стартовый импорт — собственники-физлица, поля ФИО + уникальный телефон, основание `initial_registry`; доступ не выдаётся автоматически (IMP-03, REG-01).
@@ -272,10 +272,10 @@ id PK, number UNIQUE, title, state enum cw_state {planned, in_progress, on_revie
 
 ## 13. Служебные таблицы
 
-- `outbox`: id bigserial PK, event_type text, payload jsonb, created_at, processed_at NULL, attempts int — события HLD 12.2 (request.created, task.assigned/reported, timer.fired, incident.confirmed/updated, payment.confirmed, digest.daily) `[допущение]`: полный реестр событий — LLD-03, раздел 5.
+- `outbox`: id bigserial PK, event_type text, payload jsonb, created_at, processed_at NULL, attempts int — события HLD 12.2 (request.created, task.assigned/reported, timer.fired, incident.confirmed/updated, payment.confirmed, digest.daily) `[согласовано 16.10.2026]`: полный реестр событий — LLD-03, раздел 5 (уточняется по мере срезов, Д-6).
 - `job_queue`: id bigserial PK, kind text, payload jsonb, run_after timestamptz, state enum job_state {queued, running, done, failed, dead}, locked_by text NULL, locked_at, attempts int, max_attempts int, last_error text, dedup_key text NULL UNIQUE (защита от дублей задач), created_at, finished_at.
 - `idempotency_key`: key text, endpoint text, request_hash text, response jsonb, status int, created_at; PK (key, endpoint) — REQ-05/OPS-01.
-- `access_session`: id uuid PK (= session_id из JWT `[допущение]`), profile_id FK, started_at, last_activity_at, last_activity_kind text, revoked_at NULL, revoked_reason text — контроль AUTH-06 (12 ч / 30 мин бездействия) и отзыв (ROL-04). Активность `[допущение]` (AQ-03): все аутентифицированные вызовы `/v1`, кроме `GET /v1/meta/*`; обновление токенов Auth не проходит через API и активность не создаёт.
+- `access_session`: id uuid PK (= session_id из JWT `[согласовано 16.10.2026]`), profile_id FK, started_at, last_activity_at, last_activity_kind text, revoked_at NULL, revoked_reason text — контроль AUTH-06 (12 ч / 30 мин бездействия) и отзыв (ROL-04). Активность `[согласовано 16.10.2026]` (закрывает М-2/AQ-03): все аутентифицированные вызовы `/v1`, кроме `GET /v1/meta/*`; обновление токенов Auth не проходит через API и активность не создаёт.
 - `emulation_session`: id PK, tech_admin_profile_id FK, emulated_profile_id FK (только is_test=true), started_at, ended_at, state enum {active, ended} — HLD 10.8; аудит ссылается на session.
 - `audit_log`: id bigserial PK, at timestamptz, actor_person_id FK NULL (NULL — система), actor_profile_id, emulation_session_id FK NULL, emulated_person_id FK NULL (реальный актор + эмулируемая персона, AUD-01), action text, entity_type text, entity_id uuid, before jsonb, after jsonb, reason text, scope_buildings jsonb (тег области чтения AUD-02), meta jsonb. Append-only (раздел 6).
 - `ops_backup_registry`: id PK, kind enum backup_kind {full, pre_update}, created_by FK person, location text, size_bytes bigint, checksum text, result enum backup_result {ok, failed, not_verified}, note, created_at — OPS-03: копия без файлов не считается полной (флаг files_included boolean).
@@ -321,13 +321,13 @@ id PK, number UNIQUE, title, state enum cw_state {planned, in_progress, on_revie
 - Изменения состояния — транзакция с `SELECT ... FOR UPDATE` + проверкой состояния (FLOW-01); `version` для 409.
 - События — outbox в той же транзакции; доставка at-least-once, дедуп `notification.dedup_key`.
 - Идемпотентность: `bot_inbound.update_id`, `idempotency_key`, `import_batch` (повтор коммита невозможен по состоянию).
-- Журналы `*_log` и `audit_log` — append-only: `REVOKE UPDATE, DELETE` у всех ролей, включая service-role, для `audit_log` `[допущение]` (AQ-07: защита от инфраструктурного администратора требует отдельного решения — не закрыть этим).
+- Журналы `*_log` и `audit_log` — append-only: `REVOKE UPDATE, DELETE` у всех ролей, включая service-role, для `audit_log` `[согласовано 16.10.2026]` (AQ-07: защита от инфраструктурного администратора требует отдельного решения — не закрыть этим, точка Д-7).
 
 ## 18. Открытые точки решения
 
 | # | Точка | Влияние | Когда блокирует |
 | --- | --- | --- | --- |
-| Д-1 | Форматы номеров (раздел 1) | contracts API, UI | до VS-3; предложение — шаблон из раздела 1 |
+| Д-1 | Форматы номеров (раздел 1) | contracts API, UI | закрыто 16.10.2026: приняты форматы раздела 1 |
 | Д-2 | Перечень категорий обращений (OQ-02) | seed `request_category` | до включения классификации |
 | Д-3 | Состав персональных данных и сроки хранения (OQ-12) | `person`, `consent`, retention-процедуры | до работы с реальными данными |
 | Д-4 | Финансовые правила частичных оплат/возвратов (OQ-07) | `payment`, `payment_order` | до VS-6; схема хранит платежи по отдельности — правила не меняют структуру |
