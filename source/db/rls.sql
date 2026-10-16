@@ -13,6 +13,11 @@
 -- средство коррекции дрейфа: повторное применение возвращает заслон.
 
 -- Базовый заслон: без прямого клиентского доступа к объектам схемы public.
+-- Примечание (hosted Supabase): USAGE на схему public платформа выдаёт
+-- клиентским ролям от pg_database_owner — роль postgres без GRANT OPTION
+-- этот REVOKE не применяет (warning, гранта остаётся). Данные это не
+-- раскрывает: закрыты привилегии на таблицы и RLS-политик нет. На
+-- self-hosted (рабочая среда, ADR-003) проверять заново.
 revoke all on schema public from anon, authenticated;
 revoke all on all tables in schema public from anon, authenticated;
 revoke all on all sequences in schema public from anon, authenticated;
