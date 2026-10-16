@@ -8,7 +8,7 @@
 
 ## Статус
 
-Реализация не начата: код появится по вертикальным срезам VS-0…VS-9 (см. `docs/hld.md`, раздел 27). Сейчас в репозитории только документация. Не выдумывайте команды сборки и тестов: раздел «Команды» заполняется в VS-0.
+VS-0 «Фундамент» выполнен: монорепозиторий `source/` (npm workspaces: `core`, `admin`), ядро env/ошибок, каркас БД, заглушки функций с защитой, SPA-каркас кабинета, CI с условным деплоем. Далее — срезы VS-1…VS-9 (см. `docs/hld.md`, раздел 27). Команды — в разделе «Команды».
 
 ## Технологический стек
 
@@ -27,7 +27,15 @@
 
 - `docs/` — документация: требования, модель процессов, матрица прав, HLD
 - `docs/decisions/` — ADR: контекст → решение → альтернативы → проверки при реализации → источники
-- `source/` — код (пуст; сейчас `/source/` исключён через `.gitignore`, запись снимается в VS-0). Структуру кода зафиксирует VS-0 — тогда обновите этот раздел
+- `tasks/` — план и приёмка текущего среза (VS-0)
+- `source/` — код, монорепозиторий npm workspaces:
+  - `source/core/` — общие модули бота и кабинета: `config/env`, `errors/api` (коды LLD-03 §1.1)
+  - `source/admin/` — SPA кабинета (Vite + React + Refine v4 + AntD 5), см. `source/admin/README.md`
+  - `source/functions/` — Supabase Edge Functions: `api`, `bot-webhook`, `jobs` (deno.json — check/lint/test)
+  - `source/db/` — миграции `migrations/`, `rls.sql`, сиды `seed/`
+  - `source/supabase/` — `config.toml` (verify_jwt по функциям)
+  - `source/tools/scripts/` — служебные скрипты (проверка сборки на секреты)
+- `.github/workflows/ci.yml` — CI (PR и push main) с условным деплоем
 
 ## Документация — источник истины
 
@@ -50,7 +58,25 @@
 
 ## Команды
 
-Недоступны до VS-0: в репозитории нет `package.json` и CI. После их появления запишите сюда: сборку, локальный запуск, тесты, миграции, деплой.
+Все команды для кода выполняются из `source/` (там `package.json` workspaces). Node ≥ 22 (см. `source/.nvmrc`), Deno 2 (для функций).
+
+| Действие | Команда |
+| --- | --- |
+| Установка зависимостей | `npm install` (в `source/`) |
+| Линт всего кода (TS/TSX, кроме functions) | `npm run lint` |
+| Тайпчек по workspaces | `npm run typecheck` |
+| Модульные тесты (Vitest, `core`) | `npm test` |
+| Сборка кабинета | `npm run build -w admin` (артефакт `admin/dist`) |
+| Проверка функций Deno | `deno task check`, `deno task lint`, `deno task test` (в `source/`) |
+| Локальный запуск кабинета | `npm run dev -w admin` (dev) / `npm run preview -w admin` (сборка, SPA-fallback) |
+| Локальный запуск функций | `deno run --allow-env functions/api/index.ts` (аналогично `bot-webhook`, `jobs`) |
+| Проверка сборки на секреты | `sh tools/scripts/check-build-secrets.sh admin/dist` |
+| Миграции БД | `npx supabase@^2 db push --project-ref "$SUPABASE_PROJECT_ID"` (нужен `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`; повторное применение безопасно — `IF NOT EXISTS`) |
+| Деплой функций | `npx supabase@^2 functions deploy <api\|bot-webhook\|jobs> --project-ref "$SUPABASE_PROJECT_ID"` |
+| Деплой кабинета | `npx wrangler@^4 pages deploy admin/dist --project-name "$CF_PAGES_PROJECT"` (нужен `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) |
+| Настройка секретов функций | `npx supabase@^2 secrets set TELEGRAM_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... X_JOBS_SECRET=...` (R3) |
+
+CI (`.github/workflows/ci.yml`) на каждый PR и push в `main`: node-джоба (ci → lint → typecheck → test → build → secret-scan) и deno-джоба (check → lint → test). Деплой — отдельная джоба при push в `main`, шаги выполняются только при наличии соответствующих секретов репозитория: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, `SUPABASE_DB_PASSWORD`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT`; без них — джоба зелёная с предупреждением. До настройки секретов (R3) деплой фактически не выполняется.
 
 ## Границы и безопасность (не нарушать)
 
