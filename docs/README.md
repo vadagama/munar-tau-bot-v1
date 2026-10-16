@@ -29,6 +29,10 @@
 - [ADR-001: вход сотрудников через Telegram и Supabase Auth](decisions/001-telegram-auth.md).
 - [ADR-002: React + Refine Core + Ant Design, Vite и Cloudflare Pages](decisions/002-admin-cloudflare-pages.md).
 
-ADR фиксируют решения об аутентификации и размещении админки, принятые 2026-10-16. Реализация и развёртывание ещё не выполнены. Требования собраны в отдельной спецификации; открытые вопросы требуют дальнейшего согласования.
+ADR фиксируют решения об аутентификации и размещении админки, принятые 2026-10-16. Развёртывание кабинета на Cloudflare Pages выполнено 2026-10-16 ([ADR-002](decisions/002-admin-cloudflare-pages.md)). Вход через Telegram OIDC ещё не настроен — [инструкция по настройке](setup-telegram-oidc.md). Требования собраны в отдельной спецификации; открытые вопросы требуют дальнейшего согласования.
 
 - [ADR-003: TypeScript, Edge Functions и разделение сред](decisions/003-edge-functions-and-environments.md) — облачный прототип с вымышленными данными, рабочая система в Казахстане; пересмотр обязательного отдельного фонового процесса.
+
+## Настройка среды
+
+- [Настройка Telegram OIDC](setup-telegram-oidc.md) — BotFather, провайдер `custom:telegram` в Supabase, привязка профиля и проверка входа (ADR-001).

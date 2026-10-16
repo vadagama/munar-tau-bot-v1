@@ -10,6 +10,8 @@
 
 VS-0 «Фундамент» выполнен: монорепозиторий `source/` (npm workspaces: `core`, `admin`), ядро env/ошибок, каркас БД, заглушки функций с защитой, SPA-каркас кабинета, CI с условным деплоем. Далее — срезы VS-1…VS-9 (см. `docs/hld.md`, раздел 27). Команды — в разделе «Команды».
 
+Кабинет развёрнут на Cloudflare Pages (2026-10-16, [ADR-002](docs/decisions/002-admin-cloudflare-pages.md)): Pages-проект `osi-admin`, адрес `https://osi-admin.pages.dev`; развёрнута сборка ветви `feature/vs-1-access-audit`, в статике только публичные переменные (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`). Автодеплой из CI заработает после добавления секретов репозитория: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT`. Вход через Telegram OIDC ещё не настроен (провайдер Supabase + BotFather): пошаговая инструкция — [docs/setup-telegram-oidc.md](docs/setup-telegram-oidc.md); до настройки вход завершается ошибкой на стороне Supabase Auth.
+
 ## Технологический стек
 
 Закреплён ADR; менять только через новый ADR:
