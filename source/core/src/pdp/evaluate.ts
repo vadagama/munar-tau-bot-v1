@@ -36,6 +36,10 @@ export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {})
     return checkAssignmentMutation(actor, resource);
   }
 
+  if (action === "registry.export" && !actor.assignments.some(a =>
+    a.role === "chairman" || (a.role === "administrator" && a.registryExportRights))) {
+    return deny("Для экспорта требуется право IMP-05");
+  }
   return ALLOW;
 }
 

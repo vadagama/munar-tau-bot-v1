@@ -217,7 +217,7 @@ export async function resetTestData(exec: DbExecutor): Promise<void> {
   if (tables.length === 0) return;
   // Защита снимается до truncate: каскад FK может задевать audit_log,
   // поэтому аудит-таблица должна быть в общем списке с уже выданным TRUNCATE.
-  const list = tables.map((table) => `"${table.tablename}"`).join(", ");
+  const list = tables.filter(t => !["time_rule", "time_rule_version"].includes(t.tablename)).map((table) => `"${table.tablename}"`).join(", ");
   await exec.query("alter table audit_log disable trigger audit_log_append_only_truncate");
   await exec.query("grant truncate on audit_log to postgres");
   try {

@@ -9,6 +9,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
+    "exceljs": "4.4.0",
     "postgres": "^3.4.7"
   },
   "devDependencies": {
