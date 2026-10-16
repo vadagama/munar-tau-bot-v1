@@ -13,6 +13,18 @@ export type StaffRole =
   | "finance"
   | "executor";
 
+/** Все роли — для словарей UI и валидации входа (соответствует enum staff_role). */
+export const STAFF_ROLES: readonly StaffRole[] = [
+  "administrator",
+  "deputy",
+  "chairman",
+  "tech_admin",
+  "duty",
+  "doc_reviewer",
+  "finance",
+  "executor",
+];
+
 /** Спецправа назначения (ROL-02b, IMP-05, TIM-03). Выдаёт только председатель. */
 export interface SpecialRights {
   financialRights: boolean;

@@ -13,12 +13,12 @@
 
 ## Phase 2: Auth, сеансы, домены
 
-- [ ] Task 3: core/auth — JWT HS256 (WebCrypto) + политика сеансов AUTH-06 (12 ч / 30 мин)
-- [ ] Task 4: core/db + домены admin (Actor, назначения, сеансы), audit (append + чтение по областям AUD-02), emulation (персоны is_test, сеансы, реестр сценариев); порты + SQL + in-memory фейки
+- [x] Task 3: core/auth — JWT HS256 (WebCrypto) + политика сеансов AUTH-06 (12 ч / 30 мин)
+- [x] Task 4: core/db + домены admin (Actor, назначения, сеансы), audit (append + чтение по областям AUD-02), emulation (персоны is_test, сеансы, реестр сценариев); порты + SQL + in-memory фейки
 
 ## Checkpoint: Серверное ядро
 
-- [ ] core-тесты зелёные; deno check зелёный
+- [x] core-тесты зелёные (138); deno check зелёный
 
 ## Phase 3: Функция api
 

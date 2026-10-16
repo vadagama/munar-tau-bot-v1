@@ -18,7 +18,9 @@ export interface JwtClaims {
   exp: number | null;
 }
 
-function base64UrlToBytes(part: string): Uint8Array {
+// Возвращаемый тип выводится: явная аннотация Uint8Array под новой lib TS
+// (Deno) расширяется до ArrayBufferLike и не проходит по BufferSource.
+function base64UrlToBytes(part: string) {
   const base64 = part.replaceAll("-", "+").replaceAll("_", "/");
   const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
   const binary = atob(padded);
