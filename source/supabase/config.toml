@@ -1,0 +1,19 @@
+# Конфигурация Supabase для деплоя (ADR-003). project_id — локальный идентификатор
+# для supabase link; ссылка на проект среды — через секреты CI (риск R3).
+project_id = "munar-tau-bot"
+
+# api — REST /v1: Bearer JWT обязателен (LLD-03 §1); проверка профиля — VS-1.
+[functions.api]
+entrypoint = "./functions/api/index.ts"
+verify_jwt = true
+
+# bot-webhook — обновления Telegram: JWT Supabase не приходит, защита своим
+# секретом X-Telegram-Bot-Api-Secret-Token (LLD-03 §6).
+[functions.bot-webhook]
+entrypoint = "./functions/bot-webhook/index.ts"
+verify_jwt = false
+
+# jobs — вызов pg_cron→pg_net: сервисный JWT + заголовок x-jobs-secret (LLD-01 §2).
+[functions.jobs]
+entrypoint = "./functions/jobs/index.ts"
+verify_jwt = true

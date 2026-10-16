@@ -1,0 +1,58 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@std/assert@1": "1.0.19",
+    "jsr:@std/internal@^1.0.12": "1.0.14"
+  },
+  "jsr": {
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/internal@1.0.14": {
+      "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "jsr:@std/assert@1"
+    ],
+    "packageJson": {
+      "dependencies": [
+        "npm:eslint@^9.17.0",
+        "npm:typescript-eslint@^8.18.0"
+      ]
+    },
+    "members": {
+      "admin": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@refinedev/antd@5",
+            "npm:@refinedev/core@4",
+            "npm:@refinedev/react-router-v6@4",
+            "npm:@types/react-dom@^18.3.1",
+            "npm:@types/react@^18.3.12",
+            "npm:@vitejs/plugin-react@^4.3.4",
+            "npm:antd@^5.21.0",
+            "npm:react-dom@^18.3.1",
+            "npm:react-router-dom@^6.28.0",
+            "npm:react@^18.3.1",
+            "npm:typescript@^5.6.3",
+            "npm:vite@^7.3.7"
+          ]
+        }
+      },
+      "core": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/node@^22.10.0",
+            "npm:typescript@^5.6.0",
+            "npm:vitest@3"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  node:
+    name: "Node: lint / typecheck / test / build / secret-scan"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: source
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: source/.nvmrc
+          cache: npm
+          cache-dependency-path: source/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build -w admin
+      - name: Секреты в статической сборке (admin/dist)
+        run: sh tools/scripts/check-build-secrets.sh admin/dist
+
+  deno:
+    name: "Deno: check / lint / test (функции)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: source
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno task check
+      - run: deno task lint
+      - run: deno task test
+
+  # Task 8: деплой из CI — только push в main, после зелёного CI.
+  # Каждый шаг выполняется при наличии своих секретов; если секреты не
+  # настроены — джоба завершается успехом с предупреждением (деплой ещё
+  # не настроен, R3). Секреты задаются в настройках репозитория GitHub.
+  deploy:
+    name: "Deploy (условный): Supabase DB / functions / Cloudflare Pages"
+    needs: [node, deno]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: source
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CF_PAGES_PROJECT: ${{ secrets.CF_PAGES_PROJECT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: source/.nvmrc
+
+      - name: Supabase — миграции БД (supabase db push)
+        if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_ID != ''
+        run: npx --yes supabase@^2 db push --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Supabase — деплой функций
+        if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_ID != ''
+        run: |
+          npx --yes supabase@^2 functions deploy api --project-ref "$SUPABASE_PROJECT_ID"
+          npx --yes supabase@^2 functions deploy bot-webhook --project-ref "$SUPABASE_PROJECT_ID"
+          npx --yes supabase@^2 functions deploy jobs --project-ref "$SUPABASE_PROJECT_ID"
+          echo "::notice::Функции задеплоены. Секреты функций (TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, X_JOBS_SECRET) задаются отдельно: supabase secrets set (R3)."
+
+      - name: Cloudflare Pages — публикация статики кабинета
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' && env.CF_PAGES_PROJECT != ''
+        run: npx --yes wrangler@^4 pages deploy admin/dist --project-name "$CF_PAGES_PROJECT" --branch main
+
+      - name: Деплой не настроен — предупреждение
+        if: env.SUPABASE_ACCESS_TOKEN == '' && env.CLOUDFLARE_API_TOKEN == ''
+        run: |
+          echo "::warning::Секреты деплоя не настроены (SUPABASE_*, CLOUDFLARE_*) — публикация пропущена. Настройка: см. AGENTS.md, раздел «Команды» (R3)."
