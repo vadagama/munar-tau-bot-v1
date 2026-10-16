@@ -33,6 +33,11 @@ ADR фиксируют решения об аутентификации и ра�
 
 - [ADR-003: TypeScript, Edge Functions и разделение сред](decisions/003-edge-functions-and-environments.md) — облачный прототип с вымышленными данными, рабочая система в Казахстане; пересмотр обязательного отдельного фонового процесса.
 
+- [ADR-004: начальная регистрация, импорт и идентичность VS-2](decisions/004-vs2-registration-bootstrap.md)
+
 ## Настройка среды
 
 - [Настройка Telegram OIDC](setup-telegram-oidc.md) — BotFather, провайдер `custom:telegram` в Supabase, привязка профиля и проверка входа (ADR-001).
+
+
+- [Приёмка VS-2 и команды бота](vs2-acceptance.md)

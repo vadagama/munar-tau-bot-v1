@@ -100,3 +100,8 @@ identifier, но типом **Manual configuration (OAuth2)** с ручными 
 - [Custom OAuth/OIDC Providers (Supabase)](https://supabase.com/docs/guides/auth/custom-oauth-providers)
 - [Self-hosting: пример Telegram (Supabase)](https://supabase.com/docs/guides/self-hosting/self-hosted-custom-oauth-providers)
 - [Telegram Login](https://core.telegram.org/bots/telegram-login)
+
+
+## Уточнение после VS-2
+
+Подтверждённые в боте профили и восстановленные привязки подключаются к кабинету автоматически **только** по серверной auth.identities провайдера custom:telegram: provider_id должен совпадать с проверенным Telegram ID профиля. Вход не создаёт person/profile и не выдаёт назначения. Редактируемые пользователем metadata, email, телефон и username не участвуют. Учётная запись Auth с несколькими identities не используется для автоматического первичного сопоставления. Для первого председателя по-прежнему требуется проверенная первоначальная настройка, а не самостоятельная регистрация с выбором служебной роли. Подробнее — ADR-004.

@@ -74,7 +74,7 @@ UNIQUE (building_id, kind, number) — «номер квартиры совпа�
 | revoked_reason | text | REG-06 |
 | created_by, created_at | | |
 
-Частичные уникальные индексы: UNIQUE (person_id, premises_id) WHERE status='active'; не более одного активного owner на помещение (REG-04: достаточно одного собственника для подтверждения; споры — через регистрации).
+Частичные уникальные индексы: UNIQUE (person_id, premises_id) WHERE status='active'. Несколько активных собственников одного помещения допустимы (IMP-07/08, REG-05); для подтверждения проживающего достаточно одного. Решение пользователя от 17.10.2026.
 
 ### 2.6. staff_assignment — служебные полномочия
 
@@ -334,3 +334,16 @@ id PK, number UNIQUE, title, state enum cw_state {planned, in_progress, on_revie
 | Д-5 | Опросы: отзыв связи, аудитория инициатив (OQ-10) | `poll_answer.excluded`, аудитории | до VS-8 |
 | Д-6 | Полный реестр событий outbox (раздел 13) | контракты | уточняется в LLD-03/04 по мере срезов |
 | Д-7 | Защита журнала от инфраструктурного доступа (AQ-07) | раздел 16–17 | до запуска с реальными данными |
+
+
+## Уточнения реализации VS-2 (17.10.2026)
+
+[ADR-004](../decisions/004-vs2-registration-bootstrap.md) уточняет минимальный контур VS-2 по отношению к полной модели последующих срезов:
+
+- `person.data_source`, `processing_basis` сохраняют источник и основание REG-09; изменение телефона сохраняет ID и профиль (IMP-13).
+- `premises.is_test` и `registration.is_test` разделяют тестовые объекты/анкеты ещё до привязки человека. Здания общие, их структура недоступна для записи из эмуляции.
+- `registration.connection_id` указывает на конкретную выданную связь. Спор не может отозвать позднейшую другую связь либо собственность. `dispute_checker_id` сохраняет автора оспариваемого решения; `review_stage`, `stage_due_at`, `total_due_at`, `overdue_at` обеспечивают REG-14 без потери общего срока при уточнении.
+- `bot_dialog` имеет ключ проверенного Telegram до появления profile; nullable `profile_id` сохраняется после привязки. `state` содержит шаг и контекст JSONB. `bot_inbound` фиксирует обработанный update в одной транзакции с эффектами и ответом.
+- `import_batch.payload/errors/preview` — снимок листов, полный отчёт и предварительные счётчики. Состояния VS-2: uploaded, validating, ready, invalid, committed. `import_mapping` использует ключ `(batch_id,entity_type,source_key)`. Исходный файл не хранится; загрузка через JSON/base64, результат/отчёт — XLSX в таком же конверте.
+- `notification` до регистрации допускает Telegram без person; после — recipient_person_id. Каналы telegram/simulator, состояния queued/sending/sent/failed, lease на отправку, next_attempt_at, attempts и last_error. Полный общий outbox и fanout добавляются в последующих срезах.
+- Начальные TIM-ключи реализации: invite_expiry ↔ invite_ttl, tenant_wait ↔ owner_response, registration_stage ↔ escalation_step, dispute_total. Параметры длительности и графика редактируются независимо в новой версии. Общий срок dispute_total — согласованные 36 рабочих часов (REG-14); прежняя строка таблицы с «не заполнен» к нему больше не применяется.
