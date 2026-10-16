@@ -4,12 +4,12 @@
 
 ## Phase 1: БД и ядро PDP
 
-- [ ] Task 1: Миграция 0003 — person, profile, building (каркас), staff_assignment, staff_scope, access_session, emulation_session, audit_log; RLS + append-only
-- [ ] Task 2: core/pdp — Actor, реестр действий (privileged), can(), сборка Actor; сценарные тесты (матрица §7 в части VS-1)
+- [x] Task 1: Миграция 0003 — person, profile, building (каркас), staff_assignment, staff_scope, access_session, emulation_session, audit_log; RLS + append-only
+- [x] Task 2: core/pdp — Actor, реестр действий (privileged), can(), сборка Actor; сценарные тесты (матрица §7 в части VS-1)
 
 ## Checkpoint: Ядро доступа
 
-- [ ] pdp-тесты зелёные
+- [x] pdp-тесты зелёные
 
 ## Phase 2: Auth, сеансы, домены
 
@@ -30,8 +30,8 @@
 
 ## Phase 4: Кабинет
 
-- [ ] Task 6: supabase-js + authProvider Refine + вход Telegram OIDC + REST-клиент /v1
-- [ ] Task 7: журнал, эмуляция (персоны и сеансы), баннер эмуляции, главная с идентичностью и выходом
+- [x] Task 6: supabase-js + authProvider Refine + вход Telegram OIDC + REST-клиент /v1
+- [x] Task 7: журнал, эмуляция (персоны и сеансы), баннер эмуляции, главная с идентичностью и выходом
 
 ## Checkpoint: Кабинет
 
