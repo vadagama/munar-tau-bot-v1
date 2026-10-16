@@ -35,13 +35,29 @@ function toIso(value: Date | string): string {
 }
 
 function asArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.map(String) : [];
+  const parsed = jsonbValue(value);
+  return Array.isArray(parsed) ? parsed.map(String) : [];
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
+  const parsed = jsonbValue(value);
+  return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>)
     : {};
+}
+
+/**
+ * postgres.js в режиме prepare:false не получает типы колонок для
+ * INSERT..RETURNING и может вернуть jsonb строкой, а не разобранным значением
+ * (поведение зависит от окружения: прямой Postgres против пулера Supabase).
+ */
+function jsonbValue(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
 }
 
 function jsonParam(value: unknown): string | null {
