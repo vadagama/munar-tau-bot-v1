@@ -53,7 +53,7 @@ export function AppLayout() {
     { key: "/", label: "Главная" },
     ...(canSeeAudit(roles) ? [{ key: "/audit", label: "Журнал действий" }] : []),
     ...(roles.some(role=>["chairman","administrator","tech_admin"].includes(role)) ? [{key:"/time-rules",label:"Регламенты регистрации"}] : []),
-    ...(canUseEmulation(roles) ? [{ key: "/emulation", label: "Эмуляция" }] : []),
+    ...(canUseEmulation(roles) || identity?.me.emulation ? [{ key: "/emulation", label: "Эмуляция" }] : []),
     ...(["chairman","administrator","deputy"].some(role=>roles.includes(role as typeof roles[number])) ? [{key:"/registry",label:"Реестр"},{key:"/registrations",label:"Регистрация и споры"},{key:"/invites",label:"Приглашения"},{key:"/registry-import",label:"Импорт и экспорт"}] : []),
   ];
 
