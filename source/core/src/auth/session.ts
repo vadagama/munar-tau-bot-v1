@@ -13,6 +13,8 @@ export interface AccessSessionRecord {
   lastActivityAt: string;
   lastActivityKind: string;
   revokedAt: string | null;
+  /** Причина отзыва (не заполняется проверкой пределов — там известна причина). */
+  revokedReason?: string | null;
 }
 
 export type SessionCheck = { ok: true } | { ok: false; reason: string };

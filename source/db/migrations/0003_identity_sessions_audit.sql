@@ -137,6 +137,11 @@ create table if not exists emulation_session (
 create unique index if not exists emulation_session_active_uq
   on emulation_session(tech_admin_profile_id) where state = 'active';
 
+-- Синтетические идентификаторы тестовых персон эмуляции (is_test):
+-- telegram id отрицательный (у Telegram id положительные), телефон в
+-- незанятом диапазоне +700000000000… — реальным данным не соответствует.
+create sequence if not exists emulation_test_phone_seq start 1;
+
 -- audit_log (AUD-01): append-only, реальный актор + эмулируемая персона
 create table if not exists audit_log (
   id bigserial primary key,
