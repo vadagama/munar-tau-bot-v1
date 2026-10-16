@@ -1,5 +1,15 @@
+import { processImportBatches } from "../../core/src/domains/registry/import.ts";
+import { createDbClient } from "../../core/src/db/client.ts";
+import { SqlAuditRepo } from "../../core/src/domains/audit/repo.ts";
+import { requireEnv } from "../../core/src/config/env.ts";
+import {
+  sweepRegistrations,
+  sendNotifications,
+  type TelegramSender,
+} from "../../core/src/domains/registrations/jobs.ts";
+import type { RegistryDeps } from "../../core/src/domains/registry/service.ts";
 // Функция jobs — фоновый обработчик по расписанию (LLD-01 §2, LLD-04 §1–3).
-// VS-0: каркас вызова и защиты. Очередь job_queue, свип таймеров TIM и outbox — VS-1+.
+// VS-2: свип регистрации, проверка импорта и доставка уведомлений.
 //
 // Защита (LLD-01 §2): verify_jwt = true (сервисный JWT платформой) + свой
 // заголовок x-jobs-secret (значение — из env, регистрируется cron-заданием
@@ -15,14 +25,22 @@ export const JOBS_SECRET_ENV = "X_JOBS_SECRET";
 
 function health(): Response {
   return new Response(
-    JSON.stringify({ status: "ok", service: "jobs", time: new Date().toISOString() }),
+    JSON.stringify({
+      status: "ok",
+      service: "jobs",
+      time: new Date().toISOString(),
+    }),
     { status: 200, headers: JSON_HEADERS },
   );
 }
 
-// VS-0 тело синхронно; контракт Promise<Response> сохраняется для обработчиков VS-1+ (БД, очередь).
-// deno-lint-ignore require-await
-export async function handle(request: Request, env: EnvSource): Promise<Response> {
+// Ограниченный бюджет одного запуска; необработанные записи остаются в БД.
+export async function handle(
+  request: Request,
+  env: EnvSource,
+  deps?: RegistryDeps,
+  sender?: TelegramSender,
+): Promise<Response> {
   try {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname.endsWith("/health")) {
@@ -42,18 +60,54 @@ export async function handle(request: Request, env: EnvSource): Promise<Response
       throw new ApiError("UNAUTHENTICATED");
     }
 
-    // VS-0: обработчиков очереди нет — вызов успешен, обработано 0 задач.
-    // В VS-1+: аварийный возврат running-задач, свип TIM, слив job_queue (LLD-04 §3).
-    return new Response(
-      JSON.stringify({ status: "ok", processed: 0, note: "vs0-stub" }),
-      { status: 200, headers: JSON_HEADERS },
-    );
+    const actual = deps ?? {
+      db: createDbClient(requireEnv(env, "SUPABASE_DB_URL")),
+      audit: new SqlAuditRepo(),
+    };
+    try {
+      const deadline = Date.now() + 45000;
+      const processed =
+        (await sweepRegistrations(actual, new Date(), deadline)) +
+        (await processImportBatches(actual, deadline));
+      const send: TelegramSender =
+        sender ??
+        (async (chatId, text) => {
+          const token = requireEnv(env, "TELEGRAM_BOT_TOKEN");
+          const response = await fetch(
+            `https://api.telegram.org/bot${token}/sendMessage`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ chat_id: chatId, text }),
+              signal: AbortSignal.timeout(10000),
+            },
+          );
+          const result = await response.json();
+          if (!response.ok || result.ok !== true)
+            throw Object.assign(new Error(`TELEGRAM_${response.status}`), {
+              retryAfter: result.parameters?.retry_after,
+              blocked: response.status === 403,
+            });
+        });
+      const sent = await sendNotifications(actual, send, deadline);
+      return new Response(JSON.stringify({ status: "ok", processed, sent }), {
+        status: 200,
+        headers: JSON_HEADERS,
+      });
+    } finally {
+      if (!deps) await actual.db.close();
+    }
   } catch (error) {
     const { status, body } = toErrorResponse(error);
-    return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: JSON_HEADERS,
+    });
   }
 }
 
 if (import.meta.main) {
-  Deno.serve((request: Request) => handle(request, (name) => Deno.env.get(name)));
+  Deno.serve((request: Request) =>
+    handle(request, (name) => Deno.env.get(name)),
+  );
 }

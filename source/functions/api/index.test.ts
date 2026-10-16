@@ -641,3 +641,21 @@ Deno.test("VS-0: запрос без токена и без env — 401 (env ч�
   assertEquals(response.status, 401);
   assertEquals((await response.json()).error.code, "UNAUTHENTICATED");
 });
+
+Deno.test("VS-2: экспорт без IMP-05 блокируется PDP и журналируется", async () => {
+  const {deps,admin,audit}=makeDeps();
+  const actor=makeTestActor("administrator",[B1],{personId:"p-registry"});
+  seedIdentity(admin,{sub:"sub-registry",sessionId:"s-registry",personId:actor.person.id,profileId:actor.profile.id,actor});
+  const jwt=await token({sub:"sub-registry",sessionId:"s-registry"});
+  const response=await call(deps,"/v1/registry/export",{token:jwt,method:"POST",body:{}});
+  assertEquals(response.status,403);
+  assertEquals((await response.json()).error.code,"FORBIDDEN");
+  assertEquals(audit.entries.some(e=>e.action==="registry.export"),true);
+});
+Deno.test("VS-2: роли жителя недостаточно для чтения персонального реестра",async()=>{
+  const {deps,admin}=makeDeps();
+  const actor=buildActor({id:"resident",fullName:"Житель",status:"active",isTest:false},{id:"resident-profile",personId:"resident",language:"ru",isTest:false},[],new Date());
+  seedIdentity(admin,{sub:"sub-resident",sessionId:"s-resident",personId:actor.person.id,profileId:actor.profile.id,actor});
+  const response=await call(deps,"/v1/registry/persons",{token:await token({sub:"sub-resident",sessionId:"s-resident"})});
+  assertEquals(response.status,403);
+});

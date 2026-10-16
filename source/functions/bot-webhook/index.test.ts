@@ -38,15 +38,13 @@ Deno.test("неверный заголовок — 401", async () => {
   assertEquals(response.status, 401);
 });
 
-Deno.test("верный заголовок — 200 accepted, handled=false (VS-0)", async () => {
+Deno.test("верный заголовок с пустым телом — 400, update обязателен", async () => {
   const response = await handle(
     post({ "X-Telegram-Bot-Api-Secret-Token": "stub-secret" }),
     envWithSecret,
   );
-  assertEquals(response.status, 200);
-  const body = await response.json();
-  assertEquals(body.ok, true);
-  assertEquals(body.handled, false);
+  assertEquals(response.status, 400);
+  assertEquals((await response.json()).error.code, "VALIDATION_FAILED");
 });
 
 Deno.test("GET /health — 200 без секрета", async () => {

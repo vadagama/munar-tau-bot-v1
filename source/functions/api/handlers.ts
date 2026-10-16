@@ -1,3 +1,4 @@
+import { REGISTRY_ROUTES } from "./registry-handlers.ts";
 // Маршруты VS-1 (LLD-03 §3.1, §3.13–3.14, §3.16). Каждому маршруту — действие
 // PDP и актор оценки: effective — бизнес-действия (под эмуляцией — персона),
 // real — управление эмуляцией (всегда техадминистратор). Привилегированные
@@ -495,6 +496,7 @@ async function handleEmulationSimulate(ctx: RouteContext): Promise<RouteResult> 
 // ── Таблица маршрутов VS-1 ─────────────────────────────────────────────────
 
 export const ROUTES: readonly Route[] = [
+  ...REGISTRY_ROUTES,
   {
     method: "GET",
     path: "/v1/meta/me",

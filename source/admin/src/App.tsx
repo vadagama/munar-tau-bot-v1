@@ -1,3 +1,8 @@
+import { TimeRulesPage } from "./pages/time-rules";
+import { InvitesPage } from "./pages/invites";
+import { RegistryPage } from "./pages/registry";
+import { RegistrationsPage } from "./pages/registrations";
+import { RegistryImportPage } from "./pages/registry-import";
 import { Refine, Authenticated } from "@refinedev/core";
 import routerProvider from "@refinedev/react-router-v6";
 import { ConfigProvider, Spin, theme as antdTheme } from "antd";
@@ -35,6 +40,11 @@ export default function App() {
               }
             >
               <Route path="/" element={<HomePage />} />
+              <Route path="/time-rules" element={<TimeRulesPage />} />
+              <Route path="/invites" element={<InvitesPage />} />
+              <Route path="/registry" element={<RegistryPage />} />
+              <Route path="/registrations" element={<RegistrationsPage />} />
+              <Route path="/registry-import" element={<RegistryImportPage />} />
               <Route path="/audit" element={<AuditPage />} />
               <Route path="/emulation" element={<EmulationPage />} />
             </Route>

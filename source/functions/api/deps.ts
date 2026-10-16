@@ -1,3 +1,4 @@
+import { registrationScenarios } from "../../core/src/bot/registration.ts";
 // Зависимости функции api (ADR-003: env передаётся источником значений,
 // ядро не знает о рантайме). В тестах подставляются in-memory фейки ядра и
 // подставка env; в проде defaultDeps собирает SQL-репозитории над общим
@@ -9,7 +10,7 @@ import {
 } from "../../core/src/db/client.ts";
 import { optionalEnv, requireEnv, type EnvSource } from "../../core/src/config/env.ts";
 import { buildJwtKeys, type JwtVerifyKey } from "../../core/src/auth/jwt.ts";
-import { ScenarioRegistry } from "../../core/src/bot/registry.ts";
+import type { ScenarioRegistry } from "../../core/src/bot/registry.ts";
 import { SqlAdminRepo } from "../../core/src/domains/admin/repo.ts";
 import type { AdminRepo } from "../../core/src/domains/admin/port.ts";
 import { SqlAuditRepo } from "../../core/src/domains/audit/repo.ts";
@@ -53,6 +54,6 @@ export async function defaultDeps(env: EnvSource): Promise<ApiDeps> {
     admin: new SqlAdminRepo(),
     audit: new SqlAuditRepo(),
     emulation: new SqlEmulationRepo(),
-    scenarios: new ScenarioRegistry(),
+    scenarios: registrationScenarios({db:sharedDbClient(requireEnv(env, "SUPABASE_DB_URL")),audit:new SqlAuditRepo()}),
   };
 }
