@@ -4,9 +4,9 @@ import type ExcelTypes from "exceljs";
 // Document-only entry исключает ненужные streaming/file-writer зависимости.
 import Workbook from "exceljs/lib/doc/workbook.js";
 import Enums from "exceljs/lib/doc/enums.js";
-const ExcelJS={Workbook,ValueType:Enums.ValueType};
 import { ApiError } from "../../errors/api.ts";
 import type { Row } from "./validation.ts";
+const ExcelJS = { Workbook, ValueType: Enums.ValueType };
 export const SHEETS = {
   buildings: {
     name: "Здания и паркинги",

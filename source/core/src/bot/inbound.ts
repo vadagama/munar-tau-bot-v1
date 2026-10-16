@@ -11,7 +11,7 @@ export async function processInbound(
     throw new ApiError("VALIDATION_FAILED", "Некорректный update_id");
   return deps.db.transaction(async (exec) => {
     const inserted = await exec.query(
-      "insert into bot_inbound(update_id,payload) values ($1,$2::jsonb) on conflict do nothing returning update_id",
+      "insert into bot_inbound(update_id,payload) values ($1,$2::text::jsonb) on conflict do nothing returning update_id",
       [update.update_id, JSON.stringify(update)],
     );
     if (!inserted.length) return false;

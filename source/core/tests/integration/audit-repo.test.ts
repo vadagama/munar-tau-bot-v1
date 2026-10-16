@@ -6,7 +6,10 @@ import { expect, it } from "vitest";
 import { describeWithDb } from "./with-db.ts";
 import { SEED } from "./helpers.ts";
 import { SqlAuditRepo } from "../../src/domains/audit/repo.ts";
-import type { AuditEntryInput, AuditVisibility } from "../../src/domains/audit/port.ts";
+import type {
+  AuditEntryInput,
+  AuditVisibility,
+} from "../../src/domains/audit/port.ts";
 
 const entry = (scope: string[]): AuditEntryInput => ({
   actorPersonId: SEED.chairmanPersonId,
@@ -38,6 +41,11 @@ describeWithDb("SqlAuditRepo на реальной БД", (getDb) => {
     expect(appended.id).toBeGreaterThan(0);
     expect(appended.at).toBeTruthy();
     expect(appended.scopeBuildings).toEqual([SEED.building1]);
+    const [stored] = await db.query<{ scope_kind: string; after_kind: string }>(
+      "select jsonb_typeof(scope_buildings) as scope_kind,jsonb_typeof(after) as after_kind from audit_log where id=$1",
+      [appended.id],
+    );
+    expect(stored).toEqual({ scope_kind: "array", after_kind: "object" });
 
     await repo.append(db, entry([SEED.building1]));
     await repo.append(db, entry([SEED.building2]));
@@ -47,28 +55,65 @@ describeWithDb("SqlAuditRepo на реальной БД", (getDb) => {
     expect(all.entries).toHaveLength(3);
 
     // Администратор дома 1 — только записи своего дома (scope_buildings ⊆ область)
-    const house1 = await repo.list(db, { limit: 10 }, {
-      allBuildings: false,
-      technicalActions: false,
-      scopeBuildingIds: [SEED.building1],
-    });
+    const house1 = await repo.list(
+      db,
+      { limit: 10 },
+      {
+        allBuildings: false,
+        technicalActions: false,
+        scopeBuildingIds: [SEED.building1],
+      },
+    );
     expect(house1.entries).toHaveLength(2);
 
     // Посторонняя область — ничего
-    const house3 = await repo.list(db, { limit: 10 }, {
-      allBuildings: false,
-      technicalActions: false,
-      scopeBuildingIds: [SEED.building3],
-    });
+    const house3 = await repo.list(
+      db,
+      { limit: 10 },
+      {
+        allBuildings: false,
+        technicalActions: false,
+        scopeBuildingIds: [SEED.building3],
+      },
+    );
     expect(house3.entries).toHaveLength(0);
 
     // Пустая область (не председатель) — ничего
-    const none = await repo.list(db, { limit: 10 }, {
-      allBuildings: false,
-      technicalActions: false,
-      scopeBuildingIds: [],
-    });
+    const none = await repo.list(
+      db,
+      { limit: 10 },
+      {
+        allBuildings: false,
+        technicalActions: false,
+        scopeBuildingIds: [],
+      },
+    );
     expect(none.entries).toHaveLength(0);
+    const multi = await repo.list(
+      db,
+      { limit: 10 },
+      {
+        allBuildings: false,
+        technicalActions: false,
+        scopeBuildingIds: [SEED.building1, SEED.building2],
+      },
+    );
+    expect(multi.entries).toHaveLength(3);
+    // Исторические JSON-строки читаются без переписывания append-only журнала.
+    await db.query(
+      "insert into audit_log(action,entity_type,scope_buildings) values ('legacy.test','registry',to_jsonb($1::text))",
+      [JSON.stringify([SEED.building1])],
+    );
+    const legacy = await repo.list(
+      db,
+      { limit: 10 },
+      {
+        allBuildings: false,
+        technicalActions: false,
+        scopeBuildingIds: [SEED.building1],
+      },
+    );
+    expect(legacy.entries).toHaveLength(3);
   });
 
   it("курсорная пагинация: limit → nextCursor → остаток без дублей (AUD-02)", async () => {
@@ -81,7 +126,11 @@ describeWithDb("SqlAuditRepo на реальной БД", (getDb) => {
     expect(first.entries).toHaveLength(2);
     expect(first.nextCursor).not.toBeNull();
 
-    const second = await repo.list(db, { limit: 2, cursor: first.nextCursor ?? "" }, chairmanVisibility);
+    const second = await repo.list(
+      db,
+      { limit: 2, cursor: first.nextCursor ?? "" },
+      chairmanVisibility,
+    );
     expect(second.entries).toHaveLength(1);
     expect(second.nextCursor).toBeNull();
 

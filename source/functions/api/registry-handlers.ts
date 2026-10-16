@@ -388,7 +388,7 @@ routes.push({
       );
       if (!rule) throw new ApiError("NOT_FOUND");
       const [version] = await exec.query(
-        "insert into time_rule_version(rule_id,version,params) select $1,coalesce(max(version),0)+1,$2::jsonb from time_rule_version where rule_id=$1 returning *",
+        "insert into time_rule_version(rule_id,version,params) select $1,coalesce(max(version),0)+1,$2::text::jsonb from time_rule_version where rule_id=$1 returning *",
         [rule.id, JSON.stringify(params)],
       );
       await recordAudit(

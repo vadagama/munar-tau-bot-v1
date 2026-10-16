@@ -31,7 +31,9 @@ interface AuditRow {
 }
 
 function toIso(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+  return value instanceof Date
+    ? value.toISOString()
+    : new Date(value).toISOString();
 }
 
 function asArray(value: unknown): string[] {
@@ -83,13 +85,20 @@ function mapEntry(row: AuditRow): AuditEntry {
   };
 }
 
+// Совместимость со старыми JSON-строками без изменения append-only истории.
+const AUDIT_SCOPE =
+  "(case when jsonb_typeof(a.scope_buildings)='string' then (a.scope_buildings #>> '{}')::jsonb else a.scope_buildings end)";
+
 export class SqlAuditRepo implements AuditRepo {
-  public async append(exec: DbExecutor, input: AuditEntryInput): Promise<AuditEntry> {
+  public async append(
+    exec: DbExecutor,
+    input: AuditEntryInput,
+  ): Promise<AuditEntry> {
     const rows = await exec.query<AuditRow>(
       `insert into audit_log
          (actor_person_id, actor_profile_id, emulation_session_id, emulated_person_id,
           action, entity_type, entity_id, before, after, reason, scope_buildings, meta)
-       values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11::jsonb, $12::jsonb)
+       values ($1, $2, $3, $4, $5, $6, $7, $8::text::jsonb, $9::text::jsonb, $10, $11::text::jsonb, $12::text::jsonb)
        returning id, at, actor_person_id, actor_profile_id, emulation_session_id,
          emulated_person_id, action, entity_type, entity_id, before, after, reason,
          scope_buildings, meta`,
@@ -131,10 +140,12 @@ export class SqlAuditRepo implements AuditRepo {
       if (visibility.scopeBuildingIds.length > 0) {
         params.push(JSON.stringify(visibility.scopeBuildingIds));
         alternatives.push(
-          `(a.scope_buildings <> '[]'::jsonb and a.scope_buildings <@ $${params.length}::jsonb)`,
+          `(${AUDIT_SCOPE} <> '[]'::jsonb and ${AUDIT_SCOPE} <@ $${params.length}::text::jsonb)`,
         );
       }
-      where.push(alternatives.length > 0 ? `(${alternatives.join(" or ")})` : "false");
+      where.push(
+        alternatives.length > 0 ? `(${alternatives.join(" or ")})` : "false",
+      );
     }
 
     if (filter.entityType !== undefined) {

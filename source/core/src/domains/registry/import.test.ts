@@ -68,8 +68,26 @@ it("повтор ссылки паркинга на дом виден до commi
     ),
   ).toBe(true);
 });
-it("точное совпадение связей паркинга сопоставляется и по ключам первоначального файла",async()=>{
- const p=emptyPayload();p.buildings=[{key:"h",kind:"house",code:"1",name:"Дом"},{key:"p",kind:"parking",code:"P",name:"Паркинг",house_keys:"h"}];
- const db:DbExecutor={query:<T>(sql:string)=>Promise.resolve((sql==="select * from building"?[{id:"h-id",kind:"house",code:"1",name:"Дом"},{id:"p-id",kind:"parking",code:"P",name:"Паркинг"}]:sql==="select parking_id,house_id from building_parking"?[{parking_id:"p-id",house_id:"h-id"}]:[]) as T[])};
- const report=await validateImport(db,actor,p);expect(report.errors).toHaveLength(0);expect(report.skipped).toBe(2);
+it("точное совпадение связей паркинга сопоставляется и по ключам первоначального файла", async () => {
+  const p = emptyPayload();
+  p.buildings = [
+    { key: "h", kind: "house", code: "1", name: "Дом" },
+    { key: "p", kind: "parking", code: "P", name: "Паркинг", house_keys: "h" },
+  ];
+  const db: DbExecutor = {
+    query: <T>(sql: string) =>
+      Promise.resolve(
+        (sql === "select * from building"
+          ? [
+              { id: "h-id", kind: "house", code: "1", name: "Дом" },
+              { id: "p-id", kind: "parking", code: "P", name: "Паркинг" },
+            ]
+          : sql === "select parking_id,house_id from building_parking"
+            ? [{ parking_id: "p-id", house_id: "h-id" }]
+            : []) as T[],
+      ),
+  };
+  const report = await validateImport(db, actor, p);
+  expect(report.errors).toHaveLength(0);
+  expect(report.skipped).toBe(2);
 });

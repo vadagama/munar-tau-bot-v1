@@ -107,7 +107,7 @@ export async function submitRegistration(
         stage,
       );
       const [updated] = await exec.query<Row>(
-        "update registration set draft=$2::jsonb,premises_id=$3,role=$4,state='pending_review',review_stage=$5,stage_due_at=$6,updated_at=now() where id=$1 returning *",
+        "update registration set draft=$2::text::jsonb,premises_id=$3,role=$4,state='pending_review',review_stage=$5,stage_due_at=$6,updated_at=now() where id=$1 returning *",
         [
           existing.id,
           JSON.stringify({
@@ -139,7 +139,7 @@ export async function submitRegistration(
     }
     const [row] = await exec.query<Row>(
       `insert into registration(person_id,draft,premises_id,role,source,telegram_user_id,review_stage,is_test)
-      values ($1,$2::jsonb,$3,$4,$5,$6,$7,$8) returning *`,
+      values ($1,$2::text::jsonb,$3,$4,$5,$6,$7,$8) returning *`,
       [
         personId,
         JSON.stringify({
@@ -239,7 +239,7 @@ export async function editRegistration(
     if (input.phone_e164 !== undefined)
       draft.phone_e164 = normalizePhone(input.phone_e164);
     await exec.query(
-      "update registration set draft=$2::jsonb,state='pending_review',updated_at=now() where id=$1",
+      "update registration set draft=$2::text::jsonb,state='pending_review',updated_at=now() where id=$1",
       [id, JSON.stringify(draft)],
     );
     if (row.state === "rejected") {
@@ -639,7 +639,7 @@ export async function acceptInvite(
     );
     const [registration] = await exec.query<Row>(
       `insert into registration(person_id,draft,premises_id,role,source,telegram_user_id,state,checker_id,decided_at,decided_reason,is_test,connection_id)
-      values ($1,$2::jsonb,$3,$4,'bot',$5,'approved',$6,now(),'Приглашение собственника',$7,$8) returning id`,
+      values ($1,$2::text::jsonb,$3,$4,'bot',$5,'approved',$6,now(),'Приглашение собственника',$7,$8) returning id`,
       [
         actor.person.id,
         JSON.stringify({

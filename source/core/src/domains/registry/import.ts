@@ -127,8 +127,13 @@ export async function validateImport(
                 .filter(Boolean);
               const sourceIds = requested
                 .map((key) => {
-                  const source=payload.buildings.find(b=>b.key===key);
-                  return source?.id || current.find(b=>b.kind===source?.kind && b.code===source?.code)?.id;
+                  const source = payload.buildings.find((b) => b.key === key);
+                  return (
+                    source?.id ||
+                    current.find(
+                      (b) => b.kind === source?.kind && b.code === source?.code,
+                    )?.id
+                  );
                 })
                 .filter(Boolean)
                 .map(String)
@@ -319,7 +324,7 @@ export async function uploadImport(
 ): Promise<Row> {
   registryScope(actor);
   const [batch] = await deps.db.query<Row>(
-    "insert into import_batch(created_by,payload) values ($1,$2::jsonb) returning id,state",
+    "insert into import_batch(created_by,payload) values ($1,$2::text::jsonb) returning id,state",
     [actor.person.id, JSON.stringify(payload)],
   );
   return batch!;
@@ -343,7 +348,7 @@ export async function inspectImport(
       jsonValue<ImportPayload>(batch.payload),
     );
     await deps.db.query(
-      "update import_batch set state=$2,errors=$3::jsonb,preview=$4::jsonb where id=$1 and state='uploaded'",
+      "update import_batch set state=$2,errors=$3::text::jsonb,preview=$4::text::jsonb where id=$1 and state='uploaded'",
       [
         id,
         report.errors.length ? "invalid" : "ready",
@@ -432,7 +437,7 @@ export async function commitImport(
         .join(",");
       for (let offset = 0; offset < records.length; offset += 500) {
         await exec.query(
-          `insert into ${TABLES[entity]} (${columns}) select ${columns} from jsonb_to_recordset($1::jsonb) as x(${definitions[entity]})`,
+          `insert into ${TABLES[entity]} (${columns}) select ${columns} from jsonb_to_recordset($1::text::jsonb) as x(${definitions[entity]})`,
           [JSON.stringify(records.slice(offset, offset + 500))],
         );
       }
@@ -442,7 +447,7 @@ export async function commitImport(
       }));
       if (mappings.length)
         await exec.query(
-          "insert into import_mapping(batch_id,entity_type,source_key,entity_id) select $1,$2,x.source_key,x.entity_id from jsonb_to_recordset($3::jsonb) as x(source_key text,entity_id uuid)",
+          "insert into import_mapping(batch_id,entity_type,source_key,entity_id) select $1,$2,x.source_key,x.entity_id from jsonb_to_recordset($3::text::jsonb) as x(source_key text,entity_id uuid)",
           [id, entity, JSON.stringify(mappings)],
         );
     }
@@ -461,7 +466,7 @@ export async function commitImport(
     }
     if (links.length)
       await exec.query(
-        "insert into building_parking(parking_id,house_id) select parking_id,house_id from jsonb_to_recordset($1::jsonb) as x(parking_id uuid,house_id uuid)",
+        "insert into building_parking(parking_id,house_id) select parking_id,house_id from jsonb_to_recordset($1::text::jsonb) as x(parking_id uuid,house_id uuid)",
         [JSON.stringify(links)],
       );
     await exec.query(
@@ -524,7 +529,7 @@ export async function processImportBatches(
           jsonValue<ImportPayload>(batch.payload),
         );
         await exec.query(
-          "update import_batch set state=$2,errors=$3::jsonb,preview=$4::jsonb where id=$1",
+          "update import_batch set state=$2,errors=$3::text::jsonb,preview=$4::text::jsonb where id=$1",
           [
             batch.id,
             report.errors.length ? "invalid" : "ready",
@@ -535,7 +540,7 @@ export async function processImportBatches(
       } catch (error) {
         if (!(error instanceof ApiError)) throw error;
         await exec.query(
-          "update import_batch set state='invalid',errors=$2::jsonb where id=$1",
+          "update import_batch set state='invalid',errors=$2::text::jsonb where id=$1",
           [
             batch.id,
             JSON.stringify([

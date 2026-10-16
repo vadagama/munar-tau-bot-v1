@@ -68,7 +68,7 @@ export async function registrationStep(
     const state = { ...jsonValue<Row>(dialog!.state) };
     const save = async (reply: string) => {
       await exec.query(
-        "update bot_dialog set state=$2::jsonb,updated_at=now() where telegram_user_id=$1",
+        "update bot_dialog set state=$2::text::jsonb,updated_at=now() where telegram_user_id=$1",
         [telegramId, JSON.stringify(state)],
       );
       return reply;
