@@ -1,0 +1,31 @@
+-- 0002_schedule.sql — регистрация cron-задания вызова функции jobs (LLD-04 §2).
+--
+-- ШАБЛОН: заполняется и раскомментируется при развёртывании среды (VS-0, риск R3),
+-- потому что вызов требует секретов, которых нет в репозитории (HLD §15):
+--   1) сервисный JWT (service-role) и x-jobs-secret — через Supabase Vault;
+--   2) адрес функции jobs — по проекту среды (dev/pilot/prod).
+-- Повторное применение: cron.schedule с тем же именем обновляет задание.
+--
+-- Шаги при деплое:
+--   select vault.create_secret('<SERVICE_ROLE_JWT>', 'jobs_service_jwt');
+--   select vault.create_secret('<X_JOBS_SECRET>', 'jobs_call_secret');
+--
+--   select cron.schedule(
+--     'jobs-tick',                              -- имя задания
+--     '* * * * *',                              -- каждую минуту (LLD-04 §2)
+--     $$
+--     select net.http_post(
+--       url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/jobs',
+--       headers := jsonb_build_object(
+--         'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'jobs_service_jwt'),
+--         'x-jobs-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'jobs_call_secret'),
+--         'Content-Type', 'application/json'
+--       ),
+--       body    := '{}'::jsonb
+--     );
+--     $$
+--   );
+--
+-- На self-hosted интервал свипа и адрес функции настраиваются по среде (точка Ф-2).
+-- Расписаний для дайджеста и эскалаций здесь нет: их сроки живут в timer/job_queue
+-- по правилам TIM (LLD-04 §2), перенос графика ОСИ меняет время автоматически (NTF-01).
