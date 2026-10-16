@@ -1,15 +1,18 @@
-import { Refine } from "@refinedev/core";
+import { Refine, Authenticated } from "@refinedev/core";
 import routerProvider from "@refinedev/react-router-v6";
-import { ConfigProvider, theme as antdTheme } from "antd";
+import { ConfigProvider, Spin, theme as antdTheme } from "antd";
 import ruRU from "antd/locale/ru_RU";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
+import { authProvider } from "./lib/auth-provider";
 import { AppLayout } from "./layouts/app-layout";
+import { AuditPage } from "./pages/audit";
+import { EmulationPage } from "./pages/emulation";
 import { HomePage } from "./pages/home";
 import { LoginPage } from "./pages/login";
 
-// VS-0: каркас маршрутов без аутентификации. Telegram-вход и authProvider
-// появятся в VS-1 (AUTH-01): до этого защищённая зона — только каркас layout.
+// VS-1: Telegram-вход (AUTH-01, ADR-001), authProvider на /v1/meta/me,
+// серверная проверка прав — PDP в функции api при каждом запросе.
 export default function App() {
   return (
     <ConfigProvider
@@ -17,11 +20,23 @@ export default function App() {
       theme={{ algorithm: antdTheme.defaultAlgorithm }}
     >
       <BrowserRouter>
-        <Refine routerProvider={routerProvider} resources={[]}>
+        <Refine routerProvider={routerProvider} authProvider={authProvider} resources={[]}>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route element={<AppLayout />}>
+            <Route
+              element={
+                <Authenticated
+                  key="cabinet"
+                  redirectOnFail="/login"
+                  loading={<Spin size="large" style={{ display: "block", margin: "120px auto" }} />}
+                >
+                  <AppLayout />
+                </Authenticated>
+              }
+            >
               <Route path="/" element={<HomePage />} />
+              <Route path="/audit" element={<AuditPage />} />
+              <Route path="/emulation" element={<EmulationPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

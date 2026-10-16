@@ -509,6 +509,7 @@ Deno.test("эмуляция: старт техадмином, meta/me с пом�
   assertEquals(meBody.person.id, "p-persona");
   assertEquals(meBody.emulation.session_id, startBody.session.id);
   assertEquals(meBody.emulation.real_person_id, "p-tech");
+  assertEquals(meBody.emulation.real_person_full_name, "Персона tech_admin");
 
   // Чтение журнала под персоной-администратором: только своя область (AUD-02).
   const auditRead = await call(deps, "/v1/audit", { token: techJwt });

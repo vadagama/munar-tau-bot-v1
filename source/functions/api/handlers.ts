@@ -192,6 +192,8 @@ function handleMetaMe(ctx: RouteContext): RouteResult {
             session_id: actor.emulation.sessionId,
             real_person_id: actor.emulation.realPersonId,
             real_profile_id: actor.emulation.realProfileId,
+            // Имя реального актора — для баннера режима эмуляции (HLD 10.8).
+            real_person_full_name: ctx.realActor.person.fullName,
           }
         : null,
     },

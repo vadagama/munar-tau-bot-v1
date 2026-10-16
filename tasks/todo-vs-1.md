@@ -22,11 +22,11 @@
 
 ## Phase 3: Функция api
 
-- [ ] Task 5: конвейер (CORS → JWT → профиль → сеанс → Actor → PDP → обработчик → аудит) + маршруты meta/audit/admin/emulation; тесты сценариев AUTH-01/ROL-04/AUTH-06/эмуляции
+- [x] Task 5: конвейер (CORS → JWT → профиль → сеанс → Actor → PDP → обработчик → аудит) + маршруты meta/audit/admin/emulation; тесты сценариев AUTH-01/ROL-04/AUTH-06/эмуляции (34)
 
 ## Checkpoint: Функции
 
-- [ ] deno check / lint / test — зелёные
+- [x] deno check / lint / test — зелёные (34 теста)
 
 ## Phase 4: Кабинет
 
