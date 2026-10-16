@@ -6,7 +6,8 @@
     "node": ">=22"
   },
   "workspaces": [
-    "core"
+    "core",
+    "admin"
   ],
   "scripts": {
     "lint": "eslint .",
