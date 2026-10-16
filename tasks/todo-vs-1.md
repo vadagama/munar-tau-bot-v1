@@ -35,13 +35,13 @@
 
 ## Checkpoint: Кабинет
 
-- [ ] build / typecheck / secret-scan зелёные
+- [x] build / typecheck / secret-scan зелёные
 
 ## Phase 5: Сиды, документация, приёмка
 
-- [ ] Task 8: seed identity_dev.sql + порядок привязки supabase_user_id
-- [ ] Task 9: AGENTS.md, admin/README, отметки задач; полный прогон проверок
+- [x] Task 8: seed identity_dev.sql + порядок привязки supabase_user_id
+- [x] Task 9: AGENTS.md, admin/README, отметки задач; полный прогон проверок
 
 ## Checkpoint: Complete
 
-- [ ] Критерий среза: вход/отзыв/эмуляция (AUTH-01, ACC-01 в части пилота; privileged кабинет-only); эмулированные действия в журнале с реальным актором и персоной
+- [x] Критерий среза: вход/отзыв/эмуляция (AUTH-01, ACC-01 в части пилота; privileged кабинет-only); эмулированные действия в журнале с реальным актором и персоной — покрыты тестами (core 138, functions 34); рантайм-проверка OIDC/БД — при деплое (R3)

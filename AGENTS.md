@@ -8,7 +8,9 @@
 
 ## Статус
 
-VS-0 «Фундамент» выполнен: монорепозиторий `source/` (npm workspaces: `core`, `admin`), ядро env/ошибок, каркас БД, заглушки функций с защитой, SPA-каркас кабинета, CI с условным деплоем. Далее — срезы VS-1…VS-9 (см. `docs/hld.md`, раздел 27). Команды — в разделе «Команды».
+VS-0 «Фундамент» выполнен: монорепозиторий `source/` (npm workspaces: `core`, `admin`), ядро env/ошибок, каркас БД, заглушки функций с защитой, SPA-каркас кабинета, CI с условным деплоем.
+
+VS-1 «Доступ и аудит-скелет» выполнен (ветвь `feature/vs-1-access-audit`): PDP (Actor, `can()`, реестр действий с privileged), сеансы AUTH-06 (12 ч / 30 мин бездействия, отзыв), append-only `audit_log` с чтением по областям (AUD-02), каркас эмуляции (тестовые персоны is_test, сеансы эмуляции, симулятор через общий ScenarioRegistry), функция api с полным конвейером (CORS → JWT → профиль → сеанс → Actor → PDP → обработчик → аудит), кабинет: Telegram-вход (OIDC), журнал, эмуляция, баннер режима; сиды identity_dev.sql. TOTP и ROL-06 — за пределами среза. Далее — срезы VS-2…VS-9 (см. `docs/hld.md`, раздел 27). Команды — в разделе «Команды».
 
 ## Технологический стек
 
@@ -29,10 +31,10 @@ VS-0 «Фундамент» выполнен: монорепозиторий `so
 - `docs/decisions/` — ADR: контекст → решение → альтернативы → проверки при реализации → источники
 - `tasks/` — план и приёмка текущего среза (VS-0)
 - `source/` — код, монорепозиторий npm workspaces:
-  - `source/core/` — общие модули бота и кабинета: `config/env`, `errors/api` (коды LLD-03 §1.1)
-  - `source/admin/` — SPA кабинета (Vite + React + Refine v4 + AntD 5), см. `source/admin/README.md`
-  - `source/functions/` — Supabase Edge Functions: `api`, `bot-webhook`, `jobs` (deno.json — check/lint/test)
-  - `source/db/` — миграции `migrations/`, `rls.sql`, сиды `seed/`
+  - `source/core/` — общие модули бота и кабинета: `config/env`, `errors/api` (коды LLD-03 §1.1), `pdp` (Actor, `can()`, реестр действий), `auth` (JWT HS256, политика сеансов AUTH-06), `db` (клиент postgres.js, prepare: false), `bot/registry` (сценарии бота/симулятора), `domains/admin|audit|emulation` (порты, SQL-репозитории, сервисы с аудитом; in-memory фейки в `testing/`)
+  - `source/admin/` — SPA кабинета (Vite + React + Refine v4 + AntD 5): Telegram-вход, журнал (AUD-02), эмуляция с баннером режима, см. `source/admin/README.md`
+  - `source/functions/` — Supabase Edge Functions: `api` (конвейер VS-1: CORS → JWT → профиль → сеанс → Actor → PDP → обработчик → аудит), `bot-webhook`, `jobs` (deno.json — check/lint/test)
+  - `source/db/` — миграции `migrations/`, `rls.sql`, сиды `seed/` (identity_dev.sql — привязка supabase_user_id)
   - `source/supabase/` — `config.toml` (verify_jwt по функциям)
   - `source/tools/scripts/` — служебные скрипты (проверка сборки на секреты)
 - `.github/workflows/ci.yml` — CI (PR и push main) с условным деплоем
@@ -74,7 +76,7 @@ VS-0 «Фундамент» выполнен: монорепозиторий `so
 | Миграции БД | `npx supabase@^2 db push --project-ref "$SUPABASE_PROJECT_ID"` (нужен `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`; повторное применение безопасно — `IF NOT EXISTS`) |
 | Деплой функций | `npx supabase@^2 functions deploy <api\|bot-webhook\|jobs> --project-ref "$SUPABASE_PROJECT_ID"` |
 | Деплой кабинета | `npx wrangler@^4 pages deploy admin/dist --project-name "$CF_PAGES_PROJECT"` (нужен `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) |
-| Настройка секретов функций | `npx supabase@^2 secrets set TELEGRAM_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... X_JOBS_SECRET=...` (R3) |
+| Настройка секретов функций | `npx supabase@^2 secrets set TELEGRAM_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... X_JOBS_SECRET=... SUPABASE_JWT_SECRET=... SUPABASE_DB_URL=... CABINET_ORIGIN=...` (R3; JWT-секрет и URL пулера БД — для функции api VS-1) |
 
 CI (`.github/workflows/ci.yml`) на каждый PR и push в `main`: node-джоба (ci → lint → typecheck → test → build → secret-scan) и deno-джоба (check → lint → test). Деплой — отдельная джоба при push в `main`, шаги выполняются только при наличии соответствующих секретов репозитория: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, `SUPABASE_DB_PASSWORD`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT`; без них — джоба зелёная с предупреждением. До настройки секретов (R3) деплой фактически не выполняется.
 
