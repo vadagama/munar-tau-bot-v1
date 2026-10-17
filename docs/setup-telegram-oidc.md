@@ -10,7 +10,7 @@ custom-провайдера проверяется при настройке с�
 
 ## 0. Что нужно
 
-- Доступ к Dashboard Supabase dev-проекта (референс `fuwsmewtmxmzttwkbdex` — вымышленные
+- Доступ к Dashboard Supabase dev-проекта (референс `ohpjqsudibkcymjjuedy` — вымышленные
   данные, HLD §20; Dashboard → Project Settings → General).
 - Telegram-аккаунт с доступом к @BotFather.
 - Кабинет по HTTPS: `https://osi-admin.pages.dev` ([ADR-002](decisions/002-admin-cloudflare-pages.md)).
@@ -28,7 +28,7 @@ custom-провайдера проверяется при настройке с�
 5. **Add a Redirect URI** → введите callback Supabase dev-проекта:
 
    ```
-   https://fuwsmewtmxmzttwkbdex.supabase.co/auth/v1/callback
+   https://ohpjqsudibkcymjjuedy.supabase.co/auth/v1/callback
    ```
 
 6. С этого же экрана возьмите **Client ID** и **Client Secret**. Client Secret — секрет
