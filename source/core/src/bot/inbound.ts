@@ -1,3 +1,6 @@
+import { queueRequestFile } from "./request-files.ts";
+import { requestStep,REQUEST_COMMANDS } from "./requests.ts";
+import { jsonValue } from "../domains/registry/validation.ts";
 import { ApiError } from "../errors/api.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { registrationStep } from "./registration.ts";
@@ -25,7 +28,7 @@ export async function processInbound(
       Number.isSafeInteger(from.id) &&
       from.id === chat.id &&
       chat.type === "private" &&
-      typeof message.text === "string"
+      (typeof message.text === "string" || message.photo || message.document || message.video)
     ) {
       await exec.query("savepoint bot_scenario");
       let reply: string;
@@ -35,11 +38,12 @@ export async function processInbound(
           query: exec.query.bind(exec),
           transaction: <T>(fn: (e: typeof exec) => Promise<T>) => fn(exec),
         };
-        reply = await registrationStep(
-          { ...deps, db },
-          String(from.id),
-          message.text,
-        );
+        const [dialog]=await exec.query<{state:unknown}>("select state from bot_dialog where telegram_user_id=$1",[from.id]);
+        const state=dialog ? jsonValue<Row>(dialog.state):{};
+        const command=typeof message.text==="string" ? message.text.split(/\s+/)[0]:"";
+        reply = typeof message.text!=="string" ? await queueRequestFile({...deps,db},String(from.id),message,update.update_id) : REQUEST_COMMANDS.includes(command ?? "") || state.scenario==="requests"
+          ? await requestStep({...deps,db},String(from.id),String(message.text),undefined,`telegram:${update.update_id}`)
+          : await registrationStep({...deps,db},String(from.id),String(message.text));
       } catch (error) {
         await exec.query("rollback to savepoint bot_scenario");
         if (error instanceof ApiError) reply = error.message;

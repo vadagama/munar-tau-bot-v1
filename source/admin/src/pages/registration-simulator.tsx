@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Alert, Button, Card, Input, Space, Typography } from "antd";
+import { Alert, Button, Card, Input, Space, Typography, Select } from "antd";
 import { apiFetch } from "../lib/api";
 export function RegistrationSimulator({ active }: { active: boolean }) {
+  const [scenario,setScenario]=useState("registration");
   const [input, setInput] = useState(""),
     [history, setHistory] = useState<{ input: string; reply: string }[]>([]),
     [busy, setBusy] = useState(false),
@@ -13,7 +14,7 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
     try {
       const result = await apiFetch<{ reply: string }>(
         "/v1/emulation/simulate",
-        { method: "POST", body: { scenario: "registration", input: text } },
+        { method: "POST", body: { scenario, input: text } },
       );
       setHistory((previous) => [
         ...previous,
@@ -27,8 +28,10 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
     }
   };
   return (
-    <Card title="Симулятор регистрации" style={{ marginBottom: 16 }}>
+    <Card title="Симулятор бота" style={{ marginBottom: 16 }}>
       <Space direction="vertical" style={{ width: "100%" }}>
+        <Select aria-label="Сценарий симулятора" value={scenario} onChange={setScenario} options={[{value:"registration",label:"Регистрация"},{value:"requests",label:"Обращения"}]} />
+        {scenario === "requests" && <Space wrap><Button disabled={!active || busy} onClick={()=>void send("/newrequest")}>Новое обращение</Button><Button disabled={!active || busy} onClick={()=>void send("/requests")}>Мои обращения</Button></Space>}
         {!active && (
           <Alert
             type="info"

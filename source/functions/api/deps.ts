@@ -1,4 +1,6 @@
-import { registrationScenarios } from "../../core/src/bot/registration.ts";
+import { consumeRateLimit } from "../../core/src/domains/requests/rate-limit.ts";
+import { SupabaseFileStorage, type FileStorage } from "../../core/src/domains/requests/files.ts";
+import { botScenarios } from "../../core/src/bot/scenarios.ts";
 // Зависимости функции api (ADR-003: env передаётся источником значений,
 // ядро не знает о рантайме). В тестах подставляются in-memory фейки ядра и
 // подставка env; в проде defaultDeps собирает SQL-репозитории над общим
@@ -19,6 +21,8 @@ import { SqlEmulationRepo } from "../../core/src/domains/emulation/repo.ts";
 import type { EmulationRepo } from "../../core/src/domains/emulation/port.ts";
 
 export interface ApiDeps {
+  rateLimit?: (profileId:string)=>Promise<void>;
+  storage?: FileStorage;
   /** Ключи проверки подписи JWT из JWKS (Supabase Auth; SUPABASE_JWKS инжектируется платформой). */
   jwtKeys: readonly JwtVerifyKey[];
   /** Разрешённый origin кабинета; undefined — разрешён localhost (dev). */
@@ -50,10 +54,12 @@ export async function defaultDeps(env: EnvSource): Promise<ApiDeps> {
     // Supabase, Default secrets); CABINET_ORIGIN — наш секрет функции.
     jwtKeys: await buildJwtKeys(requireEnv(env, "SUPABASE_JWKS")),
     cabinetOrigin: optionalEnv(env, "CABINET_ORIGIN"),
+    rateLimit: profileId=>consumeRateLimit(sharedDbClient(requireEnv(env,"SUPABASE_DB_URL")),profileId),
+    storage: optionalEnv(env,"SUPABASE_URL") && optionalEnv(env,"SUPABASE_SERVICE_ROLE_KEY") ? new SupabaseFileStorage(requireEnv(env,"SUPABASE_URL"),requireEnv(env,"SUPABASE_SERVICE_ROLE_KEY")) : undefined,
     db: sharedDbClient(requireEnv(env, "SUPABASE_DB_URL")),
     admin: new SqlAdminRepo(),
     audit: new SqlAuditRepo(),
     emulation: new SqlEmulationRepo(),
-    scenarios: registrationScenarios({db:sharedDbClient(requireEnv(env, "SUPABASE_DB_URL")),audit:new SqlAuditRepo()}),
+    scenarios: botScenarios({db:sharedDbClient(requireEnv(env, "SUPABASE_DB_URL")),audit:new SqlAuditRepo()}),
   };
 }

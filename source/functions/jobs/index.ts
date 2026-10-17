@@ -1,3 +1,6 @@
+import { sweepRequests } from "../../core/src/domains/requests/jobs.ts";
+import { processRequestUploads } from "../../core/src/bot/request-files.ts";
+import { SupabaseFileStorage } from "../../core/src/domains/requests/files.ts";
 import { processImportBatches } from "../../core/src/domains/registry/import.ts";
 import { createDbClient } from "../../core/src/db/client.ts";
 import { SqlAuditRepo } from "../../core/src/domains/audit/repo.ts";
@@ -66,9 +69,11 @@ export async function handle(
     };
     try {
       const deadline = Date.now() + 45000;
-      const processed =
+      const files = !deps && env("SUPABASE_URL") && env("SUPABASE_SERVICE_ROLE_KEY") && env("TELEGRAM_BOT_TOKEN") ? await processRequestUploads(actual,new SupabaseFileStorage(requireEnv(env,"SUPABASE_URL"),requireEnv(env,"SUPABASE_SERVICE_ROLE_KEY")),requireEnv(env,"TELEGRAM_BOT_TOKEN"),deadline) : 0;
+      const processed = files +
         (await sweepRegistrations(actual, new Date(), deadline)) +
-        (await processImportBatches(actual, deadline));
+        (await processImportBatches(actual, deadline)) +
+        (deps ? 0 : await sweepRequests(actual,deadline));
       const send: TelegramSender =
         sender ??
         (async (chatId, text) => {

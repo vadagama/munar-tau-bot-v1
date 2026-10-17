@@ -7,6 +7,8 @@ import { describeWithDb } from "./with-db.ts";
 import { applyMigrations } from "./helpers.ts";
 
 const REQUIRED_TABLES = [
+  "file_policy", "request_upload_job", "api_rate_limit",
+  "request", "request_category", "request_participant", "request_confirmation", "message", "attachment", "rating", "rating_log", "request_log", "outbox", "idempotency_key", "number_sequence",
   "person",
   "profile",
   "building",

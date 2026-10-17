@@ -8,6 +8,7 @@ import { expect, it } from "vitest";
 import { describeWithDb } from "./with-db.ts";
 
 const TABLES = [
+  "request", "request_category", "request_participant", "request_confirmation", "message", "attachment", "rating", "rating_log", "request_log", "outbox", "idempotency_key", "number_sequence", "file_policy", "request_upload_job", "api_rate_limit",
   "person",
   "profile",
   "building",
@@ -35,7 +36,7 @@ const TABLES = [
 const CLIENT_ROLES = ["anon", "authenticated"] as const;
 
 describeWithDb("защита на уровне БД (второй рубеж)", (getDb) => {
-  it("RLS включён на всех таблицах VS-1/VS-2 (LLD-02 §16)", async () => {
+  it("RLS включён на всех таблицах VS-1/VS-2/VS-3 (LLD-02 §16)", async () => {
     const rows = await getDb().query<{ relname: string; relrowsecurity: boolean }>(
       `select c.relname, c.relrowsecurity
        from pg_class c

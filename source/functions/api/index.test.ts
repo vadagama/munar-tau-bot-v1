@@ -347,7 +347,7 @@ Deno.test("неизвестный маршрут с валидным токен�
   seedIdentity(admin, { sub: "sub-chair", sessionId: "s-chair", personId: "p-chair", profileId: "prof-chair", actor: chairman });
   const jwt = await token({ sub: "sub-chair", sessionId: "s-chair" });
 
-  const response = await call(deps, "/v1/requests", { token: jwt });
+  const response = await call(deps, "/v1/unknown-resource", { token: jwt });
   assertEquals(response.status, 404);
   assertEquals((await response.json()).error.code, "NOT_FOUND");
 });
@@ -658,4 +658,15 @@ Deno.test("VS-2: роли жителя недостаточно для чтен�
   seedIdentity(admin,{sub:"sub-resident",sessionId:"s-resident",personId:actor.person.id,profileId:actor.profile.id,actor});
   const response=await call(deps,"/v1/registry/persons",{token:await token({sub:"sub-resident",sessionId:"s-resident"})});
   assertEquals(response.status,403);
+});
+
+Deno.test("VS-3: общий rate limit возвращает 429 до выполнения обработчика",async()=>{
+ const {deps,admin}=makeDeps();
+ const actor=makeTestActor("chairman",[],{personId:"p-chair"});
+ seedIdentity(admin,{sub:"sub-chair",sessionId:"s-chair",personId:"p-chair",profileId:"prof-chair",actor});
+ const {ApiError}=await import("../../core/src/errors/api.ts");
+ deps.rateLimit=profileId=>{assertEquals(profileId,"prof-chair");return Promise.reject(new ApiError("RATE_LIMITED"));};
+ const jwt=await token({sub:"sub-chair",sessionId:"s-chair"});
+ const response=await call(deps,"/v1/requests",{token:jwt});
+ assertEquals(response.status,429);assertEquals((await response.json()).error.code,"RATE_LIMITED");
 });

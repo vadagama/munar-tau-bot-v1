@@ -95,6 +95,8 @@ async function processRequest(ctx: RequestContext): Promise<Response> {
       throw new ApiError("SESSION_EXPIRED", limits.reason);
     }
 
+    await deps.rateLimit?.(profile.id);
+
     // ── Actor: реальный и эффективный (эмулированный, HLD 10.8) ────────────
     const realActor = await buildActorForProfile(deps.admin, deps.db, profile, now);
     const actor = await resolveEffectiveActor(
@@ -162,6 +164,7 @@ async function processRequest(ctx: RequestContext): Promise<Response> {
 /** Тело читается только у методов с содержимым (LLD-03 §1). */
 function readBodyFor(method: string, request: Request): Promise<Record<string, unknown>> {
   if (method === "GET" || method === "DELETE") return Promise.resolve({});
+  if (method === "POST" && new URL(request.url).pathname.endsWith("/upload") && request.headers.get("content-type") === "application/octet-stream") return Promise.resolve({});
   return readJsonBody(request);
 }
 
