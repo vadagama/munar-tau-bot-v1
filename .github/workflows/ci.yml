@@ -24,6 +24,9 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build -w admin
+      - run: npm run build -w landing
+      - name: Секреты в статической сборке (landing/dist)
+        run: sh tools/scripts/check-build-secrets.sh landing/dist
       - name: Секреты в статической сборке (admin/dist)
         run: sh tools/scripts/check-build-secrets.sh admin/dist
 
