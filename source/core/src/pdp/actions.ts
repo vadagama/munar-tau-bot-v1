@@ -5,6 +5,10 @@
 import type { SpecialRights, StaffRole } from "./types.ts";
 
 export type ActionKey =
+  | "task.use"
+  | "task.read"
+  | "task.manage"
+  | "task.execute"
   | "request.use"
   | "request.read"
   | "request.manage"
@@ -47,6 +51,10 @@ export interface ActionSpec {
 }
 
 export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
+  "task.use": { privileged: false, roles: ["chairman", "administrator", "deputy", "executor"] },
+  "task.read": { privileged: false },
+  "task.manage": { privileged: false },
+  "task.execute": { privileged: false },
   "request.use": { privileged: false },
   "request.read": { privileged: false },
   "request.manage": { privileged: false },
