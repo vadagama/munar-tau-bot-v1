@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { RequestsPage } from "./requests";
@@ -29,6 +30,14 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
+// A page-wide role/name query computes styles for every AntD button, including
+// force-rendered dialogs. Find the exact label first, then keep the role and
+// accessibility check scoped to that button's container.
+async function findButton(name: string) {
+  const label = await screen.findByText(name, { selector: "button > span" });
+  const container = label.closest("button")!.parentElement!;
+  return within(container).getByRole("button", { name });
+}
 function setup(manager = false) {
   const row = {
     id: "r",
@@ -77,17 +86,17 @@ it(
   async () => {
     setup();
     render(<RequestsPage />);
-    fireEvent.click(await screen.findByRole("button", { name: "З-26-00001" }));
+    fireEvent.click(await findButton("З-26-00001"));
     expect(await screen.findByText("Публичный ответ")).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Внутреннее" })).not
       .toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Подтвердить результат" }),
+      await findButton("Подтвердить результат"),
     );
     expect(await screen.findByText(/Подтверждаете результат версии 2/))
       .toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Подтвердить действие" }),
+      await findButton("Подтвердить действие"),
     );
     await waitFor(() =>
       expect(apiFetch).toHaveBeenCalledWith(
@@ -108,18 +117,18 @@ it(
 it("служебный канал явно помечен перед отправкой", async () => {
   setup(true);
   render(<RequestsPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "З-26-00001" }));
+  fireEvent.click(await findButton("З-26-00001"));
   fireEvent.click(await screen.findByRole("tab", { name: "Внутреннее" }));
   expect(screen.getByText("Внутреннее сообщение: житель его не увидит"))
     .toBeInTheDocument();
   expect(screen.getByText("Внутреннее обсуждение")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Отправить в «Внутреннее»" }))
+  expect(await findButton("Отправить в «Внутреннее»"))
     .toBeDisabled();
 }, 15000);
 it("черновик внутреннего сообщения не переносится в канал жителя", async () => {
   setup(true);
   render(<RequestsPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "З-26-00001" }));
+  fireEvent.click(await findButton("З-26-00001"));
   fireEvent.click(await screen.findByRole("tab", { name: "Внутреннее" }));
   fireEvent.change(screen.getByLabelText("Текст сообщения"), {
     target: { value: "Служебный черновик" },
@@ -139,10 +148,10 @@ it("бывший автор сохраняет чтение истории бе�
     can_comment: false,
   });
   render(<RequestsPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "З-26-00001" }));
-  expect(await screen.findByRole("button", { name: "Закрыть карточку" }))
+  fireEvent.click(await findButton("З-26-00001"));
+  expect(await findButton("Закрыть карточку"))
     .toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Подтвердить результат" })).not
+  expect(screen.queryByText("Подтвердить результат", { selector: "button > span" })).not
     .toBeInTheDocument();
   expect(screen.getByLabelText("Текст сообщения")).toBeDisabled();
 }, 15000);
