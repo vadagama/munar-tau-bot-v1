@@ -1,3 +1,4 @@
+import { listRequestVisits, updateVisit } from "../domains/tasks/visits.ts";
 import { premiseLabels } from "../locales/registry.ts";
 import { preview, requestCardText, requestListText } from "./request-text.ts";
 import type { Actor } from "../pdp/types.ts";
@@ -19,8 +20,9 @@ import {
   shareRequest,
 } from "../domains/requests/messages.ts";
 const HELP =
-  "/newrequest — новое обращение / жаңа өтініш; /requests — мои обращения / менің өтініштерім; /request НОМЕР — открыть / ашу; /say НОМЕР текст — сообщение / хабарлама; /confirm НОМЕР ВЕРСИЯ — подтвердить / растау; /return НОМЕР причина — доработка / түзету; /cancelrequest НОМЕР причина; /share НОМЕР ID; /unshare НОМЕР ID; /rate НОМЕР 1–5 комментарий; /appeal НОМЕР причина; /reopen НОМЕР причина. /editrequest — текст черновика / жоба мәтіні; /deletedraft — удалить черновик / жобаны жою. /registration — вернуться к регистрации / тіркелуге оралу.";
+  "/visits НОМЕР — визиты; /newrequest — новое обращение / жаңа өтініш; /requests — мои обращения / менің өтініштерім; /request НОМЕР — открыть / ашу; /say НОМЕР текст — сообщение / хабарлама; /confirm НОМЕР ВЕРСИЯ — подтвердить / растау; /return НОМЕР причина — доработка / түзету; /cancelrequest НОМЕР причина; /share НОМЕР ID; /unshare НОМЕР ID; /rate НОМЕР 1–5 комментарий; /appeal НОМЕР причина; /reopen НОМЕР причина. /editrequest — текст черновика / жоба мәтіні; /deletedraft — удалить черновик / жобаны жою. /registration — вернуться к регистрации / тіркелуге оралу.";
 export const REQUEST_COMMANDS = [
+  "/result", "/visits", "/confirmvisit", "/missedvisit",
   "/newrequest",
   "/editrequest",
   "/deletedraft",
@@ -87,6 +89,27 @@ export async function requestStep(
       if (!r) throw new ApiError("NOT_FOUND");
       return getRequest(d, actor, r.id);
     };
+    if(command==="/result"){
+      const r=await find(),snapshot=(r.confirmation as Row|undefined)?.payload as Row|undefined;
+      const reports=(snapshot?.task_results as Row[])??[];
+      const index=Number(args[0]??1)-1;
+      if(!Number.isInteger(index)||index<0)throw new ApiError("VALIDATION_FAILED","Укажите номер отчёта");
+      const report=reports[index];
+      if(!report)return preview(snapshot?.summary??"Результат ещё не передан",3500);
+      return preview(`${r.number}, версия результата ${r.confirmation_version}. Отчёт ${index+1}/${reports.length}: ${report.task_number}, версия ${report.report_version}.\n${report.performed_work}\n${report.result}\nОграничения: ${report.limitations||"нет"}\n/result ${r.number} ${index+2} — следующий отчёт`,3500);
+    }
+    if (command === "/visits") {
+      const r = await find();
+      const visits = await listRequestVisits(d,actor,String(r.id));
+      state.scenario="requests";state.visit_options=visits;
+      return save(visits.map((v,i)=>`${i+1}. ${new Date(String(v.interval_start)).toISOString()} — ${new Date(String(v.interval_end)).toISOString()} (${v.status})`).join("\n")+"\n/confirmvisit НОМЕР_В_СПИСКЕ — согласовать; /missedvisit НОМЕР_В_СПИСКЕ причина — исполнитель не пришёл");
+    }
+    if (command === "/confirmvisit" || command === "/missedvisit") {
+      const visits=(state.visit_options as Row[])??[];const visit=visits[Number(number)-1];
+      if(!visit)throw new ApiError("VALIDATION_FAILED","Сначала откройте /visits НОМЕР_ОБРАЩЕНИЯ");
+      visits[Number(number)-1]=await updateVisit(d,actor,String(visit.id),{version:visit.version,action:command==="/confirmvisit"?"confirm":"no_show",reason:args.join(" ")},opKey);
+      return save(command==="/confirmvisit"?"Визит согласован":"Сообщение о неявке передано администратору для проверки");
+    }
     const places = async () =>
       exec.query<Row>(
         `select p.id,p.building_id,p.number,p.kind,b.name,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1 and c.status='active' and p.status='active' and p.is_test=$2 order by b.code,p.kind,p.number`,
@@ -167,12 +190,18 @@ export async function requestStep(
         cursor: btoa(String((page - 1) * 10)),
         search: tokens.filter((t) => t !== pageToken).join(" ") || undefined,
       });
-      return requestListText(rows, actor.person.id, page, HELP);
+      state.scenario = "requests";
+      delete state.request_id;
+      delete state.draft_id;
+      delete state.step;
+      return save(requestListText(rows, actor.person.id, page, HELP));
     }
     if (command === "/request") {
       const row = await find();
       state.scenario = "requests";
       state.request_id = row.id;
+      delete state.draft_id;
+      delete state.step;
       return save(requestCardText(row, HELP));
     }
     if (command === "/say") {

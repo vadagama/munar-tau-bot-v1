@@ -1,3 +1,4 @@
+import { taskStep } from "./tasks.ts";
 import type { DbExecutor } from "../db/client.ts";
 import { registrationScenarios } from "./registration.ts";
 import { requestStep } from "./requests.ts";
@@ -5,9 +6,9 @@ import type { RegistryDeps } from "../domains/registry/service.ts";
 import { ApiError } from "../errors/api.ts";
 export function botScenarios(deps: RegistryDeps) {
   const scenarios = registrationScenarios(deps);
-  scenarios.register({
-    id: "requests",
-    description: "REQ/SHR/MSG: обращения и переписка",
+  for (const id of ["requests","tasks"]) scenarios.register({
+    id,
+    description: id === "requests" ? "REQ/SHR/MSG: обращения и переписка" : "WRK: задания исполнителя",
     run: async (input, ctx) => {
       if (
         !ctx.actor?.emulation || !ctx.actor.person.isTest
@@ -29,7 +30,7 @@ export function botScenarios(deps: RegistryDeps) {
           },
         }
         : deps;
-      return requestStep(d, String(profile.telegram_user_id), input, ctx.actor);
+      return (id === "requests" ? requestStep : taskStep)(d, String(profile.telegram_user_id), input, ctx.actor);
     },
   });
   return scenarios;

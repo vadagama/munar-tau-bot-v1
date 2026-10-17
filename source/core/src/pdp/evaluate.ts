@@ -35,6 +35,17 @@ export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {})
   }
 
   // Собственный ресурс: любой аутентифицированный завершает свой сеанс (AUTH-06).
+  if (action.startsWith("task.") && action !== "task.use") {
+    const r = resource.taskAccess;
+    if (!r || r.isTest !== actor.person.isTest || actor.person.status !== "active") return deny("Задание недоступно");
+    const inScope = (a: Actor["assignments"][number]) => r.buildingIds.length > 0 && r.buildingIds.every(id => a.scopeBuildingIds?.includes(id));
+    const manager = actor.assignments.some(a => a.role === "chairman" || (["administrator", "deputy"].includes(a.role) && inScope(a)));
+    const executor = r.assigneeId === actor.person.id && actor.assignments.some(a => a.role === "executor" && inScope(a));
+    if (action === "task.manage") return manager ? ALLOW : deny("Нет полномочий управления заданием");
+    if (action === "task.execute") return executor ? ALLOW : deny("Нужно действующее назначение исполнителя");
+    return manager || executor ? ALLOW : deny("Задание недоступно");
+  }
+
   if (spec.allowOwn && resource.profileId !== undefined && resource.profileId === actor.profile.id) {
     return ALLOW;
   }

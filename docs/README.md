@@ -46,3 +46,4 @@ ADR фиксируют решения об аутентификации и ра�
 
 - [ADR-006: обращения, вложения и граница VS-3](decisions/006-vs3-request-files-and-boundaries.md)
 - [Приёмка VS-3 и команды бота](vs3-acceptance.md)
+- [Промежуточная проверка VS-4](vs4-acceptance.md)

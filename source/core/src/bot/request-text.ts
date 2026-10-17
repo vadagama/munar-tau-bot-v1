@@ -31,12 +31,14 @@ export function requestCardText(row: Row, help: string): string {
   const messages = (row.messages as Row[]).filter((m) =>
     m.channel === "resident"
   ).slice(-3);
+  const result=(row.confirmation as Row|undefined)?.payload as Row|undefined;
+  const reports=(result?.task_results as Row[])??[];
   return preview(
     `${row.number}: ${requestStateText(row.state)}\n${
       preview(row.description, 600)
     }\n${
       messages.map((m) => preview(m.text, 400)).join("\n")
-    }\nВерсия результата / Нәтиже нұсқасы: ${row.confirmation_version}\n${help}`,
+    }\n${result?preview(result.summary,600):""}${reports.length?`\nОтчётов: ${reports.length}. /result ${row.number} НОМЕР_ОТЧЁТА`:""}\nВерсия результата / Нәтиже нұсқасы: ${row.confirmation_version}\n${help}`,
     4000,
   );
 }

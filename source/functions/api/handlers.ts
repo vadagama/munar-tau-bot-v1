@@ -1,4 +1,5 @@
 import { REQUEST_ROUTES } from "./request-handlers.ts";
+import { TASK_ROUTES } from "./task-handlers.ts";
 import { REGISTRY_ROUTES } from "./registry-handlers.ts";
 // Маршруты VS-1 (LLD-03 §3.1, §3.13–3.14, §3.16). Каждому маршруту — действие
 // PDP и актор оценки: effective — бизнес-действия (под эмуляцией — персона),
@@ -499,6 +500,7 @@ async function handleEmulationSimulate(ctx: RouteContext): Promise<RouteResult> 
 export const ROUTES: readonly Route[] = [
   ...REGISTRY_ROUTES,
   ...REQUEST_ROUTES,
+  ...TASK_ROUTES,
   {
     method: "GET",
     path: "/v1/meta/me",
