@@ -1,4 +1,4 @@
-import { esc } from "./text.ts";
+import { esc, pick, type Lang } from "./text.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { ApiError } from "../errors/api.ts";
@@ -35,10 +35,17 @@ async function incidentPlainStep(
 ): Promise<string> {
   const [command, id, ...args] = input.trim().split(/\s+/),
     actor = providedActor ?? await actorForTelegram(deps, telegramId),
-    key = operationId ?? crypto.randomUUID();
+    key = operationId ?? crypto.randomUUID(),
+    // UUID в callback_data не помещаются (лимит 64 байта), поэтому инциденты —
+    // без кнопок, только один язык подачи.
+    L: Lang = actor?.profile.language ?? "ru";
   if (command === "/emergency" && !args.length) {
     if (!id) {
-      return "Авария / Апат: /emergency КОД_ДОМА — аварийный телефон; /emergency НОМЕР_ОБРАЩЕНИЯ описание — сообщить об опасности. Сигнал не подтверждает выезд / Сигнал шығуды растамайды.";
+      return pick(
+        L,
+        "Авария: /emergency КОД_ДОМА — аварийный телефон; /emergency НОМЕР_ОБРАЩЕНИЯ описание — сообщить об опасности. Сигнал не подтверждает выезд.",
+        "Апат: /emergency ҮЙ КОДЫ — апаттық телефон; /emergency ӨТІНІШ НӨМІРІ сипаттама — қауіп туралы хабарлаңыз. Сигнал шығуды растамайды.",
+      );
     }
     const [building] = await deps.db.query<{ id: string }>(
       "select id from building where code=$1",
@@ -51,19 +58,19 @@ async function incidentPlainStep(
       actor?.person.isTest ?? false,
     );
     return `${
-      contact.phone ?? "Телефон ещё не настроен / Телефон әлі бапталмаған"
+      contact.phone ?? pick(L, "Телефон ещё не настроен", "Телефон әлі бапталмаған")
     }\n${contact.notice}`;
   }
   if (!actor) {
     throw new ApiError(
       "FORBIDDEN",
-      "Подтвердите регистрацию / Тіркелуді растаңыз",
+      pick(L, "Подтвердите регистрацию", "Тіркелуді растаңыз"),
     );
   }
   if (command === "/incidents") {
     return (await listIncidents(deps, actor)).map((r) =>
       `${r.number}: ${r.title}`
-    ).join("\n") || "Нет доступных аварий / Қолжетімді апаттар жоқ";
+    ).join("\n") || pick(L, "Нет доступных аварий", "Қолжетімді апаттар жоқ");
   }
   if (command === "/incident") {
     const [r] = await deps.db.query<{ id: string }>(
@@ -73,13 +80,13 @@ async function incidentPlainStep(
     if (!r) throw new ApiError("NOT_FOUND");
     const card = await getIncident(deps, actor, r.id);
     return `${card.number}: ${card.title}\n${
-      card.public_text ?? "Сигнал проверяется / Сигнал тексерілуде"
+      card.public_text ?? pick(L, "Сигнал проверяется", "Сигнал тексерілуде")
     }\n${card.forecast}`;
   }
   if (command === "/signals") {
     return (await listSignals(deps, actor)).map((s) =>
       `${s.id} • ${s.description}\n/acceptsignal ${s.id} ${s.version}`
-    ).join("\n\n") || "Нет сигналов / Сигналдар жоқ";
+    ).join("\n\n") || pick(L, "Нет сигналов", "Сигналдар жоқ");
   }
   if (command === "/acceptsignal" && id) {
     await acceptSignal(
@@ -89,7 +96,7 @@ async function incidentPlainStep(
       { expected_version: Number(args[0]) },
       key,
     );
-    return "Принято / Қабылданды";
+    return pick(L, "Принято", "Қабылданды");
   }
   if (command === "/emergency" || command === "/danger") {
     const task = command === "/danger",
@@ -108,7 +115,10 @@ async function incidentPlainStep(
         [code!.trim()],
       );
       if (!building) {
-        throw new ApiError("VALIDATION_FAILED", "Дом не найден / Үй табылмады");
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          pick(L, "Дом не найден", "Үй табылмады"),
+        );
       }
       r.building_id = building.id;
       description = parts.join("|").trim();
@@ -116,7 +126,11 @@ async function incidentPlainStep(
     if (!r.building_id) {
       throw new ApiError(
         "VALIDATION_FAILED",
-        "/danger НОМЕР_ЗАДАНИЯ КОД_ДОМА | описание / сипаттама",
+        pick(
+          L,
+          "/danger НОМЕР_ЗАДАНИЯ КОД_ДОМА | описание",
+          "/danger ТАПСЫРМА НӨМІРІ ҮЙ КОДЫ | сипаттама",
+        ),
       );
     }
     const signal = await signalEmergency(deps, actor, {
@@ -124,7 +138,7 @@ async function incidentPlainStep(
       building_id: r.building_id,
       description,
     }, key);
-    return `Сигнал / Сигнал: ${signal.id}\n${
+    return `Сигнал: ${signal.id}\n${
       signal.contact.phone ?? ""
     }\n${signal.contact.notice}`;
   }
@@ -132,13 +146,17 @@ async function incidentPlainStep(
     return (await listPublications(deps, actor)).filter((r) =>
       r.state === "published"
     ).map((r) => `${r.title}\n/publication ${r.id}`).join("\n\n") ||
-      "Нет публикаций / Жарияланымдар жоқ";
+      pick(L, "Нет публикаций", "Жарияланымдар жоқ");
   }
   if (command === "/publication" && id) {
     const p = await getPublication(deps, actor, id);
     return `${p.title}\n${p.body}${
       p.kind === "work_report"
-        ? `\n/workproblem ${id} КОД_ДОМА | описание / сипаттама`
+        ? `\n${pick(
+          L,
+          `/workproblem ${id} КОД_ДОМА | описание`,
+          `/workproblem ${id} ҮЙ КОДЫ | сипаттама`,
+        )}`
         : ""
     }`;
   }
@@ -152,15 +170,24 @@ async function incidentPlainStep(
       "select s.building_id from publication_scope s join building b on b.id=s.building_id where s.publication_id=$1 and b.code=$2",
       [id, code?.trim()],
     );
-    if (!b) throw new ApiError("VALIDATION_FAILED", "Дом вне публикации");
+    if (!b) {
+      throw new ApiError(
+        "VALIDATION_FAILED",
+        pick(L, "Дом вне публикации", "Үй жарияланым аумағында емес"),
+      );
+    }
     const r = await publicationProblem(deps, actor, id, {
       source: "bot",
       building_id: b.building_id,
       text: text.join("|").trim(),
     }, key);
-    return `${r.number}: зарегистрировано / тіркелді`;
+    return `${r.number}: ${pick(L, "зарегистрировано", "тіркелді")}`;
   }
-  return "/incidents — аварии / апаттар; /publications — публикации / жарияланымдар; /emergency — опасность / қауіп; /signals — сигналы / сигналдар";
+  return pick(
+    L,
+    "/incidents — аварии; /publications — публикации; /emergency — опасность; /signals — сигналы",
+    "/incidents — апаттар; /publications — жарияланымдар; /emergency — қауіп; /signals — сигналдар",
+  );
 }
 
 /** Все ответы VS-7 — обычный текст; HTML разрешает только транспорт UX A. */
