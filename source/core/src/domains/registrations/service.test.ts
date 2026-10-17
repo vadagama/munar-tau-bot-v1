@@ -24,10 +24,11 @@ const actor: Actor = {
   ],
   emulation: null,
 };
-function harness(registration: Row) {
+function harness(registration: Row, auditAppend?: AuditRepo["append"]) {
   const writes: string[] = [];
+  const writeParams: unknown[][] = [];
   const exec: DbExecutor = {
-    query: <T>(query: string) => {
+    query: <T>(query: string, params?: unknown[]) => {
       if (query.startsWith("select * from registration"))
         return Promise.resolve([
           {
@@ -48,7 +49,10 @@ function harness(registration: Row) {
             kind: "apartment",
           },
         ] as T[]);
+      if (query.startsWith("insert into person"))
+        return Promise.resolve([{ id: "n1" }] as T[]);
       writes.push(query);
+      writeParams.push(params ?? []);
       return Promise.resolve([]);
     },
   };
@@ -58,10 +62,12 @@ function harness(registration: Row) {
     close: () => Promise.resolve(),
   };
   const audit: AuditRepo = {
-    append: () => Promise.reject(new Error("не должен писать аудит успеха")),
+    append:
+      auditAppend ??
+      (() => Promise.reject(new Error("не должен писать аудит успеха"))),
     list: () => Promise.reject(new Error("unused")),
   };
-  return { deps: { db, audit }, writes };
+  return { deps: { db, audit }, writes, writeParams };
 }
 it("эмулируемый сотрудник не принимает настоящую анкету без person_id", async () => {
   const h = harness({ person_id: null });
@@ -115,4 +121,70 @@ it("уточнение не позволяет сотруднику рассмо
   await expect(
     reviewRegistration(h.deps, actor, "r", "reject", { reason: "Решение" }),
   ).rejects.toMatchObject({ code: "FORBIDDEN" });
+});
+
+it("уведомление об уточнении подсказывает заявку /fix", async () => {
+  const h = harness(
+    { telegram_user_id: 777 },
+    () =>
+      Promise.resolve({
+        id: 1,
+        at: "",
+        actorPersonId: null,
+        actorProfileId: null,
+        emulationSessionId: null,
+        emulatedPersonId: null,
+        action: "registration.clarify",
+        entityType: "registration",
+        entityId: "r",
+        before: null,
+        after: null,
+        reason: null,
+        scopeBuildings: [],
+        meta: {},
+      }),
+  );
+  await reviewRegistration(h.deps, actor, "r", "clarify", {
+    reason: "Нужно имя",
+  });
+  const i = h.writes.findIndex((q) => q.startsWith("insert into notification"));
+  expect(i).toBeGreaterThanOrEqual(0);
+  expect(String(h.writeParams[i]?.[1])).toContain("/fix");
+});
+
+it("уведомление о согласовании без уточнения не содержит /fix", async () => {
+  const h = harness(
+    {
+      telegram_user_id: 777,
+      draft: {
+        full_name: "Житель",
+        phone_e164: "+77771234567",
+        language: "ru",
+        consent: true,
+      },
+    },
+    () =>
+      Promise.resolve({
+        id: 1,
+        at: "",
+        actorPersonId: null,
+        actorProfileId: null,
+        emulationSessionId: null,
+        emulatedPersonId: null,
+        action: "registration.approve",
+        entityType: "registration",
+        entityId: "r",
+        before: null,
+        after: null,
+        reason: null,
+        scopeBuildings: [],
+        meta: {},
+      }),
+  );
+  await reviewRegistration(h.deps, actor, "r", "approve", {
+    reason: "Проверено",
+  });
+  const i = h.writes.findIndex((q) => q.startsWith("insert into notification"));
+  expect(i).toBeGreaterThanOrEqual(0);
+  expect(String(h.writeParams[i]?.[1])).not.toContain("/fix");
 });
