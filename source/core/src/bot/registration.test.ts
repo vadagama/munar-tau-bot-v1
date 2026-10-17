@@ -44,7 +44,9 @@ function harness(opts: { registrations?: Row[]; editable?: Row | null } = {}) {
         );
       if (sql.startsWith("select draft from registration"))
         return Promise.resolve(
-          registrations.length ? [{ draft: registrations[0]!.draft }] : [],
+          (registrations.length
+            ? [{ draft: registrations[0]!.draft }]
+            : []) as T[],
         );
       return Promise.resolve([] as T[]);
     },
