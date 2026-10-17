@@ -22,6 +22,11 @@ const STATES: Record<string, string> = {
   disputed: "Спор",
   withdrawn: "Отозвана",
 };
+const REASON_LABELS: Record<string, string> = {
+  clarify: "Вопрос заявителю",
+  reject: "Основание отказа",
+  dispute: "Основание спора",
+};
 export function RegistrationsPage() {
   const [rows, setRows] = useState<Row[]>([]),
     [busy, setBusy] = useState(false),
@@ -32,6 +37,15 @@ export function RegistrationsPage() {
     [saving, setSaving] = useState(false);
   const [failures, setFailures] = useState<Row[]>([]);
   const [form] = Form.useForm();
+  const approveDraft =
+    action?.decision === "approve"
+      ? (action.row.draft as Row | undefined)
+      : undefined;
+  const matchedPersons = approveDraft?.phone_e164
+    ? persons.filter(
+        (p) => String(p.phone_e164) === String(approveDraft.phone_e164),
+      )
+    : [];
   const load = async () => {
     setBusy(true);
     setError(null);
@@ -207,37 +221,63 @@ export function RegistrationsPage() {
         ]}
       />
       <Modal
-        title="Решение по анкете"
+        title={
+          action?.decision === "approve"
+            ? "Подтверждение анкеты"
+            : "Решение по анкете"
+        }
         open={!!action}
         onCancel={() => setAction(null)}
         onOk={() => void decide()}
         confirmLoading={saving}
-        okText="Сохранить решение"
+        okText={
+          action?.decision === "approve" ? "Подтвердить" : "Сохранить решение"
+        }
         cancelText="Отмена"
       >
         <Form name="registration-decision" form={form} layout="vertical">
-          <Form.Item
-            name="reason"
-            label="Основание решения или вопрос заявителю"
-            rules={[{ required: true, message: "Укажите основание" }]}
-          >
-            <Input.TextArea maxLength={300} />
-          </Form.Item>
-          {action?.decision === "approve" && (
+          {action?.decision === "approve" ? (
+            <>
+              <Typography.Paragraph>
+                Подтвердить анкету{" "}
+                <Typography.Text strong>
+                  {String(approveDraft?.full_name ?? "—")}
+                </Typography.Text>{" "}
+                ({String(approveDraft?.phone_e164 ?? "")})?
+              </Typography.Paragraph>
+              <Typography.Paragraph type="secondary">
+                В реестре создаётся карточка заявителя и подтверждается доступ:
+                {" "}
+                {String(action.row.building_code)} · {displayKind(action.row.kind)}{" "}
+                {String(action.row.number)}, {displayRole(action.row.role)}.
+              </Typography.Paragraph>
+              {!!matchedPersons.length && (
+                <Form.Item
+                  name="person_id"
+                  label="В реестре уже есть карточка с этим телефоном"
+                  required
+                  extra="Привяжите анкету к ней. Если это другой человек — сначала исправьте телефон в реестре."
+                  rules={[{ required: true, message: "Выберите карточку" }]}
+                >
+                  <Select
+                    options={matchedPersons.map((p) => ({
+                      value: String(p.id),
+                      label: `${p.full_name} · ${p.phone_e164}`,
+                    }))}
+                  />
+                </Form.Item>
+              )}
+            </>
+          ) : (
             <Form.Item
-              name="person_id"
-              label="Проверенная карточка в реестре"
-              extra="Выбирайте только после проверки личности. Без выбора создаётся новая карточка; совпадение телефона потребует ручной проверки."
+              name="reason"
+              label={
+                REASON_LABELS[action?.decision ?? ""] ??
+                "Основание решения или вопрос заявителю"
+              }
+              rules={[{ required: true, message: "Укажите основание" }]}
             >
-              <Select
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                options={persons.map((p) => ({
-                  value: String(p.id),
-                  label: `${p.full_name} · ${p.phone_e164}`,
-                }))}
-              />
+              <Input.TextArea maxLength={300} />
             </Form.Item>
           )}
         </Form>
