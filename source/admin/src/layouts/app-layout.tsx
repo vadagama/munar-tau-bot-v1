@@ -66,7 +66,7 @@ export function AppLayout() {
     <Layout style={{ minHeight: "100vh" }}>
       <Sider theme="dark" width={240} breakpoint="lg" collapsedWidth={0}>
         <div style={{ color: "#fff", padding: "16px", fontWeight: 600 }}>
-          Мунар Тау — ОСИ
+          ОСИ ЖК «Мунар Тау»
         </div>
         <Menu
           theme="dark"
