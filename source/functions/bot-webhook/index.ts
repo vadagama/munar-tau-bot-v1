@@ -1,13 +1,18 @@
 // Функция bot-webhook — приём обновлений Telegram Bot API (LLD-01 §2, LLD-03 §6).
-// VS-0: каркас защиты. Бизнес-сценарии бота — VS-2+ (анкета, заявка, приёмка).
+// VS-2: анкета и приглашения через общий сценарий бота/эмуляции.
 //
 // Защита: verify_jwt = false (обновления Telegram не несут JWT Supabase);
 // проверка заголовка X-Telegram-Bot-Api-Secret-Token (LLD-03 §6):
 //   не совпал — 401, тело запроса не читается;
 //   секрет не настроен — 500 INTERNAL (ошибка конфигурации среды).
-// Повторная доставка (тот же update_id) игнорируется — дедуп появится в VS-2
-// вместе с таблицей bot_inbound (REQ-05); каркас не создаёт побочных эффектов.
+// Повторная доставка update_id игнорируется в общей транзакции bot_inbound
+// и бизнес-сценария; ответ ставится в устойчивую очередь уведомлений.
 
+import { processInbound } from "../../core/src/bot/inbound.ts";
+import { createDbClient } from "../../core/src/db/client.ts";
+import { SqlAuditRepo } from "../../core/src/domains/audit/repo.ts";
+import type { RegistryDeps } from "../../core/src/domains/registry/service.ts";
+import { requireEnv } from "../../core/src/config/env.ts";
 import { type EnvSource } from "../../core/src/config/env.ts";
 import { ApiError, toErrorResponse } from "../../core/src/errors/api.ts";
 
@@ -17,14 +22,21 @@ export const WEBHOOK_SECRET_ENV = "TELEGRAM_WEBHOOK_SECRET";
 
 function health(): Response {
   return new Response(
-    JSON.stringify({ status: "ok", service: "bot-webhook", time: new Date().toISOString() }),
+    JSON.stringify({
+      status: "ok",
+      service: "bot-webhook",
+      time: new Date().toISOString(),
+    }),
     { status: 200, headers: JSON_HEADERS },
   );
 }
 
-// VS-0 тело синхронно; контракт Promise<Response> сохраняется для обработчиков VS-1+ (БД, очередь).
-// deno-lint-ignore require-await
-export async function handle(request: Request, env: EnvSource): Promise<Response> {
+// Секрет проверяется до чтения тела и подключения к БД.
+export async function handle(
+  request: Request,
+  env: EnvSource,
+  deps?: RegistryDeps,
+): Promise<Response> {
   try {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname.endsWith("/health")) {
@@ -46,18 +58,42 @@ export async function handle(request: Request, env: EnvSource): Promise<Response
       throw new ApiError("UNAUTHENTICATED");
     }
 
-    // VS-0: сценарии бота отсутствуют — подтверждаем приём, эффекта нет.
-    // Дедуп update_id и постановка в job_queue — VS-2 (REQ-05, LLD-03 §6).
-    return new Response(
-      JSON.stringify({ ok: true, status: "accepted", handled: false, reason: "vs0-stub" }),
-      { status: 200, headers: JSON_HEADERS },
-    );
+    if (Number(request.headers.get("content-length") ?? 0) > 65536)
+      throw new ApiError("FILE_LIMIT");
+    const raw = await request.text();
+    if (raw.length > 65536) throw new ApiError("FILE_LIMIT");
+    let update;
+    try {
+      update = JSON.parse(raw);
+    } catch {
+      throw new ApiError("VALIDATION_FAILED", "Ожидается JSON Telegram update");
+    }
+    if (!update || typeof update !== "object" || Array.isArray(update))
+      throw new ApiError("VALIDATION_FAILED");
+    const actual = deps ?? {
+      db: createDbClient(requireEnv(env, "SUPABASE_DB_URL")),
+      audit: new SqlAuditRepo(),
+    };
+    try {
+      const handled = await processInbound(actual, update);
+      return new Response(JSON.stringify({ ok: true, handled }), {
+        status: 200,
+        headers: JSON_HEADERS,
+      });
+    } finally {
+      if (!deps) await actual.db.close();
+    }
   } catch (error) {
     const { status, body } = toErrorResponse(error);
-    return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: JSON_HEADERS,
+    });
   }
 }
 
 if (import.meta.main) {
-  Deno.serve((request: Request) => handle(request, (name) => Deno.env.get(name)));
+  Deno.serve((request: Request) =>
+    handle(request, (name) => Deno.env.get(name)),
+  );
 }

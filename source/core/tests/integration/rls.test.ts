@@ -16,12 +16,26 @@ const TABLES = [
   "access_session",
   "emulation_session",
   "audit_log",
+  "building_parking",
+  "premises",
+  "connection",
+  "invite",
+  "registration",
+  "import_batch",
+  "import_mapping",
+  "bot_inbound",
+  "bot_dialog",
+  "notification",
+  "time_rule",
+  "time_rule_version",
+  "timer",
+
 ] as const;
 
 const CLIENT_ROLES = ["anon", "authenticated"] as const;
 
 describeWithDb("защита на уровне БД (второй рубеж)", (getDb) => {
-  it("RLS включён на всех таблицах VS-1 (LLD-02 §16)", async () => {
+  it("RLS включён на всех таблицах VS-1/VS-2 (LLD-02 §16)", async () => {
     const rows = await getDb().query<{ relname: string; relrowsecurity: boolean }>(
       `select c.relname, c.relrowsecurity
        from pg_class c

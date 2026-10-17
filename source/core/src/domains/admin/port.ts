@@ -94,6 +94,7 @@ export interface PersonLookupRecord {
 
 export interface AdminRepo {
   // Профили и персоны
+  linkProfileFromVerifiedIdentity?(exec: DbExecutor, supabaseUserId: string): Promise<ProfileRecord | null>;
   findProfileBySupabaseUserId(exec: DbExecutor, supabaseUserId: string): Promise<ProfileRecord | null>;
   getPerson(exec: DbExecutor, personId: string): Promise<PersonRecord | null>;
   getProfile(exec: DbExecutor, profileId: string): Promise<ProfileRecord | null>;

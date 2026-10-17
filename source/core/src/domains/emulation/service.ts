@@ -183,6 +183,8 @@ export async function simulate(
   }
   return deps.tx.transaction(async (exec) => {
     const reply = await scenario.run(input.text ?? "", {
+      actor,
+      executor: exec,
       profileId: actor.profile.id,
       personId: actor.person.id,
       fullName: actor.person.fullName,

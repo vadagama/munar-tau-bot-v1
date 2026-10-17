@@ -52,13 +52,14 @@ export function AppLayout() {
   const items = [
     { key: "/", label: "Главная" },
     ...(canSeeAudit(roles) ? [{ key: "/audit", label: "Журнал действий" }] : []),
-    ...(canUseEmulation(roles) ? [{ key: "/emulation", label: "Эмуляция" }] : []),
-    { key: "vs2-placeholder", label: "Разделы появятся с VS-2", disabled: true },
+    ...(roles.some(role=>["chairman","administrator","tech_admin"].includes(role)) ? [{key:"/time-rules",label:"Регламенты регистрации"}] : []),
+    ...(canUseEmulation(roles) || identity?.me.emulation ? [{ key: "/emulation", label: "Эмуляция" }] : []),
+    ...(["chairman","administrator","deputy"].some(role=>roles.includes(role as typeof roles[number])) ? [{key:"/registry",label:"Реестр"},{key:"/registrations",label:"Регистрация и споры"},{key:"/invites",label:"Приглашения"},{key:"/registry-import",label:"Импорт и экспорт"}] : []),
   ];
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider theme="dark" width={240}>
+      <Sider theme="dark" width={240} breakpoint="lg" collapsedWidth={0}>
         <div style={{ color: "#fff", padding: "16px", fontWeight: 600 }}>
           Мунар Тау — ОСИ
         </div>
@@ -70,8 +71,8 @@ export function AppLayout() {
         />
       </Sider>
       <Layout>
-        <Header style={{ background: "#fff", paddingInline: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography.Title level={4} style={{ margin: 0, lineHeight: "64px" }}>
+        <Header style={{ background: "#fff", paddingInline: 16, minHeight: 64, height: "auto", gap: 12, flexWrap: "wrap", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography.Title level={4} style={{ margin: 0, lineHeight: "32px", fontSize: 18 }}>
             Кабинет администратора ОСИ
           </Typography.Title>
           <Space>

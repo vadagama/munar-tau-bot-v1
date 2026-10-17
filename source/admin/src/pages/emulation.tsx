@@ -1,3 +1,5 @@
+import { RegistrationSimulator } from "./registration-simulator";
+import { useCabinetIdentity } from "../lib/identity";
 import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
@@ -32,6 +34,7 @@ const ROLE_LABELS: Record<string, string> = {
 // сеанса эмуляции. Роли персонам назначает председатель через раздел
 // назначений — эмуляция не расширяет полномочия техадминистратора.
 export function EmulationPage() {
+  const {identity}=useCabinetIdentity();
   const [persons, setPersons] = useState<EmulationPersonJson[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +140,7 @@ export function EmulationPage() {
         style={{ marginBottom: 16 }}
         message="Эмуляция доступна только под тестовыми персонами (is_test). Все действия журналируются с реальным актором и эмулируемой персоной; привилегированные действия недоступны."
       />
+      <RegistrationSimulator active={!!identity?.me.emulation}/>
       {loading ? (
         <Spin size="large" style={{ display: "block", margin: "60px auto" }} />
       ) : (

@@ -38,10 +38,12 @@ Deno.test("неверный заголовок — 401", async () => {
   assertEquals(response.status, 401);
 });
 
-Deno.test("верный заголовок — 200, processed=0 (VS-0)", async () => {
+Deno.test("верный заголовок — 200, пустая очередь", async () => {
   const response = await handle(
     post({ "x-jobs-secret": "stub-secret" }),
     envWithSecret,
+    { db: {query:()=>Promise.resolve([]),transaction:fn=>fn({query:()=>Promise.resolve([])}),close:()=>Promise.resolve()}, audit:{append:()=>Promise.reject(new Error("unused")),list:()=>Promise.reject(new Error("unused"))} },
+    ()=>Promise.resolve(),
   );
   assertEquals(response.status, 200);
   const body = await response.json();

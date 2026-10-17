@@ -5,6 +5,14 @@
 import type { SpecialRights, StaffRole } from "./types.ts";
 
 export type ActionKey =
+  | "registry.telegram.recovery"
+  | "registry.rules.read"
+  | "registry.rules.edit"
+  | "registry.read"
+  | "registry.write"
+  | "registry.export"
+  | "registration.self"
+  | "registration.review"
   | "meta.me"
   | "meta.dictionary"
   | "audit.read"
@@ -32,6 +40,14 @@ export interface ActionSpec {
 }
 
 export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
+  "registry.telegram.recovery": { privileged: true, roles: ["chairman", "administrator", "tech_admin"] },
+  "registry.rules.read": { privileged: false, roles: ["chairman", "administrator", "tech_admin"] },
+  "registry.rules.edit": { privileged: true, roles: ["chairman", "administrator", "tech_admin"] },
+  "registry.read": { privileged: false, roles: ["chairman", "administrator", "deputy"] },
+  "registry.write": { privileged: false, roles: ["chairman", "administrator", "deputy"] },
+  "registry.export": { privileged: true, roles: ["chairman", "administrator" ] },
+  "registration.self": { privileged: false },
+  "registration.review": { privileged: false, roles: ["chairman", "administrator", "deputy"] },
   "meta.me": { privileged: false },
   "meta.dictionary": { privileged: false },
 

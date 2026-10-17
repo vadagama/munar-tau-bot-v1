@@ -1,4 +1,4 @@
-// Интеграционные тесты схемы: таблицы миграции 0003 существуют, миграции
+// Интеграционные тесты схемы: таблицы миграций VS-1/VS-2 существуют, миграции
 // применяются повторно без ошибок (идемпотентность — HLD §20, expand/contract).
 
 import { expect, it } from "vitest";
@@ -15,10 +15,24 @@ const REQUIRED_TABLES = [
   "access_session",
   "emulation_session",
   "audit_log",
+  "building_parking",
+  "premises",
+  "connection",
+  "invite",
+  "registration",
+  "import_batch",
+  "import_mapping",
+  "bot_inbound",
+  "bot_dialog",
+  "notification",
+  "time_rule",
+  "time_rule_version",
+  "timer",
+
 ] as const;
 
 describeWithDb("схема БД (миграции VS-1)", (getDb) => {
-  it("все таблицы миграции 0003 существуют в схеме public", async () => {
+  it("все таблицы миграций VS-1/VS-2 существуют в схеме public", async () => {
     const rows = await getDb().query<{ tablename: string }>(
       "select tablename from pg_tables where schemaname = 'public'",
     );

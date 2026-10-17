@@ -1,9 +1,13 @@
+import type { DbExecutor } from "../db/client.ts";
+import type { Actor } from "../pdp/types.ts";
 // Реестр сценариев бота — общий модуль для webhook (VS-2) и симулятора
 // эмуляции (LLD-03 §3.16: POST /v1/emulation/simulate исполняет тот же
 // сценарный модуль, что и бот). В VS-1 реестр пуст: сценарии приходят в VS-2.
 
 /** Контекст исполнения сценария: под чьей учётной записью действует бот. */
 export interface BotScenarioContext {
+  actor?: Actor;
+  executor?: DbExecutor;
   profileId: string;
   personId: string;
   fullName: string;

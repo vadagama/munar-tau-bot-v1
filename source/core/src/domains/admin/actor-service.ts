@@ -17,7 +17,8 @@ export async function findProfileForAuth(
   exec: DbExecutor,
   supabaseUserId: string,
 ): Promise<ProfileRecord> {
-  const profile = await repo.findProfileBySupabaseUserId(exec, supabaseUserId);
+  const profile = await repo.findProfileBySupabaseUserId(exec, supabaseUserId)
+    ?? await repo.linkProfileFromVerifiedIdentity?.(exec,supabaseUserId);
   if (!profile) {
     throw new ApiError("NO_PROFILE");
   }

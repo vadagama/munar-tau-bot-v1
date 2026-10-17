@@ -56,7 +56,7 @@ function withRole(role: ActorAssignment["role"], scopeBuildingIds: string[] | un
 }
 
 describe("реестр действий", () => {
-  it("все действия VS-1 зарегистрированы", () => {
+  it("все действия VS-1/VS-2 зарегистрированы", () => {
     expect(Object.keys(ACTIONS).sort()).toEqual([
       "admin.assignment.create",
       "admin.assignment.list",
@@ -72,6 +72,14 @@ describe("реестр действий", () => {
       "emulation.simulate",
       "meta.dictionary",
       "meta.me",
+      "registration.review",
+      "registration.self",
+      "registry.export",
+      "registry.read",
+      "registry.rules.edit",
+      "registry.rules.read",
+      "registry.telegram.recovery",
+      "registry.write",
     ]);
   });
 });
