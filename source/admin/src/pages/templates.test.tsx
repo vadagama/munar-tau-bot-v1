@@ -22,6 +22,8 @@ vi.mock(
     canSeeTemplates: () => identityState.allowed,
   }),
 );
+// CSS-видимость всех узлов AntD в jsdom дорого вычисляется. Проверяем
+// действия и имена; визуальные состояния проверены отдельно в браузере.
 const computed = window.getComputedStyle.bind(window);
 beforeEach(() => {
   identityState.emulation = false;
@@ -52,7 +54,7 @@ it("сохраняет пару языков с причиной и исходн
   );
   render(<TemplatesPage />);
   fireEvent.click(
-    await screen.findByRole("button", { name: "Техническая ошибка" }),
+    await screen.findByText("Техническая ошибка"),
   );
   fireEvent.change(screen.getByLabelText("Русский"), {
     target: { value: "Попробуйте позже" },
@@ -63,7 +65,7 @@ it("сохраняет пару языков с причиной и исходн
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Понятный текст" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Сохранить версию" }));
+  fireEvent.click(screen.getByText("Сохранить версию"));
   await waitFor(() =>
     expect(
       vi.mocked(apiFetch).mock.calls.some(([p, o]) =>
@@ -100,14 +102,14 @@ it("предпросмотр использует сервер, сброс со�
   );
   render(<TemplatesPage />);
   fireEvent.click(
-    await screen.findByRole("button", { name: "Техническая ошибка" }),
+    await screen.findByText("Техническая ошибка"),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Предпросмотр" }));
+  fireEvent.click(screen.getByText("Предпросмотр"));
   expect(await screen.findByText("Проверено")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Вернуть стандарт" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Сбросить к дефолту" }));
+  fireEvent.click(screen.getByText("Сбросить к дефолту"));
   await waitFor(() =>
     expect(
       vi.mocked(apiFetch).mock.calls.some(([, o]) =>
@@ -129,9 +131,9 @@ it("эмуляция разрешает чтение без записи; чуж
   );
   render(<TemplatesPage />);
   fireEvent.click(
-    await screen.findByRole("button", { name: "Техническая ошибка" }),
+    await screen.findByText("Техническая ошибка"),
   );
-  expect(screen.getByRole("button", { name: "Сохранить версию" }))
+  expect(screen.getByText("Сохранить версию").closest("button"))
     .toBeDisabled();
   expect(screen.getByLabelText("Русский")).toBeDisabled();
   cleanup();
@@ -164,15 +166,15 @@ it("откат передаёт номер версии и обязательн�
   );
   render(<TemplatesPage />);
   fireEvent.click(
-    await screen.findByRole("button", { name: "Техническая ошибка" }),
+    await screen.findByText("Техническая ошибка"),
   );
-  fireEvent.click(await screen.findByRole("button", { name: /Версия 1/ }));
-  fireEvent.click(screen.getByRole("button", { name: "Сделать активной" }));
+  fireEvent.click(await screen.findByText(/Версия 1/));
+  fireEvent.click(screen.getByText("Сделать активной"));
   expect(screen.getByText("Укажите причину изменения")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Вернуть текст" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Сделать активной" }));
+  fireEvent.click(screen.getByText("Сделать активной"));
   await waitFor(() =>
     expect(
       vi.mocked(apiFetch).mock.calls.some(([, o]) =>
@@ -185,7 +187,7 @@ it("откат передаёт номер версии и обязательн�
       (o?.body as { rollback_to?: number })?.rollback_to === 1
     )?.[1]?.body,
   ).toEqual({ rollback_to: 1, reason: "Вернуть текст", base_version: 2 });
-}, 15000);
+});
 it("вставляет переменную в выбранное место активного языка", async () => {
   vi.mocked(apiFetch).mockImplementation(async (path) =>
     path.endsWith("/versions") ? { items: [] } : {
@@ -201,12 +203,12 @@ it("вставляет переменную в выбранное место а�
   );
   render(<TemplatesPage />);
   fireEvent.click(
-    await screen.findByRole("button", { name: "Техническая ошибка" }),
+    await screen.findByText("Техническая ошибка"),
   );
   const kk = screen.getByLabelText("Қазақша") as HTMLTextAreaElement;
   fireEvent.focus(kk);
   kk.setSelectionRange(0, 0);
-  fireEvent.click(screen.getByRole("button", { name: "Вставить" }));
+  fireEvent.click(screen.getByText("Вставить"));
   expect(kk.value).toBe("{number}Қате");
   expect(screen.getByLabelText("Русский")).toHaveValue("Сбой");
 });
