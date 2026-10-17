@@ -280,7 +280,14 @@ export async function reviewRegistration(
   input: Row,
   asOwner = false,
 ): Promise<Row> {
-  const reason = text(input, "reason");
+  // approve не требует основания (диалог кабинета без полей); остальные решения валидирует text().
+  const reason =
+    decision === "approve" &&
+    (input.reason === undefined ||
+      input.reason === null ||
+      String(input.reason).trim() === "")
+      ? null
+      : text(input, "reason");
   return deps.db.transaction(async (exec) => {
     const [row] = await exec.query<Row>(
       "select * from registration where id=$1 for update",
@@ -376,7 +383,7 @@ export async function reviewRegistration(
         [String(premises.building_id)],
         { state: row.state },
         { state: "disputed" },
-        reason,
+        reason ?? undefined,
       );
       // Возражение не отзывает доступ (REG-05).
       return { ...row, state: "disputed" };
@@ -427,11 +434,20 @@ export async function reviewRegistration(
         personId = matched.id;
       }
       if (!personId) {
-        const [person] = await exec.query<Row>(
-          "insert into person(full_name,phone_e164,is_test) values ($1,$2,$3) returning id",
-          [draft.full_name, draft.phone_e164, actor.person.isTest],
-        );
-        personId = person!.id;
+        try {
+          const [person] = await exec.query<Row>(
+            "insert into person(full_name,phone_e164,is_test) values ($1,$2,$3) returning id",
+            [draft.full_name, draft.phone_e164, actor.person.isTest],
+          );
+          personId = person!.id;
+        } catch (error) {
+          if ((error as { code?: string }).code === "23505")
+            throw new ApiError(
+              "VALIDATION_FAILED",
+              "В реестре уже есть карточка с этим телефоном — обновите страницу и привяжите её",
+            );
+          throw error;
+        }
       }
       if (row.telegram_user_id) {
         const existing = await exec.query<Row>(
@@ -517,7 +533,7 @@ export async function reviewRegistration(
     await notifyTelegram(
       exec,
       row.telegram_user_id,
-      `Состояние регистрации / Тіркелу күйі: ${stateLabels[state]}. ${reason}` +
+      `Состояние регистрации / Тіркелу күйі: ${stateLabels[state]}.${reason ? ` ${reason}` : ""}` +
         (decision === "clarify"
           ? " Исправьте анкету: отправьте боту /fix. / Түзету үшін ботыға /fix жіберіңіз."
           : ""),
@@ -533,7 +549,7 @@ export async function reviewRegistration(
       [String(premises.building_id)],
       { state: row.state },
       { state, person_id: personId },
-      reason,
+      reason ?? undefined,
     );
     return { ...row, state, person_id: personId };
   });
