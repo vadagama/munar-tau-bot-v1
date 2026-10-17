@@ -193,3 +193,40 @@ it("уточнение требует основание", async () => {
   ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
   expect(h.writes).toHaveLength(0);
 });
+
+/** append, фиксирующий запись аудита как сохранённую (для успешных решений). */
+const auditAppendOk: AuditRepo["append"] = (_exec, input) => {
+  const entry: AuditEntry = { ...input, id: 1, at: "" };
+  return Promise.resolve(entry);
+};
+
+it("уведомление об уточнении подсказывает заявку /fix", async () => {
+  const h = harness({ telegram_user_id: 777 }, { auditAppend: auditAppendOk });
+  await reviewRegistration(h.deps, actor, "r", "clarify", {
+    reason: "Нужно имя",
+  });
+  const i = h.writes.findIndex((q) => q.startsWith("insert into notification"));
+  expect(i).toBeGreaterThanOrEqual(0);
+  expect(String(h.writeParams[i]?.[1])).toContain("/fix");
+});
+
+it("уведомление о согласовании без уточнения не содержит /fix", async () => {
+  const h = harness(
+    {
+      telegram_user_id: 777,
+      draft: {
+        full_name: "Житель",
+        phone_e164: "+77771234567",
+        language: "ru",
+        consent: true,
+      },
+    },
+    { auditAppend: auditAppendOk },
+  );
+  await reviewRegistration(h.deps, actor, "r", "approve", {
+    reason: "Проверено",
+  });
+  const i = h.writes.findIndex((q) => q.startsWith("insert into notification"));
+  expect(i).toBeGreaterThanOrEqual(0);
+  expect(String(h.writeParams[i]?.[1])).not.toContain("/fix");
+});
