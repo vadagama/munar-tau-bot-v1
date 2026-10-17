@@ -10,6 +10,31 @@ export const TASK_STATE_TEXT: Record<string, { ru: string; kk: string }> = {
   accepted_admin: { ru: "Принято администратором", kk: "Әкімші қабылдады" },
   canceled: { ru: "Отменено", kk: "Болдырылмады" },
 };
+
+/** Подпись состояния задания на языке получателя. */
+export function taskStateText(state: unknown, lang: "ru" | "kk"): string {
+  return TASK_STATE_TEXT[String(state)]?.[lang] ?? String(state ?? "");
+}
+
+/** Подпись состояния визита исполнителя (bot/tasks, bot/requests). */
+export const VISIT_STATE_TEXT: Record<string, { ru: string; kk: string }> = {
+  proposed: { ru: "Предложен", kk: "Ұсынылған" },
+  confirmed: { ru: "Согласован", kk: "Келісілген" },
+  missed: { ru: "Не состоялся", kk: "Өтпеген" },
+  rescheduled: { ru: "Перенесён", kk: "Ауыстырылған" },
+};
+export function visitStateText(state: unknown, lang: "ru" | "kk"): string {
+  return VISIT_STATE_TEXT[String(state)]?.[lang] ?? String(state ?? "");
+}
+
+/** Подписи состояний общей работы для уведомлений жителям. */
+export const COMMON_WORK_STATE_TEXT: Record<string, { ru: string; kk: string }> = {
+  planned: { ru: "запланирована", kk: "жоспарланған" },
+  in_progress: { ru: "выполняется", kk: "орындалуда" },
+  on_review: { ru: "на проверке", kk: "тексеруде" },
+  completed: { ru: "завершена", kk: "аяқталды" },
+  canceled: { ru: "отменена", kk: "болдырылмады" },
+};
 export const TASK_ACTION_TEXT: Record<string, string> = {
   replace_canceled: "Заменить отменённое задание",
   request_pause: "Запросить остановку",

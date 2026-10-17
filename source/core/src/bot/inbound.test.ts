@@ -290,6 +290,32 @@ describe("processInbound: команды не глотаются активны�
   });
 });
 
+describe("processInbound: маршрутизация инцидентов и публикаций (EMG/PUB)", () => {
+  it("/publications уходит в сценарий инцидентов, а не в справку", async () => {
+    const h = harness();
+    expect(await processInbound(h.deps, textUpdate(30, "/publications"), "resident")).toBe(true);
+    const text = replyOf(h);
+    // Без профиля инцидентный сценарий отвечает ошибкой прав, а не справкой:
+    // команда дошла до incidentStep (раньше её глотала registrationStep).
+    expect(text).toContain("Подтвердите регистрацию");
+    expect(text).not.toContain("ОСИ ЖК «Мунар Тау»");
+  });
+
+  it("/emergency без аргументов отвечает подсказкой даже без профиля", async () => {
+    const h = harness();
+    expect(await processInbound(h.deps, textUpdate(31, "/emergency"), "resident")).toBe(true);
+    expect(replyOf(h)).toContain("/emergency");
+  });
+
+  it("/signals доступен в боте сотрудников (дежурство)", async () => {
+    const h = harness();
+    expect(await processInbound(h.deps, textUpdate(32, "/signals"), "worker")).toBe(true);
+    const text = replyOf(h);
+    expect(text).toContain("Подтвердите регистрацию");
+    expect(text).not.toContain("бот сотрудников");
+  });
+});
+
 describe("processInbound: глубокие ссылки /start (срез C)", () => {
   const uuid = "01890a5d-ac96-774b-bcce-b302e9aa8453";
 

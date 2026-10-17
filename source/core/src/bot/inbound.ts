@@ -1,6 +1,7 @@
 import { TASK_COMMANDS, taskStep } from "./tasks.ts";
 import { queueRequestFile } from "./request-files.ts";
 import { REQUEST_COMMANDS, requestStep } from "./requests.ts";
+import { INCIDENT_COMMANDS, incidentStep } from "./incidents.ts";
 import { jsonValue } from "../domains/registry/validation.ts";
 import { ApiError } from "../errors/api.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
@@ -20,8 +21,9 @@ import { langOf, pick, type Lang } from "./text.ts";
  * у бота сотрудников — задания (WRK), прочее — справка сотрудника.
  *
  * Слэш-команды не отдаются активному сценарию на съедание шагами ввода:
- * команды обращений — в requestStep, настройки уведомлений — в
- * notificationStep, остальное — в сценарий регистрации (он же справка).
+ * команды обращений — в requestStep, инцидентов и публикаций (EMG/PUB) —
+ * в incidentStep, настройки уведомлений — в notificationStep, остальное —
+ * в сценарий регистрации (он же справка).
  * Иначе застреваешь в шаге выбора помещения: любая команда отвечает
  * «Выберите номер из списка» (инцидент 17.10.2026).
  */
@@ -66,21 +68,34 @@ async function routeStep(
       return workerHelp(await profileLang(deps.db, telegramId));
     }
     // workerHelp() в fallback: язык профиля, а не всегда русский.
-    return TASK_COMMANDS.includes(command) || (state.scenario === "tasks" && !isCommand)
-      ? taskStep(deps, telegramId, text, undefined, operationId)
-      : workerHelp(await profileLang(deps.db, telegramId));
+    if (TASK_COMMANDS.includes(command) || (state.scenario === "tasks" && !isCommand)) {
+      return taskStep(deps, telegramId, text, undefined, operationId);
+    }
+    // Продолжение диалога о проблеме после работ (кнопка публикации).
+    if ((state.scenario === "incidents" && !isCommand) || INCIDENT_COMMANDS.includes(command)) {
+      return incidentStep(deps, telegramId, text, undefined, operationId);
+    }
+    return workerHelp(await profileLang(deps.db, telegramId));
   }
   if (isCommand) {
     if (command === "/notifications") {
       return notificationStep(deps, telegramId, text);
     }
+    if (INCIDENT_COMMANDS.includes(command)) {
+      return incidentStep(deps, telegramId, text, undefined, operationId);
+    }
     return REQUEST_COMMANDS.includes(command)
       ? requestStep(deps, telegramId, text, undefined, operationId)
       : registrationStep(deps, telegramId, text);
   }
-  return state.scenario === "requests"
-    ? requestStep(deps, telegramId, text, undefined, operationId)
-    : registrationStep(deps, telegramId, text);
+  if (state.scenario === "requests") {
+    return requestStep(deps, telegramId, text, undefined, operationId);
+  }
+  if (state.scenario === "incidents") {
+    // Свободный текст в сценарии инцидентов — продолжение /workproblem.
+    return incidentStep(deps, telegramId, text, undefined, operationId);
+  }
+  return registrationStep(deps, telegramId, text);
 }
 
 /** Язык профиля для подачи ответа; профиля нет — русский. */
