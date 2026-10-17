@@ -2,6 +2,12 @@ import { reportProblem } from "../domains/tasks/problems.ts";
 import { proposeVisit, updateVisit } from "../domains/tasks/visits.ts";
 import { taskActions, workerHelp } from "./help.ts";
 import { cmd, esc, fmtDate, fmtInterval, numbered, pick, type Lang } from "./text.ts";
+import {
+  almatyDay,
+  bareDayOffset,
+  parseVisitWhen,
+  visitFromDayTime,
+} from "./visit-time.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { jsonValue, type Row } from "../domains/registry/validation.ts";
@@ -93,8 +99,18 @@ export async function taskStep(
     const [command, number, ...args] = input.trim().split(/\s+/);
     const key = operationId ?? crypto.randomUUID();
     const find = async () => {
+      // Без номера postgres.js отклоняет undefined (UNDEFINED_VALUE) — апдейт
+      // уходит в 500 и зацикливает повторную доставку (как в requests.ts).
+      if (!number) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          pick(L, "Укажите номер задания", "Тапсырма нөмірін көрсетіңіз"),
+        );
+      }
+      // Полный UUID принимается наравне с номером: глубокие ссылки
+      // /start wrk_<uuid> (срез C) открывают карточку тем же кодом.
       const [t] = await exec.query<{ id: string }>(
-        "select id from task where number=$1",
+        "select id from task where number=$1 or id::text=lower($1)",
         [number],
       );
       if (!t) throw new ApiError("NOT_FOUND");
@@ -111,6 +127,7 @@ export async function taskStep(
       const tasks = await listTasks(d, actor);
       delete state.task_id;
       delete state.report;
+      delete state.visit_when;
       const visible = tasks.slice(0, 30);
       const lines = visible.map((t) =>
         `<b>${esc(t.number)}</b> — ${esc(String(t.title).slice(0, 100))} — ${
@@ -134,6 +151,7 @@ export async function taskStep(
       const t = await find();
       state.task_id = t.id;
       delete state.report;
+      delete state.visit_when;
       const visits = ((t.visits as Row[]) ?? []).map((v) =>
         `${pick(L, "Визит", "Сапар")}: ${fmtInterval(v.interval_start, v.interval_end)} — ${esc(String(v.status))}`
       );
@@ -227,18 +245,70 @@ export async function taskStep(
     }
     if (command === "/proposevisit") {
       const t = await find();
-      const [start, end, note] = args.join(" ").split("|").map((s) => s.trim());
+      if (!args.length) {
+        // Диалог (срез UX C): день — кнопкой, время — следующим сообщением.
+        return save({
+          text: pick(
+            L,
+            "Когда предложите визит? Напишите одним сообщением, например: завтра 10:00-12:00",
+            "Сапарды қашан ұсынасыз? Бір хабарламада жазыңыз, мысалы: ертең 10:00-12:00",
+          ),
+          buttons: [[
+            btn(pick(L, "Сегодня", "Бүгін"), `/proposevisit ${t.number} сегодня`),
+            btn(pick(L, "Завтра", "Ертең"), `/proposevisit ${t.number} завтра`),
+          ]],
+        });
+      }
+      const parts = args.join(" ").split("|").map((s) => s.trim());
+      const isIsoWithTz = (v: string | undefined) =>
+        typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v) &&
+        /(Z|[+-]\d{2}:\d{2})$/.test(v);
+      let interval: { start: string; end: string } | undefined;
+      let note: string | undefined;
+      if (isIsoWithTz(parts[0]) && isIsoWithTz(parts[1])) {
+        // Прежний ввод пары ISO-дат с часовым поясом — совместимость с тестами.
+        interval = { start: parts[0]!, end: parts[1]! };
+        note = parts[2] || undefined;
+      } else if (typeof parts[0] === "string" && bareDayOffset(parts[0]) !== null) {
+        // День без времени: запоминаем день, время — следующим сообщением.
+        // Активный черновик отчёта сбрасывается, как в других поддиалогах.
+        delete state.report;
+        state.visit_when = {
+          task_id: t.id,
+          day: almatyDay(bareDayOffset(parts[0])!, new Date()),
+        };
+        return save(
+          pick(
+            L,
+            "Теперь укажите время одним сообщением, например 10:00-12:00",
+            "Енді уақытты бір хабарламада жазыңыз, мысалы 10:00-12:00",
+          ),
+        );
+      } else if (parts[0]) {
+        interval = parseVisitWhen(parts[0], new Date()) ?? undefined;
+        note = parts[1] || undefined;
+      }
+      if (!interval) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          pick(
+            L,
+            "Не понял, когда визит. Примеры: завтра 10:00-12:00, сегодня 18:00, 20.10 09:00-11:00",
+            "Сапар уақытын түсінбедім. Мысалдар: ертең 10:00-12:00, бүгін 18:00, 20.10 09:00-11:00",
+          ),
+        );
+      }
       await proposeVisit(d, actor, {
         task_id: t.id,
-        interval_start: start,
-        interval_end: end,
+        interval_start: interval.start,
+        interval_end: interval.end,
         note,
       }, key);
       return save(
         pick(
           L,
-          "Интервал предложен жителю. Визит состоится только после согласования.",
-          "Аралық тұрғынға ұсынылды. Сапар тек келісілгеннен кейін өтеді.",
+          `Интервал предложен: ${fmtInterval(interval.start, interval.end)}. Визит состоится только после согласования.`,
+          `Аралық ұсынылды: ${fmtInterval(interval.start, interval.end)}. Сапар тек келісілгеннен кейін өтеді.`,
         ),
       );
     }
@@ -270,6 +340,34 @@ export async function taskStep(
           L,
           "Отсутствие доступа зафиксировано. Администратор и житель уведомлены.",
           "Қолжетімділік жоқ екені тіркелді. Әкімші мен тұрғын хабарланды.",
+        ),
+      );
+    }
+    // Шаг диалога визита (срез UX C): после кнопки «сегодня/завтра» жду
+    // время одним сообщением («10:00», «10:00-12:00») на сохранённый день.
+    const visitWhen = state.visit_when as Row | undefined;
+    if (visitWhen && !input.startsWith("/")) {
+      const interval = visitFromDayTime(String(visitWhen.day), input);
+      if (!interval) {
+        return save(
+          pick(
+            L,
+            "Не понял время. Напишите одним сообщением, например 10:00-12:00",
+            "Уақытты түсінбедім. Бір хабарламада жазыңыз, мысалы 10:00-12:00",
+          ),
+        );
+      }
+      await proposeVisit(d, actor, {
+        task_id: String(visitWhen.task_id),
+        interval_start: interval.start,
+        interval_end: interval.end,
+      }, key);
+      delete state.visit_when;
+      return save(
+        pick(
+          L,
+          `Интервал предложен: ${fmtInterval(interval.start, interval.end)}. Визит состоится только после согласования.`,
+          `Аралық ұсынылды: ${fmtInterval(interval.start, interval.end)}. Сапар тек келісілгеннен кейін өтеді.`,
         ),
       );
     }
