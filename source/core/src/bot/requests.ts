@@ -84,7 +84,16 @@ export async function requestStep(
     };
     const [command, number, ...args] = input.trim().split(/\s+/);
     const opKey = operationId ?? crypto.randomUUID();
+    // Номер обязателен: postgres.js отклоняет undefined в параметрах
+    // (UNDEFINED_VALUE), а без guard'а команда без номера уводит апдейт в 500
+    // и зацикливает повторную доставку Telegram (инцидент 17.10.2026).
     const find = async () => {
+      if (!number) {
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          "Укажите номер обращения / Өтініш нөмірін көрсетіңіз",
+        );
+      }
       const [r] = await exec.query<{ id: string }>(
         "select id from request where number=$1",
         [number],

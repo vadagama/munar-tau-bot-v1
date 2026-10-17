@@ -26,6 +26,7 @@ export async function processInbound(
     const message = update.message as Row | undefined;
     const from = message?.from as Row | undefined,
       chat = message?.chat as Row | undefined;
+    let failure: string | null = null;
     if (
       message &&
       from &&
@@ -89,7 +90,21 @@ export async function processInbound(
         else if ((error as { code?: string }).code === "23505") {
           reply =
             "Телефон или привязка уже существует. Требуется проверка администратора. / Телефон немесе тіркелгі бар. Әкімшінің тексеруі қажет.";
-        } else throw error;
+        } else {
+          // Неожиданная ошибка сценария (LLD-02: bot_inbound.status='error').
+          // Фиксируем апдейт как ошибочный и отвечаем общей фразой: ответ 500
+          // зацикливал бы повторную доставку Telegram и блокировал всю очередь
+          // обновлений (инцидент 17.10.2026: /request без номера и
+          // UNDEFINED_VALUE в postgres.js).
+          console.error(
+            `[bot-webhook] update ${update.update_id}: ошибка сценария`,
+            error,
+          );
+          failure = (error instanceof Error ? error.message : String(error))
+            .slice(0, 2000);
+          reply =
+            "Не удалось обработать сообщение. Попробуйте позже; если повторится — сообщите в ОСИ. / Хабарламаны өңдеу мүмкін болмады. Кейінірек көріңіз; қайталанса, ОСИ-ге хабарлаңыз.";
+        }
       }
       await notifyTelegram(
         exec,
@@ -99,8 +114,8 @@ export async function processInbound(
       );
     }
     await exec.query(
-      "update bot_inbound set status='processed',processed_at=now() where update_id=$1",
-      [update.update_id],
+      "update bot_inbound set status=$2,error=$3,processed_at=now() where update_id=$1",
+      [update.update_id, failure === null ? "processed" : "error", failure],
     );
     return true;
   });
