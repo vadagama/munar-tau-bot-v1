@@ -11,6 +11,8 @@ interface AppEnv {
   readonly apiUrl: string | null;
   /** Среда настроена — вход доступен. */
   readonly configured: boolean;
+  /** Регион функций рядом с БД; null — автоматический выбор / self-hosted. */
+  readonly functionRegion: string | null;
 }
 
 const rawUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -23,5 +25,6 @@ export const appEnv: AppEnv = {
   supabaseUrl,
   supabaseKey,
   apiUrl: supabaseUrl !== null ? `${supabaseUrl}/functions/v1/api` : null,
+  functionRegion: (import.meta.env.VITE_SUPABASE_FUNCTION_REGION as string | undefined)?.trim() || null,
   configured: supabaseUrl !== null && supabaseKey !== null,
 };

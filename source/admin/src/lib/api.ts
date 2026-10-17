@@ -67,6 +67,11 @@ export async function apiFetch<T>(path: string, request: ApiRequest = {}): Promi
     }
   }
 
+  // Одна поездка браузер → регион БД вместо межрегионального SQL на каждом шаге.
+  if (appEnv.functionRegion) {
+    url.searchParams.set("forceFunctionRegion", appEnv.functionRegion);
+  }
+
   const response = await fetch(url, {
     method: request.method ?? "GET",
     headers: {

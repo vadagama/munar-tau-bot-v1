@@ -20,6 +20,8 @@ npm run preview -w admin # локальный просмотр сборки (SPA
 ```bash
 VITE_SUPABASE_URL=https://YOUR-SUPABASE-HOST
 VITE_SUPABASE_PUBLISHABLE_KEY=YOUR-PUBLISHABLE-KEY
+# Регион облачной БД; для текущего dev — ap-southeast-2. Для self-hosted оставить пустым.
+VITE_SUPABASE_FUNCTION_REGION=ap-southeast-2
 ```
 
 Запрещено помещать сюда секреты: service-role key, токен бота, OIDC Client Secret.
@@ -68,3 +70,8 @@ VITE_SUPABASE_PUBLISHABLE_KEY=YOUR-PUBLISHABLE-KEY
 - `/time-rules` — версии сроков регистрации; право TIM-03 проверяет сервер.
 
 Тестовый домен определяется по person.is_test, а не только по наличию эмуляции. В симуляторе выберите сценарий `registration`: это тот же модуль, который обрабатывает webhook. Работа с настоящим Telegram OIDC и доставкой требует настроенных внешних провайдера/бота; воспроизводимые тесты используют вымышленные данные.
+
+Регион передаётся только вызовам прикладного API через `forceFunctionRegion`;
+адрес Supabase Auth не меняется. После изменения переменной пересоберите кабинет.
+При недоступности выбранного региона автоматического перенаправления нет: смените
+регион или очистите переменную и пересоберите. Замеры — ADR-005.
