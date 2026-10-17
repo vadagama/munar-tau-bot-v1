@@ -121,9 +121,26 @@ describe("processInbound: callback_query (срез UX B)", () => {
     // Справка бота жителей уходит тем же ботом.
     expect(text).toContain("ОСИ ЖК «Мунар Тау»");
     expect(bot).toBe("resident");
-    // Меню главных действий прикрепляется к /help — как и для текста команды.
+    // Меню главных действий прикрепляется к /help — как и для текста команды;
+    // подписи кнопок — с иконками (map в help.ts резолвит их в команды).
     const parsed = JSON.parse(markup!) as { keyboard: { text: string }[][] };
-    expect(parsed.keyboard.flat().map((b) => b.text)).toContain("/newrequest");
+    expect(parsed.keyboard.flat().map((b) => b.text)).toContain("🆕 Новое обращение");
+  });
+
+  it("кнопка reply-меню исполняется как её команда («Мои объекты» → /objects)", async () => {
+    const h = harness();
+    const update: Row = {
+      update_id: 5,
+      message: {
+        text: "🏠 Мои объекты",
+        from: { id: 100 },
+        chat: { id: 100, type: "private" },
+      },
+    };
+    expect(await processInbound(h.deps, update, "resident")).toBe(true);
+    expect(h.notifications.length).toBe(1);
+    // Без профиля /objects отвечает подсказкой регистрации — команда дошла.
+    expect(h.notifications[0]!.params![1]).toContain("Сначала регистрация: /register");
   });
 
   it("кнопка сценария без профиля — дружелюбная ошибка вместо кода API", async () => {

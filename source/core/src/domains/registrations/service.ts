@@ -1,5 +1,5 @@
 import { notifyPerson, notifyTelegram } from "./notifications.ts";
-import { labelCombined, stateLabels } from "../../locales/registry.ts";
+import { label, stateLabels } from "../../locales/registry.ts";
 import { jsonValue } from "../registry/validation.ts";
 import { initialStage, reviewers } from "./routing.ts";
 import type { Actor } from "../../pdp/types.ts";
@@ -172,7 +172,10 @@ export async function submitRegistration(
         await notifyPerson(
           exec,
           String(owner.person_id),
-          `Новая анкета арендатора / Жалға алушының өтінімі: ${row!.id}`,
+          {
+            ru: `Новая анкета арендатора: ${row!.id}`,
+            kk: `Жалға алушының өтінімі: ${row!.id}`,
+          },
           `${row!.id}:owner:${owner.person_id}`,
           { registrationAccess: { premisesId: String(premises.id), role: "owner" }, buildingIds: [String(premises.building_id)] },
         );
@@ -186,7 +189,10 @@ export async function submitRegistration(
         await notifyPerson(
           exec,
           reviewer,
-          `Новая анкета / Жаңа өтінім: ${row!.id}`,
+          {
+            ru: `Новая анкета: ${row!.id}`,
+            kk: `Жаңа өтінім: ${row!.id}`,
+          },
           `${row!.id}:review:${reviewer}`,
           { bot: "worker", registrationAccess: { premisesId: String(premises.id), role: stage }, buildingIds: [String(premises.building_id)] },
         );
@@ -533,10 +539,14 @@ export async function reviewRegistration(
     await notifyTelegram(
       exec,
       row.telegram_user_id,
-      `Состояние регистрации / Тіркелу күйі: ${labelCombined(stateLabels, state)}.${reason ? ` ${reason}` : ""}` +
-        (decision === "clarify"
-          ? " Исправьте анкету: отправьте боту /fix. / Түзету үшін ботыға /fix жіберіңіз."
-          : ""),
+      {
+        ru: `Состояние регистрации: ${label(stateLabels, state, "ru")}.${reason ? ` ${reason}` : ""}${
+          decision === "clarify" ? " Исправьте анкету: отправьте боту /fix." : ""
+        }`,
+        kk: `Тіркелу күйі: ${label(stateLabels, state, "kk")}.${reason ? ` ${reason}` : ""}${
+          decision === "clarify" ? " Түзету үшін ботыға /fix жіберіңіз." : ""
+        }`,
+      },
       `${id}:${state}:${row.updated_at}`,
     );
     await recordAudit(
@@ -686,14 +696,17 @@ export async function acceptInvite(
       await notifyPerson(
         exec,
         reviewer,
-        `Приглашение принято / Шақыру қабылданды: ${registration!.id}`,
+        {
+          ru: `Приглашение принято: ${registration!.id}`,
+          kk: `Шақыру қабылданды: ${registration!.id}`,
+        },
         `${invite.id}:admin:${reviewer}`,
         { bot: "worker", registrationAccess: { premisesId: String(premises.id), role: "administrator" }, buildingIds: [String(premises.building_id)] },
       );
     await notifyPerson(
       exec,
       String(invite.created_by),
-      "Приглашение принято / Шақыру қабылданды",
+      { ru: "Приглашение принято", kk: "Шақыру қабылданды" },
       `${invite.id}:accepted`,
       { registrationAccess: { premisesId: String(premises.id), role: "owner" }, buildingIds: [String(premises.building_id)] },
     );
@@ -799,7 +812,7 @@ export async function revokeOwnConnection(
     await notifyPerson(
       exec,
       String(row.person_id),
-      `Связь прекращена / Байланыс тоқтатылды: ${reason}`,
+      { ru: `Связь прекращена: ${reason}`, kk: `Байланыс тоқтатылды: ${reason}` },
       `${id}:revoked`,
     );
     await recordAudit(

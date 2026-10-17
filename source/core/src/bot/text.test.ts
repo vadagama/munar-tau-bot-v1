@@ -77,8 +77,8 @@ describe("прочее", () => {
     expect(numbered(["a", "b"])).toBe("1. a\n2. b");
     expect(numbered([])).toBe("");
   });
-  it("cmd оборачивает команду в code с экранированием", () => {
-    expect(cmd("/say <номер>")).toBe("<code>/say &lt;номер&gt;</code>");
+  it("cmd экранирует команду; без <code> — Telegram сам делает команды кликабельными", () => {
+    expect(cmd("/say <номер>")).toBe("/say &lt;номер&gt;");
   });
 });
 

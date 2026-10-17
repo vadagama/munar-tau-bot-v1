@@ -61,7 +61,10 @@ export async function sweepRegistrations(
           await notifyPerson(
             exec,
             person,
-            `Спор просрочен / Дау мерзімі өтті: ${row.id}`,
+            {
+              ru: `Спор просрочен: ${row.id}`,
+              kk: `Дау мерзімі өтті: ${row.id}`,
+            },
             `${timer.id}:${person}`,
             { bot: "worker" },
           );
@@ -122,14 +125,20 @@ export async function sweepRegistrations(
           await notifyPerson(
             exec,
             person,
-            `Требуется решение по анкете / Өтінім бойынша шешім қажет: ${row.id}`,
+            {
+              ru: `Требуется решение по анкете: ${row.id}`,
+              kk: `Өтінім бойынша шешім қажет: ${row.id}`,
+            },
             `${timer.id}:${person}`,
             { bot: "worker" },
           );
         await notifyTelegram(
           exec,
           row.telegram_user_id,
-          "Анкета передана следующему ответственному / Өтінім келесі жауапты қызметкерге берілді",
+          {
+            ru: "Анкета передана следующему ответственному",
+            kk: "Өтінім келесі жауапты қызметкерге берілді",
+          },
           `${timer.id}:applicant`,
         );
       }

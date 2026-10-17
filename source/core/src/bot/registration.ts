@@ -20,6 +20,7 @@ import {
   reviewRegistration,
   revokeOwnConnection,
 } from "../domains/registrations/service.ts";
+import { submitPrivacyRequest } from "../domains/privacy/service.ts";
 import { ScenarioRegistry } from "./registry.ts";
 import { registrationHelp } from "./help.ts";
 import { btn, type BotReply, replyText } from "./keyboard.ts";
@@ -61,6 +62,18 @@ const ROLE_TEXT = (lang: Lang) =>
   numbered(ROLE_OPTIONS.map((role, i) =>
     `${i + 1}. ${label(roleLabels, role, lang)}`
   ));
+
+/** Строка списка анкет: состояние, анкетные данные, помещение, роль, причина. */
+function registrationLines(rows: Row[], L: Lang): string[] {
+  return rows.map((r) => {
+    const draft = r.draft ? jsonValue<Row>(r.draft) : {};
+    return `<b>${esc(label(stateLabels, r.state, L))}</b>: ${esc(draft.full_name ?? "—")}, ${
+      esc(label(premiseLabels, r.kind, L, "помещение"))
+    } ${esc(r.code ?? "—")}/${esc(r.number ?? "—")}, ${esc(label(roleLabels, r.role, L))}${
+      r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""
+    }`;
+  });
+}
 
 function scopedDeps(deps: RegistryDeps, exec: DbExecutor): RegistryDeps {
   return {
@@ -110,7 +123,9 @@ export async function registrationStep(
     }
     if (cmd === "/status") {
       const rows = await exec.query<Row>(
-        "select id,state,decided_reason,review_stage from registration where telegram_user_id=$1 or person_id=$2 order by created_at desc limit 20",
+        `select r.id,r.state,r.decided_reason,r.review_stage,r.draft,r.role,p.kind,p.number,b.code
+        from registration r join premises p on p.id=r.premises_id join building b on b.id=p.building_id
+        where r.telegram_user_id=$1 or r.person_id=$2 order by r.created_at desc limit 20`,
         [telegramId, actor?.person.id ?? null],
       );
       if (!rows.length) {
@@ -128,9 +143,7 @@ export async function registrationStep(
         .filter((row): row is NonNullable<typeof row> => !!row);
       return save({
         text:
-          numbered(rows.map((r) =>
-            `<b>${esc(label(stateLabels, r.state, L))}</b>${r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""}`
-          )) +
+          numbered(registrationLines(rows, L)) +
           `\n${cmdCode("/fix")} — ${pick(L, "исправить анкету после уточнения", "өтінімді нақтылаудан кейін түзету")}; ${cmdCode("/edit НОМЕР")} — ${pick(L, "заполнить заново", "қайта толтыру")}`,
         ...(buttons.length ? { buttons } : {}),
       });
@@ -305,6 +318,39 @@ export async function registrationStep(
       cmd === "/edit" ||
       (cmd === "/start" && parts[1]?.startsWith("invite_"))
     ) {
+      // Повторная регистрация бессмысленна: если анкета уже есть и не отозвана —
+      // показываем её актуальный статус вместо мастера. /add и /start invite_*
+      // сознательно проходят мимо guard: это осознанные пути добавления объекта.
+      if (cmd === "/register") {
+        const rows = await exec.query<Row>(
+          `select r.id,r.state,r.decided_reason,r.review_stage,r.draft,r.role,p.kind,p.number,b.code
+          from registration r join premises p on p.id=r.premises_id join building b on b.id=p.building_id
+          where (r.telegram_user_id=$1 or r.person_id=$2)
+          and r.state in ('pending_review','need_clarification','approved','rejected')
+          order by r.created_at desc limit 20`,
+          [telegramId, actor?.person.id ?? null],
+        );
+        if (rows.length) {
+          const hasApproved = rows.some((r) => r.state === "approved");
+          return save(
+            `${pick(
+              L,
+              hasApproved
+                ? "Вы уже зарегистрированы. Повторная регистрация не нужна."
+                : "У вас уже есть анкета. Повторная регистрация не нужна.",
+              hasApproved
+                ? "Сіз тіркелгенсіз. Қайта тіркелу қажет емес."
+                : "Сізде өтінім бар. Қайта тіркелу қажет емес.",
+            )}\n${numbered(registrationLines(rows, L))}\n${
+              cmdCode("/status")
+            } — ${pick(L, "статус анкет", "өтінімдер күйі")}; ${cmdCode("/fix")} — ${pick(
+              L,
+              "исправить анкету",
+              "өтінімді түзету",
+            )}; ${cmdCode("/add")} — ${pick(L, "добавить ещё объект", "тағы нысан қосу")}`,
+          );
+        }
+      }
       if (cmd === "/edit") {
         // Номер резолвим до очистки состояния: status_options ещё живы.
         if (!parts[1]) {
@@ -401,6 +447,38 @@ export async function registrationStep(
             "Введите имя и фамилию (или точку, чтобы оставить прежнее):",
             "Аты-жөнді жазыңыз (немесе өзгеріссіз қалдыру үшін нүкте):",
           ),
+      );
+    }
+    if (cmd === "/delete") {
+      // PRV-02: команда подаёт запрос администратору, а не удаляет анкету;
+      // история обращений и операций сохраняется. Подтверждение — кнопкой
+      // или текстовым эквивалентом "/delete confirm".
+      if (!actor) {
+        return save(
+          pick(L, "Сначала регистрация: /register", "Алдымен тіркеліңіз: /register"),
+        );
+      }
+      if (parts[1] !== "confirm") {
+        return save({
+          text: pick(
+            L,
+            "Подать запрос на удаление анкеты и данных регистрации? История обращений и операций сохранится в ОСИ. Необязательные уведомления отключатся сразу; решение примет администратор. Отменить запрос нельзя — обратитесь к администратору.",
+            "Өтінім мен тіркелу деректерін жою туралы сұрау берілсін бе? Өтініштер мен операциялар тарихы ОСИ-де сақталады. Қосымша хабарламалар бірден өшіріледі; шешімді әкімші қабылдайды. Сұрауды қайтару мүмкін емес — әкімшіге жүгініңіз.",
+          ),
+          buttons: [[
+            btn(pick(L, "Подтвердить удаление", "Жоюды растау"), "/delete confirm"),
+            btn(pick(L, "Отмена", "Болдырмау"), "/cancel"),
+          ]],
+        });
+      }
+      await submitPrivacyRequest(d, actor, { kind: "delete_profile" });
+      for (const key of Object.keys(state)) delete state[key];
+      return save(
+        pick(
+          L,
+          "Запрос на удаление анкеты отправлен администратору. Необязательные уведомления отключены; с вами свяжутся после решения.",
+          "Өтінімді жою туралы сұрау әкімшіге жіберілді. Қосымша хабарламалар өшірілді; шешімнен кейін сізбен байланысадыңыз.",
+        ),
       );
     }
     if (!state.step || cmd === "/start" || cmd === "/help") return help();

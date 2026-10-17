@@ -13,9 +13,14 @@ const labels: Record<string, Loc> = {
   canceled: { ru: "Отменена", kk: "Тоқтатылды" },
   rejected: { ru: "Отказано", kk: "Қабылданбады" },
 };
-/** Подпись состояния обращения: без языка — сдвоенная (легаси), с языком — одна. */
-export function requestStateText(state: unknown, lang?: "ru" | "kk"): string {
+/** Подпись состояния обращения: одна — по языку получателя. */
+export function requestStateText(state: unknown, lang: "ru" | "kk"): string {
   const value = labels[String(state)];
-  if (!value) return "Неизвестный статус / Белгісіз күй";
-  return lang ? value[lang] : `${value.ru} / ${value.kk}`;
+  if (!value) return lang === "kk" ? "Белгісіз күй" : "Неизвестный статус";
+  return value[lang];
+}
+
+/** Подпись как пара языков — для локализуемых уведомлений вне бота. */
+export function requestStateLoc(state: unknown): Loc {
+  return labels[String(state)] ?? { ru: "Неизвестный статус", kk: "Белгісіз күй" };
 }

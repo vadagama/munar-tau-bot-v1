@@ -2,7 +2,7 @@ import type { LocalizedNotice } from "../../locales/notifications.ts";
 import { startConfirmationTimers } from "./timers.ts";
 import { cancelParentTasks } from "../tasks/cancellation.ts";
 import { lockRequestWorks, taskResultSnapshot } from "../tasks/results.ts";
-import { requestStateText } from "../../locales/requests.ts";
+import { requestStateLoc } from "../../locales/requests.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { ApiError } from "../../errors/api.ts";
 import type { DbExecutor } from "../../db/client.ts";
@@ -373,9 +373,14 @@ export async function createRequest(
       await inform(
         exec,
         next,
-        `${next.number}: обращение зарегистрировано. Первый ответ до ${
-          new Date(String(next.first_response_due_at)).toISOString()
-        }. / Өтініш тіркелді.`,
+        {
+          ru: `${next.number}: обращение зарегистрировано. Первый ответ до ${
+            new Date(String(next.first_response_due_at)).toISOString()
+          }.`,
+          kk: `${next.number}: өтініш тіркелді. Алғашқы жауап ${
+            new Date(String(next.first_response_due_at)).toISOString()
+          }.`,
+        },
         `${id}:created`,
         false,
         false,
@@ -383,7 +388,10 @@ export async function createRequest(
       await informManagers(
         exec,
         next,
-        `${next.number}: новое обращение / жаңа өтініш`,
+        {
+          ru: `${next.number}: новое обращение`,
+          kk: `${next.number}: жаңа өтініш`,
+        },
         `${id}:queue`,
       );
       return next;
@@ -723,9 +731,14 @@ export async function transitionRequest(
         await inform(
           exec,
           next,
-          `${next.number}: зарегистрировано / тіркелді. Первый ответ до ${
-            new Date(String(next.first_response_due_at)).toISOString()
-          }.`,
+          {
+            ru: `${next.number}: зарегистрировано. Первый ответ до ${
+              new Date(String(next.first_response_due_at)).toISOString()
+            }.`,
+            kk: `${next.number}: тіркелді. Алғашқы жауап ${
+              new Date(String(next.first_response_due_at)).toISOString()
+            }.`,
+          },
           `${id}:created`,
           false,
           false,
@@ -733,7 +746,10 @@ export async function transitionRequest(
         await informManagers(
           exec,
           next,
-          `${next.number}: новое обращение / жаңа өтініш`,
+          {
+            ru: `${next.number}: новое обращение`,
+            kk: `${next.number}: жаңа өтініш`,
+          },
           `${id}:queue`,
         );
         return next;
@@ -987,12 +1003,14 @@ export async function transitionRequest(
         payload: p,
       });
       await event(exec, next!, "request.state_changed");
+      const st = requestStateLoc(state);
       await inform(
         exec,
         next!,
-        `${row.number}: ${
-          requestStateText(state)
-        }. Подробности в карточке обращения.`,
+        {
+          ru: `${row.number}: ${st.ru}. Подробности в карточке обращения.`,
+          kk: `${row.number}: ${st.kk}. Толығырақ өтініш карточкасында.`,
+        },
         `${id}:state:${next!.version}`,
         true,
         ["ask_clarification","submit_result","reject","cancel_request","approve_cancel","reject_cancel"].includes(action),
@@ -1000,7 +1018,7 @@ export async function transitionRequest(
       await informManagers(
         exec,
         next!,
-        `${row.number}: ${requestStateText(state)}`,
+        { ru: `${row.number}: ${st.ru}`, kk: `${row.number}: ${st.kk}` },
         `${id}:managers:${next!.version}`,
       );
       return publicRequest(exec, actor, next!);

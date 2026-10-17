@@ -6,7 +6,7 @@ import { ApiError } from "../errors/api.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { registrationStep } from "./registration.ts";
 import { notificationStep } from "./notifications.ts";
-import { residentMenu, workerHelp, workerMenu } from "./help.ts";
+import { residentMenu, workerHelp, workerMenu, menuCommand } from "./help.ts";
 import { notifyTelegram } from "../domains/registrations/notifications.ts";
 import type { BotKind } from "./bots.ts";
 import type { Row } from "../domains/registry/validation.ts";
@@ -65,9 +65,10 @@ async function routeStep(
     if (command === "/help" || command === "/start") {
       return workerHelp(await profileLang(deps.db, telegramId));
     }
+    // workerHelp() в fallback: язык профиля, а не всегда русский.
     return TASK_COMMANDS.includes(command) || (state.scenario === "tasks" && !isCommand)
       ? taskStep(deps, telegramId, text, undefined, operationId)
-      : workerHelp();
+      : workerHelp(await profileLang(deps.db, telegramId));
   }
   if (isCommand) {
     if (command === "/notifications") {
@@ -128,6 +129,12 @@ export async function processInbound(
       (callbackData !== undefined || typeof message.text === "string" ||
         message.photo || message.document || message.video)
     ) {
+      // Текст кнопки reply-меню исполняется как её команда: кнопка отправляет
+      // подпись, а не текстовую команду (map в help.ts).
+      const text =
+        menuCommand(callbackData ?? String(message.text ?? "")) ??
+        callbackData ?? String(message.text ?? "");
+      const command = text.split(/\s+/)[0] ?? "";
       await exec.query("savepoint bot_scenario");
       let reply: BotReply = "";
       try {
@@ -141,13 +148,11 @@ export async function processInbound(
           [from.id],
         );
         const state = dialog ? jsonValue<Row>(dialog.state) : {};
-        const text = callbackData ?? String(message.text ?? "");
-        const command = text.split(/\s+/)[0] ?? "";
         reply = await routeStep(
           { ...deps, db },
           bot,
           String(from.id),
-          callback ? { ...message, text } : message,
+          { ...message, text },
           state,
           command,
           `telegram:${update.update_id}`,
@@ -169,12 +174,12 @@ export async function processInbound(
         } else throw error;
       }
       // Reply-меню прикрепляется к справке: постоянная клавиатура ставится
-      // один раз и остаётся, пока пользователь её не скроет.
-      const command = (callbackData ?? String(message.text ?? "")).split(
-        /\s+/,
-      )[0] ?? "";
+      // один раз и остаётся, пока пользователь её не скроет. Кнопки — подписи
+      // на языке профиля; их тексты резолвятся в команды в processInbound.
       const menu = command === "/start" || command === "/help"
-        ? bot === "worker" ? workerMenu() : residentMenu()
+        ? await profileLang(exec, String(from.id)).then((lang) =>
+          bot === "worker" ? workerMenu(lang) : residentMenu(lang)
+        )
         : undefined;
       // Ответ уходит тем же ботом, который принял обновление.
       if (replyText(reply)) {
