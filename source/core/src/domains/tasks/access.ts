@@ -23,3 +23,10 @@ export async function requireTask(exec: DbExecutor, actor: Actor, id: string,
   if (!row || !can(actor, action, taskResource(row)).allow) throw new ApiError(action === "task.read" ? "NOT_FOUND" : "FORBIDDEN");
   return row;
 }
+
+/** ROL-02d: совмещение ролей не разрешает приёмку собственного результата. */
+export function canAcceptTaskReport(actor:Actor,row:TaskRow,reportAuthorId:unknown):boolean {
+ return row.state === "on_review" && typeof reportAuthorId === "string" &&
+  reportAuthorId !== actor.person.id && row.assignee_person_id !== actor.person.id &&
+  can(actor,"task.manage",taskResource(row)).allow;
+}

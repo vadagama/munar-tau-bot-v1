@@ -37,6 +37,7 @@ interface Task extends Row {
   due_at: string;
   request_id: string;
   can_manage?: boolean;
+  can_approve?: boolean;
   can_execute?: boolean;
   log?: Row[];
 }
@@ -295,7 +296,8 @@ export function TasksPage() {
   const reports = (card?.reports as Row[]) ?? [];
   const latestReport = reports[reports.length - 1];
   if (card?.can_manage && card.state === "on_review") {
-    adminActions.push("approve", "return");
+    if (card.can_approve === true) adminActions.push("approve");
+    adminActions.push("return");
   }
   if (card?.can_manage && card.state === "accepted_admin") {
     adminActions.push("return");

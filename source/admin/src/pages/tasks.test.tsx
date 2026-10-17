@@ -39,7 +39,7 @@ it("при отзыве доступа очищает старую карточ�
   expect(screen.queryByText("Проверить герметичность")).toBeNull();
 });
 it("приёмка требует явного решения по отсутствующему доказательству",async()=>{
- const reviewed={...task,state:"on_review",can_execute:false,can_manage:true,reports:[{id:"report",version:2,performed_work:"Замена",result:"Течь устранена",limitations:"",evidence:[],missing_evidence:["Фото"]}]};
+ const reviewed={...task,state:"on_review",can_execute:false,can_manage:true,can_approve:true,reports:[{id:"report",version:2,performed_work:"Замена",result:"Течь устранена",limitations:"",evidence:[],missing_evidence:["Фото"]}]};
  vi.mocked(apiFetch).mockImplementation(async(path,opts)=>{
   if(path==="/v1/tasks")return {items:[reviewed]};
   if(opts?.method==="POST")return {...reviewed,state:"accepted_admin"};
@@ -57,4 +57,14 @@ it("приёмка требует явного решения по отсутс�
  fireEvent.change(screen.getByLabelText("Решение по отсутствующему доказательству: Фото"),{target:{value:"Осмотрено на месте"}});
  fireEvent.click(submit);
  await waitFor(()=>expect(apiFetch).toHaveBeenCalledWith("/v1/tasks/t/transitions",expect.objectContaining({body:expect.objectContaining({report_version:2,result_checked:true,evidence_decisions:[{requirement_id:"Фото",reason:"Осмотрено на месте"}]})})));
+});
+
+it("сотрудник с совмещёнными ролями не видит приёмку собственного отчёта",async()=>{
+ const own={...task,state:"on_review",can_manage:true,can_approve:false,reports:[]};
+ vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/tasks"?{items:[own]}:own);
+ render(<TasksPage/>);
+ fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
+ await screen.findByText("Проверить герметичность");
+ expect(screen.queryByRole("button",{name:"Принять результат"})).toBeNull();
+ expect(screen.getByRole("button",{name:"Вернуть на доработку"})).toBeInTheDocument();
 });

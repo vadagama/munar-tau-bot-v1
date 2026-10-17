@@ -17,6 +17,7 @@ import { checkVersion, CLOSED_STATES } from "../requests/fsm.ts";
 import { notifyPerson } from "../registrations/notifications.ts";
 import {
   requireTask,
+  canAcceptTaskReport,
   TASK_SELECT,
   taskResource,
   type TaskRow,
@@ -309,6 +310,10 @@ export async function getTask(
 ): Promise<Row> {
   return deps.db.transaction(async (exec) => {
     const row = await requireTask(exec, actor, id);
+    const reports = await exec.query(
+      "select * from task_report where task_id=$1 and ($2::boolean or created_by=$3) order by version",
+      [id,can(actor,"task.manage",taskResource(row)).allow,actor.person.id],
+    );
     return {
       ...row,
       methodology: row.template_id
@@ -323,14 +328,8 @@ export async function getTask(
         "select * from task_log where task_id=$1 order by id",
         [id],
       ),
-      reports: await exec.query(
-        "select * from task_report where task_id=$1 and ($2::boolean or created_by=$3) order by version",
-        [
-          id,
-          can(actor, "task.manage", taskResource(row)).allow,
-          actor.person.id,
-        ],
-      ),
+      reports,
+      can_approve: canAcceptTaskReport(actor,row,reports.at(-1)?.created_by),
       pending_files: await exec.query(
         "select id,filename,size_bytes,status from attachment where task_id=$1 and uploaded_by=$2 and task_report_id is null order by created_at",
         [id, actor.person.id],
@@ -483,6 +482,7 @@ export async function transitionTask(
         if (!report) invalid("Отчёт отсутствует");
         checkVersion(Number(report.version), input.report_version);
         if (action === "approve") {
+          if (!canAcceptTaskReport(actor,row,report.created_by)) throw new ApiError("FORBIDDEN", "Собственную работу должен принять другой администратор");
           if (row.document_required) {
             invalid(
               "Для приёмки нужен обязательный акт; контур документов ещё не подключён",

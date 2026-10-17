@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { describeWithDb } from "./with-db.ts";
 import { setupTasks } from "./tasks-helpers.ts";
-import { createTask, transitionTask } from "../../src/domains/tasks/service.ts";
+import { createTask, transitionTask,getTask } from "../../src/domains/tasks/service.ts";
 import { submitTaskReport } from "../../src/domains/tasks/reports.ts";
 import {
   completeFile,
@@ -17,6 +17,16 @@ const report = {
   limitations: "",
 };
 describeWithDb("VS-4 отчёт и приёмка WRK-16", (getDb) => {
+  it("ROL-02d: председатель-исполнитель не принимает собственный отчёт",async()=>{
+    const {deps,admin,worker,input}=await setupTasks(getDb());
+    const t=await createTask(deps,admin,input,"task");
+    await getDb().query("update task set state='on_review' where id=$1",[t.id]);
+    await getDb().query("insert into task_report(task_id,version,performed_work,performed_at,result,created_by) values($1,1,'Ремонт',now(),'Готово',$2)",[t.id,worker.person.id]);
+    const chair={...worker,assignments:[...worker.assignments,...admin.assignments.map(a=>({...a,role:"chairman" as const}))]};
+    expect((await getTask(deps,chair,t.id)).can_approve).toBe(false);
+    await expect(transitionTask(deps,chair,t.id,{action:"approve",version:t.version,report_version:1,result_checked:true},"self-approve")).rejects.toMatchObject({code:"FORBIDDEN"});
+    expect((await getDb().query("select state from task where id=$1",[t.id]))[0]?.state).toBe("on_review");
+  });
   it("объяснение не заменяет решение администратора; отчёт и приёмка версионные", async () => {
     const { deps, admin, worker, input } = await setupTasks(getDb());
     const t = await createTask(deps, admin, {
