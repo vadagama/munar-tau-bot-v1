@@ -71,7 +71,9 @@ export async function handle(
     if (!update || typeof update !== "object" || Array.isArray(update))
       throw new ApiError("VALIDATION_FAILED");
     const actual = deps ?? {
-      db: createDbClient(requireEnv(env, "SUPABASE_DB_URL")),
+      // Клиент на один вызов (закрывается в finally); max: 2 ограничивает
+      // всплеск при параллельных обновлениях (см. комментарий в api/deps.ts).
+      db: createDbClient(requireEnv(env, "SUPABASE_DB_URL"), { max: 2 }),
       audit: new SqlAuditRepo(),
     };
     try {

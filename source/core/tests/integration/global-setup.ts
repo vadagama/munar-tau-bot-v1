@@ -23,8 +23,13 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   }
 
   // Один и тот же session advisory lock для локальных прогонов и GitHub CI.
-  // Отдельное соединение max:1 держит lock до завершения teardown.
-  const lock = createDbClient(testDatabaseUrl()!, { max: 1, maxLifetime: 0 });
+  // Отдельное соединение max:1 держит lock до завершения teardown;
+  // таймауты отключены явно — соединение обязано пережить весь прогон.
+  const lock = createDbClient(testDatabaseUrl()!, {
+    max: 1,
+    maxLifetime: 0,
+    idleTimeout: 0,
+  });
   console.log("[integration] Ожидание эксклюзивного доступа к тестовой БД");
   try {
     await acquireTestDatabaseLock(lock);

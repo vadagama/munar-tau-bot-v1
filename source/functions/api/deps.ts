@@ -38,11 +38,18 @@ export interface ApiDeps {
 
 let sharedDb: DbClient | undefined;
 
-/** Клиент БД на время жизни изолята функции (singleton, план VS-1). */
+/** Клиент БД на время жизни изолята функции (singleton, план VS-1).
+ *
+ * Пул ограничен на изолят: на стенде Supabase max_connections = 60, а каждый
+ * изолят держит собственный пул — без idle_timeout простаивающие соединения
+ * копятся по изолятам и исчерпывают слоты (500 при отказе в коннекте,
+ * инцидент 2026-10-17). idle_timeout закрывает соединение после 10 с простоя;
+ * max: 2 достаточно — конвейер запроса идёт последовательно.
+ */
 function sharedDbClient(connectionString: string): DbClient {
   if (!sharedDb) {
     // prepare: false задан в createDbClient — пулер транзакций Supabase.
-    sharedDb = createDbClient(connectionString);
+    sharedDb = createDbClient(connectionString, { max: 2, idleTimeout: 10 });
   }
   return sharedDb;
 }

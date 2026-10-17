@@ -115,7 +115,9 @@ export async function handle(
     }
 
     const actual = deps ?? {
-      db: createDbClient(requireEnv(env, "SUPABASE_DB_URL")),
+      // Клиент на один вызов (закрывается в finally); max: 2 ограничивает
+      // параллельные тики расписания (см. комментарий в api/deps.ts).
+      db: createDbClient(requireEnv(env, "SUPABASE_DB_URL"), { max: 2 }),
       audit: new SqlAuditRepo(),
     };
     try {
