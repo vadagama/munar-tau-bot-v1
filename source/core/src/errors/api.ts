@@ -100,6 +100,9 @@ const MESSAGES: Readonly<Record<ApiErrorCode, string>> = {
   INTERNAL: "Внутренняя ошибка сервера",
 };
 
+/** Дефолтные сообщения по кодам — для слоёв подачи (бот отличает свой текст от дефолтного). */
+export const ERROR_MESSAGES = MESSAGES;
+
 /**
  * Маппинг произвольной ошибки в ответ API.
  * Неизвестные ошибки не раскрывают деталей — только 500 INTERNAL и trace_id.

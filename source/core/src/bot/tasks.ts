@@ -1,5 +1,7 @@
 import { reportProblem } from "../domains/tasks/problems.ts";
 import { proposeVisit, updateVisit } from "../domains/tasks/visits.ts";
+import { registrationHelp, taskActions } from "./help.ts";
+import { cmd, esc, fmtDate, fmtInterval, numbered } from "./text.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { jsonValue, type Row } from "../domains/registry/validation.ts";
@@ -26,8 +28,7 @@ export const TASK_COMMANDS = [
   "/taskfiles",
   "/submitreport",
 ];
-const HELP =
-  "/pausetask НОМЕР причина — запросить остановку; /problem НОМЕР место | описание | номера фото через запятую; /proposevisit НОМЕР начало_ISO | конец_ISO | описание; /noaccess НОМЕР_ВИЗИТА причина | попытки связаться; /tasks — задания; /task НОМЕР — открыть; /accepttask НОМЕР — принять; /declinetask НОМЕР причина — не могу выполнить; /starttask НОМЕР — начать; /reporttask НОМЕР — отчёт; /taskfiles — загруженные файлы; /submitreport — отправить отчёт. /requests — обращения; /registration — регистрация.";
+const HELP = registrationHelp();
 export async function taskStep(
   deps: RegistryDeps,
   telegramId: string,
@@ -84,36 +85,36 @@ export async function taskStep(
       const tasks = await listTasks(d, actor);
       delete state.task_id;
       delete state.report;
+      const lines = tasks.slice(0, 30).map((t) =>
+        `<b>${esc(t.number)}</b> — ${esc(String(t.title).slice(0, 100))} — ${
+          esc(TASK_STATE_TEXT[t.state] ?? String(t.state))
+        }`
+      );
       return save(
-        tasks.slice(0, 30).map((t) =>
-          `${t.number}: ${String(t.title).slice(0, 100)} — ${
-            TASK_STATE_TEXT[t.state]
-          }`
-        ).join("\n") + "\n" + HELP,
+        (lines.length ? numbered(lines) : "Заданий нет / Тапсырма жоқ") +
+        `\n${cmd("/task НОМЕР")} — открыть задание / тапсырманы ашу`,
       );
     }
     if (command === "/task") {
       const t = await find();
       state.task_id = t.id;
       delete state.report;
+      const visits = ((t.visits as Row[]) ?? []).map((v) =>
+        `Визит: ${fmtInterval(v.interval_start, v.interval_end)} — ${esc(String(v.status))}`
+      );
+      const actions = taskActions(t.state);
       return save(
-        `${t.number}: ${t.title}\n${
-          TASK_STATE_TEXT[String(t.state)]
-        }\n${t.instruction}${
+        [
+          `<b>${esc(t.number)}</b> — ${esc(t.title)}`,
+          esc(TASK_STATE_TEXT[String(t.state)] ?? String(t.state)),
+          esc(t.instruction),
           t.methodology
-            ? `\nМетодичка: версия ${(t.methodology as Row).version}, ${
-              (t.methodology as Row).author_name
-            }, ${
-              new Date(String((t.methodology as Row).created_at)).toISOString()
-            }`
-            : ""
-        }\n${
-          ((t.visits as Row[]) ?? []).map((v, i) =>
-            `Визит ${
-              i + 1
-            }: ${v.interval_start} — ${v.interval_end} (${v.status})`
-          ).join("\n")
-        }\nСрок: ${new Date(String(t.due_at)).toISOString()}\n${HELP}`,
+            ? `Методичка: версия ${(t.methodology as Row).version}, ${esc(String((t.methodology as Row).author_name))}, ${fmtDate((t.methodology as Row).created_at)}`
+            : "",
+          visits.join("\n"),
+          `Срок / Мерзім: ${fmtDate(t.due_at)} (Алматы)`,
+          actions,
+        ].filter(Boolean).join("\n"),
       );
     }
     const action = ({
@@ -133,7 +134,7 @@ export async function taskStep(
       }, key);
       state.task_id = t.id;
       delete state.report;
-      return save(`${changed.number}: ${TASK_STATE_TEXT[changed.state]}`);
+      return save(`${esc(changed.number)} — ${esc(TASK_STATE_TEXT[changed.state] ?? changed.state)}${taskActions(changed.state) ? `\n${taskActions(changed.state)}` : ""}`);
     }
     if (command === "/reporttask") {
       const t = await find();
@@ -210,11 +211,11 @@ export async function taskStep(
       return getTask(d, actor, state.task_id);
     };
     const filesText = (t: Row) =>
-      ((t.pending_files as Row[]) ?? []).map((f, i) =>
-        `${i + 1}. ${f.filename}: ${
-          f.status === "complete" ? "сохранён" : "ещё в очереди"
+      numbered(((t.pending_files as Row[]) ?? []).map((f) =>
+        `${esc(f.filename)}: ${
+          f.status === "complete" ? "сохранён / сақталды" : "ещё в очереди / кезекте"
         }`
-      ).join("\n") || "Файлов пока нет";
+      )) || "Файлов пока нет / Файл әзірше жоқ";
     if (command === "/taskfiles") return save(filesText(await current()));
     if (command === "/submitreport") {
       if (!report || report.step !== "ready") {
@@ -232,7 +233,7 @@ export async function taskStep(
         key,
       );
       delete state.report;
-      return save(`${changed.number}: ${TASK_STATE_TEXT[changed.state]}`);
+      return save(`${esc(changed.number)} — ${esc(TASK_STATE_TEXT[changed.state] ?? changed.state)}`);
     }
     if (report && !input.startsWith("/")) {
       const t = await current();
@@ -294,14 +295,12 @@ export async function taskStep(
       }
       if (report.step === "evidence") {
         return save(
-          `Доказательство: ${
-            requirements[Number(report.index)]!.id
-          }. Отправьте файл, дождитесь сохранения (/taskfiles), затем введите его номер. Если нет — «нет причина».\n${
+          `Доказательство ${Number(report.index) + 1} из ${requirements.length}. Отправьте файл, дождитесь сохранения (${cmd("/taskfiles")}), затем введите его номер. Если доказательства нет — ${cmd("нет причина")}.\n${
             filesText(t)
           }`,
         );
       }
-      return save("Отчёт подготовлен. /submitreport — отправить на проверку.");
+      return save(`Отчёт подготовлен. ${cmd("/submitreport")} — отправить на проверку.`);
     }
     return save(HELP);
   });
