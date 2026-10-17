@@ -1,0 +1,15 @@
+{
+  "name": "@munar/landing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "npm run build && vite dist --host 127.0.0.1 --port 4174",
+    "preview": "vite preview --host 127.0.0.1 --port 4174"
+  },
+  "devDependencies": {
+    "qrcode": "^1.5.4",
+    "vite": "^7.3.7"
+  }
+}
