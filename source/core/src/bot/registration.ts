@@ -16,6 +16,8 @@ import {
   revokeOwnConnection,
 } from "../domains/registrations/service.ts";
 import { ScenarioRegistry } from "./registry.ts";
+import { registrationHelp } from "./help.ts";
+import { cmd as cmdCode, esc, fmtDate, numbered, resolveRef } from "./text.ts";
 
 export async function actorForTelegram(
   deps: RegistryDeps,
@@ -34,8 +36,8 @@ export async function actorForTelegram(
 }
 const TYPES =
   "1. apartment — квартира / пәтер; 2. commercial — коммерческое / коммерциялық; 3. parking_slot — парковочное место / тұрақ орны; 4. storage — кладовка / қойма";
-const HELP =
-  "/notifications — уведомления / хабарламалар; /tasks — задания исполнителя / орындаушы тапсырмалары; /newrequest — новое обращение / жаңа өтініш; /requests — мои обращения / менің өтініштерім; /register — регистрация / тіркелу; /add — добавить объект / нысан қосу; /status — статус / күйі; /edit ID — исправить анкету / өтінімді түзету; /pending — анкеты арендаторов / жалға алушылар өтінімдері; /accesses — выданные доступы / берілген қолжетімділік; /objects — мои объекты / менің нысандарым; /invite ID tenant|resident|other; /approve ID; /reject ID причина; /dispute ID причина; /revoke ID причина. Общая справка / Жалпы ақпарат: ОСИ ЖК «Мунар Тау». При непосредственной угрозе жизни звоните 112 / Өмірге тікелей қауіп төнсе 112 нөміріне қоңырау шалыңыз.";
+/** Полная справка — HTML-разделы; в реплики не вклеивается, только /help и /start. */
+const HELP = registrationHelp();
 function scopedDeps(deps: RegistryDeps, exec: DbExecutor): RegistryDeps {
   return {
     ...deps,
@@ -84,14 +86,14 @@ export async function registrationStep(
         "select id,state,decided_reason,review_stage from registration where telegram_user_id=$1 or person_id=$2 order by created_at desc limit 20",
         [telegramId, actor?.person.id ?? null],
       );
-      return rows.length
-        ? rows
-            .map(
-              (r) =>
-                `${r.id}: ${stateLabels[String(r.state)] ?? r.state} ${r.decided_reason ?? ""}`,
-            )
-            .join("\n")
-        : "Анкет пока нет / Өтінімдер жоқ";
+      if (!rows.length) return "Анкет пока нет / Өтінімдер жоқ";
+      state.status_options = rows.map((r) => String(r.id));
+      return save(
+        numbered(rows.map((r) =>
+          `<b>${esc(stateLabels[String(r.state)] ?? String(r.state))}</b>${r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""}`
+        )) +
+        `\n${cmdCode("/edit НОМЕР")} — исправить анкету / өтінімді түзету`,
+      );
     }
     if (cmd === "/pending" || cmd === "/accesses") {
       if (!actor) return "Сначала регистрация / Алдымен тіркеліңіз: /register";
@@ -101,14 +103,16 @@ export async function registrationStep(
           where r.review_stage='owner' and r.state in ('pending_review','need_clarification') and r.is_test=$2 and exists(select 1 from connection c where c.person_id=$1 and c.premises_id=r.premises_id and c.status='active' and c.role='owner')`,
           [actor.person.id, actor.person.isTest],
         );
-        return rows.length
-          ? rows
-              .map((r) => {
-                const draft = jsonValue<Row>(r.draft);
-                return `${r.id}: ${draft.full_name}, ${draft.phone_e164}; ${premiseLabels[String(r.kind)]} ${r.number}`;
-              })
-              .join("\n")
-          : "Анкет на подтверждение нет / Растауды күтетін өтінімдер жоқ";
+        if (!rows.length)
+          return "Анкет на подтверждение нет / Растауды күтетін өтінімдер жоқ";
+        state.pending_options = rows.map((r) => String(r.id));
+        return save(
+          numbered(rows.map((r) => {
+            const draft = jsonValue<Row>(r.draft);
+            return `<b>${esc(draft.full_name)}</b>, ${esc(draft.phone_e164)}; ${esc(premiseLabels[String(r.kind)] ?? "помещение")} ${esc(r.number)}`;
+          })) +
+          `\n${cmdCode("/approve НОМЕР")} — подтвердить; ${cmdCode("/reject НОМЕР причина")} — отказ; ${cmdCode("/dispute НОМЕР причина")} — спор`,
+        );
       }
       const rows = await exec.query<Row>(
         `select c.id,c.confirmed_by,n.full_name,p.kind,p.number,(select r.id from registration r where r.person_id=c.person_id and r.premises_id=c.premises_id and r.state='approved' order by created_at desc limit 1) as registration_id
@@ -116,14 +120,17 @@ export async function registrationStep(
         and exists(select 1 from connection o where o.person_id=$1 and o.premises_id=c.premises_id and o.role='owner' and o.status='active')`,
         [actor.person.id, actor.person.isTest],
       );
-      return rows.length
-        ? rows
-            .map(
-              (r) =>
-                `${r.full_name}: ${premiseLabels[String(r.kind)]} ${r.number}; /revoke ${r.id} причина; /dispute ${r.registration_id} причина`,
-            )
-            .join("\n")
-        : "Выданных доступов нет / Берілген қолжетімділік жоқ";
+      if (!rows.length)
+        return "Выданных доступов нет / Берілген қолжетімділік жоқ";
+      state.access_options = rows.map((r) => String(r.id));
+      const disputeRefs = rows.map((r) => r.registration_id).filter(Boolean);
+      state.dispute_options = disputeRefs.map(String);
+      return save(
+        numbered(rows.map((r) =>
+          `<b>${esc(r.full_name)}</b>: ${esc(premiseLabels[String(r.kind)] ?? "помещение")} ${esc(r.number)}`
+        )) +
+        `\n${cmdCode("/revoke НОМЕР причина")} — прекратить доступ / қолжетімділікті тоқтату; ${cmdCode("/dispute НОМЕР причина")} — спор по анкете / өтінім бойынша дау`,
+      );
     }
     if (cmd === "/objects") {
       if (!actor) return "Сначала регистрация / Алдымен тіркеліңіз: /register";
@@ -131,14 +138,21 @@ export async function registrationStep(
         "select c.id,c.premises_id,c.role,c.status,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1",
         [actor.person.id],
       );
-      return rows.length
-        ? rows
-            .map(
-              (r) =>
-                `${premiseLabels[String(r.kind)]} ${r.code}/${r.number}: ${roleLabels[String(r.role)]} ${stateLabels[String(r.status)]}; premises=${r.premises_id}; connection=${r.id}`,
-            )
-            .join("\n")
-        : "Подтверждённых объектов нет / Расталған нысандар жоқ";
+      if (!rows.length)
+        return "Подтверждённых объектов нет / Расталған нысандар жоқ";
+      const seen = new Set<string>();
+      state.object_options = rows.flatMap((r) => {
+        const id = String(r.premises_id);
+        if (seen.has(id)) return [];
+        seen.add(id);
+        return [id];
+      });
+      return save(
+        numbered(rows.map((r) =>
+          `${esc(premiseLabels[String(r.kind)] ?? "помещение")} ${esc(r.code)}/${esc(r.number)} — ${esc(roleLabels[String(r.role)] ?? String(r.role))}, ${esc(stateLabels[String(r.status)] ?? String(r.status))}`
+        )) +
+        `\n${cmdCode("/invite НОМЕР tenant|resident|other")} — пригласить жильца / тұрғынды шақыру`,
+      );
     }
     if (
       [
@@ -152,26 +166,45 @@ export async function registrationStep(
     ) {
       if (!actor) return "Сначала регистрация / Алдымен тіркеліңіз: /register";
       if (!parts[1])
-        throw new ApiError("VALIDATION_FAILED", "Укажите ID / ID көрсетіңіз");
+        throw new ApiError("VALIDATION_FAILED", "Укажите номер из списка или ID / Тізім нөмірін немесе ID-ны көрсетіңіз");
+      /** Ссылка на объект: номер строки последнего списка или UUID. */
+      const ref = (groups: (string[] | undefined)[]): string => {
+        const id = resolveRef(parts[1], groups);
+        if (!id)
+          throw new ApiError(
+            "VALIDATION_FAILED",
+            "Не понял ссылку. Откройте список и укажите номер строки / Тізім нөмірін көрсетіңіз",
+          );
+        return id;
+      };
       if (cmd === "/invite") {
         const invite = await createInvite(d, actor, {
-          premises_id: parts[1],
+          premises_id: ref([state.object_options as string[]]),
           role: parts[2],
         });
-        return `Приглашение / Шақыру: /start invite_${invite.token}\nДействует до / Жарамды: ${invite.expires_at}`;
+        return `Приглашение / Шақыру: ${cmdCode(`/start invite_${invite.token}`)}\nДействует до / Жарамды: ${fmtDate(invite.expires_at)}`;
       }
       if (cmd === "/accept") {
         await acceptInvite(d, actor, parts[1]);
         return "Доступ подтверждён / Қолжетімділік расталды";
       }
       if (cmd === "/revoke") {
-        await revokeOwnConnection(d, actor, parts[1], parts.slice(2).join(" "));
+        await revokeOwnConnection(
+          d,
+          actor,
+          ref([state.access_options as string[]]),
+          parts.slice(2).join(" "),
+        );
         return "Связь прекращена / Байланыс тоқтатылды";
       }
       await reviewRegistration(
         d,
         actor,
-        parts[1],
+        ref([
+          state.pending_options as string[],
+          state.dispute_options as string[],
+          state.status_options as string[],
+        ]),
         cmd === "/approve"
           ? "approve"
           : cmd === "/reject"
@@ -195,13 +228,15 @@ export async function registrationStep(
       for (const key of Object.keys(state)) delete state[key];
       if (cmd === "/edit") {
         if (!parts[1])
-          throw new ApiError("VALIDATION_FAILED", "Укажите ID анкеты");
+          throw new ApiError("VALIDATION_FAILED", "Укажите номер из /status или ID анкеты / Тізім нөмірін немесе ID-ны көрсетіңіз");
+        const id = resolveRef(parts[1], [state.status_options as string[]]);
+        if (!id) throw new ApiError("VALIDATION_FAILED", "Не понял ссылку. Откройте /status и укажите номер строки / Тізім нөмірін көрсетіңіз");
         const [registration] = await exec.query<Row>(
           "select id from registration where id=$1 and telegram_user_id=$2 and state in ('pending_review','need_clarification','rejected')",
-          [parts[1], telegramId],
+          [id, telegramId],
         );
         if (!registration) throw new ApiError("NOT_FOUND");
-        state.registration_id = parts[1];
+        state.registration_id = id;
       }
       if (parts[1]?.startsWith("invite_")) state.invite = parts[1].slice(7);
       state.step = "language";
@@ -235,9 +270,9 @@ export async function registrationStep(
         state.step = "building";
         return save(
           "Выберите номер строки здания / Ғимарат жолының нөмірін таңдаңыз:\n" +
-            buildings
-              .map((b, i) => `${i + 1}. ${b.code} (${b.kind})`)
-              .join("\n"),
+            numbered(
+              buildings.map((b) => `${esc(b.code)} (${esc(b.kind)})`),
+            ),
         );
       }
       case "building": {
@@ -297,7 +332,7 @@ export async function registrationStep(
           )[input.trim()] ?? input.trim();
         state.step = "consent";
         return save(
-          `Проверьте / Тексеріңіз: ${state.full_name}, ${state.phone_e164}, ${premiseLabels[String(state.kind)]}, ${roleLabels[String(state.role)]}.\nСогласие на обработку этих данных для регистрации в ОСИ: да / иә. Отмена: /cancel. / ОСИ тіркелуі үшін осы деректерді өңдеуге келісіңіз: иә.`,
+          `<b>Проверьте / Тексеріңіз</b>: ${esc(state.full_name)}, ${esc(state.phone_e164)}, ${esc(premiseLabels[String(state.kind)] ?? state.kind)}, ${esc(roleLabels[String(state.role)] ?? state.role)}.\nСогласие на обработку этих данных для регистрации в ОСИ: да / иә. Отмена: ${cmdCode("/cancel")}. / ОСИ тіркелуі үшін осы деректерді өңдеуге келісіңіз: иә.`,
         );
       case "consent": {
         if (!["да", "иә"].includes(input.trim().toLowerCase()))
@@ -315,10 +350,10 @@ export async function registrationStep(
           for (const key of Object.keys(state)) delete state[key];
           return save("Доступ подтверждён / Қолжетімділік расталды");
         }
-        const result = await submitRegistration(d, actor, state, telegramId);
+        await submitRegistration(d, actor, state, telegramId);
         for (const key of Object.keys(state)) delete state[key];
         return save(
-          `Анкета принята, доступ ожидает подтверждения. / Өтінім қабылданды, қолжетімділік растауды күтуде. ${result.id}\n/status`,
+          `Анкета принята, доступ ожидает подтверждения / Өтінім қабылданды, қолжетімділік растауды күтуде.\n${cmdCode("/status")} — статус анкеты / өтінім күйі`,
         );
       }
     }

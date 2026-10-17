@@ -1,3 +1,4 @@
+import { esc } from "./text.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { ApiError } from "../errors/api.ts";
@@ -25,7 +26,7 @@ export const INCIDENT_COMMANDS = [
   "/publication",
   "/workproblem",
 ];
-export async function incidentStep(
+async function incidentPlainStep(
   deps: RegistryDeps,
   telegramId: string,
   input: string,
@@ -160,4 +161,11 @@ export async function incidentStep(
     return `${r.number}: зарегистрировано / тіркелді`;
   }
   return "/incidents — аварии / апаттар; /publications — публикации / жарияланымдар; /emergency — опасность / қауіп; /signals — сигналы / сигналдар";
+}
+
+/** Все ответы VS-7 — обычный текст; HTML разрешает только транспорт UX A. */
+export async function incidentStep(
+  ...args: Parameters<typeof incidentPlainStep>
+): Promise<string> {
+  return esc(await incidentPlainStep(...args));
 }

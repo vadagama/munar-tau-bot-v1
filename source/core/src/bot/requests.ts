@@ -1,6 +1,9 @@
 import { listRequestVisits, updateVisit } from "../domains/tasks/visits.ts";
 import { premiseLabels } from "../locales/registry.ts";
+import { requestActions } from "./help.ts";
 import { preview, requestCardText, requestListText } from "./request-text.ts";
+import { cmd, esc, fmtDate, fmtInterval, numbered } from "./text.ts";
+import { registrationHelp } from "./help.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { ApiError } from "../errors/api.ts";
@@ -19,8 +22,8 @@ import {
   rateRequest,
   shareRequest,
 } from "../domains/requests/messages.ts";
-const HELP =
-  "/visits НОМЕР — визиты; /newrequest — новое обращение / жаңа өтініш; /requests — мои обращения / менің өтініштерім; /request НОМЕР — открыть / ашу; /say НОМЕР текст — сообщение / хабарлама; /confirm НОМЕР ВЕРСИЯ — подтвердить / растау; /return НОМЕР причина — доработка / түзету; /cancelrequest НОМЕР причина; /share НОМЕР ID; /unshare НОМЕР ID; /rate НОМЕР 1–5 комментарий; /appeal НОМЕР причина; /reopen НОМЕР причина. /editrequest — текст черновика / жоба мәтіні; /deletedraft — удалить черновик / жобаны жою. /registration — вернуться к регистрации / тіркелуге оралу.";
+/** Полная справка по обращениям — только для /help (в реплики не вклеивается). */
+const HELP = registrationHelp();
 export const REQUEST_COMMANDS = [
   "/result", "/visits", "/confirmvisit", "/missedvisit",
   "/newrequest",
@@ -95,20 +98,29 @@ export async function requestStep(
       const index=Number(args[0]??1)-1;
       if(!Number.isInteger(index)||index<0)throw new ApiError("VALIDATION_FAILED","Укажите номер отчёта");
       const report=reports[index];
-      if(!report)return preview(snapshot?.summary??"Результат ещё не передан",3500);
-      return preview(`${r.number}, версия результата ${r.confirmation_version}. Отчёт ${index+1}/${reports.length}: ${report.task_number}, версия ${report.report_version}.\n${report.performed_work}\n${report.result}\nОграничения: ${report.limitations||"нет"}\n/result ${r.number} ${index+2} — следующий отчёт`,3500);
+      if(!report)return preview(esc("Результат ещё не передан"),3500);
+      return preview(
+        `<b>${esc(r.number)}</b> — версия результата ${r.confirmation_version}. Отчёт ${index+1}/${reports.length}: ${esc(String(report.task_number))}, версия ${report.report_version}.\n${esc(report.performed_work)}\n${esc(report.result)}\nОграничения: ${esc(report.limitations||"нет")}\n${cmd(`/result ${r.number} ${index+2}`)} — следующий отчёт`,
+        3500,
+      );
     }
     if (command === "/visits") {
       const r = await find();
       const visits = await listRequestVisits(d,actor,String(r.id));
       state.scenario="requests";state.visit_options=visits;
-      return save(visits.map((v,i)=>`${i+1}. ${new Date(String(v.interval_start)).toISOString()} — ${new Date(String(v.interval_end)).toISOString()} (${v.status})`).join("\n")+"\n/confirmvisit НОМЕР_В_СПИСКЕ — согласовать; /missedvisit НОМЕР_В_СПИСКЕ причина — исполнитель не пришёл");
+      const lines = visits.map((v) =>
+        `${fmtInterval(v.interval_start, v.interval_end)} — ${esc(String(v.status))}`
+      );
+      return save(
+        (lines.length ? numbered(lines) : "Визитов нет / Сапарлар жоқ") +
+        `\n${cmd("/confirmvisit НОМЕР_ОБРАЩЕНИЯ НОМЕР_В_СПИСКЕ")} — согласовать; ${cmd("/missedvisit НОМЕР_ОБРАЩЕНИЯ НОМЕР_В_СПИСКЕ причина")} — исполнитель не пришёл`,
+      );
     }
     if (command === "/confirmvisit" || command === "/missedvisit") {
       const visits=(state.visit_options as Row[])??[];const visit=visits[Number(number)-1];
       if(!visit)throw new ApiError("VALIDATION_FAILED","Сначала откройте /visits НОМЕР_ОБРАЩЕНИЯ");
       visits[Number(number)-1]=await updateVisit(d,actor,String(visit.id),{version:visit.version,action:command==="/confirmvisit"?"confirm":"no_show",reason:args.join(" ")},opKey);
-      return save(command==="/confirmvisit"?"Визит согласован":"Сообщение о неявке передано администратору для проверки");
+      return save(command==="/confirmvisit"?"Визит согласован / Сапар келісілді":"Сообщение о неявке передано администратору для проверки / Жоқтық туралы хабарлама әкімшіге берілді");
     }
     const places = async () =>
       exec.query<Row>(
@@ -116,11 +128,11 @@ export async function requestStep(
         [actor.person.id, actor.person.isTest],
       );
     const placeMenu = (items: Row[]) =>
-      items.slice(0, 20).map((p, i) =>
-        `${i + 1}. ${preview(p.name ?? p.code, 50)}, ${
-          premiseLabels[String(p.kind)] ?? "помещение"
-        } ${preview(p.number, 30)}`
-      ).join("\n");
+      numbered(items.slice(0, 20).map((p) =>
+        `${esc(preview(p.name ?? p.code, 50))}, ${
+          esc(premiseLabels[String(p.kind)] ?? "помещение")
+        } ${esc(preview(p.number, 30))}`
+      ));
     if (command === "/objects") {
       const items = await places();
       state.place_options = items;
@@ -158,9 +170,9 @@ export async function requestStep(
         return save(
           command === "/editrequest"
             ? "Введите новый текст черновика / Жобаның жаңа мәтінін енгізіңіз"
-            : `Сохранённый черновик / Сақталған жоба:\n${
-              preview(draft.description, 1200)
-            }\n/sendrequest — отправить / жіберу; /editrequest — изменить текст / мәтінді өзгерту; /deletedraft — удалить / жою.`,
+            : `<b>Сохранённый черновик / Сақталған жоба</b>:\n${
+              esc(preview(draft.description, 1200))
+            }\n${cmd("/sendrequest")} — отправить / жіберу; ${cmd("/editrequest")} — изменить текст / мәтінді өзгерту; ${cmd("/deletedraft")} — удалить / жою. Файлы — просто прикрепите к следующему сообщению. / Файлдарды келесі хабарламага жіберіңіз.`,
         );
       }
       delete state.draft_id;
@@ -170,7 +182,7 @@ export async function requestStep(
       return save(
         `Выберите номер своего помещения / Үй-жайыңыздың нөмірін таңдаңыз:\n${
           placeMenu(items)
-        }\nОбщее имущество: дом КОД описание места; территория описание места. / Ортақ мүлік: үй КОД орын сипаттамасы; аумақ орын сипаттамасы. Черновик сохраняется до отправки. /requestcancel — назад / артқа.`,
+        }\nОбщее имущество: ${cmd("дом КОД описание места")}; территория: ${cmd("территория описание места")}. / Ортақ мүлік: үй КОД орын сипаттамасы; аумақ орын сипаттамасы. Черновик сохраняется до отправки. ${cmd("/requestcancel")} — назад / артқа.`,
       );
     }
     if (command === "/requestcancel" || command === "/registration") {
@@ -194,7 +206,7 @@ export async function requestStep(
       delete state.request_id;
       delete state.draft_id;
       delete state.step;
-      return save(requestListText(rows, actor.person.id, page, HELP));
+      return save(requestListText(rows, actor.person.id, page));
     }
     if (command === "/request") {
       const row = await find();
@@ -202,7 +214,7 @@ export async function requestStep(
       state.request_id = row.id;
       delete state.draft_id;
       delete state.step;
-      return save(requestCardText(row, HELP));
+      return save(requestCardText(row));
     }
     if (command === "/say") {
       const row = await find();
@@ -263,9 +275,11 @@ export async function requestStep(
       state.request_id = sent.id;
       state.step = "";
       return save(
-        `${sent.number}: зарегистрировано / тіркелді. Первый ответ / Алғашқы жауап: ${
-          new Date(String(sent.first_response_due_at)).toLocaleString("ru-RU",{timeZone:"Asia/Almaty"})
-        }. Начало обработки / Өңдеудің басталуы: ${new Date(String(sent.first_response_start_at)).toLocaleString("ru-RU",{timeZone:"Asia/Almaty"})} (Алматы). Вне графика немедленной обработки нет / Жұмыс уақытынан тыс дереу өңдеу жоқ. При непосредственной угрозе жизни звоните 112 / Тікелей қауіп кезінде 112.\n${HELP}`,
+        `<b>${esc(sent.number)}</b> — зарегистрировано / тіркелді. Первый ответ / Алғашқы жауап: ${
+          fmtDate(sent.first_response_due_at)
+        }. Начало обработки / Өңдеудің басталуы: ${fmtDate(sent.first_response_start_at)} (Алматы).\n${
+          requestActions(sent.state)
+        }\nВне графика немедленной обработки нет / Жұмыс уақытынан тыс дереу өңдеу жоқ. При непосредственной угрозе жизни звоните 112 / Тікелей қауіп кезінде 112.`,
       );
     }
     if (state.step === "place") {
@@ -307,7 +321,7 @@ export async function requestStep(
       }
       state.step = "description";
       return save(
-        "Опишите проблему своими словами / Мәселені сипаттаңыз. Категория не нужна. / Санат қажет емес.",
+        "Опишите проблему своими словами / Мәселені сипаттаңыз. Категория не нужна — достаточно текста и фото. / Санат қажет емес.",
       );
     }
     if (state.step === "description") {
@@ -334,13 +348,13 @@ export async function requestStep(
       state.step = "verify";
       return save(
         `Проверьте / Тексеріңіз:\n${
-          preview(input, 1200)
-        }\nПолный текст сохранён / Толық мәтін сақталды.\nДобавьте файлы (необязательно), затем /sendrequest. При сбое файла обращение можно отправить. / Файл қосыңыз (міндетті емес), содан кейін /sendrequest. /requestcancel — сохранить черновик.`,
+          esc(preview(input, 1200))
+        }\nПолный текст сохранён / Толық мәтін сақталды.\nДобавьте файлы (необязательно), затем ${cmd("/sendrequest")}. При сбое файла обращение можно отправить. / Файл қосыңыз (міндетті емес), содан кейін ${cmd("/sendrequest")}. ${cmd("/requestcancel")} — сохранить черновик.`,
       );
     }
     if (state.draft_id) {
       return save(
-        "Черновик сохранён / Жоба сақталды. Добавьте файлы или /sendrequest. /requestcancel — выйти без удаления.",
+        `Черновик сохранён / Жоба сақталды. Добавьте файлы или ${cmd("/sendrequest")}. ${cmd("/requestcancel")} — выйти без удаления.`,
       );
     }
     return HELP;

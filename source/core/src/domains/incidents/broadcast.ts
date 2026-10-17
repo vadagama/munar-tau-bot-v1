@@ -1,3 +1,4 @@
+import { esc } from "../../bot/text.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import type { RegistryDeps } from "../registry/service.ts";
 import { jsonValue } from "../registry/validation.ts";
@@ -20,7 +21,7 @@ export async function queueBroadcast(
     [
       input.key,
       input.type,
-      JSON.stringify(input.text),
+      JSON.stringify({ ru: esc(input.text.ru), kk: esc(input.text.kk) }),
       JSON.stringify(input.scope),
       input.isTest,
       input.incidentId ?? null,

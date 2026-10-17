@@ -35,6 +35,46 @@ import { ApiError, toErrorResponse } from "../../core/src/errors/api.ts";
 
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
 
+/**
+ * Отправка sendMessage с разметкой HTML и выключенным превью ссылок.
+ * Если Telegram отклонил разметку (400 — например, в тексте случайный «<»),
+ * сообщение повторно уходит без parse_mode — доставка важнее оформления.
+ */
+export async function telegramSendMessage(
+  token: string,
+  chatId: string,
+  text: string,
+): Promise<void> {
+  const post = async (payload: Record<string, unknown>) => {
+    const response = await fetch(
+      `https://api.telegram.org/bot${token}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000),
+      },
+    );
+    const result = await response.json().catch(() => ({}));
+    return { response, result };
+  };
+  let { response, result } = await post({
+    chat_id: chatId,
+    text,
+    parse_mode: "HTML",
+    link_preview_options: { is_disabled: true },
+  });
+  if (!response.ok && response.status === 400) {
+    ({ response, result } = await post({ chat_id: chatId, text }));
+  }
+  if (!response.ok || result.ok !== true) {
+    throw Object.assign(new Error(`TELEGRAM_${response.status}`), {
+      retryAfter: result.parameters?.retry_after,
+      blocked: response.status === 403,
+    });
+  }
+}
+
 export const JOBS_SECRET_ENV = "X_JOBS_SECRET";
 
 function health(): Response {
@@ -122,25 +162,8 @@ export async function handle(
           (await dispatchNotices(actual, deadline - 10000)) +
           (await sweepDigests(actual, new Date(), deadline - 10000));
         const send: TelegramSender = sender ??
-          (async (chatId, text) => {
-            const token = requireEnv(env, "TELEGRAM_BOT_TOKEN");
-            const response = await fetch(
-              `https://api.telegram.org/bot${token}/sendMessage`,
-              {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ chat_id: chatId, text }),
-                signal: AbortSignal.timeout(10000),
-              },
-            );
-            const result = await response.json();
-            if (!response.ok || result.ok !== true) {
-              throw Object.assign(new Error(`TELEGRAM_${response.status}`), {
-                retryAfter: result.parameters?.retry_after,
-                blocked: response.status === 403,
-              });
-            }
-          });
+          ((chatId, text) =>
+            telegramSendMessage(requireEnv(env, "TELEGRAM_BOT_TOKEN"), chatId, text));
         const sent = await sendNotifications(actual, send, deadline);
         return new Response(JSON.stringify({ status: "ok", processed, sent }), {
           status: 200,
