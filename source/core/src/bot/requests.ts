@@ -102,7 +102,9 @@ export async function requestStep(
         );
       }
       const [r] = await exec.query<{ id: string }>(
-        "select id from request where number=$1",
+        // Полный UUID принимается наравне с номером: глубокие ссылки
+        // /start req_<uuid> (срез C) открывают карточку тем же кодом.
+        "select id from request where number=$1 or id::text=lower($1)",
         [number],
       );
       if (!r) throw new ApiError("NOT_FOUND");

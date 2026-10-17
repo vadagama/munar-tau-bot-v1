@@ -272,3 +272,43 @@ describe("processInbound: команды не глотаются активны�
     expect(h.notifications[0]!.params![3]).toBe("worker");
   });
 });
+
+describe("processInbound: глубокие ссылки /start (срез C)", () => {
+  const uuid = "01890a5d-ac96-774b-bcce-b302e9aa8453";
+
+  it("/start req_<uuid> у жителя открывает карточку обращения, а не справку", async () => {
+    const h = harness({ profile: true });
+    expect(
+      await processInbound(h.deps, textUpdate(20, `/start req_${uuid}`), "resident"),
+    ).toBe(true);
+    const text = replyOf(h);
+    // Профиль есть, но обращение с таким id нет (моки пустые) — маршрутизация
+    // дошла до requestStep и вернула дружелюбную ошибку NOT_FOUND.
+    expect(text).toContain("Не найдено");
+    expect(text).not.toContain("ОСИ ЖК «Мунар Тау»");
+  });
+
+  it("/start wrk_<uuid> у сотрудника открывает карточку задания", async () => {
+    const h = harness({ profile: true });
+    expect(
+      await processInbound(h.deps, textUpdate(21, `/start wrk_${uuid}`), "worker"),
+    ).toBe(true);
+    const text = replyOf(h);
+    expect(text).toContain("Не найдено");
+    expect(text).not.toContain("бот сотрудников");
+  });
+
+  it("payload другого бота не уводит из справки: req_ у сотрудника — workerHelp", async () => {
+    const h = harness({ profile: true });
+    expect(
+      await processInbound(h.deps, textUpdate(22, `/start req_${uuid}`), "worker"),
+    ).toBe(true);
+    expect(replyOf(h)).toContain("бот сотрудников");
+  });
+
+  it("/start без payload сохраняет прежнее поведение (меню/справка)", async () => {
+    const h = harness();
+    expect(await processInbound(h.deps, textUpdate(23, "/start"), "resident")).toBe(true);
+    expect(replyOf(h)).toContain("ОСИ ЖК «Мунар Тау»");
+  });
+});

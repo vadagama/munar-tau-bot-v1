@@ -40,6 +40,18 @@ async function routeStep(
   }
   const text = String(message.text);
   const isCommand = command.startsWith("/");
+  // Глубокие ссылки (срез C): /start с payload открывает карточку без команд.
+  // Номера кириллические («З-26-00001»), а payload Telegram допускает только
+  // латиницу/цифры/_/-, поэтому ссылки строятся на UUID: req_<uuid> — обращение
+  // в боте жителей, wrk_<uuid> — задание в боте сотрудников. Иной бот или
+  // неизвестный payload — обычное поведение /start (справка/меню).
+  const startPayload = command === "/start" ? text.trim().split(/\s+/)[1] : undefined;
+  if (startPayload?.startsWith("req_") && bot === "resident") {
+    return requestStep(deps, telegramId, `/request ${startPayload.slice(4)}`, undefined, operationId);
+  }
+  if (startPayload?.startsWith("wrk_") && bot === "worker") {
+    return taskStep(deps, telegramId, `/task ${startPayload.slice(4)}`, undefined, operationId);
+  }
   if (bot === "worker") {
     if (command === "/cancel") {
       // Сотрудник отменил сценарий; у жителя то же делает registrationStep.
