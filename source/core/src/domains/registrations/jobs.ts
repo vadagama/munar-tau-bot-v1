@@ -13,7 +13,7 @@ export async function sweepRegistrations(
   return deps.db.transaction(async (exec) => {
     const timers = await exec.query<Row>(
       `select t.*,v.params from timer t join time_rule_version v on v.id=t.rule_version_id
-      where t.state='pending' and t.due_at<=$1 order by t.due_at for update of t skip locked limit 10`,
+      where t.state='pending' and t.due_at<=$1 and t.stage not like 'request_%' order by t.due_at for update of t skip locked limit 10`,
       [now.toISOString()],
     );
     let processed = 0;

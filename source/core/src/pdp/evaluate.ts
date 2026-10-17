@@ -21,6 +21,19 @@ export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {})
     }
   }
 
+  if (action.startsWith("request.") && action !== "request.use" && action !== "request.category.edit") {
+    const r = resource.requestAccess;
+    if (!r || r.isTest !== actor.person.isTest || actor.person.status !== "active") return deny("Обращение недоступно");
+    const own = r.authorId === actor.person.id;
+    const staff = r.state !== "draft" && r.complaintSubjectId !== actor.person.id && actor.assignments.some(a =>
+      a.role === "chairman" || (!r.chairmanOnly && ["administrator", "deputy"].includes(a.role) && r.buildingId !== null && (a.scopeBuildingIds ?? []).includes(r.buildingId)));
+    const resident = own || (r.state !== "draft" && r.participant);
+    if (action === "request.author") return own && r.activeAuthor ? ALLOW : deny("Нужна действующая связь автора");
+    if (action === "request.manage" || action === "request.internal") return staff ? ALLOW : deny("Нет полномочий на обращение");
+    if (action === "request.comment") return staff || (resident && r.activeAuthor && r.state !== "draft") ? ALLOW : deny("Нет действующего доступа для переписки");
+    return resident || staff ? ALLOW : deny("Обращение недоступно");
+  }
+
   // Собственный ресурс: любой аутентифицированный завершает свой сеанс (AUTH-06).
   if (spec.allowOwn && resource.profileId !== undefined && resource.profileId === actor.profile.id) {
     return ALLOW;

@@ -45,3 +45,7 @@ $$;
 
 -- Storage-политики: без прямого доступа; операции — только service-role (LLD-02 §16).
 -- Бакеты создаются при появлении домена files (LLD-01 §3.6); приватность — по аудиториям.
+
+-- VS-3: request/message/attachment/история включаются общим циклом выше.
+-- files-resident/files-internal — private; клиентских storage.objects policy нет.
+-- Выдача URL и загрузка выполняются Edge API после PDP по владельцу и аудитории.

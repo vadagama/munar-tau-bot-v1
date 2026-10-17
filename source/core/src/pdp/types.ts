@@ -79,6 +79,7 @@ export interface Actor {
 
 /** Ссылка на ресурс проверки (минимум для действий VS-1). */
 export interface ResourceRef {
+  requestAccess?: { chairmanOnly?: boolean; authorId: string; buildingId: string | null; state: string; isTest: boolean; participant: boolean; activeAuthor: boolean; complaintSubjectId: string | null };
   kind?: "audit" | "assignment" | "access_session" | "person" | "emulation";
   id?: string;
   /** Владелец сеанса — проверка «собственный сеанс» (AUTH-06). */
