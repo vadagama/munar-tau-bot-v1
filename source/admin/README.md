@@ -20,8 +20,8 @@ npm run preview -w admin # локальный просмотр сборки (SPA
 ```bash
 VITE_SUPABASE_URL=https://YOUR-SUPABASE-HOST
 VITE_SUPABASE_PUBLISHABLE_KEY=YOUR-PUBLISHABLE-KEY
-# Регион облачной БД; для текущего dev — ap-southeast-2. Для self-hosted оставить пустым.
-VITE_SUPABASE_FUNCTION_REGION=ap-southeast-2
+# Регион облачной БД; для текущего стенда — eu-central-1. Для self-hosted оставить пустым.
+VITE_SUPABASE_FUNCTION_REGION=eu-central-1
 ```
 
 Запрещено помещать сюда секреты: service-role key, токен бота, OIDC Client Secret.

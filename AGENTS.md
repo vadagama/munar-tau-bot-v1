@@ -118,8 +118,15 @@ CI (`.github/workflows/ci.yml`) на каждый PR и push в `main`: node-д�
 
 ## Регион API (ADR-005)
 
-Dev-БД Supabase размещена в `ap-southeast-2`. При сборке кабинета задавать
-`VITE_SUPABASE_FUNCTION_REGION=ap-southeast-2`: API передаёт регион через
+Демонстрационная БД Supabase размещена в `eu-central-1`. При сборке кабинета задавать
+`VITE_SUPABASE_FUNCTION_REGION=eu-central-1`: API передаёт регион через
 `forceFunctionRegion`, чтобы последовательные SQL-запросы AUTH-06/PDP/AUD-02
 не ходили между континентами. Для self-hosted переменная пустая. Права и сеансы
 не кэшировать ради скорости. Замеры и порядок смены региона — ADR-005.
+
+## Среды после переноса 2026-10-17
+
+- `ohpjqsudibkcymjjuedy` (Munar Tau Prod) — облачный демонстрационный стенд во Frankfurt (`eu-central-1`): кабинет, Telegram OIDC, webhook и jobs раз в минуту. Для ответов бота настроен `notifications-fast-tick` каждые 5 секунд: вызывает ту же jobs только при наличии готовых Telegram-уведомлений (`state=queued`, `next_attempt_at<=now()`), используя команду активного `jobs-tick`; оба вызова закреплены за `eu-central-1`. Пустая очередь не вызывает Edge Function. Проверка 17.10.2026: доставка из очереди сократилась с 21–55 с до 3,59 с. Название Prod не разрешает реальные данные жителей: рабочая среда по ADR-003 остаётся self-hosted в Казахстане.
+- `fuwsmewtmxmzttwkbdex` (Munar Tau Dev, Sydney) — отдельная БД интеграционных тестов. Только она используется в `TEST_DATABASE_URL` локально и в GitHub CI. Её данные очищаются тестами; расписание доставки выключено, webhook бота на неё не направлен.
+- `SUPABASE_PROJECT_ID` и `SUPABASE_DB_PASSWORD` локально относятся к новому стенду. Никогда не подставлять его URI в `TEST_DATABASE_URL`.
+- OIDC callback нового стенда: `https://ohpjqsudibkcymjjuedy.supabase.co/auth/v1/callback`. После переноса требуется повторный вход; Auth users/identities и привязка tech_admin сохранены, активные Auth-сеансы не переносятся.
