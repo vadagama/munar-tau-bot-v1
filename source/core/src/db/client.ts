@@ -4,6 +4,11 @@
 //
 // prepare: false обязателен для пулеров транзакций (Supabase Pooler):
 // подготовленные выражения не сохраняются между проверками соединений.
+//
+// postgres.js по умолчанию держит простаивающие соединения открытыми
+// (idle_timeout: null). Долго живущие процессы с собственным пулом на каждый
+// (изолят Edge Function) выедают слоты max_connections сервера — серверным
+// вызовам передавайте idleTimeout (и при необходимости небольшой max).
 
 import postgres from "postgres";
 
@@ -30,7 +35,12 @@ const asParams = (params: readonly unknown[]): never[] => params as never[];
 /** Соединение к PostgreSQL по строке подключения (например, из env). */
 export function createDbClient(
   connectionString: string,
-  options: { max?: number; maxLifetime?: number } = {},
+  options: {
+    max?: number;
+    maxLifetime?: number;
+    /** Секунды простоя до закрытия соединения; 0 — никогда не закрывать. */
+    idleTimeout?: number;
+  } = {},
 ): DbClient {
   const sql = postgres(connectionString, {
     prepare: false,
@@ -38,6 +48,9 @@ export function createDbClient(
     ...(options.maxLifetime === undefined
       ? {}
       : { max_lifetime: options.maxLifetime }),
+    ...(options.idleTimeout === undefined
+      ? {}
+      : { idle_timeout: options.idleTimeout }),
   });
 
   return {
