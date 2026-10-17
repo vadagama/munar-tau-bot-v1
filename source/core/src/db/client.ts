@@ -9,7 +9,10 @@ import postgres from "postgres";
 
 /** Исполнитель запросов: клиент или транзакция. Первый аргумент всех репо. */
 export interface DbExecutor {
-  query<T = Record<string, unknown>>(text: string, params?: readonly unknown[]): Promise<T[]>;
+  query<T = Record<string, unknown>>(
+    text: string,
+    params?: readonly unknown[],
+  ): Promise<T[]>;
 }
 
 /** Владелец транзакций: функции сервиса оборачивают в него составные операции. */
@@ -25,18 +28,33 @@ export interface DbClient extends DbExecutor, DbTransactionRunner {
 const asParams = (params: readonly unknown[]): never[] => params as never[];
 
 /** Соединение к PostgreSQL по строке подключения (например, из env). */
-export function createDbClient(connectionString: string): DbClient {
-  const sql = postgres(connectionString, { prepare: false, max: 5 });
+export function createDbClient(
+  connectionString: string,
+  options: { max?: number; maxLifetime?: number } = {},
+): DbClient {
+  const sql = postgres(connectionString, {
+    prepare: false,
+    max: options.max ?? 5,
+    ...(options.maxLifetime === undefined
+      ? {}
+      : { max_lifetime: options.maxLifetime }),
+  });
 
   return {
-    async query<T>(text: string, params: readonly unknown[] = []): Promise<T[]> {
+    async query<T>(
+      text: string,
+      params: readonly unknown[] = [],
+    ): Promise<T[]> {
       const rows = await sql.unsafe(text, asParams(params));
       return rows as unknown as T[];
     },
     transaction<T>(fn: (exec: DbExecutor) => Promise<T>): Promise<T> {
       return sql.begin(async (tx) => {
         const executor: DbExecutor = {
-          async query<U>(text: string, params: readonly unknown[] = []): Promise<U[]> {
+          async query<U>(
+            text: string,
+            params: readonly unknown[] = [],
+          ): Promise<U[]> {
             const rows = await tx.unsafe(text, asParams(params));
             return rows as unknown as U[];
           },
