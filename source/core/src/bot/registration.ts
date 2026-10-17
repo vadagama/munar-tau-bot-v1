@@ -1,3 +1,5 @@
+import { BotTemplateError } from "./bot-errors.ts";
+import { t as templateText, loadTemplateStore, type TemplateStore } from "../templates/store.ts";
 import {
   label,
   premiseLabels,
@@ -124,7 +126,7 @@ export async function registrationStep(
     const state = { ...jsonValue<Row>(dialog!.state) };
     // Язык подачи: выбранный в диалоге, иначе язык профиля, иначе русский.
     const L: Lang = langOf(state.language ?? actor?.profile.language);
-    const help = () => registrationHelp(L);
+    const help = () => registrationHelp(L, deps.templates);
     const save = async (reply: BotReply) => {
       await exec.query(
         "update bot_dialog set state=$2::text::jsonb,updated_at=now() where telegram_user_id=$1",
@@ -146,7 +148,7 @@ export async function registrationStep(
         [telegramId, actor?.person.id ?? null],
       );
       if (!rows.length) {
-        return pick(L, "Анкет пока нет", "Өтінімдер жоқ");
+        return templateText(deps.templates, L, "registration.anket_poka_net");
       }
       state.status_options = rows.map((r) => String(r.id));
       // Кнопка доступна только редактируемым анкетам: /edit проверит и ответит.
@@ -161,14 +163,14 @@ export async function registrationStep(
       return save({
         text:
           numbered(registrationLines(rows, L)) +
-          `\n${cmdCode("/fix")} — ${pick(L, "исправить анкету после уточнения", "өтінімді нақтылаудан кейін түзету")}`,
+          `\n${cmdCode("/fix")} — ${templateText(deps.templates, L, "registration.ispravit_anketu_posle_utochneniya")}`,
         ...(buttons.length ? { buttons } : {}),
       });
     }
     if (cmd === "/pending" || cmd === "/accesses") {
       if (!actor) {
         return save(
-          pick(L, "Сначала регистрация: /register", "Алдымен тіркеліңіз: /register"),
+          templateText(deps.templates, L, "registration.snachala_registratsiya_register"),
         );
       }
       if (cmd === "/pending") {
@@ -178,11 +180,7 @@ export async function registrationStep(
           [actor.person.id, actor.person.isTest],
         );
         if (!rows.length) {
-          return pick(
-            L,
-            "Анкет на подтверждение нет",
-            "Растауды күтетін өтінімдер жоқ",
-          );
+          return templateText(deps.templates, L, "registration.anket_na_podtverzhdenie_net");
         }
         state.pending_options = rows.map((r) => String(r.id));
         return save({
@@ -191,7 +189,7 @@ export async function registrationStep(
               const draft = jsonValue<Row>(r.draft);
               return `<b>${esc(draft.full_name)}</b>, ${esc(draft.phone_e164)}; ${esc(label(premiseLabels, r.kind, L, "помещение"))} ${esc(r.number)}`;
             })) +
-            `\n${pick(L, "Для отказа", "Бас тарту үшін")}: ${cmdCode("/reject НОМЕР причина")}; ${pick(L, "для спора", "дау үшін")}: ${cmdCode("/dispute НОМЕР причина")}`,
+            `\n${templateText(deps.templates, L, "registration.dlya_otkaza")}: ${cmdCode("/reject НОМЕР причина")}; ${templateText(deps.templates, L, "registration.dlya_spora")}: ${cmdCode("/dispute НОМЕР причина")}`,
           // Подтвердить можно кнопкой: причина подставится автоматически.
           buttons: rows.map((r, i) => [
             btn(pick(L, `Подтвердить ${i + 1}`, `Растау ${i + 1}`), `/approve ${i + 1}`),
@@ -205,7 +203,7 @@ export async function registrationStep(
         [actor.person.id, actor.person.isTest],
       );
       if (!rows.length) {
-        return pick(L, "Выданных доступов нет", "Берілген қолжетімділік жоқ");
+        return templateText(deps.templates, L, "registration.vydannyh_dostupov_net");
       }
       state.access_options = rows.map((r) => String(r.id));
       const disputeRefs = rows.map((r) => r.registration_id).filter(Boolean);
@@ -214,13 +212,13 @@ export async function registrationStep(
         numbered(rows.map((r) =>
           `<b>${esc(r.full_name)}</b>: ${esc(label(premiseLabels, r.kind, L, "помещение"))} ${esc(r.number)}`
         )) +
-        `\n${cmdCode("/revoke НОМЕР причина")} — ${pick(L, "прекратить доступ", "қолжетімділікті тоқтату")}; ${cmdCode("/dispute НОМЕР причина")} — ${pick(L, "спор по анкете", "өтінім бойынша дау")}`,
+        `\n${cmdCode("/revoke НОМЕР причина")} — ${templateText(deps.templates, L, "registration.prekratit_dostup")}; ${cmdCode("/dispute НОМЕР причина")} — ${templateText(deps.templates, L, "registration.spor_po_ankete")}`,
       );
     }
     if (cmd === "/objects") {
       if (!actor) {
         return save(
-          pick(L, "Сначала регистрация: /register", "Алдымен тіркеліңіз: /register"),
+          templateText(deps.templates, L, "registration.snachala_registratsiya_register"),
         );
       }
       const rows = await exec.query<Row>(
@@ -228,7 +226,7 @@ export async function registrationStep(
         [actor.person.id],
       );
       if (!rows.length) {
-        return pick(L, "Подтверждённых объектов нет", "Расталған нысандар жоқ");
+        return templateText(deps.templates, L, "registration.podtverzhdennyh_obektov_net");
       }
       const seen = new Set<string>();
       state.object_options = rows.flatMap((r) => {
@@ -241,7 +239,7 @@ export async function registrationStep(
         numbered(rows.map((r) =>
           `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${esc(r.code)}/${esc(r.number)} — ${esc(label(roleLabels, r.role, L))}, ${esc(label(stateLabels, r.status, L))}`
         )) +
-        `\n${cmdCode("/invite НОМЕР роль")} — ${pick(L, "пригласить жильца: арендатор, проживающий или другое", "тұрғынды шақыру: жалға алушы, тұрғын немесе басқа")}`,
+        `\n${cmdCode("/invite НОМЕР роль")} — ${templateText(deps.templates, L, "registration.priglasit_zhiltsa_arendator_prozhivayuschiy_ili_drugoe")}`,
       );
     }
     if (
@@ -256,30 +254,22 @@ export async function registrationStep(
     ) {
       if (!actor) {
         return save(
-          pick(L, "Сначала регистрация: /register", "Алдымен тіркеліңіз: /register"),
+          templateText(deps.templates, L, "registration.snachala_registratsiya_register"),
         );
       }
       if (!parts[1]) {
-        throw new ApiError(
+        throw new BotTemplateError(
           "VALIDATION_FAILED",
-          pick(
-            L,
-            "Укажите номер из списка",
-            "Тізім нөмірін көрсетіңіз",
-          ),
+          templateText(deps.templates, L, "registration.ukazhite_nomer_iz_spiska"),
         );
       }
       /** Ссылка на объект: номер строки последнего списка или UUID. */
       const ref = (groups: (string[] | undefined)[]): string => {
         const id = resolveRef(parts[1], groups);
         if (!id) {
-          throw new ApiError(
+          throw new BotTemplateError(
             "VALIDATION_FAILED",
-            pick(
-              L,
-              "Не понял ссылку. Откройте список и укажите номер строки",
-              "Сілтемені түсінбедім. Тізімді ашып, жол нөмірін көрсетіңіз",
-            ),
+            templateText(deps.templates, L, "registration.ne_ponyal_ssylku_otkroyte_spisok_i_ukazhite"),
           );
         }
         return id;
@@ -287,13 +277,9 @@ export async function registrationStep(
       if (cmd === "/invite") {
         const role = roleFromWord(parts[2]);
         if (!role) {
-          throw new ApiError(
+          throw new BotTemplateError(
             "VALIDATION_FAILED",
-            pick(
-              L,
-              "Укажите роль: арендатор, проживающий или другое",
-              "Рөлді көрсетіңіз: жалға алушы, тұрғын немесе басқа",
-            ),
+            templateText(deps.templates, L, "registration.ukazhite_rol_arendator_prozhivayuschiy_ili_drugoe"),
           );
         }
         const invite = await createInvite(d, actor, {
@@ -301,13 +287,13 @@ export async function registrationStep(
           role,
         });
         return save(
-          `${pick(L, "Приглашение", "Шақыру")}: ${cmdCode(`/start invite_${invite.token}`)}\n${pick(L, "Действует до", "Жарамды")}: ${fmtDate(invite.expires_at)}`,
+          `${templateText(deps.templates, L, "registration.priglashenie")}: ${cmdCode(`/start invite_${invite.token}`)}\n${templateText(deps.templates, L, "registration.deystvuet_do")}: ${fmtDate(invite.expires_at)}`,
         );
       }
       if (cmd === "/accept") {
         await acceptInvite(d, actor, parts[1]);
         return save(
-          pick(L, "Доступ подтверждён", "Қолжетімділік расталды"),
+          templateText(deps.templates, L, "registration.dostup_podtverzhden"),
         );
       }
       if (cmd === "/revoke") {
@@ -317,7 +303,7 @@ export async function registrationStep(
           ref([state.access_options as string[]]),
           parts.slice(2).join(" "),
         );
-        return save(pick(L, "Связь прекращена", "Байланыс тоқтатылды"));
+        return save(templateText(deps.templates, L, "registration.svyaz_prekraschena"));
       }
       await reviewRegistration(
         d,
@@ -334,18 +320,18 @@ export async function registrationStep(
             : "dispute",
         {
           reason: parts.slice(2).join(" ") ||
-            pick(L, "Решение собственника", "Меншік иесінің шешімі"),
+            templateText(deps.templates, L, "registration.reshenie_sobstvennika"),
         },
         true,
       );
-      return save(pick(L, "Решение сохранено", "Шешім сақталды"));
+      return save(templateText(deps.templates, L, "registration.reshenie_sohraneno"));
     }
     if (cmd === "/add") {
       for (const key of Object.keys(state)) delete state[key];
       if (!actor) {
         // У нового пользователя ещё нет настроек — полный мастер анкеты (REG-01).
         state.step = "language";
-        return save(languageStepText());
+        return save(languageStepText(deps.templates));
       }
       // У зарегистрированного пользователя анкетные данные уже известны (REG-01):
       // язык — из профиля, имя и телефон — из карточки реестра. Персона всегда
@@ -357,7 +343,7 @@ export async function registrationStep(
         [actor.person.id],
       );
       if (person?.phone_e164) state.phone_e164 = String(person.phone_e164);
-      if (parts[1] === "manual") return save(await askBuilding(exec, state, L));
+      if (parts[1] === "manual") return save(await askBuilding(exec, state, L, deps.templates));
       // Помещения, связанные с пользователем связями исходного реестра (IMP-12:
       // импорт не подтверждает доступ автоматически), без действующей связи
       // и без анкеты в работе — их и предлагаем списком.
@@ -377,16 +363,12 @@ export async function registrationStep(
         seen.add(id);
         return true;
       });
-      if (!options.length) return save(await askBuilding(exec, state, L));
+      if (!options.length) return save(await askBuilding(exec, state, L, deps.templates));
       state.add_options = options.map((r) => String(r.premises_id));
       state.step = "add_select";
       return save({
         text:
-          pick(
-            L,
-            "В реестре ОСИ найдены помещения, связанные с вами. Выберите номер строки, чтобы подать анкету:",
-            "ОСИ реестрінде сізбен байланысқан нысандар табылды. Өтінім беру үшін жол нөмірін таңдаңыз:",
-          ) +
+          templateText(deps.templates, L, "registration.v_reestre_osi_naydeny_pomescheniya_svyazannye_s") +
           "\n" +
           numbered(options.map((r) =>
             `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${esc(r.code)}/${esc(r.number)} — ${esc(label(roleLabels, r.role, L))}`,
@@ -418,45 +400,25 @@ export async function registrationStep(
         if (rows.length) {
           const hasApproved = rows.some((r) => r.state === "approved");
           return save(
-            `${pick(
-              L,
-              hasApproved
-                ? "Вы уже зарегистрированы. Повторная регистрация не нужна."
-                : "У вас уже есть анкета. Повторная регистрация не нужна.",
-              hasApproved
-                ? "Сіз тіркелгенсіз. Қайта тіркелу қажет емес."
-                : "Сізде өтінім бар. Қайта тіркелу қажет емес.",
-            )}\n${numbered(registrationLines(rows, L))}\n${
+            `${templateText(deps.templates, L, hasApproved ? "registration.already_registered" : "registration.already_applied")}\n${numbered(registrationLines(rows, L))}\n${
               cmdCode("/status")
-            } — ${pick(L, "статус анкет", "өтінімдер күйі")}; ${cmdCode("/fix")} — ${pick(
-              L,
-              "исправить анкету",
-              "өтінімді түзету",
-            )}; ${cmdCode("/add")} — ${pick(L, "добавить ещё объект", "тағы нысан қосу")}`,
+            } — ${templateText(deps.templates, L, "registration.status_anket")}; ${cmdCode("/fix")} — ${templateText(deps.templates, L, "registration.ispravit_anketu")}; ${cmdCode("/add")} — ${templateText(deps.templates, L, "registration.dobavit_esche_obekt")}`,
           );
         }
       }
       if (cmd === "/edit") {
         // Номер резолвим до очистки состояния: status_options ещё живы.
         if (!parts[1]) {
-          throw new ApiError(
+          throw new BotTemplateError(
             "VALIDATION_FAILED",
-            pick(
-              L,
-              "Укажите номер из /status",
-              "/status тізімінің нөмірін көрсетіңіз",
-            ),
+            templateText(deps.templates, L, "registration.ukazhite_nomer_iz_status"),
           );
         }
         const id = resolveRef(parts[1], [state.status_options as string[]]);
         if (!id) {
-          throw new ApiError(
+          throw new BotTemplateError(
             "VALIDATION_FAILED",
-            pick(
-              L,
-              "Не понял ссылку. Откройте /status и укажите номер строки",
-              "Сілтемені түсінбедім. /status ашып, жол нөмірін көрсетіңіз",
-            ),
+            templateText(deps.templates, L, "registration.ne_ponyal_ssylku_otkroyte_status_i_ukazhite"),
           );
         }
         const [registration] = await exec.query<Row>(
@@ -467,12 +429,12 @@ export async function registrationStep(
         for (const key of Object.keys(state)) delete state[key];
         state.registration_id = id;
         state.step = "language";
-        return save(languageStepText());
+        return save(languageStepText(deps.templates));
       }
       for (const key of Object.keys(state)) delete state[key];
       if (parts[1]?.startsWith("invite_")) state.invite = parts[1].slice(7);
       state.step = "language";
-      return save(languageStepText());
+      return save(languageStepText(deps.templates));
     }
     if (cmd === "/fix") {
       // Простое исправление анкеты после уточнения: бот сам находит редактируемую
@@ -486,31 +448,23 @@ export async function registrationStep(
         [telegramId, actor?.person.isTest ?? false],
       );
       if (!rows.length) {
-        return pick(
-          L,
-          "Анкет для исправления нет: уточнений и отказов не найдено. /register — новая анкета.",
-          "Түзететін өтінім жоқ: нақтылау мен бас тарту табылмады. /register — жаңа өтінім.",
-        );
+        return templateText(deps.templates, L, "registration.anket_dlya_ispravleniya_net_utochneniy_i_otkazov");
       }
       if (!parts[1] && rows.length > 1) {
         return save(
           numbered(rows.map((r) =>
             `<b>${esc(label(stateLabels, r.state, L))}</b>${r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""}`
           )) +
-          `\n${cmdCode("/fix НОМЕР")} — ${pick(L, "какую анкету исправить?", "қайсысын түзетеміз?")}`,
+          `\n${cmdCode("/fix НОМЕР")} — ${templateText(deps.templates, L, "registration.kakuyu_anketu_ispravit")}`,
         );
       }
       const id = parts[1]
         ? resolveRef(parts[1], [rows.map((r) => String(r.id))])
         : String(rows[0]!.id);
       if (!id) {
-        throw new ApiError(
+        throw new BotTemplateError(
           "VALIDATION_FAILED",
-          pick(
-            L,
-            "Не понял ссылку. Укажите номер из списка",
-            "Сілтемені түсінбедім. Тізім нөмірін көрсетіңіз",
-          ),
+          templateText(deps.templates, L, "registration.ne_ponyal_ssylku_ukazhite_nomer_iz_spiska"),
         );
       }
       const reg = rows.find((r) => String(r.id) === id)!;
@@ -525,13 +479,9 @@ export async function registrationStep(
       state.step = "fix_name";
       return save(
         (reg.decided_reason
-          ? `${pick(L, "Вопрос администратора", "Әкімшінің сұрағы")}: ${esc(String(reg.decided_reason))}\n`
+          ? `${templateText(deps.templates, L, "registration.vopros_administratora")}: ${esc(String(reg.decided_reason))}\n`
           : "") +
-          pick(
-            L,
-            "Введите имя и фамилию (или точку, чтобы оставить прежнее):",
-            "Аты-жөнді жазыңыз (немесе өзгеріссіз қалдыру үшін нүкте):",
-          ),
+          templateText(deps.templates, L, "registration.vvedite_imya_i_familiyu_ili_tochku_chtoby"),
       );
     }
     if (cmd === "/delete") {
@@ -540,16 +490,12 @@ export async function registrationStep(
       // или текстовым эквивалентом "/delete confirm".
       if (!actor) {
         return save(
-          pick(L, "Сначала регистрация: /register", "Алдымен тіркеліңіз: /register"),
+          templateText(deps.templates, L, "registration.snachala_registratsiya_register"),
         );
       }
       if (parts[1] !== "confirm") {
         return save({
-          text: pick(
-            L,
-            "Подать запрос на удаление анкеты и данных регистрации? История обращений и операций сохранится в ОСИ. Необязательные уведомления отключатся сразу; решение примет администратор. Отменить запрос нельзя — обратитесь к администратору.",
-            "Өтінім мен тіркелу деректерін жою туралы сұрау берілсін бе? Өтініштер мен операциялар тарихы ОСИ-де сақталады. Қосымша хабарламалар бірден өшіріледі; шешімді әкімші қабылдайды. Сұрауды қайтару мүмкін емес — әкімшіге жүгініңіз.",
-          ),
+          text: templateText(deps.templates, L, "registration.podat_zapros_na_udalenie_ankety_i_dannyh"),
           buttons: [[
             btn(pick(L, "Подтвердить удаление", "Жоюды растау"), "/delete confirm"),
             btn(pick(L, "Отмена", "Болдырмау"), "/cancel"),
@@ -559,26 +505,22 @@ export async function registrationStep(
       await submitPrivacyRequest(d, actor, { kind: "delete_profile" });
       for (const key of Object.keys(state)) delete state[key];
       return save(
-        pick(
-          L,
-          "Запрос на удаление анкеты отправлен администратору. Необязательные уведомления отключены; с вами свяжутся после решения.",
-          "Өтінімді жою туралы сұрау әкімшіге жіберілді. Қосымша хабарламалар өшірілді; шешімнен кейін сізбен байланысадыңыз.",
-        ),
+        templateText(deps.templates, L, "registration.zapros_na_udalenie_ankety_otpravlen_administratoru_neobyazatelnye"),
       );
     }
     // /start — короткое приветствие (полная справка остаётся на /help);
     // свободный текст без активного шага — полная справка, как раньше.
-    if (cmd === "/start") return welcomeText(L);
+    if (cmd === "/start") return welcomeText(L, deps.templates);
     if (!state.step || cmd === "/help") return help();
     switch (state.step) {
       case "language":
         if (!["ru", "kk"].includes(input.trim())) {
-          return languageStepText();
+          return languageStepText(deps.templates);
         }
         state.language = input.trim();
         state.step = "name";
         return save(
-          pick(L, "Ваше имя и фамилия:", "Аты-жөніңіз:"),
+          templateText(deps.templates, L, "registration.vashe_imya_i_familiya"),
         );
       case "name":
         if (!input.trim() || input.length > 300) {
@@ -586,32 +528,24 @@ export async function registrationStep(
         }
         state.full_name = input.trim();
         state.step = "phone";
-        return save(pick(L, "Телефон (+7…):", "Телефон (+7…):"));
+        return save(templateText(deps.templates, L, "registration.telefon_7"));
       case "phone": {
         state.phone_e164 = normalizePhone(input);
         if (state.invite) {
           state.step = "consent";
           return save(consentText(L, [
             `<b>${esc(String(state.full_name))}</b>, ${esc(String(state.phone_e164))}`,
-            pick(
-              L,
-              "Подтвердите согласие на обработку имени и телефона для доступа к сервисам ОСИ.",
-              "ОСИ қызметтеріне қол жеткізу үшін аты-жөніңіз бен телефонды өңдеуге келісіміңізді растаңыз.",
-            ),
+            templateText(deps.templates, L, "registration.podtverdite_soglasie_na_obrabotku_imeni_i_telefona"),
           ].join("\n")));
         }
-        return save(await askBuilding(exec, state, L));
+        return save(await askBuilding(exec, state, L, deps.templates));
       }
       case "add_select": {
         const id = resolveRef(input.trim(), [state.add_options as string[]]);
         if (!id) {
-          throw new ApiError(
+          throw new BotTemplateError(
             "VALIDATION_FAILED",
-            pick(
-              L,
-              "Выберите номер строки из списка /add",
-              "Тізімнен жол нөмірін таңдаңыз",
-            ),
+            templateText(deps.templates, L, "registration.vyberite_nomer_stroki_iz_spiska_add"),
           );
         }
         // Роль и помещение берём заново: связи могли измениться между /add
@@ -623,13 +557,9 @@ export async function registrationStep(
           [actor?.person.id ?? null, id],
         );
         if (!conn) {
-          throw new ApiError(
+          throw new BotTemplateError(
             "INVALID_TRANSITION",
-            pick(
-              L,
-              "Связь уже обработана. Отправьте /add заново.",
-              "Байланыс өңделген. /add қайта жіберіңіз.",
-            ),
+            templateText(deps.templates, L, "registration.svyaz_uzhe_obrabotana_otpravte_add_zanovo"),
           );
         }
         state.premises_id = id;
@@ -637,23 +567,19 @@ export async function registrationStep(
         state.role = String(conn.role);
         state.step = "consent";
         return save(consentText(L, [
-          `<b>${pick(L, "Проверьте", "Тексеріңіз")}</b>: ${esc(String(state.full_name))}, ${esc(String(state.phone_e164))}, ${esc(label(premiseLabels, state.kind, L))} ${esc(String(conn.code))}/${esc(String(conn.number))}, ${esc(label(roleLabels, state.role, L))}.`,
-          pick(
-            L,
-            "Согласие на обработку этих данных для регистрации в ОСИ. Отмена:",
-            "ОСИ тіркелуі үшін осы деректерді өңдеуге келісім. Болдырмау:",
-          ) + ` ${cmdCode("/cancel")}`,
+          `<b>${templateText(deps.templates, L, "registration.proverte")}</b>: ${esc(String(state.full_name))}, ${esc(String(state.phone_e164))}, ${esc(label(premiseLabels, state.kind, L))} ${esc(String(conn.code))}/${esc(String(conn.number))}, ${esc(label(roleLabels, state.role, L))}.`,
+          templateText(deps.templates, L, "registration.soglasie_na_obrabotku_etih_dannyh_dlya_registratsii") + ` ${cmdCode("/cancel")}`,
         ].join("\n")));
       }
       case "building": {
         const selected = (state.buildings as Row[])[Number(input) - 1];
         if (!selected) {
-          throw new ApiError("VALIDATION_FAILED", pick(L, "Выберите номер строки", "Жол нөмірін таңдаңыз"));
+          throw new BotTemplateError("VALIDATION_FAILED", templateText(deps.templates, L, "registration.vyberite_nomer_stroki"));
         }
         state.building_id = selected.id;
         state.step = "kind";
         return save({
-          text: pick(L, "Тип помещения:", "Нысан түрі:") + "\n" + KIND_TEXT(L),
+          text: templateText(deps.templates, L, "registration.tip_pomescheniya") + "\n" + KIND_TEXT(L),
           buttons: KIND_OPTIONS.map((kind, i) => [
             btn(label(premiseLabels, kind, L), String(i + 1)),
           ]),
@@ -663,7 +589,7 @@ export async function registrationStep(
         input = (KIND_OPTIONS[Number(input.trim()) - 1] ?? input) as string;
         if (!KIND_OPTIONS.includes(input.trim())) {
           return {
-            text: pick(L, "Тип помещения:", "Нысан түрі:") + "\n" + KIND_TEXT(L),
+            text: templateText(deps.templates, L, "registration.tip_pomescheniya") + "\n" + KIND_TEXT(L),
             buttons: KIND_OPTIONS.map((kind, i) => [
               btn(label(premiseLabels, kind, L), String(i + 1)),
             ]),
@@ -671,7 +597,7 @@ export async function registrationStep(
         }
         state.kind = input.trim();
         state.step = "number";
-        return save(pick(L, "Номер помещения:", "Нысан нөмірі:"));
+        return save(templateText(deps.templates, L, "registration.nomer_pomescheniya"));
       case "number": {
         const [premises] = await exec.query<Row>(
           "select id from premises where building_id=$1 and kind=$2 and number=$3 and status='active' and is_test=$4",
@@ -683,16 +609,12 @@ export async function registrationStep(
           ],
         );
         if (!premises) {
-          return pick(
-            L,
-            "Помещение не найдено. Проверьте номер или обратитесь к администратору.",
-            "Нысан табылмады. Нөмірді тексеріңіз немесе әкімшіге хабарласыңыз.",
-          );
+          return templateText(deps.templates, L, "registration.pomeschenie_ne_naydeno_proverte_nomer_ili_obratites");
         }
         state.premises_id = premises.id;
         state.step = "role";
         return save({
-          text: pick(L, "Ваша роль:", "Сіздің рөліңіз:") + "\n" + ROLE_TEXT(L),
+          text: templateText(deps.templates, L, "registration.vasha_rol") + "\n" + ROLE_TEXT(L),
           buttons: ROLE_OPTIONS.map((role, i) => [
             btn(label(roleLabels, role, L), String(i + 1)),
           ]),
@@ -703,12 +625,8 @@ export async function registrationStep(
           input.trim()) as string;
         state.step = "consent";
         return save(consentText(L, [
-          `<b>${pick(L, "Проверьте", "Тексеріңіз")}</b>: ${esc(String(state.full_name))}, ${esc(String(state.phone_e164))}, ${esc(label(premiseLabels, state.kind, L))}, ${esc(label(roleLabels, state.role, L))}.`,
-          pick(
-            L,
-            "Согласие на обработку этих данных для регистрации в ОСИ. Отмена:",
-            "ОСИ тіркелуі үшін осы деректерді өңдеуге келісім. Болдырмау:",
-          ) + ` ${cmdCode("/cancel")}`,
+          `<b>${templateText(deps.templates, L, "registration.proverte")}</b>: ${esc(String(state.full_name))}, ${esc(String(state.phone_e164))}, ${esc(label(premiseLabels, state.kind, L))}, ${esc(label(roleLabels, state.role, L))}.`,
+          templateText(deps.templates, L, "registration.soglasie_na_obrabotku_etih_dannyh_dlya_registratsii") + ` ${cmdCode("/cancel")}`,
         ].join("\n")));
       case "fix_name": {
         const name = input.trim() === "." ? "" : input.trim();
@@ -723,11 +641,7 @@ export async function registrationStep(
         } else state.full_name = name;
         state.step = "fix_phone";
         return save(
-          pick(
-            L,
-            "Телефон (+7…) — или точку, чтобы оставить прежний:",
-            "Телефон (+7…) — немесе өзгеріссіз қалдыру үшін нүкте:",
-          ),
+          templateText(deps.templates, L, "registration.telefon_7_ili_tochku_chtoby_ostavit_prezhniy"),
         );
       }
       case "fix_phone": {
@@ -742,19 +656,15 @@ export async function registrationStep(
         }
         state.step = "consent";
         return save(consentText(L, [
-          `<b>${pick(L, "Проверьте", "Тексеріңіз")}</b>: ${esc(String(state.full_name))}, ${esc(String(state.phone_e164))}. ${pick(L, "Помещение и роль сохранены.", "Нысан мен рөл сақталды.")}`,
-          pick(
-            L,
-            "Согласие на обработку этих данных для регистрации в ОСИ. Отмена:",
-            "ОСИ тіркелуі үшін осы деректерді өңдеуге келісім. Болдырмау:",
-          ) + ` ${cmdCode("/cancel")}`,
+          `<b>${templateText(deps.templates, L, "registration.proverte")}</b>: ${esc(String(state.full_name))}, ${esc(String(state.phone_e164))}. ${templateText(deps.templates, L, "registration.pomeschenie_i_rol_sohraneny")}`,
+          templateText(deps.templates, L, "registration.soglasie_na_obrabotku_etih_dannyh_dlya_registratsii") + ` ${cmdCode("/cancel")}`,
         ].join("\n")));
       }
       case "consent": {
         if (!["да", "иә"].includes(input.trim().toLowerCase())) {
           return consentText(
             L,
-            pick(L, "Для продолжения подтвердите согласие. Отмена:", "Жалғастыру үшін келісімді растаңыз. Болдырмау:") +
+            templateText(deps.templates, L, "registration.dlya_prodolzheniya_podtverdite_soglasie_otmena") +
               ` ${cmdCode("/cancel")}`,
           );
         }
@@ -770,12 +680,12 @@ export async function registrationStep(
             );
           }
           for (const key of Object.keys(state)) delete state[key];
-          return save(pick(L, "Доступ подтверждён", "Қолжетімділік расталды"));
+          return save(templateText(deps.templates, L, "registration.dostup_podtverzhden"));
         }
         await submitRegistration(d, actor, state, telegramId);
         for (const key of Object.keys(state)) delete state[key];
         return save(
-          `${pick(L, "Анкета принята, доступ ожидает подтверждения.", "Өтінім қабылданды, қолжетімділік растауды күтуде.")}\n${cmdCode("/status")} — ${pick(L, "статус анкеты", "өтінім күйі")}`,
+          `${templateText(deps.templates, L, "registration.anketa_prinyata_dostup_ozhidaet_podtverzhdeniya")}\n${cmdCode("/status")} — ${templateText(deps.templates, L, "registration.status_ankety")}`,
         );
       }
     }
@@ -784,9 +694,9 @@ export async function registrationStep(
 }
 
 /** Вопрос о языке анкеты: единственная сдвоенная реплика — язык ещё не выбран. */
-function languageStepText(): BotReply {
+function languageStepText(store?: TemplateStore): BotReply {
   return {
-    text: "Выберите язык анкеты / Өтінім тілін таңдаңыз:",
+    text: templateText(store, "ru", "registration.language_prompt"),
     buttons: [[btn("Русский (ru)", "ru"), btn("Қазақша (kk)", "kk")]],
   };
 }
@@ -796,6 +706,7 @@ async function askBuilding(
   exec: DbExecutor,
   state: Row,
   L: Lang,
+  store?: TemplateStore,
 ): Promise<BotReply> {
   const buildings = await exec.query<Row>(
     "select id,code,kind from building order by code",
@@ -804,7 +715,7 @@ async function askBuilding(
   state.buildings = buildings;
   return {
     text:
-      pick(L, "Выберите здание:", "Ғимаратты таңдаңыз:") + "\n" +
+      templateText(store, L, "registration.vyberite_zdanie") + "\n" +
       numbered(buildings.map((b) => `${esc(b.code)} (${esc(b.kind)})`)),
     buttons: buildings.map((b, i) => [
       btn(String(b.code), String(i + 1)),
@@ -836,7 +747,7 @@ export function registrationScenarios(deps: RegistryDeps): ScenarioRegistry {
       ]);
       if (!profile || !ctx.actor?.emulation) throw new ApiError("FORBIDDEN");
       const reply = await registrationStep(
-        ctx.executor ? scopedDeps(deps, ctx.executor) : deps,
+        { ...(ctx.executor ? scopedDeps(deps, ctx.executor) : deps), templates: await loadTemplateStore(ctx.executor ?? deps.db) },
         String(profile.telegram_user_id),
         input,
         ctx.actor,

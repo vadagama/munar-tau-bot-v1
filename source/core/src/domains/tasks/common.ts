@@ -1,3 +1,4 @@
+import { templateNotice } from "../../templates/notice.ts";
 import { cancelParentTasks } from "./cancellation.ts";
 import type { Actor } from "../../pdp/types.ts";
 import type { DbExecutor } from "../../db/client.ts";
@@ -145,26 +146,10 @@ async function workLog(
     for (
       const request of linked.filter((r) => !CLOSED_STATES.includes(r.state))
     ) {
-      const next = row.state === "completed"
-        ? {
-          ru: request.unfinished > 0
-            ? "Остаются локальные задания; результат обращения пока не готов."
-            : "Администратор подготовит результат для вашего отдельного подтверждения.",
-          kk: request.unfinished > 0
-            ? "Жергілікті тапсырмалар бар; өтініштің нәтижесі әзірше дайын емес."
-            : "Әкімші нәтижені сіздің жеке растауыңызға дайындайды.",
-        }
-        : {
-          ru: "Проверка вашего обращения остаётся отдельной.",
-          kk: "Сіздің өтінішіңіздің тексерісі бөлек өтеді.",
-        };
       await notifyPerson(
         exec,
         request.author_person_id,
-        {
-          ru: `Обращение ${request.number}: общая работа ${row.number} ${stateText?.ru ?? row.state}. ${next.ru}`,
-          kk: `${request.number} өтінім: жалпы жұмыс ${row.number} ${stateText?.kk ?? row.state}. ${next.kk}`,
-        },
+        templateNotice(row.state === "completed" ? request.unfinished > 0 ? "notices.tasks_common_work_log_1_unfinished" : "notices.tasks_common_work_log_1_ready" : "notices.tasks_common_work_log_1", {request_number:request.number,row_number:row.number,detail_c:stateText?.ru??row.state,detail_e:stateText?.kk??row.state}),
         `common:${row.id}:${row.version}:${request.id}`,
         {
           requestId: request.id,
@@ -251,14 +236,7 @@ async function link(
   await notifyPerson(
     exec,
     request.author_person_id,
-    {
-      ru: `Обращение ${request.number} включено в общую работу ${work.number}. ${
-        work.plan ? `План: ${work.plan}. ` : ""
-      }Срок: ${fmtDate(work.due_at)}. Результат по вашему обращению подтвердят отдельно.`,
-      kk: `${request.number} өтінім ${work.number} жалпы жұмысына енгізілді. ${
-        work.plan ? `Жоспар: ${work.plan}. ` : ""
-      }Мерзім: ${fmtDate(work.due_at)}. Өтінішіңіздің нәтижесі бөлек расталады.`,
-    },
+    templateNotice(work.plan ? "notices.tasks_common_link_2_plan" : "notices.tasks_common_link_2", {request_number:request.number,work_number:work.number,plan:work.plan,detail_d:fmtDate(work.due_at)}),
     `common:${work.id}:linked:${requestId}:${request.version}`,
     {
       requestId,
@@ -501,10 +479,7 @@ export async function unlinkCommonRequest(
       await notifyPerson(
         exec,
         request.author_person_id,
-        {
-          ru: `Обращение ${request.number}: дальнейший план — ${plan}.`,
-          kk: `${request.number} өтінім: әрі қарайғы жоспар — ${plan}.`,
-        },
+        templateNotice("notices.tasks_common_unlink_common_request_3", {request_number: request.number, plan: plan}),
         `common:${id}:unlink:${requestId}:${request.version}`,
         {
           requestId,

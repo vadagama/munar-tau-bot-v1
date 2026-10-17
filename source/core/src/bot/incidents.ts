@@ -1,3 +1,5 @@
+import { BotTemplateError } from "./bot-errors.ts";
+import { t as templateText } from "../templates/store.ts";
 import {
   esc,
   fmtDate,
@@ -48,11 +50,7 @@ async function incidentPlainStep(
   // Кнопки вместо UUID в тексте: callback_data — точная команда (лимит 64 байта).
   if (command === "/emergency" && !args.length) {
     if (!id) {
-      return pick(
-        L,
-        "Опасность, авария? Напишите: /emergency НОМЕР_ОБРАЩЕНИЯ что произошло. Телефон аварийной службы дома: /emergency КОД_ДОМА. Сообщение не заменяет вызов экстренных служб.",
-        "Қауіп, апат па? /emergency ӨТІНІШ НӨМІРІ не болғанын жазыңыз. Үйдің апаттық қызметінің телефоны: /emergency ҮЙ КОДЫ. Хабарлама төтенше қызметтерді алмастырмайды.",
-      );
+      return templateText(deps.templates, L, "incidents.opasnost_avariya_napishite_emergency_nomer_obrascheniya_chto");
     }
     const [building] = await deps.db.query<{ id: string }>(
       "select id from building where code=$1",
@@ -65,19 +63,19 @@ async function incidentPlainStep(
       actor?.person.isTest ?? false,
     );
     return `${
-      contact.phone ?? pick(L, "Телефон ещё не настроен", "Телефон әлі бапталмаған")
-    }\n${pick(L, contact.notice.ru, contact.notice.kk)}`;
+      contact.phone ? esc(contact.phone) : templateText(deps.templates, L, "incidents.telefon_esche_ne_nastroen")
+    }\n${templateText(deps.templates, L, contact.on_duty ? "incidents.duty_notice" : "incidents.off_duty_notice")}`;
   }
   if (!actor) {
-    throw new ApiError(
+    throw new BotTemplateError(
       "FORBIDDEN",
-      pick(L, "Подтвердите регистрацию", "Тіркелуді растаңыз"),
+      templateText(deps.templates, L, "incidents.podtverdite_registratsiyu"),
     );
   }
   if (command === "/incidents") {
     return (await listIncidents(deps, actor)).map((r) =>
-      `${r.number}: ${r.title}`
-    ).join("\n") || pick(L, "Нет доступных аварий", "Қолжетімді апаттар жоқ");
+      `${esc(r.number)}: ${esc(r.title)}`
+    ).join("\n") || templateText(deps.templates, L, "incidents.net_dostupnyh_avariy");
   }
   if (command === "/incident") {
     const [r] = await deps.db.query<{ id: string }>(
@@ -87,24 +85,24 @@ async function incidentPlainStep(
     if (!r) throw new ApiError("NOT_FOUND");
     const card = await getIncident(deps, actor, r.id);
     return [
-      `${card.number}: ${card.title}`,
-      card.public_text ?? pick(L, "Сигнал проверяется", "Сигнал тексерілуде"),
+      `${esc(card.number)}: ${esc(card.title)}`,
+      card.public_text != null ? esc(card.public_text) : templateText(deps.templates, L, "incidents.signal_proveryaetsya"),
       card.forecast
-        ? `${pick(L, "Прогноз", "Болжам")}: ${card.forecast}`
+        ? `${templateText(deps.templates, L, "incidents.prognoz")}: ${esc(card.forecast)}`
         : "",
       card.next_update_at
-        ? `${pick(L, "Следующее обновление", "Келесі жаңарту")}: ${fmtDate(card.next_update_at)}`
+        ? `${templateText(deps.templates, L, "incidents.sleduyuschee_obnovlenie")}: ${fmtDate(card.next_update_at)}`
         : "",
     ].filter(Boolean).join("\n");
   }
   if (command === "/signals") {
     const signals = await listSignals(deps, actor);
     if (!signals.length) {
-      return pick(L, "Нет сигналов", "Сигналдар жоқ");
+      return templateText(deps.templates, L, "incidents.net_signalov");
     }
     return {
       text: signals.map((s) =>
-        `${fmtDate(s.created_at)} — ${s.description}`
+        `${fmtDate(s.created_at)} — ${esc(s.description)}`
       ).join("\n\n"),
       buttons: signals.map((s) => [
         btn(
@@ -122,7 +120,7 @@ async function incidentPlainStep(
       { expected_version: Number(args[0]) },
       key,
     );
-    return pick(L, "Сигнал принят", "Сигнал қабылданды");
+    return templateText(deps.templates, L, "incidents.signal_prinyat");
   }
   if (command === "/emergency" || command === "/danger") {
     const task = command === "/danger",
@@ -141,22 +139,18 @@ async function incidentPlainStep(
         [code!.trim()],
       );
       if (!building) {
-        throw new ApiError(
+        throw new BotTemplateError(
           "VALIDATION_FAILED",
-          pick(L, "Дом не найден", "Үй табылмады"),
+          templateText(deps.templates, L, "incidents.dom_ne_nayden"),
         );
       }
       r.building_id = building.id;
       description = parts.join("|").trim();
     }
     if (!r.building_id) {
-      throw new ApiError(
+      throw new BotTemplateError(
         "VALIDATION_FAILED",
-        pick(
-          L,
-          "/danger НОМЕР_ЗАДАНИЯ КОД_ДОМА | описание",
-          "/danger ТАПСЫРМА НӨМІРІ ҮЙ КОДЫ | сипаттама",
-        ),
+        templateText(deps.templates, L, "incidents.danger_nomer_zadaniya_kod_doma_opisanie"),
       );
     }
     const signal = await signalEmergency(deps, actor, {
@@ -164,20 +158,20 @@ async function incidentPlainStep(
       building_id: r.building_id,
       description,
     }, key);
-    return `${pick(L, "Сигнал отправлен дежурному", "Сигнал кезекшіді жіберілді")}\n${
-      signal.contact.phone ?? ""
-    }\n${pick(L, signal.contact.notice.ru, signal.contact.notice.kk)}`;
+    return `${templateText(deps.templates, L, "incidents.signal_otpravlen_dezhurnomu")}\n${
+      esc(signal.contact.phone ?? "")
+    }\n${templateText(deps.templates, L, signal.contact.on_duty ? "incidents.duty_notice" : "incidents.off_duty_notice")}`;
   }
   if (command === "/publications") {
     const items = (await listPublications(deps, actor)).filter((r) =>
       r.state === "published"
     );
     if (!items.length) {
-      return pick(L, "Нет публикаций", "Жарияланымдар жоқ");
+      return templateText(deps.templates, L, "incidents.net_publikatsiy");
     }
     return {
       text: items.map((r) =>
-        `${r.title}\n${fmtDay(r.published_at ?? r.created_at)}`
+        `${esc(r.title)}\n${fmtDay(r.published_at ?? r.created_at)}`
       ).join("\n\n"),
       buttons: items.map((p) => [
         btn(pick(L, "Открыть", "Ашу"), `/publication ${p.id}`),
@@ -187,15 +181,15 @@ async function incidentPlainStep(
   if (command === "/publication" && id) {
     const p = await getPublication(deps, actor, id);
     const parts = [
-      p.title,
-      p.body,
+      esc(p.title),
+      esc(p.body),
     ];
     if (p.kind === "outage") {
       parts.push(
-        `${pick(L, "План", "Жоспар")}: ${fmtInterval(p.planned_start, p.planned_end)}`,
+        `${templateText(deps.templates, L, "incidents.plan")}: ${fmtInterval(p.planned_start, p.planned_end)}`,
         p.restored_at
-          ? `${pick(L, "Восстановление", "Қалпына келтіру")}: ${fmtDate(p.restored_at)}`
-          : pick(L, "Восстановление пока не подтверждено", "Қалпына келтіру әлі расталмады"),
+          ? `${templateText(deps.templates, L, "incidents.vosstanovlenie")}: ${fmtDate(p.restored_at)}`
+          : templateText(deps.templates, L, "incidents.vosstanovlenie_poka_ne_podtverzhdeno"),
       );
     }
     const reply: BotReply = { text: parts.filter(Boolean).join("\n") };
@@ -221,11 +215,7 @@ async function incidentPlainStep(
         scenario: "incidents",
         workproblem_id: id,
       });
-      return pick(
-        L,
-        "Укажите дом и опишите проблему одним сообщением: например «1 После ремонта кран протекает». /cancel — отмена.",
-        "Үйді көрсетіп, мәселені бір хабарламада жазыңыз: мысалы «1 Жөндеуден кейін кран ағады». /cancel — болдырмау.",
-      );
+      return templateText(deps.templates, L, "incidents.ukazhite_dom_i_opishite_problemu_odnim_soobscheniem");
     }
     const text = args.join(" ");
     const [code, ...rest] = text.includes("|")
@@ -261,11 +251,7 @@ async function incidentPlainStep(
       key,
     );
   }
-  return pick(
-    L,
-    "/incidents — аварии; /publications — публикации; /emergency — опасность; /signals — сигналы",
-    "/incidents — апаттар; /publications — жарияланымдар; /emergency — қауіп; /signals — сигналдар",
-  );
+  return templateText(deps.templates, L, "incidents.incidents_avarii_publications_publikatsii_emergency_opasnost_signals");
 }
 
 /** Сообщение о проблеме после работ: дом из области публикации + описание. */
@@ -284,22 +270,14 @@ async function reportWorkProblem(
     throw new ApiError("FORBIDDEN");
   }
   if (!code || !description) {
-    return pick(
-      L,
-      "Укажите дом и опишите проблему одним сообщением: например «1 После ремонта кран протекает». /cancel — отмена.",
-      "Үйді көрсетіп, мәселені бір хабарламада жазыңыз: мысалы «1 Жөндеуден кейін кран ағады». /cancel — болдырмау.",
-    );
+    return templateText(deps.templates, L, "incidents.ukazhite_dom_i_opishite_problemu_odnim_soobscheniem");
   }
   const [b] = await deps.db.query<{ building_id: string }>(
     "select s.building_id from publication_scope s join building b on b.id=s.building_id where s.publication_id=$1 and b.code=$2",
     [id, code],
   );
   if (!b) {
-    return pick(
-      L,
-      "Дом не входит в эту публикацию. Укажите код дома и описание ещё раз, /cancel — отмена.",
-      "Үй жарияланым аумағына кірмейді. Үй кодын мен сипаттаманы қайта жазыңыз, /cancel — болдырмау.",
-    );
+    return templateText(deps.templates, L, "incidents.dom_ne_vhodit_v_etu_publikatsiyu_ukazhite");
   }
   const r = await publicationProblem(deps, actor, id, {
     source: "bot",
@@ -307,7 +285,7 @@ async function reportWorkProblem(
     text: description,
   }, key);
   await saveIncidentState(deps, telegramId, actor, {});
-  return `${r.number}: ${pick(L, "проблема передана администратору", "мәселе әкімшіге берілді")}`;
+  return `${esc(r.number)}: ${templateText(deps.templates, L, "incidents.problema_peredana_administratoru")}`;
 }
 
 /** Сохраняет состояние диалога инцидентов (сценарий /workproblem). */
@@ -328,14 +306,11 @@ async function saveIncidentState(
 }
 
 /**
- * Все ответы VS-7 — обычный текст (esc целиком); кнопки передаются сырыми,
+ * Шаблоны возвращают безопасный HTML, динамический текст экранируется отдельно;
  * их callback_data резолвится как команда, подписи — безопасные строки.
  */
 export async function incidentStep(
   ...args: Parameters<typeof incidentPlainStep>
 ): Promise<BotReply> {
-  const reply = await incidentPlainStep(...args);
-  return typeof reply === "string"
-    ? esc(reply)
-    : { text: esc(reply.text), buttons: reply.buttons };
+  return incidentPlainStep(...args);
 }

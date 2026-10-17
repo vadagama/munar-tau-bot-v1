@@ -1,3 +1,4 @@
+import { templateNotice } from "../../templates/notice.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { ApiError } from "../../errors/api.ts";
 import type { RegistryDeps } from "../registry/service.ts";
@@ -117,20 +118,14 @@ export async function addMessage(
           await inform(
             exec,
             row,
-            {
-              ru: `${row.number}: новое сообщение. Откройте карточку обращения.`,
-              kk: `${row.number}: жаңа хабарлама. Өтініш карточкасын ашыңыз.`,
-            },
+            templateNotice("notices.requests_messages_add_message_1", {row_number: row.number}),
             `${id}:message:${messageId}`,
             true,
           );
           await informManagers(
             exec,
             row,
-            {
-              ru: `${row.number}: новое сообщение`,
-              kk: `${row.number}: жаңа хабарлама`,
-            },
+            templateNotice("notices.requests_messages_add_message_101", {row_number: row.number}),
             `${messageId}:admin`,
           );
         }
@@ -272,10 +267,7 @@ export async function rateRequest(
       await informManagers(
         exec,
         row,
-        {
-          ru: `${row.number}: низкая оценка`,
-          kk: `${row.number}: төмен баға`,
-        },
+        templateNotice("notices.requests_messages_rate_request_102", {row_number: row.number}),
         `${id}:rating:${crypto.randomUUID()}`,
       );
     }

@@ -1,3 +1,4 @@
+import { renderNotice } from "../templates/notice.ts";
 import { afterEach, expect, it, vi } from "vitest";
 import type { DbClient, DbExecutor } from "../db/client.ts";
 import { SqlAuditRepo } from "../domains/audit/repo.ts";
@@ -38,7 +39,9 @@ function fixture(attempts = 0, loseLease = false) {
         state = job.attempts >= 3 ? "failed" : "queued";
         rows = [{ attachment_id: "file" }];
       } else if (sql.startsWith("insert into outbox")) {
-        notifications.push(JSON.parse(String(params[0])).text);
+        const notice=JSON.parse(String(params[0]));
+        const value=notice.template ? notice : notice.text;
+        notifications.push({ru:renderNotice(value,"ru"),kk:renderNotice(value,"kk")});
       }
       return rows as T[];
     },

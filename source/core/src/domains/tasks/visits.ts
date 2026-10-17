@@ -1,3 +1,4 @@
+import { templateNotice } from "../../templates/notice.ts";
 import type { Actor } from "../../pdp/types.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import { can } from "../../pdp/evaluate.ts";
@@ -107,10 +108,7 @@ export async function proposeVisit(
         await notifyPerson(
           exec,
           String(request.author_person_id),
-          {
-            ru: `Предложен визит: ${fmtInterval(start, end)}. Подтвердите интервал в карточке обращения.`,
-            kk: `Сапар ұсынылды: ${fmtInterval(start, end)}. Аралықты өтініш картасында растаңыз.`,
-          },
+          templateNotice("notices.tasks_visits_propose_visit_1", {detail_a: fmtInterval(start, end)}),
           `visit:${visit!.id}:proposed`,
           {requestId:String(task.request_id),audience:"resident",type:"request.required",important:true,isTest:task.is_test},
         );
@@ -214,10 +212,7 @@ export async function updateVisit(
           await notifyPerson(
             exec,
             String(r!.author_person_id),
-            {
-              ru: "Исполнитель сообщил об отсутствии доступа. Согласуйте новый визит.",
-              kk: "Орындаушы қолжетімділік жоқ екенін хабарлады. Жаңа сапарды келістіріңіз.",
-            },
+            templateNotice("notices.tasks_visits_update_visit_2", {}),
             `visit:${id}:${Number(visit!.version) + 1}:no_access`,
             {requestId:String(task!.request_id),audience:"resident",type:"request.required",important:true,isTest:task!.is_test},
           );

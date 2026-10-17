@@ -1,3 +1,4 @@
+import { TEMPLATE_ROUTES } from "./template-handlers.ts";
 import { PUBLICATION_ROUTES } from "./publication-handlers.ts";
 import { INCIDENT_ROUTES } from "./incident-handlers.ts";
 import { NOTIFICATION_ROUTES } from "./notification-handlers.ts";
@@ -502,6 +503,7 @@ async function handleEmulationSimulate(ctx: RouteContext): Promise<RouteResult> 
 
 export const ROUTES: readonly Route[] = [
   ...NOTIFICATION_ROUTES,
+  ...TEMPLATE_ROUTES,
   ...REGISTRY_ROUTES,
   ...REQUEST_ROUTES,
   ...TASK_ROUTES,

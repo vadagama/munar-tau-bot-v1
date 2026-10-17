@@ -1,8 +1,9 @@
-import type { LocalizedNotice } from "../../locales/notifications.ts";
+import { renderNotice, type NoticeText } from "../../templates/notice.ts";
+import { loadTemplateStore, type TemplateStore } from "../../templates/store.ts";
 import { enqueueNotice, type NoticeOptions } from "../notifications/service.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import type { BotKind } from "../../bot/bots.ts";
-import { langOf, pick } from "../../bot/text.ts";
+import { langOf } from "../../bot/text.ts";
 import {
   type BotReply,
   type InlineButton,
@@ -35,7 +36,7 @@ export function telegramReplyMarkup(
   return undefined;
 }
 
-export async function notifyPerson(exec: DbExecutor, personId: string, message: string | LocalizedNotice, key: string, options: NoticeOptions = {}): Promise<void> {
+export async function notifyPerson(exec: DbExecutor, personId: string, message: NoticeText, key: string, options: NoticeOptions = {}): Promise<void> {
   await enqueueNotice(exec,{personId,text:message,key,...options});
 }
 /**
@@ -45,22 +46,23 @@ export async function notifyPerson(exec: DbExecutor, personId: string, message: 
 export async function notifyTelegram(
   exec: DbExecutor,
   telegramId: unknown,
-  message: BotReply | LocalizedNotice,
+  message: BotReply | NoticeText,
   key: string,
   bot: BotKind = "resident",
   menu?: string[][],
+  templates?: TemplateStore,
 ): Promise<void> {
   if (!telegramId) return;
   let reply: BotReply = message as BotReply;
   if (
-    message && typeof message === "object" && "ru" in message && "kk" in message
+    message && typeof message === "object" && (("ru" in message && "kk" in message) || "template" in message)
   ) {
-    const loc = message as LocalizedNotice;
+    const loc = message as NoticeText;
     const [p] = await exec.query<{ language: string }>(
       "select language from profile where telegram_user_id=$1 and archived_at is null limit 1",
       [telegramId],
     );
-    reply = pick(langOf(p?.language), loc.ru, loc.kk);
+    reply = renderNotice(loc, langOf(p?.language), "template" in message ? templates ?? await loadTemplateStore(exec) : undefined);
   }
   const text = replyText(reply);
   const markup = telegramReplyMarkup(reply, menu);

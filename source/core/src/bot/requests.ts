@@ -1,3 +1,5 @@
+import { BotTemplateError } from "./bot-errors.ts";
+import { t as templateText } from "../templates/store.ts";
 import { listRequestVisits, updateVisit } from "../domains/tasks/visits.ts";
 import { label, premiseLabels } from "../locales/registry.ts";
 import { requestActions } from "./help.ts";
@@ -30,7 +32,7 @@ import {
 } from "../domains/requests/messages.ts";
 
 /** Полная справка по обращениям — только для /help (в реплики не вклеивается). */
-const helpText = (lang: "ru" | "kk") => registrationHelp(lang);
+
 
 export const REQUEST_COMMANDS = [
   "/result", "/visits", "/confirmvisit", "/missedvisit",
@@ -95,11 +97,9 @@ export async function requestStep(
     // и зацикливает повторную доставку Telegram (инцидент 17.10.2026).
     const find = async () => {
       if (!number) {
-        throw new ApiError(
+        throw new BotTemplateError(
           "VALIDATION_FAILED",
-          L === "kk"
-            ? "Өтініш нөмірін көрсетіңіз"
-            : "Укажите номер обращения",
+          templateText(deps.templates, L, "requests.ukazhite_nomer_obrascheniya"),
         );
       }
       const [r] = await exec.query<{ id: string }>(
@@ -115,11 +115,11 @@ export async function requestStep(
       const r=await find(),snapshot=(r.confirmation as Row|undefined)?.payload as Row|undefined;
       const reports=(snapshot?.task_results as Row[])??[];
       const index=Number(args[0]??1)-1;
-      if(!Number.isInteger(index)||index<0)throw new ApiError("VALIDATION_FAILED",L==="kk"?"Есеп нөмірін көрсетіңіз":"Укажите номер отчёта");
+      if(!Number.isInteger(index)||index<0)throw new BotTemplateError("VALIDATION_FAILED",templateText(deps.templates, L, "requests.ukazhite_nomer_otcheta"));
       const report=reports[index];
-      if(!report)return preview(esc(L==="kk"?"Нәтиже әлі берілмеген":"Результат ещё не передан"),3500);
+      if(!report)return preview(templateText(deps.templates, L, "requests.rezultat_esche_ne_peredan"),3500);
       return preview(
-        `<b>${esc(r.number)}</b> · ${L==="kk"?"Есеп":"Отчёт"} ${index+1} ${L==="kk"?"із ішінен":"из"} ${reports.length} · ${L==="kk"?"тапсырма":"задание"} ${esc(String(report.task_number))}\n${esc(report.performed_work)}\n${esc(report.result)}\n${L==="kk"?"Шектеулер":"Ограничения"}: ${esc(report.limitations|| (L==="kk"?"жоқ":"нет"))}${index+1<reports.length?`\n${cmd(`/result ${r.number} ${index+2}`)} — ${L==="kk"?"келесі есеп":"следующий отчёт"}`:""}`,
+        `<b>${esc(r.number)}</b> · ${templateText(deps.templates, L, "requests.otchet")} ${index+1} ${templateText(deps.templates, L, "requests.iz")} ${reports.length} · ${templateText(deps.templates, L, "requests.zadanie")} ${esc(String(report.task_number))}\n${esc(report.performed_work)}\n${esc(report.result)}\n${templateText(deps.templates, L, "requests.ogranicheniya")}: ${(report.limitations ? esc(report.limitations) : templateText(deps.templates, L, "requests.net"))}${index+1<reports.length?`\n${cmd(`/result ${r.number} ${index+2}`)} — ${templateText(deps.templates, L, "requests.sleduyuschiy_otchet")}`:""}`,
         3500,
       );
     }
@@ -134,8 +134,8 @@ export async function requestStep(
         text:
           (lines.length
             ? numbered(lines)
-            : L === "kk" ? "Сапарлар жоқ" : "Визитов нет") +
-          `\n${cmd("/missedvisit НОМЕР_ОБРАЩЕНИЯ НОМЕР_В_СПИСКЕ причина")} — ${L === "kk" ? "орындаушы келмеді" : "исполнитель не пришёл"}`,
+            : templateText(deps.templates, L, "requests.vizitov_net")) +
+          `\n${cmd("/missedvisit НОМЕР_ОБРАЩЕНИЯ НОМЕР_В_СПИСКЕ причина")} — ${templateText(deps.templates, L, "requests.ispolnitel_ne_prishel")}`,
         // Согласование визита — кнопкой по строке списка.
         buttons: visits.map((v, i) => [
           btn(
@@ -147,14 +147,12 @@ export async function requestStep(
     }
     if (command === "/confirmvisit" || command === "/missedvisit") {
       const visits=(state.visit_options as Row[])??[];const visit=visits[Number(number)-1];
-      if(!visit)throw new ApiError("VALIDATION_FAILED",L==="kk"?"Алдымен /visits НОМІР ашыңыз":"Сначала откройте /visits НОМЕР_ОБРАЩЕНИЯ");
+      if(!visit)throw new BotTemplateError("VALIDATION_FAILED",templateText(deps.templates, L, "requests.snachala_otkroyte_visits_nomer_obrascheniya"));
       visits[Number(number)-1]=await updateVisit(d,actor,String(visit.id),{version:visit.version,action:command==="/confirmvisit"?"confirm":"no_show",reason:args.join(" ")},opKey);
       return save(
         command === "/confirmvisit"
-          ? L === "kk" ? "Сапар келісілді" : "Визит согласован"
-          : L === "kk"
-            ? "Жоқтық туралы хабарлама әкімшіге берілді"
-            : "Сообщение о неявке передано администратору для проверки",
+          ? templateText(deps.templates, L, "requests.vizit_soglasovan")
+          : templateText(deps.templates, L, "requests.soobschenie_o_neyavke_peredano_administratoru_dlya_proverki"),
       );
     }
     const places = async () =>
@@ -177,8 +175,8 @@ export async function requestStep(
       return save({
         text:
           (placeMenu(items) ||
-            (L === "kk" ? "Расталған үй-жай жоқ" : "Подтверждённых помещений нет")) +
-          `\n${L === "kk" ? "Түртіңіз нөмірі немесе" : "Нажмите номер помещения или"} /newrequest`,
+            (templateText(deps.templates, L, "requests.podtverzhdennyh_pomescheniy_net"))) +
+          `\n${templateText(deps.templates, L, "requests.nazhmite_nomer_pomescheniya_ili")} /newrequest`,
         buttons: items.slice(0, 20).map((p, i) => [
           btn(`${preview(p.number, 20)}`, String(i + 1)),
         ]),
@@ -194,9 +192,7 @@ export async function requestStep(
       delete state.request_id;
       state.step = "";
       return save(
-        L === "kk"
-          ? "Жеке жоба жойылды. /newrequest"
-          : "Личный черновик удалён. /newrequest",
+        templateText(deps.templates, L, "requests.lichnyy_chernovik_udalen_newrequest"),
       );
     }
     if (command === "/newrequest" || command === "/editrequest") {
@@ -214,14 +210,12 @@ export async function requestStep(
         state.step = command === "/editrequest" ? "description" : "verify";
         return save(
           command === "/editrequest"
-            ? L === "kk"
-              ? "Жобаның жаңа мәтінін енгізіңіз"
-              : "Введите новый текст черновика"
+            ? templateText(deps.templates, L, "requests.vvedite_novyy_tekst_chernovika")
             : {
               text:
-                `<b>${L === "kk" ? "Сақталған жоба" : "Сохранённый черновик"}</b>:\n${
+                `<b>${templateText(deps.templates, L, "requests.sohranennyy_chernovik")}</b>:\n${
                   esc(preview(draft.description, 1200))
-                }\n${cmd("/sendrequest")} — ${L === "kk" ? "жіберу" : "отправить"}; ${cmd("/editrequest")} — ${L === "kk" ? "мәтінді өзгерту" : "изменить текст"}; ${cmd("/deletedraft")} — ${L === "kk" ? "жою" : "удалить"}. ${L === "kk" ? "Файлдарды келесі хабарламаға жабыстырыңыз." : "Файлы — просто прикрепите к следующему сообщению."}`,
+                }\n${cmd("/sendrequest")} — ${templateText(deps.templates, L, "requests.otpravit")}; ${cmd("/editrequest")} — ${templateText(deps.templates, L, "requests.izmenit_tekst")}; ${cmd("/deletedraft")} — ${templateText(deps.templates, L, "requests.udalit")}. ${templateText(deps.templates, L, "requests.fayly_prosto_prikrepite_k_sleduyuschemu_soobscheniyu")}`,
               buttons: [[
                 btn(L === "kk" ? "Жіберу" : "Отправить", "/sendrequest"),
                 btn(L === "kk" ? "Жою" : "Удалить", "/deletedraft"),
@@ -235,9 +229,9 @@ export async function requestStep(
       state.place_options = items;
       return save({
         text:
-          `${L === "kk" ? "Үй-жайыңыздың нөмірін таңдаңыз:" : "Выберите номер своего помещения:"}\n${
+          `${templateText(deps.templates, L, "requests.vyberite_nomer_svoego_pomescheniya")}\n${
             placeMenu(items)
-          }\n${L === "kk" ? `Ортақ мүлік: ${cmd("үй КОД орын сипаттамасы")}; аумақ: ${cmd("аумақ орын сипаттамасы")}.` : `Общее имущество: ${cmd("дом КОД описание места")}; территория: ${cmd("территория описание места")}.`} ${L === "kk" ? "Жоба жіберілгенше сақталады." : "Черновик сохраняется до отправки."} ${cmd("/requestcancel")} — ${L === "kk" ? "артқа" : "назад"}.`,
+          }\n${templateText(deps.templates, L, "requests.obschee_imuschestvo_dom_kod_opisanie_mesta_territoriya")} ${templateText(deps.templates, L, "requests.chernovik_sohranyaetsya_do_otpravki")} ${cmd("/requestcancel")} — ${templateText(deps.templates, L, "requests.nazad")}.`,
         // Выбор помещения — главный выбор среза: кнопка равна номеру строки.
         buttons: items.slice(0, 20).map((p, i) => [
           btn(`${preview(p.name ?? p.code, 24)} ${preview(p.number, 12)}`, String(i + 1)),
@@ -247,9 +241,7 @@ export async function requestStep(
     if (command === "/requestcancel" || command === "/registration") {
       for (const k of Object.keys(state)) delete state[k];
       return save(
-        L === "kk"
-          ? "Диалог тоқтатылды, жоба сақталды. /register /requests"
-          : "Диалог приостановлен, черновик сохранён. /register /requests",
+        templateText(deps.templates, L, "requests.dialog_priostanovlen_chernovik_sohranen_register_requests"),
       );
     }
     if (command === "/requests") {
@@ -257,7 +249,7 @@ export async function requestStep(
       const pageToken = tokens.find((t) => /^page:\d+$/.test(t));
       const page = pageToken ? Number(pageToken.slice(5)) : 1;
       if (!Number.isSafeInteger(page) || page < 1 || page > 10000) {
-        throw new ApiError("VALIDATION_FAILED", L === "kk" ? "Бұрыс бет" : "Некорректная страница");
+        throw new BotTemplateError("VALIDATION_FAILED", templateText(deps.templates, L, "requests.nekorrektnaya_stranitsa"));
       }
       const rows = await listRequests(d, actor, {
         cursor: btoa(String((page - 1) * 10)),
@@ -267,7 +259,7 @@ export async function requestStep(
       delete state.request_id;
       delete state.draft_id;
       delete state.step;
-      return save(requestListText(rows, actor.person.id, page, L));
+      return save(requestListText(rows, actor.person.id, page, L, deps.templates));
     }
     if (command === "/request") {
       const row = await find();
@@ -275,7 +267,7 @@ export async function requestStep(
       state.request_id = row.id;
       delete state.draft_id;
       delete state.step;
-      return save(requestCardText(row, L));
+      return save(requestCardText(row, L, deps.templates));
     }
     if (command === "/say") {
       const row = await find();
@@ -284,7 +276,7 @@ export async function requestStep(
         channel: "resident",
         source: "bot",
       }, opKey);
-      return L === "kk" ? "Хабарлама сақталды" : "Сообщение сохранено";
+      return templateText(deps.templates, L, "requests.soobschenie_sohraneno");
     }
     if (command === "/share" || command === "/unshare") {
       const row = await find();
@@ -295,7 +287,7 @@ export async function requestStep(
         args[0] ?? "",
         command === "/unshare",
       );
-      return L === "kk" ? "Қолжетімділік өзгертілді" : "Доступ изменён";
+      return templateText(deps.templates, L, "requests.dostup_izmenen");
     }
     if (command === "/rate") {
       const row = await find();
@@ -303,7 +295,7 @@ export async function requestStep(
         value: Number(args[0]),
         comment: args.slice(1).join(" "),
       });
-      return L === "kk" ? "Баға сақталды" : "Оценка сохранена";
+      return templateText(deps.templates, L, "requests.otsenka_sohranena");
     }
     const actions: Record<string, string> = {
       "/confirm": "confirm_result",
@@ -324,7 +316,7 @@ export async function requestStep(
             : row.confirmation_version,
         },
       });
-      return L === "kk" ? "Шешім сақталды" : "Решение сохранено";
+      return templateText(deps.templates, L, "requests.reshenie_sohraneno");
     }
     if (command === "/sendrequest" && state.draft_id) {
       const row = await getRequest(d, actor, String(state.draft_id));
@@ -336,32 +328,28 @@ export async function requestStep(
       state.request_id = sent.id;
       state.step = "";
       return save(
-        `<b>${esc(sent.number)}</b> — ${L === "kk" ? "тіркелді" : "зарегистрировано"}. ${L === "kk" ? "Алғашқы жауап" : "Первый ответ"}: ${
+        `<b>${esc(sent.number)}</b> — ${templateText(deps.templates, L, "requests.zaregistrirovano")}. ${templateText(deps.templates, L, "requests.pervyy_otvet")}: ${
           fmtDate(sent.first_response_due_at)
         }.\n${
-          requestActions(sent.state, L)
+          requestActions(sent.state, L, false, deps.templates)
         }\n${
-          L === "kk"
-            ? "Төтенше қызметтерді бот алмастырмайды: өмірге тікелей қауіп төнгенде 112 нөміріне қоңырау шалыңыз."
-            : "Экстренные службы бот не заменяет: при непосредственной угрозе жизни звоните 112."
+          templateText(deps.templates, L, "requests.ekstrennye_sluzhby_bot_ne_zamenyaet_pri_neposredstvennoy")
         }`,
       );
     }
     if (state.step === "place") {
       if (command === "дом" || command === "үй") {
         if (!number || !args.join(" ").trim()) {
-          return L === "kk"
-            ? "Үй коды мен орнын көрсетіңіз: үй 1 кіреберіс 2"
-            : "Укажите код дома и место: дом 1 подъезд 2";
+          return templateText(deps.templates, L, "requests.ukazhite_kod_doma_i_mesto_dom_1");
         }
         const [building] = await exec.query<{ id: string }>(
           "select id from building where id::text=$1 or (kind='house' and code=$1) limit 1",
           [number],
         );
         if (!building) {
-          throw new ApiError(
+          throw new BotTemplateError(
             "VALIDATION_FAILED",
-            L === "kk" ? "Үй табылмады" : "Дом не найден",
+            templateText(deps.templates, L, "requests.dom_ne_nayden"),
           );
         }
         state.building_id = building.id;
@@ -369,7 +357,7 @@ export async function requestStep(
         state.premises_id = null;
       } else if (command === "территория" || command === "аумақ") {
         if (!number) {
-          return L === "kk" ? "Аумақтағы орынды сипаттаңыз" : "Опишите место на территории";
+          return templateText(deps.templates, L, "requests.opishite_mesto_na_territorii");
         }
         state.building_id = null;
         state.location_text = [number, ...args].join(" ");
@@ -382,9 +370,7 @@ export async function requestStep(
           !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
             .test(input.trim())
         ) {
-          return L === "kk"
-            ? "Тізімнен нөмір таңдаңыз. /objects"
-            : "Выберите номер из списка. /objects";
+          return templateText(deps.templates, L, "requests.vyberite_nomer_iz_spiska_objects");
         }
         state.premises_id = selected?.id ?? input.trim();
         state.building_id = selected?.building_id ?? null;
@@ -392,9 +378,7 @@ export async function requestStep(
       }
       state.step = "description";
       return save(
-        L === "kk"
-          ? "Мәселені сипаттаңыз. Санат қажет емес — мәтін мен фото жеткілікті."
-          : "Опишите проблему своими словами. Категория не нужна — достаточно текста и фото.",
+        templateText(deps.templates, L, "requests.opishite_problemu_svoimi_slovami_kategoriya_ne_nuzhna"),
       );
     }
     if (state.step === "description") {
@@ -421,19 +405,17 @@ export async function requestStep(
       state.step = "verify";
       return save({
         text:
-          `${L === "kk" ? "Тексеріңіз" : "Проверьте"}:\n${
+          `${templateText(deps.templates, L, "requests.proverte")}:\n${
             esc(preview(input, 1200))
-          }\n${L === "kk" ? "Толық мәтін сақталды." : "Полный текст сохранён."}\n${L === "kk" ? `Файл қосыңыз (міндетті емес), содан кейін ${cmd("/sendrequest")}. Файл сәтсіз болса, өтінішті жібере аласыз.` : `Добавьте файлы (необязательно), затем ${cmd("/sendrequest")}. При сбое файла обращение можно отправить.`} ${cmd("/requestcancel")} — ${L === "kk" ? "жобаны сақтау" : "сохранить черновик"}.`,
+          }\n${templateText(deps.templates, L, "requests.polnyy_tekst_sohranen")}\n${templateText(deps.templates, L, "requests.dobavte_fayly_neobyazatelno_zatem_sendrequest_pri_sboe")} ${cmd("/requestcancel")} — ${templateText(deps.templates, L, "requests.sohranit_chernovik")}.`,
         buttons: [[btn(L === "kk" ? "Жіберу" : "Отправить", "/sendrequest")]],
       });
     }
     if (state.draft_id) {
       return save(
-        L === "kk"
-          ? `Жоба сақталды. Файл қосыңыз немесе ${cmd("/sendrequest")}. ${cmd("/requestcancel")} — жобаны сақтап шығу.`
-          : `Черновик сохранён. Добавьте файлы или ${cmd("/sendrequest")}. ${cmd("/requestcancel")} — выйти без удаления.`,
+        templateText(deps.templates, L, "requests.chernovik_sohranen_dobavte_fayly_ili_sendrequest_requestcancel"),
       );
     }
-    return helpText(L);
+    return registrationHelp(L, deps.templates);
   });
 }

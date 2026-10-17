@@ -1,3 +1,4 @@
+import { loadTemplateStore } from "../templates/store.ts";
 import { incidentStep } from "./incidents.ts";
 import { notificationStep } from "./notifications.ts";
 import { taskStep } from "./tasks.ts";
@@ -39,14 +40,14 @@ export function botScenarios(deps: RegistryDeps) {
         : id === "incidents"
         ? incidentStep
         : taskStep;
-      return replyText(await step(d, String(profile.telegram_user_id), input, ctx.actor));
+      return replyText(await step({...d, templates: await loadTemplateStore(ctx.executor ?? deps.db)}, String(profile.telegram_user_id), input, ctx.actor));
     },
   });
   scenarios.register({id:"notifications",description:"NTF: настройки уведомлений",run:async(input,ctx)=>{
     if(!ctx.actor?.emulation || !ctx.actor.person.isTest) throw new ApiError("FORBIDDEN");
     const exec=ctx.executor;
     const d=exec ? {...deps,db:{...deps.db,query:exec.query.bind(exec),transaction:<T>(fn:(e:DbExecutor)=>Promise<T>)=>fn(exec)}} : deps;
-    return replyText(await notificationStep(d,"0",input,ctx.actor));
+    return replyText(await notificationStep({...d, templates: await loadTemplateStore(ctx.executor ?? deps.db)},"0",input,ctx.actor));
   }});
   return scenarios;
 }

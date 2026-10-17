@@ -1,0 +1,62 @@
+[
+  {
+    "key": "requests.chernovik",
+    "source": "request-text",
+    "ru": "Черновик",
+    "kk": "Жоба"
+  },
+  {
+    "key": "requests.sovmestnoe",
+    "source": "request-text",
+    "ru": "совместное",
+    "kk": "ортақ"
+  },
+  {
+    "key": "requests.obrascheniy_net",
+    "source": "request-text",
+    "ru": "Обращений нет",
+    "kk": "Өтініш жоқ"
+  },
+  {
+    "key": "requests.vy",
+    "source": "request-text",
+    "ru": "Вы",
+    "kk": "Сіз"
+  },
+  {
+    "key": "requests.administrator",
+    "source": "request-text",
+    "ru": "Администратор",
+    "kk": "Әкімші"
+  },
+  {
+    "key": "requests.uchastnik",
+    "source": "request-text",
+    "ru": "Участник",
+    "kk": "Қатысушы"
+  },
+  {
+    "key": "requests.obschaya_territoriya",
+    "source": "request-text",
+    "ru": "Общая территория",
+    "kk": "Ортақ аумақ"
+  },
+  {
+    "key": "requests.sozdano",
+    "source": "request-text",
+    "ru": "создано",
+    "kk": "құрылды"
+  },
+  {
+    "key": "requests.soobscheniya",
+    "source": "request-text",
+    "ru": "Сообщения:",
+    "kk": "Хабарламалар:"
+  },
+  {
+    "key": "requests.otchety",
+    "source": "request-text",
+    "ru": "Отчёты",
+    "kk": "Есептер"
+  }
+]

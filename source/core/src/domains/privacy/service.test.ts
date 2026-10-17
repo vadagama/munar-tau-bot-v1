@@ -1,3 +1,4 @@
+import { renderNotice, type TemplateNotice } from "../../templates/notice.ts";
 /**
  * Модульные тесты PRV-02 (запрос удаления профиля): повторный открытый запрос
  * отклоняется, необязательные рассылки отключаются сразу, администраторы
@@ -94,9 +95,9 @@ describe("submitPrivacyRequest (PRV-02)", () => {
     ]);
     // Уведомление администратору — в worker-бот, на языке получателя при доставке.
     expect(h.outbox.length).toBe(1);
-    const payload = h.outbox[0]!.payload as { bot?: string; isTest?: boolean; text?: Row };
+    const payload = h.outbox[0]!.payload as unknown as TemplateNotice & {bot?:string;isTest?:boolean};
     expect(payload).toMatchObject({ bot: "worker", isTest: false });
-    expect(String(payload.text?.ru)).toContain("Тест Тестов");
+    expect(renderNotice(payload, "ru")).toContain("Тест Тестов");
     expect(h.audit.length).toBe(1);
     expect(h.audit[0]).toMatchObject({
       action: "privacy.request",

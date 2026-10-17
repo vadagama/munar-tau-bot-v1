@@ -1,3 +1,4 @@
+import { templateNotice } from "../../templates/notice.ts";
 import type { Actor } from "../../pdp/types.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import { can } from "../../pdp/evaluate.ts";
@@ -233,22 +234,7 @@ export async function broadcastPublication(exec: DbExecutor, row: Publication) {
   await queueBroadcast(exec, {
     key: `publication:${row.id}:${row.version}`,
     type: row.kind === "work_report" ? "work.report" : "publication",
-    text: {
-      ru: `${row.title}\n${row.body}${
-        row.kind === "outage"
-          ? `\nПлан: ${fmtInterval(row.planned_start, row.planned_end)}. Восстановление: ${
-            row.restored_at ? fmtDate(row.restored_at) : "пока не подтверждено"
-          }`
-          : ""
-      }`,
-      kk: `${row.title}\n${row.body}${
-        row.kind === "outage"
-          ? `\nЖоспар: ${fmtInterval(row.planned_start, row.planned_end)}. Қалпына келтіру: ${
-            row.restored_at ? fmtDate(row.restored_at) : "әлі расталмады"
-          }`
-          : ""
-      }`,
-    },
+    text: templateNotice(row.kind === "outage" ? row.restored_at ? "notices.publications_service_broadcast_publication_1_restored" : "notices.publications_service_broadcast_publication_1_pending" : "notices.publications_service_broadcast_publication_1", {row_title:row.title,row_body:row.body,interval:row.kind === "outage" ? fmtInterval(row.planned_start,row.planned_end) : "",restored_at:row.restored_at ? fmtDate(row.restored_at) : ""}),
     scope,
     isTest: row.is_test,
     publicationId: row.id,

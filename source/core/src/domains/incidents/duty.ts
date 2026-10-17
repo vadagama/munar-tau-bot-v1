@@ -1,3 +1,5 @@
+import { t } from "../../templates/store.ts";
+import { templateNotice } from "../../templates/notice.ts";
 import type { Actor } from "../../pdp/types.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import { can } from "../../pdp/evaluate.ts";
@@ -130,15 +132,10 @@ export async function emergencyContact(
   return {
     phone: shift?.emergency_phone ?? null,
     on_duty: shift?.on_duty ?? false,
-    notice: shift?.on_duty
-      ? {
-        ru: "Сигнал не означает подтверждение выезда",
-        kk: "Сигнал шығуды растауды білдірмейді",
-      }
-      : {
-        ru: "Немедленная обработка не обеспечена",
-        kk: "Жедел өңдеу қамтамасыз етілмейді",
-      },
+    notice: {
+      ru: t(undefined,"ru",shift?.on_duty ? "incidents.duty_notice" : "incidents.off_duty_notice"),
+      kk: t(undefined,"kk",shift?.on_duty ? "incidents.duty_notice" : "incidents.off_duty_notice"),
+    },
   };
 }
 async function notifySignal(
@@ -156,11 +153,7 @@ async function notifySignal(
     isTest: s.is_test,
     buildingIds: [s.building_id],
     signalId: s.id,
-    text: {
-      ru:
-        `Возможная авария ${s.id}. Требуется явное принятие текущим ответственным.`,
-      kk: `Ықтимал апат ${s.id}. Қазіргі жауапты тұлғаның қабылдауы қажет.`,
-    },
+    text: templateNotice("notices.incidents_duty_notify_signal_101", {s_id: s.id}),
   });
 }
 export async function signalEmergency(
