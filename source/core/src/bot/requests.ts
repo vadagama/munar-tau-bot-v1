@@ -1,7 +1,11 @@
 import { listRequestVisits, updateVisit } from "../domains/tasks/visits.ts";
-import { premiseLabels } from "../locales/registry.ts";
+import { label, premiseLabels } from "../locales/registry.ts";
 import { requestActions } from "./help.ts";
-import { preview, requestCardText, requestListText } from "./request-text.ts";
+import {
+  preview,
+  requestCardText,
+  requestListText,
+} from "./request-text.ts";
 import { cmd, esc, fmtDate, fmtInterval, numbered } from "./text.ts";
 import { registrationHelp } from "./help.ts";
 import type { Actor } from "../pdp/types.ts";
@@ -9,6 +13,7 @@ import type { RegistryDeps } from "../domains/registry/service.ts";
 import { ApiError } from "../errors/api.ts";
 import { jsonValue, type Row } from "../domains/registry/validation.ts";
 import { actorForTelegram } from "./registration.ts";
+import { btn, type BotReply } from "./keyboard.ts";
 import {
   createRequest,
   deleteDraft,
@@ -22,8 +27,10 @@ import {
   rateRequest,
   shareRequest,
 } from "../domains/requests/messages.ts";
+
 /** Полная справка по обращениям — только для /help (в реплики не вклеивается). */
-const HELP = registrationHelp();
+const helpText = (lang: "ru" | "kk") => registrationHelp(lang);
+
 export const REQUEST_COMMANDS = [
   "/result", "/visits", "/confirmvisit", "/missedvisit",
   "/newrequest",
@@ -49,7 +56,7 @@ export async function requestStep(
   input: string,
   providedActor?: Actor,
   operationId?: string,
-): Promise<string> {
+): Promise<BotReply> {
   return deps.db.transaction(async (exec) => {
     const d = {
       ...deps,
@@ -61,11 +68,9 @@ export async function requestStep(
     };
     const actor = providedActor ?? await actorForTelegram(d, telegramId);
     if (!actor) {
-      throw new ApiError(
-        "FORBIDDEN",
-        "Сначала подтвердите регистрацию / Алдымен тіркелуді растаңыз",
-      );
+      throw new ApiError("FORBIDDEN");
     }
+    const L = actor.profile.language;
     await exec.query(
       "insert into bot_dialog(telegram_user_id,profile_id) values ($1,$2) on conflict do nothing",
       [telegramId, actor.profile.id],
@@ -75,7 +80,7 @@ export async function requestStep(
       [telegramId],
     );
     const state = jsonValue<Row>(dialog!.state);
-    const save = async (reply: string) => {
+    const save = async (reply: BotReply) => {
       await exec.query(
         "update bot_dialog set state=$2::text::jsonb,updated_at=now() where telegram_user_id=$1",
         [telegramId, JSON.stringify(state)],
@@ -91,7 +96,9 @@ export async function requestStep(
       if (!number) {
         throw new ApiError(
           "VALIDATION_FAILED",
-          "Укажите номер обращения / Өтініш нөмірін көрсетіңіз",
+          L === "kk"
+            ? "Өтініш нөмірін көрсетіңіз"
+            : "Укажите номер обращения",
         );
       }
       const [r] = await exec.query<{ id: string }>(
@@ -105,11 +112,11 @@ export async function requestStep(
       const r=await find(),snapshot=(r.confirmation as Row|undefined)?.payload as Row|undefined;
       const reports=(snapshot?.task_results as Row[])??[];
       const index=Number(args[0]??1)-1;
-      if(!Number.isInteger(index)||index<0)throw new ApiError("VALIDATION_FAILED","Укажите номер отчёта");
+      if(!Number.isInteger(index)||index<0)throw new ApiError("VALIDATION_FAILED",L==="kk"?"Есеп нөмірін көрсетіңіз":"Укажите номер отчёта");
       const report=reports[index];
-      if(!report)return preview(esc("Результат ещё не передан"),3500);
+      if(!report)return preview(esc(L==="kk"?"Нәтиже әлі берілмеген":"Результат ещё не передан"),3500);
       return preview(
-        `<b>${esc(r.number)}</b> — версия результата ${r.confirmation_version}. Отчёт ${index+1}/${reports.length}: ${esc(String(report.task_number))}, версия ${report.report_version}.\n${esc(report.performed_work)}\n${esc(report.result)}\nОграничения: ${esc(report.limitations||"нет")}\n${cmd(`/result ${r.number} ${index+2}`)} — следующий отчёт`,
+        `<b>${esc(r.number)}</b> — ${L==="kk"?"нәтиже нұсқасы":"версия результата"} ${r.confirmation_version}. ${L==="kk"?"Есеп":"Отчёт"} ${index+1}/${reports.length}: ${esc(String(report.task_number))}, ${L==="kk"?"нұсқа":"версия"} ${report.report_version}.\n${esc(report.performed_work)}\n${esc(report.result)}\n${L==="kk"?"Шектеулер":"Ограничения"}: ${esc(report.limitations|| (L==="kk"?"жоқ":"нет"))}\n${cmd(`/result ${r.number} ${index+2}`)} — ${L==="kk"?"келесі есеп":"следующий отчёт"}`,
         3500,
       );
     }
@@ -120,16 +127,32 @@ export async function requestStep(
       const lines = visits.map((v) =>
         `${fmtInterval(v.interval_start, v.interval_end)} — ${esc(String(v.status))}`
       );
-      return save(
-        (lines.length ? numbered(lines) : "Визитов нет / Сапарлар жоқ") +
-        `\n${cmd("/confirmvisit НОМЕР_ОБРАЩЕНИЯ НОМЕР_В_СПИСКЕ")} — согласовать; ${cmd("/missedvisit НОМЕР_ОБРАЩЕНИЯ НОМЕР_В_СПИСКЕ причина")} — исполнитель не пришёл`,
-      );
+      return save({
+        text:
+          (lines.length
+            ? numbered(lines)
+            : L === "kk" ? "Сапарлар жоқ" : "Визитов нет") +
+          `\n${cmd("/confirmvisit НОМЕР_ОБРАЩЕНИЯ НОМЕР_В_СПИСКЕ")} — ${L === "kk" ? "келісу" : "согласовать"}; ${cmd("/missedvisit НОМЕР_ОБРАЩЕНИЯ НОМЕР_В_СПИСКЕ причина")} — ${L === "kk" ? "орындаушы келмеді" : "исполнитель не пришёл"}`,
+        // Согласование визита — кнопкой по строке списка.
+        buttons: visits.map((v, i) => [
+          btn(
+            L === "kk" ? `Келісу ${i + 1}` : `Согласовать ${i + 1}`,
+            `/confirmvisit ${r.number} ${i + 1}`,
+          ),
+        ]),
+      });
     }
     if (command === "/confirmvisit" || command === "/missedvisit") {
       const visits=(state.visit_options as Row[])??[];const visit=visits[Number(number)-1];
-      if(!visit)throw new ApiError("VALIDATION_FAILED","Сначала откройте /visits НОМЕР_ОБРАЩЕНИЯ");
+      if(!visit)throw new ApiError("VALIDATION_FAILED",L==="kk"?"Алдымен /visits НОМІР ашыңыз":"Сначала откройте /visits НОМЕР_ОБРАЩЕНИЯ");
       visits[Number(number)-1]=await updateVisit(d,actor,String(visit.id),{version:visit.version,action:command==="/confirmvisit"?"confirm":"no_show",reason:args.join(" ")},opKey);
-      return save(command==="/confirmvisit"?"Визит согласован / Сапар келісілді":"Сообщение о неявке передано администратору для проверки / Жоқтық туралы хабарлама әкімшіге берілді");
+      return save(
+        command === "/confirmvisit"
+          ? L === "kk" ? "Сапар келісілді" : "Визит согласован"
+          : L === "kk"
+            ? "Жоқтық туралы хабарлама әкімшіге берілді"
+            : "Сообщение о неявке передано администратору для проверки",
+      );
     }
     const places = async () =>
       exec.query<Row>(
@@ -139,18 +162,21 @@ export async function requestStep(
     const placeMenu = (items: Row[]) =>
       numbered(items.slice(0, 20).map((p) =>
         `${esc(preview(p.name ?? p.code, 50))}, ${
-          esc(premiseLabels[String(p.kind)] ?? "помещение")
+          esc(label(premiseLabels, p.kind, L, "помещение"))
         } ${esc(preview(p.number, 30))}`
       ));
     if (command === "/objects") {
       const items = await places();
       state.place_options = items;
-      return save(
-        `${
-          placeMenu(items) ||
-          "Подтверждённых помещений нет / Расталған үй-жай жоқ"
-        }\n/newrequest`,
-      );
+      return save({
+        text:
+          (placeMenu(items) ||
+            (L === "kk" ? "Расталған үй-жай жоқ" : "Подтверждённых помещений нет")) +
+          `\n/newrequest`,
+        buttons: items.slice(0, 20).map((p, i) => [
+          btn(`${preview(p.number, 20)}`, String(i + 1)),
+        ]),
+      });
     }
     if (command === "/deletedraft") {
       const [draft] = await exec.query<{ id: string }>(
@@ -161,7 +187,11 @@ export async function requestStep(
       delete state.draft_id;
       delete state.request_id;
       state.step = "";
-      return save("Личный черновик удалён / Жеке жоба жойылды. /newrequest");
+      return save(
+        L === "kk"
+          ? "Жеке жоба жойылды. /newrequest"
+          : "Личный черновик удалён. /newrequest",
+      );
     }
     if (command === "/newrequest" || command === "/editrequest") {
       const [draft] = await exec.query<Row>(
@@ -178,26 +208,42 @@ export async function requestStep(
         state.step = command === "/editrequest" ? "description" : "verify";
         return save(
           command === "/editrequest"
-            ? "Введите новый текст черновика / Жобаның жаңа мәтінін енгізіңіз"
-            : `<b>Сохранённый черновик / Сақталған жоба</b>:\n${
-              esc(preview(draft.description, 1200))
-            }\n${cmd("/sendrequest")} — отправить / жіберу; ${cmd("/editrequest")} — изменить текст / мәтінді өзгерту; ${cmd("/deletedraft")} — удалить / жою. Файлы — просто прикрепите к следующему сообщению. / Файлдарды келесі хабарламага жіберіңіз.`,
+            ? L === "kk"
+              ? "Жобаның жаңа мәтінін енгізіңіз"
+              : "Введите новый текст черновика"
+            : {
+              text:
+                `<b>${L === "kk" ? "Сақталған жоба" : "Сохранённый черновик"}</b>:\n${
+                  esc(preview(draft.description, 1200))
+                }\n${cmd("/sendrequest")} — ${L === "kk" ? "жіберу" : "отправить"}; ${cmd("/editrequest")} — ${L === "kk" ? "мәтінді өзгерту" : "изменить текст"}; ${cmd("/deletedraft")} — ${L === "kk" ? "жою" : "удалить"}. ${L === "kk" ? "Файлдарды келесі хабарламаға жабыстырыңыз." : "Файлы — просто прикрепите к следующему сообщению."}`,
+              buttons: [[
+                btn(L === "kk" ? "Жіберу" : "Отправить", "/sendrequest"),
+                btn(L === "kk" ? "Жою" : "Удалить", "/deletedraft"),
+              ]],
+            },
         );
       }
       delete state.draft_id;
       state.step = "place";
       const items = await places();
       state.place_options = items;
-      return save(
-        `Выберите номер своего помещения / Үй-жайыңыздың нөмірін таңдаңыз:\n${
-          placeMenu(items)
-        }\nОбщее имущество: ${cmd("дом КОД описание места")}; территория: ${cmd("территория описание места")}. / Ортақ мүлік: үй КОД орын сипаттамасы; аумақ орын сипаттамасы. Черновик сохраняется до отправки. ${cmd("/requestcancel")} — назад / артқа.`,
-      );
+      return save({
+        text:
+          `${L === "kk" ? "Үй-жайыңыздың нөмірін таңдаңыз:" : "Выберите номер своего помещения:"}\n${
+            placeMenu(items)
+          }\n${L === "kk" ? `Ортақ мүлік: ${cmd("үй КОД орын сипаттамасы")}; аумақ: ${cmd("аумақ орын сипаттамасы")}.` : `Общее имущество: ${cmd("дом КОД описание места")}; территория: ${cmd("территория описание места")}.`} ${L === "kk" ? "Жоба жіберілгенше сақталады." : "Черновик сохраняется до отправки."} ${cmd("/requestcancel")} — ${L === "kk" ? "артқа" : "назад"}.`,
+        // Выбор помещения — главный выбор среза: кнопка равна номеру строки.
+        buttons: items.slice(0, 20).map((p, i) => [
+          btn(`${preview(p.name ?? p.code, 24)} ${preview(p.number, 12)}`, String(i + 1)),
+        ]),
+      });
     }
     if (command === "/requestcancel" || command === "/registration") {
       for (const k of Object.keys(state)) delete state[k];
       return save(
-        "Диалог приостановлен, черновик сохранён. / Диалог тоқтатылды, жоба сақталды. /register /requests",
+        L === "kk"
+          ? "Диалог тоқтатылды, жоба сақталды. /register /requests"
+          : "Диалог приостановлен, черновик сохранён. /register /requests",
       );
     }
     if (command === "/requests") {
@@ -205,7 +251,7 @@ export async function requestStep(
       const pageToken = tokens.find((t) => /^page:\d+$/.test(t));
       const page = pageToken ? Number(pageToken.slice(5)) : 1;
       if (!Number.isSafeInteger(page) || page < 1 || page > 10000) {
-        throw new ApiError("VALIDATION_FAILED", "Некорректная страница");
+        throw new ApiError("VALIDATION_FAILED", L === "kk" ? "Бұрыс бет" : "Некорректная страница");
       }
       const rows = await listRequests(d, actor, {
         cursor: btoa(String((page - 1) * 10)),
@@ -215,7 +261,7 @@ export async function requestStep(
       delete state.request_id;
       delete state.draft_id;
       delete state.step;
-      return save(requestListText(rows, actor.person.id, page));
+      return save(requestListText(rows, actor.person.id, page, L));
     }
     if (command === "/request") {
       const row = await find();
@@ -223,7 +269,7 @@ export async function requestStep(
       state.request_id = row.id;
       delete state.draft_id;
       delete state.step;
-      return save(requestCardText(row));
+      return save(requestCardText(row, L));
     }
     if (command === "/say") {
       const row = await find();
@@ -232,7 +278,7 @@ export async function requestStep(
         channel: "resident",
         source: "bot",
       }, opKey);
-      return "Сообщение сохранено / Хабарлама сақталды";
+      return L === "kk" ? "Хабарлама сақталды" : "Сообщение сохранено";
     }
     if (command === "/share" || command === "/unshare") {
       const row = await find();
@@ -243,7 +289,7 @@ export async function requestStep(
         args[0] ?? "",
         command === "/unshare",
       );
-      return "Доступ изменён / Қолжетімділік өзгертілді";
+      return L === "kk" ? "Қолжетімділік өзгертілді" : "Доступ изменён";
     }
     if (command === "/rate") {
       const row = await find();
@@ -251,7 +297,7 @@ export async function requestStep(
         value: Number(args[0]),
         comment: args.slice(1).join(" "),
       });
-      return "Оценка сохранена / Баға сақталды";
+      return L === "kk" ? "Баға сақталды" : "Оценка сохранена";
     }
     const actions: Record<string, string> = {
       "/confirm": "confirm_result",
@@ -263,7 +309,7 @@ export async function requestStep(
     if (command && actions[command]) {
       const row = await find();
       await transitionRequest(d, actor, String(row.id), {
-        action: actions[command],
+        action: actions[command]!,
         expected_version: row.version,
         reason: args.join(" "),
         payload: {
@@ -272,7 +318,7 @@ export async function requestStep(
             : row.confirmation_version,
         },
       });
-      return "Решение сохранено / Шешім сақталды";
+      return L === "kk" ? "Шешім сақталды" : "Решение сохранено";
     }
     if (command === "/sendrequest" && state.draft_id) {
       const row = await getRequest(d, actor, String(state.draft_id));
@@ -284,17 +330,23 @@ export async function requestStep(
       state.request_id = sent.id;
       state.step = "";
       return save(
-        `<b>${esc(sent.number)}</b> — зарегистрировано / тіркелді. Первый ответ / Алғашқы жауап: ${
+        `<b>${esc(sent.number)}</b> — ${L === "kk" ? "тіркелді" : "зарегистрировано"}. ${L === "kk" ? "Алғашқы жауап" : "Первый ответ"}: ${
           fmtDate(sent.first_response_due_at)
-        }. Начало обработки / Өңдеудің басталуы: ${fmtDate(sent.first_response_start_at)} (Алматы).\n${
-          requestActions(sent.state)
-        }\nВне графика немедленной обработки нет / Жұмыс уақытынан тыс дереу өңдеу жоқ. При непосредственной угрозе жизни звоните 112 / Тікелей қауіп кезінде 112.`,
+        }. ${L === "kk" ? "Өңдеудің басталуы" : "Начало обработки"}: ${fmtDate(sent.first_response_start_at)} (${L === "kk" ? "Алматы" : "Алматы"}).\n${
+          requestActions(sent.state, L)
+        }\n${
+          L === "kk"
+            ? "Жұмыс уақытынан тыс дереу өңдеу жоқ. Тікелей қауіп кезінде 112 нөміріне қоңырау шалыңыз."
+            : "Вне графика немедленной обработки нет. При непосредственной угрозе жизни звоните 112."
+        }`,
       );
     }
     if (state.step === "place") {
       if (command === "дом" || command === "үй") {
         if (!number || !args.join(" ").trim()) {
-          return "Укажите код дома и место: дом 1 подъезд 2 / Үй коды мен орнын көрсетіңіз: үй 1 кіреберіс 2";
+          return L === "kk"
+            ? "Үй коды мен орнын көрсетіңіз: үй 1 кіреберіс 2"
+            : "Укажите код дома и место: дом 1 подъезд 2";
         }
         const [building] = await exec.query<{ id: string }>(
           "select id from building where id::text=$1 or (kind='house' and code=$1) limit 1",
@@ -303,7 +355,7 @@ export async function requestStep(
         if (!building) {
           throw new ApiError(
             "VALIDATION_FAILED",
-            "Дом не найден / Үй табылмады",
+            L === "kk" ? "Үй табылмады" : "Дом не найден",
           );
         }
         state.building_id = building.id;
@@ -311,7 +363,7 @@ export async function requestStep(
         state.premises_id = null;
       } else if (command === "территория" || command === "аумақ") {
         if (!number) {
-          return "Опишите место на территории / Аумақтағы орынды сипаттаңыз";
+          return L === "kk" ? "Аумақтағы орынды сипаттаңыз" : "Опишите место на территории";
         }
         state.building_id = null;
         state.location_text = [number, ...args].join(" ");
@@ -323,14 +375,20 @@ export async function requestStep(
           !selected &&
           !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
             .test(input.trim())
-        ) return "Выберите номер из списка / Тізімнен нөмір таңдаңыз. /objects";
+        ) {
+          return L === "kk"
+            ? "Тізімнен нөмір таңдаңыз. /objects"
+            : "Выберите номер из списка. /objects";
+        }
         state.premises_id = selected?.id ?? input.trim();
         state.building_id = selected?.building_id ?? null;
         state.location_text = null;
       }
       state.step = "description";
       return save(
-        "Опишите проблему своими словами / Мәселені сипаттаңыз. Категория не нужна — достаточно текста и фото. / Санат қажет емес.",
+        L === "kk"
+          ? "Мәселені сипаттаңыз. Санат қажет емес — мәтін мен фото жеткілікті."
+          : "Опишите проблему своими словами. Категория не нужна — достаточно текста и фото.",
       );
     }
     if (state.step === "description") {
@@ -355,17 +413,21 @@ export async function requestStep(
         : await createRequest(d, actor, inputRow);
       state.draft_id = row.id;
       state.step = "verify";
-      return save(
-        `Проверьте / Тексеріңіз:\n${
-          esc(preview(input, 1200))
-        }\nПолный текст сохранён / Толық мәтін сақталды.\nДобавьте файлы (необязательно), затем ${cmd("/sendrequest")}. При сбое файла обращение можно отправить. / Файл қосыңыз (міндетті емес), содан кейін ${cmd("/sendrequest")}. ${cmd("/requestcancel")} — сохранить черновик.`,
-      );
+      return save({
+        text:
+          `${L === "kk" ? "Тексеріңіз" : "Проверьте"}:\n${
+            esc(preview(input, 1200))
+          }\n${L === "kk" ? "Толық мәтін сақталды." : "Полный текст сохранён."}\n${L === "kk" ? `Файл қосыңыз (міндетті емес), содан кейін ${cmd("/sendrequest")}. Файл сәтсіз болса, өтінішті жібере аласыз.` : `Добавьте файлы (необязательно), затем ${cmd("/sendrequest")}. При сбое файла обращение можно отправить.`} ${cmd("/requestcancel")} — ${L === "kk" ? "жобаны сақтау" : "сохранить черновик"}.`,
+        buttons: [[btn(L === "kk" ? "Жіберу" : "Отправить", "/sendrequest")]],
+      });
     }
     if (state.draft_id) {
       return save(
-        `Черновик сохранён / Жоба сақталды. Добавьте файлы или ${cmd("/sendrequest")}. ${cmd("/requestcancel")} — выйти без удаления.`,
+        L === "kk"
+          ? `Жоба сақталды. Файл қосыңыз немесе ${cmd("/sendrequest")}. ${cmd("/requestcancel")} — жобаны сақтап шығу.`
+          : `Черновик сохранён. Добавьте файлы или ${cmd("/sendrequest")}. ${cmd("/requestcancel")} — выйти без удаления.`,
       );
     }
-    return HELP;
+    return helpText(L);
   });
 }
