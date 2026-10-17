@@ -30,3 +30,5 @@ export function canSeeAudit(roles: string[]): boolean {
 export function canUseEmulation(roles: string[]): boolean {
   return roles.includes("tech_admin");
 }
+
+export function canSeeTemplates(roles:string[]):boolean {return roles.some(role=>["chairman","administrator","tech_admin"].includes(role));}

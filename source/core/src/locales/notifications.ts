@@ -1,32 +1,17 @@
+import { templateNotice } from "../templates/notice.ts";
 export type LocalizedNotice = { ru: string; kk: string };
-export function authorReminder(number: unknown): LocalizedNotice {
-  return {
-    ru: `${number}: подтвердите результат или верните на доработку.`,
-    kk: `${number}: нәтижені растаңыз немесе түзетуге қайтарыңыз.`,
-  };
+export function authorReminder(number: unknown): ReturnType<typeof templateNotice> {
+  return templateNotice("notices.locales_notifications_author_reminder_1", {number: number});
 }
-export function adminCheck(number: unknown): LocalizedNotice {
-  return {
-    ru: `${number}: автор не ответил, требуется проверка администратора.`,
-    kk: `${number}: автор жауап бермеді, әкімшінің тексеруі қажет.`,
-  };
+export function adminCheck(number: unknown): ReturnType<typeof templateNotice> {
+  return templateNotice("notices.locales_notifications_admin_check_2", {number: number});
 }
-export function deliveryFailed(number: unknown): LocalizedNotice {
-  return {
-    ru:
-      `${number}: важное уведомление не доставлено. Свяжитесь с жителем по телефону.`,
-    kk: `${number}: маңызды хабарлама жеткізілмеді, тұрғынға қоңырау шалыңыз.`,
-  };
+export function deliveryFailed(number: unknown): ReturnType<typeof templateNotice> {
+  return templateNotice("notices.locales_notifications_delivery_failed_3", {number: number});
 }
-export function firstResponseOverdue(number: unknown): LocalizedNotice {
-  return {
-    ru: `${number}: истёк срок первого ответа.`,
-    kk: `${number}: алғашқы жауап мерзімі өтті.`,
-  };
+export function firstResponseOverdue(number: unknown): ReturnType<typeof templateNotice> {
+  return templateNotice("notices.locales_notifications_first_response_overdue_4", {number: number});
 }
-export function nextActionReminder(number: unknown): LocalizedNotice {
-  return {
-    ru: `${number}: наступила дата следующего действия.`,
-    kk: `${number}: келесі әрекет күні келді.`,
-  };
+export function nextActionReminder(number: unknown): ReturnType<typeof templateNotice> {
+  return templateNotice("notices.locales_notifications_next_action_reminder_5", {number: number});
 }

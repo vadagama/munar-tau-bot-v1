@@ -1,3 +1,4 @@
+import { templateNotice } from "../../templates/notice.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { can } from "../../pdp/evaluate.ts";
 import { ApiError } from "../../errors/api.ts";
@@ -98,20 +99,7 @@ export async function broadcastIncident(
   await queueBroadcast(exec, {
     key: `incident:${row.id}:${row.version}`,
     type: "incident",
-    text: {
-      ru:
-        `🚨 Авария ${row.number}: ${row.title}\n${row.public_text}\nУслуга: ${row.service}\nПрогноз: ${row.forecast}${
-          next ? `\nСледующее обновление: ${next}` : ""
-        }${
-          row.restrictions ? `\nОграничения: ${row.restrictions}` : ""
-        }`,
-      kk:
-        `🚨 Апат ${row.number}: ${row.title}\n${row.public_text}\nҚызмет: ${row.service}\nБолжам: ${row.forecast}${
-          next ? `\nКелесі жаңарту: ${next}` : ""
-        }${
-          row.restrictions ? `\nШектеулер: ${row.restrictions}` : ""
-        }`,
-    },
+    text: templateNotice("notices.incidents_service_broadcast_incident_101"+(next?"_next":"")+(row.restrictions?"_restrictions":""), {row_number:row.number,row_title:row.title,row_public_text:row.public_text,row_service:row.service,row_forecast:row.forecast,next_update:next,restrictions:row.restrictions}),
     scope,
     isTest: row.is_test,
     incidentId: row.id,

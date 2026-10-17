@@ -1,0 +1,302 @@
+[
+  {
+    "key": "notices.registrations_service_submit_registration_1",
+    "ru": "Новая анкета арендатора: {fullname}, {premisetext}. Рассмотрите её в кабинете или боте (/pending).",
+    "kk": "Жалға алушының өтінімі: {fullname}, {premisetextkk}. Кабинетте немесе ботыпта қарастырыңыз (/pending)."
+  },
+  {
+    "key": "notices.registrations_service_submit_registration_2",
+    "ru": "Новая анкета: {fullname}, {premisetext}",
+    "kk": "Жаңа өтінім: {fullname}, {premisetextkk}"
+  },
+  {
+    "key": "notices.registrations_service_review_registration_3",
+    "ru": "Состояние регистрации: {state_ru}.{reason}",
+    "kk": "Тіркелу күйі: {state_kk}.{reason}"
+  },
+  {
+    "key": "notices.registrations_service_review_registration_3_clarify",
+    "ru": "Состояние регистрации: {state_ru}.{reason} Исправьте анкету: отправьте боту /fix.",
+    "kk": "Тіркелу күйі: {state_kk}.{reason} Түзету үшін ботыға /fix жіберіңіз."
+  },
+  {
+    "key": "notices.registrations_service_accept_invite_4",
+    "ru": "Принято приглашение собственника: {actor_person_fullname}, {detail_b} {premises_number}",
+    "kk": "Меншік иесінің шақырысы қабылданды: {actor_person_fullname}, {detail_d} {premises_number}"
+  },
+  {
+    "key": "notices.registrations_service_accept_invite_5",
+    "ru": "Приглашение принято",
+    "kk": "Шақыру қабылданды"
+  },
+  {
+    "key": "notices.registrations_service_revoke_own_connection_6",
+    "ru": "Связь прекращена: {reason}",
+    "kk": "Байланыс тоқтатылды: {reason}"
+  },
+  {
+    "key": "notices.registrations_jobs_sweep_registrations_1",
+    "ru": "Спор просрочен: {detail_a}. Рассмотрите в кабинете.",
+    "kk": "Дау мерзімі өтті: {detail_a}. Кабинетте қарастырыңыз."
+  },
+  {
+    "key": "notices.registrations_jobs_sweep_registrations_2",
+    "ru": "Требуется решение по анкете: {detail_a}. Рассмотрите в кабинете.",
+    "kk": "Өтінім бойынша шешім қажет: {detail_a}. Кабинетте қарастырыңыз."
+  },
+  {
+    "key": "notices.registrations_jobs_sweep_registrations_3",
+    "ru": "Анкета передана следующему ответственному",
+    "kk": "Өтінім келесі жауапты қызметкерге берілді"
+  },
+  {
+    "key": "notices.requests_service_create_request_1",
+    "ru": "{next_number}: обращение зарегистрировано. Первый ответ до {detail_b}.",
+    "kk": "{next_number}: өтініш тіркелді. Алғашқы жауап {detail_b}."
+  },
+  {
+    "key": "notices.requests_service_transition_request_2",
+    "ru": "{next_number}: зарегистрировано. Первый ответ до {detail_b}.",
+    "kk": "{next_number}: тіркелді. Алғашқы жауап {detail_b}."
+  },
+  {
+    "key": "notices.requests_service_transition_request_3",
+    "ru": "{row_number}: {st_ru}. Подробности в карточке обращения.",
+    "kk": "{row_number}: {st_kk}. Толығырақ өтініш карточкасында."
+  },
+  {
+    "key": "notices.requests_messages_add_message_1",
+    "ru": "{row_number}: новое сообщение. Откройте карточку обращения.",
+    "kk": "{row_number}: жаңа хабарлама. Өтініш карточкасын ашыңыз."
+  },
+  {
+    "key": "notices.tasks_service_task_log_1",
+    "ru": "Ваше назначение на задание {row_number} снято.",
+    "kk": "{row_number} тапсырмасына тағайындауыңыз алынып тасталды."
+  },
+  {
+    "key": "notices.tasks_service_task_log_2",
+    "ru": "Задание {row_number}: {state_ru}. Откройте карточку задания.",
+    "kk": "{row_number} тапсырма: {state_kk}. Тапсырма картасын ашыңыз."
+  },
+  {
+    "key": "notices.tasks_service_task_log_2_pause",
+    "ru": "Задание {row_number}: исполнитель запросил остановку: {reason}. Откройте карточку задания.",
+    "kk": "{row_number} тапсырма: орындаушы тоқтату сұрады: {reason}. Тапсырма картасын ашыңыз."
+  },
+  {
+    "key": "notices.tasks_service_task_log_2_problem",
+    "ru": "Задание {row_number}: исполнитель сообщил о найденной проблеме. Откройте карточку задания.",
+    "kk": "{row_number} тапсырма: орындаушы табылған мәселе туралы хабарлады. Тапсырма картасын ашыңыз."
+  },
+  {
+    "key": "notices.tasks_common_work_log_1",
+    "ru": "Обращение {request_number}: общая работа {row_number} {detail_c}. Проверка вашего обращения остаётся отдельной.",
+    "kk": "{request_number} өтінім: жалпы жұмыс {row_number} {detail_e}. Сіздің өтінішіңіздің тексерісі бөлек өтеді."
+  },
+  {
+    "key": "notices.tasks_common_work_log_1_unfinished",
+    "ru": "Обращение {request_number}: общая работа {row_number} {detail_c}. Остаются локальные задания; результат обращения пока не готов.",
+    "kk": "{request_number} өтінім: жалпы жұмыс {row_number} {detail_e}. Жергілікті тапсырмалар бар; өтініштің нәтижесі әзірше дайын емес."
+  },
+  {
+    "key": "notices.tasks_common_work_log_1_ready",
+    "ru": "Обращение {request_number}: общая работа {row_number} {detail_c}. Администратор подготовит результат для вашего отдельного подтверждения.",
+    "kk": "{request_number} өтінім: жалпы жұмыс {row_number} {detail_e}. Әкімші нәтижені сіздің жеке растауыңызға дайындайды."
+  },
+  {
+    "key": "notices.tasks_common_link_2",
+    "ru": "Обращение {request_number} включено в общую работу {work_number}. Срок: {detail_d}. Результат по вашему обращению подтвердят отдельно.",
+    "kk": "{request_number} өтінім {work_number} жалпы жұмысына енгізілді. Мерзім: {detail_d}. Өтінішіңіздің нәтижесі бөлек расталады."
+  },
+  {
+    "key": "notices.tasks_common_link_2_plan",
+    "ru": "Обращение {request_number} включено в общую работу {work_number}. План: {plan}. Срок: {detail_d}. Результат по вашему обращению подтвердят отдельно.",
+    "kk": "{request_number} өтінім {work_number} жалпы жұмысына енгізілді. Жоспар: {plan}. Мерзім: {detail_d}. Өтінішіңіздің нәтижесі бөлек расталады."
+  },
+  {
+    "key": "notices.tasks_common_unlink_common_request_3",
+    "ru": "Обращение {request_number}: дальнейший план — {plan}.",
+    "kk": "{request_number} өтінім: әрі қарайғы жоспар — {plan}."
+  },
+  {
+    "key": "notices.tasks_visits_propose_visit_1",
+    "ru": "Предложен визит: {detail_a}. Подтвердите интервал в карточке обращения.",
+    "kk": "Сапар ұсынылды: {detail_a}. Аралықты өтініш картасында растаңыз."
+  },
+  {
+    "key": "notices.tasks_visits_update_visit_2",
+    "ru": "Исполнитель сообщил об отсутствии доступа. Согласуйте новый визит.",
+    "kk": "Орындаушы қолжетімділік жоқ екенін хабарлады. Жаңа сапарды келістіріңіз."
+  },
+  {
+    "key": "notices.registry_service_mutate_registry_1",
+    "ru": "Связь прекращена при смене собственника",
+    "kk": "Меншік иесі ауысқанда байланыс тоқтатылды"
+  },
+  {
+    "key": "notices.registry_service_mutate_registry_2",
+    "ru": "Связь прекращена: {after_revoked_reason}",
+    "kk": "Байланыс тоқтатылды: {after_revoked_reason}"
+  },
+  {
+    "key": "notices.privacy_service_submit_privacy_request_1",
+    "ru": "Запрос ({detail_a}): {actor_person_fullname}. Рассмотрите его в кабинете ОСИ.",
+    "kk": "Сұрау ({detail_c}): {actor_person_fullname}. ОСИ кабинетінде қарастырыңыз."
+  },
+  {
+    "key": "notices.publications_service_broadcast_publication_1",
+    "ru": "{row_title}\n{row_body}",
+    "kk": "{row_title}\n{row_body}"
+  },
+  {
+    "key": "notices.publications_service_broadcast_publication_1_pending",
+    "ru": "{row_title}\n{row_body}\nПлан: {interval}. Восстановление: пока не подтверждено",
+    "kk": "{row_title}\n{row_body}\nЖоспар: {interval}. Қалпына келтіру: әлі расталмады"
+  },
+  {
+    "key": "notices.publications_service_broadcast_publication_1_restored",
+    "ru": "{row_title}\n{row_body}\nПлан: {interval}. Восстановление: {restored_at}",
+    "kk": "{row_title}\n{row_body}\nЖоспар: {interval}. Қалпына келтіру: {restored_at}"
+  },
+  {
+    "key": "notices.locales_notifications_author_reminder_1",
+    "ru": "{number}: подтвердите результат или верните на доработку.",
+    "kk": "{number}: нәтижені растаңыз немесе түзетуге қайтарыңыз."
+  },
+  {
+    "key": "notices.locales_notifications_admin_check_2",
+    "ru": "{number}: автор не ответил, требуется проверка администратора.",
+    "kk": "{number}: автор жауап бермеді, әкімшінің тексеруі қажет."
+  },
+  {
+    "key": "notices.locales_notifications_delivery_failed_3",
+    "ru": "{number}: важное уведомление не доставлено. Свяжитесь с жителем по телефону.",
+    "kk": "{number}: маңызды хабарлама жеткізілмеді, тұрғынға қоңырау шалыңыз."
+  },
+  {
+    "key": "notices.locales_notifications_first_response_overdue_4",
+    "ru": "{number}: истёк срок первого ответа.",
+    "kk": "{number}: алғашқы жауап мерзімі өтті."
+  },
+  {
+    "key": "notices.locales_notifications_next_action_reminder_5",
+    "ru": "{number}: наступила дата следующего действия.",
+    "kk": "{number}: келесі әрекет күні келді."
+  },
+  {
+    "key": "notices.requests_service_create_request_101",
+    "ru": "{next_number}: новое обращение",
+    "kk": "{next_number}: жаңа өтініш"
+  },
+  {
+    "key": "notices.requests_service_transition_request_102",
+    "ru": "{next_number}: новое обращение",
+    "kk": "{next_number}: жаңа өтініш"
+  },
+  {
+    "key": "notices.requests_service_transition_request_103",
+    "ru": "{row_number}: {st_ru}",
+    "kk": "{row_number}: {st_kk}"
+  },
+  {
+    "key": "notices.requests_messages_add_message_101",
+    "ru": "{row_number}: новое сообщение",
+    "kk": "{row_number}: жаңа хабарлама"
+  },
+  {
+    "key": "notices.requests_messages_rate_request_102",
+    "ru": "{row_number}: низкая оценка",
+    "kk": "{row_number}: төмен баға"
+  },
+  {
+    "key": "notices.tasks_timing_sweep_task_timers_101",
+    "ru": "Задание {detail_a} не принято исполнителем. Требуется проверить назначение.",
+    "kk": "{detail_a}: орындаушы тапсырманы қабылдамады. Тағайындауды тексеру қажет."
+  },
+  {
+    "key": "notices.tasks_timing_sweep_task_timers_102",
+    "ru": "Задание {task_number}: срок выполнения истёк.",
+    "kk": "{task_number}: орындау мерзімі өтті."
+  },
+  {
+    "key": "notices.tasks_timing_sweep_task_timers_103",
+    "ru": "Задание {task_number}: наступила дата следующего действия.",
+    "kk": "{task_number}: келесі әрекет күні келді."
+  },
+  {
+    "key": "notices.tasks_schedule_process_scheduled_jobs_101",
+    "ru": "Создано регулярное задание {detail_a}.",
+    "kk": "{detail_a}: жоспарлы тапсырма жасалды."
+  },
+  {
+    "key": "notices.bot_request-files_process_request_uploads_101",
+    "ru": "Файл сохранён",
+    "kk": "Файл сақталды"
+  },
+  {
+    "key": "notices.bot_request-files_process_request_uploads_102",
+    "ru": "Файл не сохранён: повторите загрузку или выберите другой файл. Текст обращения сохранён.",
+    "kk": "Файл сақталмады: қайта жүктеңіз немесе басқа файлды таңдаңыз. Өтініш мәтіні сақталды."
+  },
+  {
+    "key": "notices.incidents_duty_notify_signal_101",
+    "ru": "Возможная авария {s_id}. Требуется явное принятие текущим ответственным.",
+    "kk": "Ықтимал апат {s_id}. Қазіргі жауапты тұлғаның қабылдауы қажет."
+  },
+  {
+    "key": "notices.incidents_jobs_sweep_emergencies_101_invalid",
+    "ru": "Возможная авария {s_id}: нет принятия. Ответственность передана администратору; назначение недействительно, требуется замена.",
+    "kk": "Ықтимал апат {s_id}: қабылданбады. Жауапкершілік әкімшіге берілді; жаңа жауаптыны тағайындау қажет."
+  },
+  {
+    "key": "notices.incidents_jobs_sweep_emergencies_101",
+    "ru": "Возможная авария {s_id}: нет принятия. Ответственность передана администратору.",
+    "kk": "Ықтимал апат {s_id}: қабылданбады. Жауапкершілік әкімшіге берілді."
+  },
+  {
+    "key": "notices.incidents_jobs_sweep_emergencies_101_reserve_invalid",
+    "ru": "Возможная авария {s_id}: нет принятия. Ответственность передана резервному дежурному; назначение недействительно, требуется замена.",
+    "kk": "Ықтимал апат {s_id}: қабылданбады. Жауапкершілік резервтік кезекшіге берілді; жаңа жауаптыны тағайындау қажет."
+  },
+  {
+    "key": "notices.incidents_jobs_sweep_emergencies_101_reserve",
+    "ru": "Возможная авария {s_id}: нет принятия. Ответственность передана резервному дежурному.",
+    "kk": "Ықтимал апат {s_id}: қабылданбады. Жауапкершілік резервтік кезекшіге берілді."
+  },
+  {
+    "key": "notices.incidents_jobs_sweep_emergencies_102",
+    "ru": "Авария {row_id}: пропущено обещанное обновление. Опубликуйте актуальные сведения.",
+    "kk": "Апат {row_id}: жоспарланған жаңарту кешіктірілді. Өзекті ақпаратты жариялаңыз."
+  },
+  {
+    "key": "notices.incidents_jobs_sweep_emergencies_103",
+    "ru": "Авария {row_id}: ответственный не обновил сведения. Требуется вмешательство.",
+    "kk": "Апат {row_id}: жауапты ақпаратты жаңартпады. Араласу қажет."
+  },
+  {
+    "key": "notices.incidents_failures_emergency_delivery_failure_101",
+    "ru": "Важное аварийное уведомление не доставлено. Проверьте журнал доставки и свяжитесь с ответственным или жителем.",
+    "kk": "Маңызды апат хабарламасы жеткізілмеді. Жеткізу журналын тексеріп, жауапты тұлғамен немесе тұрғынмен байланысыңыз."
+  },
+  {
+    "key": "notices.incidents_service_broadcast_incident_101",
+    "ru": "🚨 Авария {row_number}: {row_title}\n{row_public_text}\nУслуга: {row_service}\nПрогноз: {row_forecast}",
+    "kk": "🚨 Апат {row_number}: {row_title}\n{row_public_text}\nҚызмет: {row_service}\nБолжам: {row_forecast}"
+  },
+  {
+    "key": "notices.incidents_service_broadcast_incident_101_restrictions",
+    "ru": "🚨 Авария {row_number}: {row_title}\n{row_public_text}\nУслуга: {row_service}\nПрогноз: {row_forecast}\nОграничения: {restrictions}",
+    "kk": "🚨 Апат {row_number}: {row_title}\n{row_public_text}\nҚызмет: {row_service}\nБолжам: {row_forecast}\nШектеулер: {restrictions}"
+  },
+  {
+    "key": "notices.incidents_service_broadcast_incident_101_next",
+    "ru": "🚨 Авария {row_number}: {row_title}\n{row_public_text}\nУслуга: {row_service}\nПрогноз: {row_forecast}\nСледующее обновление: {next_update}",
+    "kk": "🚨 Апат {row_number}: {row_title}\n{row_public_text}\nҚызмет: {row_service}\nБолжам: {row_forecast}\nКелесі жаңарту: {next_update}"
+  },
+  {
+    "key": "notices.incidents_service_broadcast_incident_101_next_restrictions",
+    "ru": "🚨 Авария {row_number}: {row_title}\n{row_public_text}\nУслуга: {row_service}\nПрогноз: {row_forecast}\nСледующее обновление: {next_update}\nОграничения: {restrictions}",
+    "kk": "🚨 Апат {row_number}: {row_title}\n{row_public_text}\nҚызмет: {row_service}\nБолжам: {row_forecast}\nКелесі жаңарту: {next_update}\nШектеулер: {restrictions}"
+  }
+]

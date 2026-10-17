@@ -1,3 +1,4 @@
+import { t, loadTemplateStore, type TemplateStore } from "../../templates/store.ts";
 import { ruleContract } from "../timing/contracts.ts";
 import type { RegistryDeps } from "../registry/service.ts";
 import { jsonValue } from "../registry/validation.ts";
@@ -22,6 +23,7 @@ export async function digestText(
   actor: Actor,
   items: DigestItem[],
   day?: string,
+  templates?: TemplateStore,
 ): Promise<string | null> {
   const visible: string[] = [];
   for (const item of items) {
@@ -42,7 +44,7 @@ export async function digestText(
   }
   return visible.length
     ? `${
-      actor.profile.language === "kk" ? "Күндік шолу" : "Ежедневная сводка"
+      t(templates, actor.profile.language, "notices.digest_heading")
     }${day ? ` ${fmtDay(day)}` : ""}\n\n${visible.map((t) => `• ${t}`).join("\n\n")}`
     : null;
 }
@@ -63,6 +65,7 @@ export async function sweepDigests(
       "select distinct recipient_person_id from notification_digest_item d where consumed_at is null and not exists(select 1 from notification_digest_run r where r.person_id=d.recipient_person_id and r.local_day=$1::date and r.completed_at is not null) order by recipient_person_id limit 20",
       [day],
     );
+    const templates = await loadTemplateStore(exec);
     let count = 0;
     for (const p of people) {
       if (Date.now() >= deadline) break;
@@ -77,7 +80,7 @@ export async function sweepDigests(
       );
       const actor = await recipientActor(exec, p.recipient_person_id),
         text = actor
-          ? await digestText(exec, actor, items, day)
+          ? await digestText(exec, actor, items, day, templates)
           : null;
       if (actor && text) {
         // Сводка уходит боту сотрудников только когда все её элементы — служебные

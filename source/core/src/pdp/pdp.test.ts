@@ -86,6 +86,8 @@ describe("реестр действий", () => {
       "registry.telegram.recovery",
       "registry.write",
       "request.author", "request.category.edit", "request.comment", "request.internal", "request.manage", "request.read", "request.use",
+      "settings.templates.edit",
+      "settings.templates.read",
       "task.execute", "task.manage", "task.read", "task.use",
     ]);
   });

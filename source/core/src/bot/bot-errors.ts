@@ -1,3 +1,4 @@
+import { t, type TemplateStore } from "../templates/store.ts";
 /**
  * Тексты ошибок для жителя/исполнителя: сухие коды API и технические
  * формулировки заменяются понятным текстом с намёком на следующий шаг.
@@ -6,73 +7,17 @@
  * Срез UX B: один язык по профилю вместо сдвоенных текстов.
  */
 import { ApiError, ERROR_MESSAGES } from "../errors/api.ts";
-import { esc, pick, type Lang } from "./text.ts";
+import { esc, type Lang } from "./text.ts";
 
-const FRIENDLY: Record<string, { ru: string; kk: string }> = {
-  UNAUTHENTICATED: { ru: "Требуется вход", kk: "Кіру қажет" },
-  NO_PROFILE: {
-    ru: "Профиль не найден. Начните с /register",
-    kk: "Профиль табылмады, /register-ден бастаңыз",
-  },
-  SESSION_EXPIRED: {
-    ru: "Сеанс истёк, войдите заново",
-    kk: "Сеанс аяқталды, қайта кіріңіз",
-  },
-  FORBIDDEN: {
-    ru: "Недостаточно прав для этого действия. Если считаете это ошибкой — напишите администратору ОСИ.",
-    kk: "Рұқсат жеткіліксіз. Қате деп есептесеңіз, әкімшіге жазыңыз.",
-  },
-  PRIVILEGED_REQUIRED: {
-    ru: "Это действие доступно в веб-кабинете",
-    kk: "Бұл әрекет веб-кабинетте қолжетімді",
-  },
-  NOT_FOUND: {
-    ru: "Не найдено. Проверьте номер",
-    kk: "Табылмады. Нөмірді тексеріңіз",
-  },
-  VALIDATION_FAILED: {
-    ru: "Не удалось разобрать данные. Проверьте формат и повторите",
-    kk: "Деректерді түсінбедім. Пішімді тексеріп, қайталап көріңіз",
-  },
-  INVALID_TRANSITION: {
-    ru: "Такое действие сейчас недоступно. Откройте объект заново",
-    kk: "Бұл әрекет қазір қолжетімсіз. Нысанды қайта ашыңыз",
-  },
-  CONCURRENT_MODIFICATION: {
-    ru: "Объект уже изменён кем-то другим. Откройте заново и повторите",
-    kk: "Нысанды басқа біреу өзгерткен. Қайта ашып, қайталаңыз",
-  },
-  IDEMPOTENCY_CONFLICT: {
-    ru: "Повтор того же действия с другими данными. Откройте объект заново",
-    kk: "Сол әрекет басқа деректермен қайталанды. Нысанды қайта ашыңыз",
-  },
-  FILE_LIMIT: {
-    ru: "Файл не подходит: до 20 МБ, только согласованные форматы",
-    kk: "Файл жарамайды: 20 МБ-ға дейін, келісілген пішімдер ғана",
-  },
-  RULE_LEGAL_BOUNDARY: {
-    ru: "Значение выходит за допустимые границы",
-    kk: "Мән рұқсат етілген шектен шығып кетті",
-  },
-  RATE_LIMITED: {
-    ru: "Слишком много запросов. Попробуйте через минуту",
-    kk: "Тым көп сұраныс. Бір минуттан кейін көріңіз",
-  },
-  INTERNAL: {
-    ru: "Техническая ошибка. Попробуйте позже; если повторится — сообщите в ОСИ",
-    kk: "Техникалық қате. Кейінірек көріңіз; қайталанса, ОСИ-ге хабарлаңыз",
-  },
-};
+/** Только для уже отрендеренных шаблонов: значения экранированы движком. */
+export class BotTemplateError extends ApiError {}
 
 /** Текст ответа бота на ошибку сценария. */
-export function botErrorText(error: unknown, lang: Lang = "ru"): string {
-  if (!(error instanceof ApiError)) return FRIENDLY.INTERNAL![lang];
+export function botErrorText(error: unknown, lang: Lang = "ru", store?: TemplateStore): string {
+  if (!(error instanceof ApiError)) return t(store,lang,"errors.INTERNAL");
   const isDefault = error.message === ERROR_MESSAGES[error.code];
-  const friendly = FRIENDLY[error.code];
   const main = isDefault
-    ? friendly?.[lang] ?? esc(ERROR_MESSAGES[error.code])
-    : esc(error.message);
-  return `${main}\n${esc("/help")} — ${
-    pick(lang, "все команды", "барлық командалар")
-  }`;
+    ? t(store,lang,`errors.${error.code}`)
+    : error instanceof BotTemplateError ? error.message : esc(error.message);
+  return `${main}\n${t(store,lang,"common.error_help")}`;
 }

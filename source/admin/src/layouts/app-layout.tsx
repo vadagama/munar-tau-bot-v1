@@ -4,6 +4,7 @@ import { useLogout } from "@refinedev/core";
 
 import {
   canSeeAudit,
+  canSeeTemplates,
   canUseEmulation,
   useCabinetIdentity,
 } from "../lib/identity";
@@ -55,6 +56,7 @@ export function AppLayout() {
     { key: "/incidents", label: "Аварии" },
     { key: "/publications", label: "Публикации" },
     { key: "/notifications", label: "Уведомления" },
+    ...(canSeeTemplates(roles)?[{key:"/templates",label:"Шаблоны"}]:[]),
     ...(roles.some(role=>["chairman","administrator","deputy","executor"].includes(role)) ? [{key:"/tasks",label:"Задания"}] : []),
     ...(canSeeAudit(roles) ? [{ key: "/audit", label: "Журнал действий" }] : []),
     ...(roles.some(role=>["chairman","administrator","tech_admin"].includes(role)) ? [{key:"/time-rules",label:"Регламенты"}] : []),

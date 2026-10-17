@@ -55,3 +55,6 @@ ADR фиксируют решения об аутентификации и ра�
 - [ADR-007: отдельный статический лендинг жителей](decisions/007-resident-landing.md) — публичная страница и независимый Cloudflare Pages.
 - [Лендинг: сборка и публикация](../source/landing/README.md).
 - [ADR-009: два Telegram-бота — жители и сотрудники ОСИ](decisions/009-two-telegram-bots.md) — разделение канала доставки без изменения бизнес-правил.
+
+- [ADR-010: шаблоны сообщений ботов](decisions/010-bot-message-templates.md) — каталог, версии и отложенный рендер.
+- [Приёмка шаблонов сообщений](bot-message-templates-acceptance.md).

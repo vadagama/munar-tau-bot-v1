@@ -1,4 +1,5 @@
-import type { LocalizedNotice } from "../../locales/notifications.ts";
+import { templateNotice } from "../../templates/notice.ts";
+import type { NoticeText } from "../../templates/notice.ts";
 import { fmtDate } from "../../bot/text.ts";
 import { startConfirmationTimers } from "./timers.ts";
 import { cancelParentTasks } from "../tasks/cancellation.ts";
@@ -155,7 +156,7 @@ async function event(
 export async function inform(
   exec: DbExecutor,
   row: RequestRow,
-  text: string | LocalizedNotice,
+  text: NoticeText,
   key: string,
   includeParticipants = false,
   required = true,
@@ -173,7 +174,7 @@ export async function inform(
 export async function informManagers(
   exec: DbExecutor,
   row: RequestRow,
-  text: string | LocalizedNotice,
+  text: NoticeText,
   key: string,
 ): Promise<void> {
   const people = await exec.query<{ person_id: string }>(
@@ -374,14 +375,7 @@ export async function createRequest(
       await inform(
         exec,
         next,
-        {
-          ru: `${next.number}: обращение зарегистрировано. Первый ответ до ${
-            fmtDate(next.first_response_due_at)
-          }.`,
-          kk: `${next.number}: өтініш тіркелді. Алғашқы жауап ${
-            fmtDate(next.first_response_due_at)
-          }.`,
-        },
+        templateNotice("notices.requests_service_create_request_1", {next_number: next.number, detail_b: fmtDate(next.first_response_due_at)}),
         `${id}:created`,
         false,
         false,
@@ -389,10 +383,7 @@ export async function createRequest(
       await informManagers(
         exec,
         next,
-        {
-          ru: `${next.number}: новое обращение`,
-          kk: `${next.number}: жаңа өтініш`,
-        },
+        templateNotice("notices.requests_service_create_request_101", {next_number: next.number}),
         `${id}:queue`,
       );
       return next;
@@ -737,14 +728,7 @@ export async function transitionRequest(
         await inform(
           exec,
           next,
-          {
-            ru: `${next.number}: зарегистрировано. Первый ответ до ${
-              fmtDate(next.first_response_due_at)
-            }.`,
-            kk: `${next.number}: тіркелді. Алғашқы жауап ${
-              fmtDate(next.first_response_due_at)
-            }.`,
-          },
+          templateNotice("notices.requests_service_transition_request_2", {next_number: next.number, detail_b: fmtDate(next.first_response_due_at)}),
           `${id}:created`,
           false,
           false,
@@ -752,10 +736,7 @@ export async function transitionRequest(
         await informManagers(
           exec,
           next,
-          {
-            ru: `${next.number}: новое обращение`,
-            kk: `${next.number}: жаңа өтініш`,
-          },
+          templateNotice("notices.requests_service_transition_request_102", {next_number: next.number}),
           `${id}:queue`,
         );
         return next;
@@ -1013,10 +994,7 @@ export async function transitionRequest(
       await inform(
         exec,
         next!,
-        {
-          ru: `${row.number}: ${st.ru}. Подробности в карточке обращения.`,
-          kk: `${row.number}: ${st.kk}. Толығырақ өтініш карточкасында.`,
-        },
+        templateNotice("notices.requests_service_transition_request_3", {row_number: row.number, st_ru: st.ru, st_kk: st.kk}),
         `${id}:state:${next!.version}`,
         true,
         ["ask_clarification","submit_result","reject","cancel_request","approve_cancel","reject_cancel"].includes(action),
@@ -1024,7 +1002,7 @@ export async function transitionRequest(
       await informManagers(
         exec,
         next!,
-        { ru: `${row.number}: ${st.ru}`, kk: `${row.number}: ${st.kk}` },
+        templateNotice("notices.requests_service_transition_request_103", {row_number: row.number, st_ru: st.ru, st_kk: st.kk}),
         `${id}:managers:${next!.version}`,
       );
       return publicRequest(exec, actor, next!);

@@ -1,3 +1,5 @@
+import { templateNotice } from "../templates/notice.ts";
+import { t as templateText } from "../templates/store.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import type { Row } from "../domains/registry/validation.ts";
 import { jsonValue } from "../domains/registry/validation.ts";
@@ -12,7 +14,7 @@ import {
 import { addMessage } from "../domains/requests/messages.ts";
 import { ApiError } from "../errors/api.ts";
 import { notifyPerson } from "../domains/registrations/notifications.ts";
-import { pick, type Lang } from "./text.ts";
+import { type Lang } from "./text.ts";
 /** Webhook фиксирует только метаданные; getFile/загрузка выполняются jobs. */
 export async function queueRequestFile(
   deps: RegistryDeps,
@@ -34,26 +36,14 @@ export async function queueRequestFile(
   if (!requestId) {
     // У сотрудника файлы прикрепляются к открытому заданию (ADR-009).
     return bot === "worker"
-      ? pick(
-        L,
-        "Откройте задание: /task НОМЕР, затем отправьте файл.",
-        "Тапсырманы ашыңыз: /task НӨМІР, сонан кейін файлды жіберіңіз.",
-      )
-      : pick(
-        L,
-        "Сначала создайте или откройте обращение: /newrequest, /request НОМЕР.",
-        "Алдымен өтінішті ашыңыз: /newrequest, /request НӨМІР.",
-      );
+      ? templateText(deps.templates, L, "requests.otkroyte_zadanie_task_nomer_zatem_otpravte_fayl")
+      : templateText(deps.templates, L, "requests.snachala_sozdayte_ili_otkroyte_obraschenie_newrequest_request");
   }
   const photos = message.photo as Row[] | undefined;
   const photo = photos?.[photos.length - 1];
   const item = (message.document ?? message.video ?? photo) as Row | undefined;
   if (!item || typeof item.file_id !== "string") {
-    return pick(
-      L,
-      "Этот вид файла не поддерживается. Отправьте документом.",
-      "Бұл файл түріне қолдау жоқ. Құжат ретінде жіберіңіз.",
-    );
+    return templateText(deps.templates, L, "requests.etot_vid_fayla_ne_podderzhivaetsya_otpravte_dokumentom");
   }
   const filename = String(
     item.file_name ?? (photo ? "photo.jpg" : "video.mp4"),
@@ -80,17 +70,9 @@ export async function queueRequestFile(
     [f.attachment_id, item.file_id, actor.person.id, bot],
   );
   if (taskFile) {
-    return pick(
-      L,
-      "Файл задания принят в очередь. Дождитесь сообщения о сохранении, затем /taskfiles.",
-      "Файл кезекте. Сақталғаны туралы хабарламаны күтіңіз, содан кейін /taskfiles.",
-    );
+    return templateText(deps.templates, L, "requests.fayl_zadaniya_prinyat_v_ochered_dozhdites_soobscheniya");
   }
-  return pick(
-    L,
-    "Файл принят в очередь, пока не сохранён. Обращение можно отправить независимо: /sendrequest.",
-    "Файл кезекте, әлі сақталмады. Өтінішті /sendrequest арқылы жібере аласыз.",
-  );
+  return templateText(deps.templates, L, "requests.fayl_prinyat_v_ochered_poka_ne_sohranen");
 }
 export async function processRequestUploads(
   deps: RegistryDeps,
@@ -202,7 +184,7 @@ export async function processRequestUploads(
         await notifyPerson(
           exec,
           String(job.person_id),
-          { ru: "Файл сохранён", kk: "Файл сақталды" },
+          templateNotice("notices.bot_request-files_process_request_uploads_101", {}),
           `file:${job.attachment_id}:complete`,
           { bot: (job.bot as BotKind) ?? "resident" },
         );
@@ -218,10 +200,7 @@ export async function processRequestUploads(
           await notifyPerson(
             exec,
             String(job.person_id),
-            {
-              ru: "Файл не сохранён: повторите загрузку или выберите другой файл. Текст обращения сохранён.",
-              kk: "Файл сақталмады: қайта жүктеңіз немесе басқа файлды таңдаңыз. Өтініш мәтіні сақталды.",
-            },
+            templateNotice("notices.bot_request-files_process_request_uploads_102", {}),
             `file:${job.attachment_id}:failed`,
             { bot: (job.bot as BotKind) ?? "resident" },
           );

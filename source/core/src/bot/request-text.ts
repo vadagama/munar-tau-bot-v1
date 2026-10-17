@@ -1,3 +1,4 @@
+import { t as templateText, type TemplateStore } from "../templates/store.ts";
 import { requestStateText } from "../locales/requests.ts";
 import type { Row } from "../domains/registry/validation.ts";
 import { requestActions } from "./help.ts";
@@ -17,21 +18,22 @@ export function requestListText(
   personId: string,
   page: number,
   lang: Lang = "ru",
+  store?: TemplateStore,
 ): BotReply {
   const visible = rows.slice(0, 10);
   const list = visible.map((r) =>
-    `<b>${esc(r.number ?? pick(lang, "Черновик", "Жоба"))}</b>${
+    `<b>${(r.number ? esc(r.number) : templateText(store, lang, "requests.chernovik"))}</b>${
       r.state === "draft"
         ? ""
         : ` · ${esc(requestStateText(r.state, lang))} · ${esc(fmtDay(r.created_at))}`
     }${
       r.can_manage !== true && r.author_person_id !== personId
-        ? ` · ${pick(lang, "совместное", "ортақ")}`
+        ? ` · ${templateText(store, lang, "requests.sovmestnoe")}`
         : ""
     }\n${esc(preview(r.description, 120))}`
   );
   const text = preview(
-    list.length ? numbered(list) : pick(lang, "Обращений нет", "Өтініш жоқ"),
+    list.length ? numbered(list) : templateText(store, lang, "requests.obrascheniy_net"),
     4000,
   );
   // Открытие — кнопкой в строке; у черновика — возобновление мастера отправки.
@@ -46,7 +48,7 @@ export function requestListText(
   return { text, buttons };
 }
 
-export function requestCardText(row: Row, lang: Lang = "ru"): BotReply {
+export function requestCardText(row: Row, lang: Lang = "ru", store?: TemplateStore): BotReply {
   const messages = (row.messages as Row[]).filter((m) =>
     m.channel === "resident"
   ).slice(-3);
@@ -56,34 +58,34 @@ export function requestCardText(row: Row, lang: Lang = "ru"): BotReply {
   const reports = (result?.task_results as Row[]) ?? [];
   const authorLabel = (m: Row): string => {
     if (m.author_person_id === row.author_person_id) {
-      return pick(lang, "Вы", "Сіз");
+      return templateText(store, lang, "requests.vy");
     }
     return m.author_kind === "staff"
-      ? pick(lang, "Администратор", "Әкімші")
-      : pick(lang, "Участник", "Қатысушы");
+      ? templateText(store, lang, "requests.administrator")
+      : templateText(store, lang, "requests.uchastnik");
   };
   const text = preview(
     [
       `<b>${esc(row.number)}</b> · ${esc(requestStateText(row.state, lang))}`,
       `${
         esc(row.place_label ?? preview(row.location_text, 120) ??
-          pick(lang, "Общая территория", "Ортақ аумақ"))
-      } · ${pick(lang, "создано", "құрылды")} ${esc(fmtDate(row.created_at))}`,
+          templateText(store, lang, "requests.obschaya_territoriya"))
+      } · ${templateText(store, lang, "requests.sozdano")} ${esc(fmtDate(row.created_at))}`,
       esc(preview(row.description, 600)),
       messages.length
-        ? pick(lang, "Сообщения:", "Хабарламалар:") +
+        ? templateText(store, lang, "requests.soobscheniya") +
           "\n" +
           messages.map((m) =>
-            `${esc(fmtDate(m.created_at))} — ${esc(authorLabel(m))}: ${
+            `${esc(fmtDate(m.created_at))} — ${authorLabel(m)}: ${
               esc(preview(m.text, 400))
             }`
           ).join("\n")
         : "",
       result ? esc(preview(result.summary, 600)) : "",
       reports.length
-        ? `${pick(lang, "Отчёты", "Есептер")}: ${reports.length} — ${cmd(`/result ${row.number}`)}`
+        ? `${templateText(store, lang, "requests.otchety")}: ${reports.length} — ${cmd(`/result ${row.number}`)}`
         : "",
-      requestActions(row.state, lang),
+      requestActions(row.state, lang, false, store),
     ].filter(Boolean).join("\n"),
     4000,
   );

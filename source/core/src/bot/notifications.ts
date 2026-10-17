@@ -1,5 +1,6 @@
+import { BotTemplateError } from "./bot-errors.ts";
+import { t as templateText } from "../templates/store.ts";
 import type { Actor } from "../pdp/types.ts";
-import { ApiError } from "../errors/api.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { actorForTelegram } from "./registration.ts";
 import type { BotReply } from "./keyboard.ts";
@@ -21,11 +22,9 @@ export async function notificationStep(
       [telegramId],
     );
     const lang = p?.language === "kk" ? "kk" : "ru";
-    throw new ApiError(
+    throw new BotTemplateError(
       "FORBIDDEN",
-      lang === "kk"
-        ? "Алдымен тіркелуді растаңыз: /register"
-        : "Сначала подтвердите регистрацию: /register",
+      templateText(deps.templates, lang, "notifications.snachala_podtverdite_registratsiyu_register"),
     );
   }
   const [, requestedType, requestedMode, language] = input.trim().toLowerCase()
@@ -73,9 +72,7 @@ export async function notificationStep(
       digest: "сводка",
       off: "выключено",
     };
-  const help = kk
-    ? "Өзгерту мысалы: /notifications жаңалықтар шолу kk\nТүрлер: жаңалықтар, есептер, күйлер. Режимдер: бірден, шолу, өшіру. Күйлер үшін шолу қолжетімсіз.\nМіндетті келісімдер мен апаттар туралы хабарламалар өшірілмейді."
-    : "Пример изменения: /notifications новости сводка ru\nВиды: новости, отчёты, статусы. Режимы: сразу, сводка, выключено. Для статусов сводка недоступна.\nОбязательные согласования и аварии не отключаются.";
+  const help = templateText(deps.templates, (kk ? "kk" : "ru"), "notifications.primer_izmeneniya_notifications_novosti_svodka_ru_vidy");
   return `${
     settings.items.map((i) => `${names[i.event_type]}: ${names[i.mode]}`).join(
       "\n",

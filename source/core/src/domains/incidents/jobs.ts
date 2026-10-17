@@ -1,3 +1,4 @@
+import { templateNotice } from "../../templates/notice.ts";
 import type { RegistryDeps } from "../registry/service.ts";
 import { enqueueNotice, recipientActor } from "../notifications/service.ts";
 import { startTimer } from "../registry/time.ts";
@@ -82,17 +83,7 @@ export async function sweepEmergencies(
           isTest: Boolean(s.is_test),
           buildingIds: [String(s.building_id)],
           signalId: String(s.id),
-          text: {
-            ru:
-              `Возможная авария ${s.id}: нет принятия. Ответственность передана ${
-                reserve ? "резервному дежурному" : "администратору"
-              }${
-                valid ? "" : "; назначение недействительно, требуется замена"
-              }.`,
-            kk: `Ықтимал апат ${s.id}: қабылданбады. Жауапкершілік ${
-              reserve ? "резервтік кезекшіге" : "әкімшіге"
-            } берілді${valid ? "" : "; жаңа жауаптыны тағайындау қажет"}.`,
-          },
+          text: templateNotice("notices.incidents_jobs_sweep_emergencies_101"+(reserve?"_reserve":"")+(valid?"":"_invalid"), {s_id:s.id}),
         });
       }
       if (reserve) {
@@ -134,12 +125,7 @@ export async function sweepEmergencies(
         bot: "worker",
         important: true,
         isTest: row.is_test,
-        text: {
-          ru:
-            `Авария ${row.id}: пропущено обещанное обновление. Опубликуйте актуальные сведения.`,
-          kk:
-            `Апат ${row.id}: жоспарланған жаңарту кешіктірілді. Өзекті ақпаратты жариялаңыз.`,
-        },
+        text: templateNotice("notices.incidents_jobs_sweep_emergencies_102", {row_id: row.id}),
       });
       const chairs = await exec.query<{ person_id: string }>(
         "select distinct a.person_id from staff_assignment a join person p on p.id=a.person_id where a.role='chairman' and a.status='active' and p.is_test=$1 and p.status='active' and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())",
@@ -176,12 +162,7 @@ export async function sweepEmergencies(
               type: "incident",
               bot: "worker",
               isTest: row.is_test,
-              text: {
-                ru:
-                  `Авария ${row.id}: ответственный не обновил сведения. Требуется вмешательство.`,
-                kk:
-                  `Апат ${row.id}: жауапты ақпаратты жаңартпады. Араласу қажет.`,
-              },
+              text: templateNotice("notices.incidents_jobs_sweep_emergencies_103", {row_id: row.id}),
             });
           }
         }

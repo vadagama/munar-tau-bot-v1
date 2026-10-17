@@ -1,3 +1,4 @@
+import { templateNotice } from "../../templates/notice.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { ApiError } from "../../errors/api.ts";
 import type { RegistryDeps } from "../registry/service.ts";
@@ -263,10 +264,7 @@ export async function processScheduledJobs(
         await informTaskManagers(
           exec,
           row!,
-          {
-            ru: `Создано регулярное задание ${row!.number}.`,
-            kk: `${row!.number}: жоспарлы тапсырма жасалды.`,
-          },
+          templateNotice("notices.tasks_schedule_process_scheduled_jobs_101", {detail_a: row!.number}),
           `schedule:${job.id}:created`,
         );
         await exec.query(

@@ -1,5 +1,6 @@
+import { templateNotice } from "../../templates/notice.ts";
 import {checkTimerContract,ruleContract} from "../timing/contracts.ts";
-import type { LocalizedNotice } from "../../locales/notifications.ts";
+import type { NoticeText } from "../../templates/notice.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import type { RegistryDeps } from "../registry/service.ts";
 import {
@@ -15,7 +16,7 @@ import { TASK_SELECT, taskResource, type TaskRow } from "./access.ts";
 export async function informTaskManagers(
   exec: DbExecutor,
   task: TaskRow,
-  text: string | LocalizedNotice,
+  text: NoticeText,
   key: string,
   role?: string,
 ) {
@@ -128,14 +129,7 @@ export async function sweepTaskTimers(
         await informTaskManagers(
           exec,
           task!,
-          {
-            ru: `Задание ${
-              task!.number
-            } не принято исполнителем. Требуется проверить назначение.`,
-            kk: `${
-              task!.number
-            }: орындаушы тапсырманы қабылдамады. Тағайындауды тексеру қажет.`,
-          },
+          templateNotice("notices.tasks_timing_sweep_task_timers_101", {detail_a: task!.number}),
           `timer:${timer.id}`,
           role,
         );
@@ -186,10 +180,7 @@ export async function sweepTaskTimers(
         await informTaskManagers(
           exec,
           task,
-          {
-            ru: `Задание ${task.number}: срок выполнения истёк.`,
-            kk: `${task.number}: орындау мерзімі өтті.`,
-          },
+          templateNotice("notices.tasks_timing_sweep_task_timers_102", {task_number: task.number}),
           `task:${task.id}:overdue`,
         );
       }
@@ -201,10 +192,7 @@ export async function sweepTaskTimers(
         await informTaskManagers(
           exec,
           task,
-          {
-            ru: `Задание ${task.number}: наступила дата следующего действия.`,
-            kk: `${task.number}: келесі әрекет күні келді.`,
-          },
+          templateNotice("notices.tasks_timing_sweep_task_timers_103", {task_number: task.number}),
           `task:${task.id}:next:${
             new Date(String(task.next_action_at)).toISOString()
           }`,

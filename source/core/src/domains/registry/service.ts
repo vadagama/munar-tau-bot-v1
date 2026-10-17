@@ -1,3 +1,5 @@
+import { templateNotice } from "../../templates/notice.ts";
+import type { TemplateStore } from "../../templates/store.ts";
 import { notifyPerson } from "../registrations/notifications.ts";
 import type { DbClient, DbExecutor } from "../../db/client.ts";
 import type { Actor } from "../../pdp/types.ts";
@@ -16,6 +18,7 @@ import {
 } from "./validation.ts";
 
 export interface RegistryDeps {
+  templates?: TemplateStore;
   db: DbClient;
   audit: AuditRepo;
 }
@@ -268,10 +271,7 @@ export async function mutateRegistry(
               await notifyPerson(
                 exec,
                 String(connection.person_id),
-                {
-                  ru: "Связь прекращена при смене собственника",
-                  kk: "Меншік иесі ауысқанда байланыс тоқтатылды",
-                },
+                templateNotice("notices.registry_service_mutate_registry_1", {}),
                 `${connection.id}:owner-change`,
               );
               await recordAudit(
@@ -350,10 +350,7 @@ export async function mutateRegistry(
       await notifyPerson(
         exec,
         String(after.person_id),
-        {
-          ru: `Связь прекращена: ${after.revoked_reason}`,
-          kk: `Байланыс тоқтатылды: ${after.revoked_reason}`,
-        },
+        templateNotice("notices.registry_service_mutate_registry_2", {after_revoked_reason: after.revoked_reason}),
         `${after.id}:revoked`,
       );
     await recordAudit(

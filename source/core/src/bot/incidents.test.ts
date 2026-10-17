@@ -38,3 +38,7 @@ it("рассылка сохраняет безопасный текст обои
   });
   expect(saved).toEqual({ ru: "&lt;b&gt;Течь&lt;/b&gt;", kk: "Су &amp; жылу" });
 });
+it('HTML переопределения инцидентов не экранируется повторно',async()=>{
+ const deps={templates:new Map([['incidents.opasnost_avariya_napishite_emergency_nomer_obrascheniya_chto',{ru:'<b>Дежурный</b>',kk:'<b>Кезекші</b>'}]])} as unknown as RegistryDeps;
+ expect(await incidentStep(deps,'123','/emergency',makeTestActor('administrator',[B1]))).toBe('<b>Дежурный</b>');
+});

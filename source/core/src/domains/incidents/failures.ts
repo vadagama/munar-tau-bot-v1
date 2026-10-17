@@ -1,3 +1,4 @@
+import { templateNotice } from "../../templates/notice.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import { jsonValue, type Row } from "../registry/validation.ts";
 import { enqueueNotice, type NoticeOptions } from "../notifications/service.ts";
@@ -28,12 +29,7 @@ export async function emergencyDeliveryFailure(
         audience: "staff",
         isTest: Boolean(n.is_test),
         buildingIds: ref.buildingIds,
-        text: {
-          ru:
-            "Важное аварийное уведомление не доставлено. Проверьте журнал доставки и свяжитесь с ответственным или жителем.",
-          kk:
-            "Маңызды апат хабарламасы жеткізілмеді. Жеткізу журналын тексеріп, жауапты тұлғамен немесе тұрғынмен байланысыңыз.",
-        },
+        text: templateNotice("notices.incidents_failures_emergency_delivery_failure_101", {}),
       });
     }
   }

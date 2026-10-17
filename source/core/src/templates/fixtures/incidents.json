@@ -1,0 +1,122 @@
+[
+  {
+    "key": "incidents.opasnost_avariya_napishite_emergency_nomer_obrascheniya_chto",
+    "source": "incidents",
+    "ru": "Опасность, авария? Напишите: /emergency НОМЕР_ОБРАЩЕНИЯ что произошло. Телефон аварийной службы дома: /emergency КОД_ДОМА. Сообщение не заменяет вызов экстренных служб.",
+    "kk": "Қауіп, апат па? /emergency ӨТІНІШ НӨМІРІ не болғанын жазыңыз. Үйдің апаттық қызметінің телефоны: /emergency ҮЙ КОДЫ. Хабарлама төтенше қызметтерді алмастырмайды."
+  },
+  {
+    "key": "incidents.telefon_esche_ne_nastroen",
+    "source": "incidents",
+    "ru": "Телефон ещё не настроен",
+    "kk": "Телефон әлі бапталмаған"
+  },
+  {
+    "key": "incidents.podtverdite_registratsiyu",
+    "source": "incidents",
+    "ru": "Подтвердите регистрацию",
+    "kk": "Тіркелуді растаңыз"
+  },
+  {
+    "key": "incidents.net_dostupnyh_avariy",
+    "source": "incidents",
+    "ru": "Нет доступных аварий",
+    "kk": "Қолжетімді апаттар жоқ"
+  },
+  {
+    "key": "incidents.signal_proveryaetsya",
+    "source": "incidents",
+    "ru": "Сигнал проверяется",
+    "kk": "Сигнал тексерілуде"
+  },
+  {
+    "key": "incidents.prognoz",
+    "source": "incidents",
+    "ru": "Прогноз",
+    "kk": "Болжам"
+  },
+  {
+    "key": "incidents.sleduyuschee_obnovlenie",
+    "source": "incidents",
+    "ru": "Следующее обновление",
+    "kk": "Келесі жаңарту"
+  },
+  {
+    "key": "incidents.net_signalov",
+    "source": "incidents",
+    "ru": "Нет сигналов",
+    "kk": "Сигналдар жоқ"
+  },
+  {
+    "key": "incidents.signal_prinyat",
+    "source": "incidents",
+    "ru": "Сигнал принят",
+    "kk": "Сигнал қабылданды"
+  },
+  {
+    "key": "incidents.dom_ne_nayden",
+    "source": "incidents",
+    "ru": "Дом не найден",
+    "kk": "Үй табылмады"
+  },
+  {
+    "key": "incidents.danger_nomer_zadaniya_kod_doma_opisanie",
+    "source": "incidents",
+    "ru": "/danger НОМЕР_ЗАДАНИЯ КОД_ДОМА | описание",
+    "kk": "/danger ТАПСЫРМА НӨМІРІ ҮЙ КОДЫ | сипаттама"
+  },
+  {
+    "key": "incidents.signal_otpravlen_dezhurnomu",
+    "source": "incidents",
+    "ru": "Сигнал отправлен дежурному",
+    "kk": "Сигнал кезекшіді жіберілді"
+  },
+  {
+    "key": "incidents.net_publikatsiy",
+    "source": "incidents",
+    "ru": "Нет публикаций",
+    "kk": "Жарияланымдар жоқ"
+  },
+  {
+    "key": "incidents.plan",
+    "source": "incidents",
+    "ru": "План",
+    "kk": "Жоспар"
+  },
+  {
+    "key": "incidents.vosstanovlenie",
+    "source": "incidents",
+    "ru": "Восстановление",
+    "kk": "Қалпына келтіру"
+  },
+  {
+    "key": "incidents.vosstanovlenie_poka_ne_podtverzhdeno",
+    "source": "incidents",
+    "ru": "Восстановление пока не подтверждено",
+    "kk": "Қалпына келтіру әлі расталмады"
+  },
+  {
+    "key": "incidents.ukazhite_dom_i_opishite_problemu_odnim_soobscheniem",
+    "source": "incidents",
+    "ru": "Укажите дом и опишите проблему одним сообщением: например «1 После ремонта кран протекает». /cancel — отмена.",
+    "kk": "Үйді көрсетіп, мәселені бір хабарламада жазыңыз: мысалы «1 Жөндеуден кейін кран ағады». /cancel — болдырмау."
+  },
+  {
+    "key": "incidents.incidents_avarii_publications_publikatsii_emergency_opasnost_signals",
+    "source": "incidents",
+    "ru": "/incidents — аварии; /publications — публикации; /emergency — опасность; /signals — сигналы",
+    "kk": "/incidents — апаттар; /publications — жарияланымдар; /emergency — қауіп; /signals — сигналдар"
+  },
+  {
+    "key": "incidents.dom_ne_vhodit_v_etu_publikatsiyu_ukazhite",
+    "source": "incidents",
+    "ru": "Дом не входит в эту публикацию. Укажите код дома и описание ещё раз, /cancel — отмена.",
+    "kk": "Үй жарияланым аумағына кірмейді. Үй кодын мен сипаттаманы қайта жазыңыз, /cancel — болдырмау."
+  },
+  {
+    "key": "incidents.problema_peredana_administratoru",
+    "source": "incidents",
+    "ru": "проблема передана администратору",
+    "kk": "мәселе әкімшіге берілді"
+  }
+]

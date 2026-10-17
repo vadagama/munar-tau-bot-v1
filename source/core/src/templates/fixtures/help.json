@@ -1,0 +1,68 @@
+[
+  {
+    "key": "help.sendrequest_otpravit_editrequest_tekst_deletedraft_udalit_fayly",
+    "source": "help",
+    "ru": "/sendrequest — отправить; /editrequest — текст; /deletedraft — удалить; файлы — просто прикрепите к следующему сообщению",
+    "kk": "/sendrequest — жіберу; /editrequest — мәтін; /deletedraft — жою; файлдарды келесі хабарламаға жабыстырыңыз"
+  },
+  {
+    "key": "help.visits_nomer_vizity_say_nomer_tekst_soobschenie",
+    "source": "help",
+    "ru": "/visits НОМЕР — визиты; /say НОМЕР текст — сообщение",
+    "kk": "/visits НОМІР — сапарлар; /say НОМІР мәтін — хабарлама"
+  },
+  {
+    "key": "help.result_nomer_otchety_return_nomer_prichina_dorabotka",
+    "source": "help",
+    "ru": "/result НОМЕР — отчёты; /return НОМЕР причина — доработка",
+    "kk": "/result НОМІР — есептер; /return НОМІР себеп — түзету"
+  },
+  {
+    "key": "help.rate_nomer_1_5_kommentariy_otsenka_appeal",
+    "source": "help",
+    "ru": "/rate НОМЕР 1–5 комментарий — оценка; /appeal НОМЕР причина",
+    "kk": "/rate НОМІР 1–5 түсініктеме — баға; /appeal НОМІР себеп"
+  },
+  {
+    "key": "help.appeal_nomer_prichina_apellyatsiya_reopen_nomer_prichina",
+    "source": "help",
+    "ru": "/appeal НОМЕР причина — апелляция; /reopen НОМЕР причина",
+    "kk": "/appeal НОМІР себеп — шағым; /reopen НОМІР себеп"
+  },
+  {
+    "key": "help.deystviya_accepttask_nomer_prinyat_declinetask_nomer_prichina",
+    "source": "help",
+    "ru": "Действия: /accepttask НОМЕР — принять; /declinetask НОМЕР причина — не могу",
+    "kk": "Әрекеттер: /accepttask НОМІР — қабылдау; /declinetask НОМІР себеп — болмайды"
+  },
+  {
+    "key": "help.deystviya_starttask_nomer_nachat_rabotu",
+    "source": "help",
+    "ru": "Действия: /starttask НОМЕР — начать работу",
+    "kk": "Әрекеттер: /starttask НОМІР — жұмысты бастау"
+  },
+  {
+    "key": "help.deystviya_reporttask_nomer_otchet_proposevisit_nomer_vizit",
+    "source": "help",
+    "ru": "Действия: /reporttask НОМЕР — отчёт; /proposevisit НОМЕР — визит; /pausetask НОМЕР причина — остановка; /problem НОМЕР … — найденная проблема",
+    "kk": "Әрекеттер: /reporttask НОМІР — есеп; /proposevisit НОМІР — сапар; /pausetask НОМІР себеп — тоқтату; /problem НОМІР … — табылған мәселе"
+  },
+  {
+    "key": "help.deystviya_starttask_nomer_vozobnovit",
+    "source": "help",
+    "ru": "Действия: /starttask НОМЕР — возобновить",
+    "kk": "Әрекеттер: /starttask НОМІР — жалғастыру"
+  },
+  {
+    "key": "help.deystviya_starttask_nomer_prodolzhit_posle_dorabotki",
+    "source": "help",
+    "ru": "Действия: /starttask НОМЕР — продолжить после доработки",
+    "kk": "Әрекеттер: /starttask НОМІР — түзетуден кейін жалғастыру"
+  },
+  {
+    "key": "help.otchet_na_proverke_u_administratora",
+    "source": "help",
+    "ru": "Отчёт на проверке у администратора.",
+    "kk": "Есеп әкімшінің тексерінде."
+  }
+]

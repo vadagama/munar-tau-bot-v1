@@ -5,6 +5,7 @@
 import type { SpecialRights, StaffRole } from "./types.ts";
 
 export type ActionKey =
+  | "settings.templates.read" | "settings.templates.edit"
   | "incident.use" | "incident.read" | "incident.manage" | "incident.link"
   | "publication.read" | "publication.manage" | "publication.approve"
   | "notification.preferences"
@@ -56,6 +57,8 @@ export interface ActionSpec {
 }
 
 export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
+  "settings.templates.read": {privileged:false,roles:["chairman","administrator","tech_admin"]},
+  "settings.templates.edit": {privileged:true,roles:["chairman","administrator","tech_admin"]},
   "incident.use": { privileged: false },
   "incident.read": { privileged: false },
   "incident.manage": { privileged: false },

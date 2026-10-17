@@ -1,3 +1,5 @@
+import { renderNotice, type NoticeText } from "../../templates/notice.ts";
+import { loadTemplateStore } from "../../templates/store.ts";
 import { requireIncident } from "../incidents/access.ts";
 import { audienceMember, type AudienceScope } from "../incidents/audience.ts";
 import { requireTask } from "../tasks/access.ts";
@@ -30,16 +32,19 @@ export interface NoticeOptions {
   buildingIds?: string[];
   isTest?: boolean;
 }
-export interface Notice extends NoticeOptions {
+export type Notice = NoticeOptions & {
   personId: string;
-  text: string | { ru: string; kk: string };
   key: string;
-}
+} & (
+  | {text: NoticeText; template?: never; vars?: never}
+  | {template: string; vars: Record<string, unknown>; text?: never}
+);
+
 /** Вызывается в бизнес-транзакции; сеть выполняется только диспетчером. */
 export async function enqueueNotice(exec: DbExecutor, notice: Notice) {
   await exec.query(
     "insert into outbox(event_type,payload,dedup_key) values ('notification.requested',$1::text::jsonb || jsonb_build_object('isTest',coalesce(($1::text::jsonb->>'isTest')::boolean,(select is_test from person where id=$3))),$2) on conflict(dedup_key) where dedup_key is not null do nothing",
-    [JSON.stringify(notice), notice.key, notice.personId],
+    [JSON.stringify(notice.text && typeof notice.text === "object" && "template" in notice.text ? { ...notice, ...notice.text, text: undefined } : notice), notice.key, notice.personId],
   );
 }
 export async function recipientActor(
@@ -270,6 +275,7 @@ export async function dispatchNotices(
     const rows = await exec.query<{ id: string; payload: unknown }>(
       "select id,payload from outbox where event_type='notification.requested' and processed_at is null and attempts<5 and next_attempt_at<=now() order by id for update skip locked limit 100",
     );
+    const templates = await loadTemplateStore(exec);
     let count = 0;
     for (const row of rows) {
       if (Date.now() >= deadline) break;
@@ -280,9 +286,7 @@ export async function dispatchNotices(
         if (actor && await noticeAllowed(exec, actor, n)) {
           const type = n.type ?? "personal",
             mode = await preference(exec, n.personId, type);
-          const text = typeof n.text === "string"
-            ? n.text
-            : n.text[actor.profile.language];
+          const text = renderNotice(n.template ? {template: n.template, vars: n.vars ?? {}} : n.text ?? "", actor.profile.language, templates);
           if (mode === "digest") {
             await exec.query(
               "insert into notification_digest_item(recipient_person_id,event_type,dedup_key,text,building_ids,is_test,event_ref,bot) values ($1,$2,$3,$4,$5::uuid[],$6,$7::text::jsonb,coalesce($8,'resident')) on conflict(dedup_key) do nothing",
