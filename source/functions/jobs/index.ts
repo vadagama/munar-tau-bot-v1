@@ -1,3 +1,6 @@
+import { publishScheduled } from "../../core/src/domains/publications/jobs.ts";
+import { sweepEmergencies } from "../../core/src/domains/incidents/jobs.ts";
+import { fanoutBroadcasts } from "../../core/src/domains/incidents/broadcast.ts";
 import {
   enqueueSchedules,
   processScheduledJobs,
@@ -102,6 +105,8 @@ export async function handle(
             )
             : 0;
         const processed = files +
+          (await sweepEmergencies(actual,new Date(),backgroundDeadline)) +
+          (await publishScheduled(actual,backgroundDeadline)) +
           (await sweepRegistrations(actual, new Date(), backgroundDeadline)) +
           (await processImportBatches(actual, backgroundDeadline)) +
           (await sweepRequests(actual, backgroundDeadline)) +
@@ -113,6 +118,7 @@ export async function handle(
             new Date(),
             backgroundDeadline,
           )) +
+          (await fanoutBroadcasts(actual, backgroundDeadline)) +
           (await dispatchNotices(actual, deadline - 10000)) +
           (await sweepDigests(actual, new Date(), deadline - 10000));
         const send: TelegramSender = sender ??

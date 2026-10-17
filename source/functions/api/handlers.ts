@@ -1,3 +1,5 @@
+import { PUBLICATION_ROUTES } from "./publication-handlers.ts";
+import { INCIDENT_ROUTES } from "./incident-handlers.ts";
 import { NOTIFICATION_ROUTES } from "./notification-handlers.ts";
 import { REQUEST_ROUTES } from "./request-handlers.ts";
 import { TASK_ROUTES } from "./task-handlers.ts";
@@ -503,6 +505,8 @@ export const ROUTES: readonly Route[] = [
   ...REGISTRY_ROUTES,
   ...REQUEST_ROUTES,
   ...TASK_ROUTES,
+  ...INCIDENT_ROUTES,
+  ...PUBLICATION_ROUTES,
   {
     method: "GET",
     path: "/v1/meta/me",

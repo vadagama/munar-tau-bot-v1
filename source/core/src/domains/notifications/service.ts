@@ -1,3 +1,5 @@
+import { requireIncident } from "../incidents/access.ts";
+import { audienceMember, type AudienceScope } from "../incidents/audience.ts";
 import { requireTask } from "../tasks/access.ts";
 import { notificationParts } from "./text.ts";
 import type { DbExecutor } from "../../db/client.ts";
@@ -12,6 +14,10 @@ import { requireRequest } from "../requests/access.ts";
 import { deliveryMode, type EventType, type PreferenceMode } from "./policy.ts";
 
 export interface NoticeOptions {
+  scope?: AudienceScope[];
+  incidentId?: string;
+  signalId?: string;
+  publicationId?: string;
   type?: EventType;
   requestId?: string;
   taskId?: string;
@@ -106,6 +112,58 @@ export async function noticeAllowed(
       ) return false;
       throw e;
     }
+  }
+  if (notice.signalId) {
+    const [signal] = await exec.query<
+      { building_id: string; is_test: boolean; responsible_person_id: string }
+    >(
+      "select building_id,is_test,responsible_person_id from emergency_signal where id=$1",
+      [notice.signalId],
+    );
+    if (
+      !signal ||
+      !can(actor, "incident.manage", {
+        incidentAccess: {
+          buildingIds: [signal.building_id],
+          isTest: signal.is_test,
+          responsibleId: signal.responsible_person_id,
+          published: false,
+          member: false,
+        },
+      }).allow
+    ) return false;
+  }
+  if (notice.incidentId && !notice.scope) {
+    try {
+      await requireIncident(exec, actor, notice.incidentId, "incident.manage");
+    } catch (e) {
+      if (
+        e instanceof ApiError && ["NOT_FOUND", "FORBIDDEN"].includes(e.code)
+      ) return false;
+      throw e;
+    }
+  }
+  if (
+    notice.type === "incident" && notice.audience === "staff" &&
+    !can(actor, "incident.manage", {
+      incidentAccess: {
+        buildingIds: notice.buildingIds ?? [],
+        isTest: actor.person.isTest,
+        responsibleId: actor.person.id,
+        published: false,
+        member: false,
+      },
+    }).allow
+  ) return false;
+  if (notice.publicationId) {
+    const [publication] = await exec.query(
+      "select id from publication where id=$1 and state='published' and is_test=$2",
+      [notice.publicationId, actor.person.isTest],
+    );
+    if (!publication) return false;
+  }
+  if (notice.scope && !await audienceMember(exec, actor, notice.scope)) {
+    return false;
   }
   if (notice.audience === "publication") {
     const [access] = await exec.query<{ ok: boolean }>(
@@ -224,7 +282,7 @@ export async function dispatchNotices(
             : n.text[actor.profile.language];
           if (mode === "digest") {
             await exec.query(
-              "insert into notification_digest_item(recipient_person_id,event_type,dedup_key,text,building_ids,is_test) values ($1,$2,$3,$4,$5::uuid[],$6) on conflict(dedup_key) do nothing",
+              "insert into notification_digest_item(recipient_person_id,event_type,dedup_key,text,building_ids,is_test,event_ref) values ($1,$2,$3,$4,$5::uuid[],$6,$7::text::jsonb) on conflict(dedup_key) do nothing",
               [
                 n.personId,
                 type,
@@ -232,6 +290,10 @@ export async function dispatchNotices(
                 text,
                 n.buildingIds ?? [],
                 actor.person.isTest,
+                JSON.stringify({
+                  scope: n.scope,
+                  publicationId: n.publicationId,
+                }),
               ],
             );
           } else if (mode === "immediate") {
@@ -247,6 +309,10 @@ export async function dispatchNotices(
                   JSON.stringify({
                     buildingIds: n.buildingIds ?? [],
                     registrationAccess: n.registrationAccess,
+                    scope: n.scope,
+                    incidentId: n.incidentId,
+                    signalId: n.signalId,
+                    publicationId: n.publicationId,
                   }),
                   n.important ?? type === "request.required",
                   type === "incident" ? 0 : 1,
