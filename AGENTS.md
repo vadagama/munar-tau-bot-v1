@@ -196,3 +196,21 @@ TIM-02: `timing/contracts.ts` — неизменяемый каталог v1 с�
 ссылки в `landing/build.mjs`. Node CI собирает и сканирует `landing/dist`.
 Публиковать в отдельный Cloudflare Pages-проект, не `osi-admin`;
 инструкция — `source/landing/README.md`, решение — ADR-007.
+
+## Шаблоны сообщений ботов (ADR-010)
+
+Реализация — `feature/bot-message-templates`, план `tasks/plan-bot-message-templates.md`,
+приёмка `docs/bot-message-templates-acceptance.md`. Дефолты ru/kk и переменные
+живут в `core/src/templates/catalog`; новые реплики/уведомления добавлять
+через каталог, не строками в сценариях. Ключи стабильны. Подписи кнопок,
+меню команд, словари состояний и авторский контент остаются вне редактора.
+
+Переопределения глобальны: append-only `message_template_version`, последняя
+версия активна; откат/сброс создают новые версии. Оба языка, причина, аудит
+и Idempotency-Key обязательны. Правка `settings.templates.edit` privileged,
+только кабинет трёх ролей (chairman/administrator/tech_admin), вне эмуляции.
+Один TemplateStore на webhook/запуск симуляции/пакет; кэша между вызовами нет.
+Outbox — `{template,vars}`, рендер на языке получателя при материализации;
+старый `{text:{ru,kk}}` совместим. Все значения — текст через esc(), никаких
+«сырых HTML-переменных». BotTemplateError допустим только для уже
+отрендеренного шаблона; обычные ApiError продолжают экранироваться.
