@@ -25,7 +25,8 @@ export async function queueRequestFile(
     [telegramId],
   );
   const state = dialog ? jsonValue<Row>(dialog.state) : {};
-  const requestId = state.draft_id ?? state.request_id;
+  const taskFile = state.scenario === "tasks";
+  const requestId = taskFile ? state.task_id : state.draft_id ?? state.request_id;
   if (!requestId) {
     return "Сначала создайте или откройте обращение: /newrequest, /request НОМЕР. / Алдымен өтінішті ашыңыз.";
   }
@@ -40,13 +41,14 @@ export async function queueRequestFile(
   );
   const mime = String(item.mime_type ?? (photo ? "image/jpeg" : "video/mp4"));
   const f = await prepareFile(deps, actor, {
+    owner_type: taskFile ? "task" : "request",
     owner_id: requestId,
     filename,
     size: item.file_size,
     mime,
-    bucket: "resident",
+    bucket: taskFile ? "internal" : "resident",
   });
-  if (!state.draft_id) {
+  if (!taskFile && !state.draft_id) {
     await addMessage(deps, actor, String(requestId), {
       text: typeof message.caption === "string" ? message.caption : "",
       attachments: [f.attachment_id],
@@ -58,6 +60,7 @@ export async function queueRequestFile(
     "insert into request_upload_job(attachment_id,telegram_file_id,person_id) values ($1,$2,$3) on conflict do nothing",
     [f.attachment_id, item.file_id, actor.person.id],
   );
+  if (taskFile) return "Файл задания принят в очередь. Дождитесь сообщения о сохранении, затем /taskfiles. / Файл кезекте.";
   return "Файл принят в очередь, пока не сохранён. Обращение можно отправить независимо: /sendrequest. / Файл кезекте, әлі сақталмады.";
 }
 export async function processRequestUploads(

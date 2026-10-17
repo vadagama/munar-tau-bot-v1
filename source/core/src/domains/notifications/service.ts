@@ -1,3 +1,4 @@
+import { notificationParts } from "./text.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { can } from "../../pdp/evaluate.ts";
@@ -217,13 +218,14 @@ export async function dispatchNotices(
               ],
             );
           } else if (mode === "immediate") {
+            for (const [index, part] of notificationParts(text).entries()) {
             await exec.query(
               `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,important,priority,request_id,audience,is_test)
  select telegram_user_id,$2,$3,person_id,case when is_test then 'simulator' else 'telegram' end,$4,$5::text::jsonb,$6,$7,$8,$9,is_test from profile where id=$1 on conflict(dedup_key) do nothing`,
               [
                 actor.profile.id,
-                text,
-                n.key,
+                part,
+                index === 0 ? n.key : `${n.key}:part:${index + 1}`,
                 type,
                 JSON.stringify({
                   buildingIds: n.buildingIds ?? [],
@@ -235,6 +237,7 @@ export async function dispatchNotices(
                 n.audience ?? "personal",
               ],
             );
+          }
           }
         }
         await exec.query("update outbox set processed_at=now() where id=$1", [

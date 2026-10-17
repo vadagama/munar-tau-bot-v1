@@ -1,4 +1,5 @@
 import { NotificationsPage } from "./pages/notifications";
+import { TasksPage } from "./pages/tasks";
 import { RequestsPage } from "./pages/requests";
 import { TimeRulesPage } from "./pages/time-rules";
 import { InvitesPage } from "./pages/invites";
@@ -46,6 +47,7 @@ export default function App() {
               <Route path="/time-rules" element={<TimeRulesPage />} />
               <Route path="/invites" element={<InvitesPage />} />
               <Route path="/requests" element={<RequestsPage />} />
+              <Route path="/tasks" element={<TasksPage />} />
               <Route path="/registry" element={<RegistryPage />} />
               <Route path="/registrations" element={<RegistrationsPage />} />
               <Route path="/registry-import" element={<RegistryImportPage />} />

@@ -1,3 +1,4 @@
+import { TaskVisits } from "./task-visits";
 import { RequestSettings } from "./request-settings";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -216,7 +217,6 @@ export function RequestsPage() {
         confirmation_payload: {
           summary: values.summary,
           document_version_ids: [],
-          task_report_ids: [],
         },
         next_action_at: values.next_action_at
           ? new Date(values.next_action_at).toISOString()
@@ -639,6 +639,7 @@ export function RequestsPage() {
                 )}
               />
             )}
+            {!!card.confirmation && <List dataSource={((((card.confirmation as Row).payload as Row)?.task_results as Row[])??[])} renderItem={r=><List.Item><div>{String(r.task_number)} — отчёт, версия {String(r.report_version)}<p>{String(r.performed_work)}. {String(r.result)}</p>{!!r.limitations&&<p>Ограничения: {String(r.limitations)}</p>}</div></List.Item>}/>}
             {own && card.can_share !== false && (
               <Space wrap>
                 <Select
@@ -855,6 +856,7 @@ export function RequestsPage() {
                 Отправить в «{channel === "internal" ? "Внутреннее" : "Жителю"}»
               </Button>
             </Space>
+            {card.kind === "request" && <TaskVisits requestId={String(card.id)} canRespond={card.can_comment !== false && !manage} onChanged={refresh}/>}
             {own && stateName === "closed" && card.close_method === "author" &&
               <RatingEditor id={String(card.id)} onError={setError} />}
             <details>
