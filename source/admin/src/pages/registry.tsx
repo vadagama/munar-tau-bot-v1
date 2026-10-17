@@ -128,6 +128,15 @@ export function RegistryPage() {
   useEffect(() => {
     void load();
   }, [entity]);
+  const switchEntity = (key: string) => {
+    // Старые строки другой сущности не показываем: при переключении таба
+    // колонки меняются сразу, и до загрузки таблица выглядела как «квартиры
+    // в табе Здания и паркинги».
+    if (key !== entity) {
+      setRows([]);
+      setEntity(key as Entity);
+    }
+  };
   const open = (row: Row | null) => {
     form.resetFields();
     form.setFieldsValue(
@@ -228,7 +237,7 @@ export function RegistryPage() {
       )}
       <Tabs
         activeKey={entity}
-        onChange={(key) => setEntity(key as Entity)}
+        onChange={switchEntity}
         items={Object.keys(LABELS)
           .filter((k) =>
             ["buildings", "premises", "persons", "connections"].includes(k),
