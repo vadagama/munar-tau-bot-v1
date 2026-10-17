@@ -6,6 +6,7 @@ import { createDbClient } from "../../src/db/client.ts";
 // Без TEST_DATABASE_URL подготовка пропускается (сами тесты skipIf).
 
 import {
+  acquireTestDatabaseLock,
   applyMigrations,
   applyRlsShield,
   createTestDb,
@@ -25,7 +26,12 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   // Отдельное соединение max:1 держит lock до завершения teardown.
   const lock = createDbClient(testDatabaseUrl()!, { max: 1, maxLifetime: 0 });
   console.log("[integration] Ожидание эксклюзивного доступа к тестовой БД");
-  await lock.query("select pg_advisory_lock(814733,3)");
+  try {
+    await acquireTestDatabaseLock(lock);
+  } catch (error) {
+    await lock.close();
+    throw error;
+  }
   const db = createTestDb();
   try {
     const applied = await applyMigrations(db);

@@ -1,5 +1,8 @@
-import { afterEach, expect, it } from "vitest";
-import { testDatabaseUrl } from "../../tests/integration/helpers.ts";
+import { afterEach, expect, it, vi } from "vitest";
+import {
+  acquireTestDatabaseLock,
+  testDatabaseUrl,
+} from "../../tests/integration/helpers.ts";
 const previous = process.env.TEST_DATABASE_URL;
 afterEach(() => {
   if (previous === undefined) delete process.env.TEST_DATABASE_URL;
@@ -17,4 +20,25 @@ it("разрешён только session pooler тестового проект
   expect(testDatabaseUrl()).toBe(session);
   process.env.TEST_DATABASE_URL = session.replace(":5432/", ":6543/");
   expect(() => testDatabaseUrl()).toThrow("session pooler");
+});
+
+it("занятая БД ожидается короткими попытками без запуска тестов", async () => {
+  vi.useFakeTimers();
+  let available = false, acquired = false;
+  const exec = {
+    query: <T>() => Promise.resolve([{ acquired: available }] as T[]),
+  };
+  try {
+    const waiting = acquireTestDatabaseLock(exec).then(() => {
+      acquired = true;
+    });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(acquired).toBe(false);
+    available = true;
+    await vi.advanceTimersByTimeAsync(1000);
+    await waiting;
+    expect(acquired).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
 });

@@ -241,3 +241,14 @@ export async function resetTestData(exec: DbExecutor): Promise<void> {
  * describe-блок с чистой БД — см. with-db.ts (вынесен, чтобы globalSetup
  * не импортировал API vitest: он выполняется вне тестового контекста).
  */
+
+/** Не держим один блокирующий SQL дольше серверного statement_timeout (120 с). */
+export async function acquireTestDatabaseLock(exec: DbExecutor): Promise<void> {
+  const deadline=Date.now()+30*60*1000;
+  while(true) {
+    const [row]=await exec.query<{acquired:boolean}>("select pg_try_advisory_lock(814733,3) as acquired");
+    if(row?.acquired)return;
+    if(Date.now()>=deadline)throw new Error("Тестовая БД занята более 30 минут; прогон не начат");
+    await new Promise(resolve=>setTimeout(resolve,1000));
+  }
+}
