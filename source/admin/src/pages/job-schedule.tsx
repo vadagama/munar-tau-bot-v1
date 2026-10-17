@@ -1,0 +1,198 @@
+import { useEffect, useState } from "react";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Form,
+  Input,
+  InputNumber,
+  Select,
+  Space,
+  Table,
+  Typography,
+} from "antd";
+import { apiFetch } from "../lib/api";
+type Row = Record<string, unknown>;
+const required = [{ required: true, message: "Заполните поле" }];
+function localInput(value: unknown) {
+  const d = new Date(String(value));
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString()
+    .slice(0, 16);
+}
+export function JobSchedule(
+  { id, onCreated }: { id: string; onCreated: (id: string) => void },
+) {
+  const [data, setData] = useState<
+      { schedule: Row | null; runs: Row[]; assignees: Row[] }
+    >(),
+    [error, setError] = useState<string>(),
+    [busy, setBusy] = useState(false);
+  const [form] = Form.useForm();
+  useEffect(() => {
+    let live = true;
+    setData(undefined);
+    setBusy(true);
+    apiFetch<{ schedule: Row | null; runs: Row[]; assignees: Row[] }>(
+      `/v1/job-templates/${id}/schedule`,
+    ).then((r) => {
+      if (live) {
+        setData(r);
+        form.resetFields();
+        form.setFieldsValue(
+          r.schedule
+            ? { ...r.schedule, next_run_at: localInput(r.schedule.next_run_at) }
+            : { enabled: false },
+        );
+      }
+    }).catch((e) => {
+      if (live) setError(e.message);
+    }).finally(() => {
+      if (live) setBusy(false);
+    });
+    return () => {
+      live = false;
+    };
+  }, [id, form]);
+  async function refresh() {
+    setData(await apiFetch(`/v1/job-templates/${id}/schedule`));
+  }
+  async function save(values: Row) {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await apiFetch(`/v1/job-templates/${id}/schedule`, {
+        method: "POST",
+        body: {
+          ...values,
+          enabled: values.enabled === true,
+          assignee_person_id: values.assignee_person_id ?? null,
+          next_run_at: new Date(String(values.next_run_at)).toISOString(),
+          version: data?.schedule?.version ?? 0,
+        },
+      });
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось сохранить");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function retry(run: Row) {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await apiFetch(`/v1/job-runs/${run.id}/retry`, { method: "POST" });
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось повторить");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Space direction="vertical" style={{ width: "100%" }}>
+      {error && <Alert type="error" message={error} />}
+      <Typography.Paragraph>
+        Каждый запуск создаёт отдельную общую работу и задание. Предыдущие
+        незавершённые задания сохраняются. Период и срок — календарные часы;
+        дата указана во времени вашего устройства.
+      </Typography.Paragraph>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={(v) => void save(v)}
+        disabled={busy || !data}
+      >
+        <Form.Item name="enabled" valuePropName="checked">
+          <Checkbox>Расписание включено</Checkbox>
+        </Form.Item>
+        <Form.Item name="next_run_at" label="Следующий запуск" rules={required}>
+          <Input type="datetime-local" />
+        </Form.Item>
+        <Form.Item
+          name="interval_hours"
+          label="Повторять каждые, часов"
+          rules={required}
+        >
+          <InputNumber min={1} max={8784} precision={0} />
+        </Form.Item>
+        <Form.Item
+          name="due_hours"
+          label="Срок выполнения от даты запуска, часов"
+          rules={required}
+        >
+          <InputNumber min={1} max={8784} precision={0} />
+        </Form.Item>
+        <Form.Item
+          name="assignee_person_id"
+          label="Исполнитель (необязательно)"
+        >
+          <Select
+            allowClear
+            placeholder="Администратор назначит после создания"
+            options={data?.assignees.map((p) => ({
+              value: p.id,
+              label: String(p.full_name),
+            }))}
+          />
+        </Form.Item>
+        <Button htmlType="submit" type="primary" loading={busy}>
+          Сохранить расписание
+        </Button>
+      </Form>
+      <Button
+        disabled={busy}
+        onClick={() => void refresh().catch((e) => setError(e.message))}
+      >
+        Обновить запуски
+      </Button>
+      <Table
+        rowKey="id"
+        dataSource={data?.runs ?? []}
+        pagination={{ pageSize: 10 }}
+        scroll={{ x: 650 }}
+        columns={[
+          {
+            title: "Дата запуска",
+            dataIndex: "scheduled_at",
+            render: (v) => new Date(String(v)).toLocaleString("ru-RU"),
+          },
+          { title: "Версия методички", dataIndex: "template_version" },
+          {
+            title: "Задание",
+            render: (_, r) =>
+              r.task_id
+                ? (
+                  <Button onClick={() => onCreated(String(r.task_id))}>
+                    {String(r.number)}
+                  </Button>
+                )
+                : "Ожидает создания",
+          },
+          {
+            title: "Результат",
+            render: (_, r) =>
+              r.missed_at
+                ? "Пропуск срока зафиксирован"
+                : r.state === "dead"
+                ? "Ошибка создания — требуется проверить права и настройки"
+                : r.state === "done"
+                ? "Задание создано"
+                : "В очереди",
+          },
+          {
+            title: "Действие",
+            render: (_, r) =>
+              r.state === "dead"
+                ? (
+                  <Button disabled={busy} onClick={() => void retry(r)}>
+                    Повторить создание
+                  </Button>
+                )
+                : null,
+          },
+        ]}
+      />
+    </Space>
+  );
+}

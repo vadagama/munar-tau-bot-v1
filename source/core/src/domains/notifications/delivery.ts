@@ -1,3 +1,5 @@
+import { informTaskManagers } from "../tasks/timing.ts";
+import { TASK_SELECT, type TaskRow } from "../tasks/access.ts";
 import { deliveryFailed } from "../../locales/notifications.ts";
 import { informManagers } from "../requests/service.ts";
 import type { RequestRow } from "../requests/access.ts";
@@ -51,6 +53,7 @@ export async function sendNotifications(
         );
         if (
           !actor || !await noticeAllowed(deps.db, actor, {
+            taskId: row.task_id as string | undefined,
             requestId: row.request_id as string | undefined,
             audience: row.audience as
               | "personal"
@@ -132,6 +135,27 @@ export async function sendNotifications(
       `insert into notification_followup(notification_id) select n.id from notification n where n.state='failed' and n.important and not exists(select 1 from notification_followup f where f.notification_id=n.id) order by n.created_at limit 100 on conflict(notification_id) do nothing returning notification_id`,
     );
     for (const item of created) {
+      const [task] = await exec.query<TaskRow>(
+        `${TASK_SELECT} join notification n on n.task_id=t.id where n.id=$1`,
+        [item.notification_id],
+      );
+      if (task) {
+        const message = {ru:`Назначение задания ${task.number} не доставлено. Требуется резервный ответственный.`,kk:`${task.number}: тапсырма тағайындауы жеткізілмеді. Қосалқы жауапты қажет.`};
+        await informTaskManagers(
+          exec,
+          task,
+          message,
+          `delivery-failed:${item.notification_id}:deputy`,
+          "deputy",
+        );
+        await informTaskManagers(
+          exec,
+          task,
+          message,
+          `delivery-failed:${item.notification_id}:chairman`,
+          "chairman",
+        );
+      }
       const [request] = await exec.query<RequestRow>(
         "select r.* from notification n join request r on r.id=n.request_id where n.id=$1",
         [item.notification_id],

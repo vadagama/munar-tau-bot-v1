@@ -34,6 +34,8 @@ interface Rule {
   };
 }
 const names: Record<string, string> = {
+  task_accept: "Ожидание принятия задания",
+  task_escalation: "Повторная эскалация назначения",
   work_schedule: "Рабочий график",
   first_response: "Первый ответ",
   author_reminder: "Напоминание автору",
@@ -46,6 +48,7 @@ const names: Record<string, string> = {
   dispute_total: "Общий срок спора",
 };
 const ruleDetails=(rule:Rule)=>{
+ if(!rule.version)return "Не настроен — назначение недоступно";
  const p=typeof rule.params==="string" ? JSON.parse(rule.params) as Rule["params"] : rule.params;
  return `${p.hours} ${p.clock==="working" ? "рабочих" : "календарных"} ч${p.clock==="working" ? `; график ${p.start ?? 8}:00–${p.end ?? 20}:00, ${p.timezone ?? "Asia/Almaty"}; дни: ${(p.days ?? [0,1,2,3,4,5,6]).map(d=>["Вс","Пн","Вт","Ср","Чт","Пт","Сб"][d]).join(", ")}` : ""}`;
 };
@@ -68,7 +71,7 @@ export function TimeRulesPage() {
           .map((r) => ({
             ...r,
             params:
-              typeof r.params === "string" ? JSON.parse(r.params) : r.params,
+              typeof r.params === "string" ? JSON.parse(r.params) : r.params ?? {clock:"working"},
           }))
           .filter((r, i, a) => a.findIndex((x) => x.key === r.key) === i),
       );
@@ -108,7 +111,7 @@ export function TimeRulesPage() {
       />
       {error && <Alert type="error" message={error} showIcon />}
       <Table
-        rowKey="id"
+        rowKey="key"
         dataSource={rules}
         loading={busy}
         scroll={{ x: 900 }}
@@ -127,7 +130,7 @@ export function TimeRulesPage() {
           {
             title: "Длительность",
             render: (_, r) =>
-              r.key==="digest_time" ? "Окончание текущей смены" : r.key==="work_schedule" ? `${r.params.start}:00–${r.params.end}:00 (${r.params.timezone})` : `${r.params.hours} ${r.params.clock === "working" ? "рабочих" : "календарных"} ч`,
+              !r.version ? "Не настроен" : r.key==="digest_time" ? "Окончание текущей смены" : r.key==="work_schedule" ? `${r.params.start}:00–${r.params.end}:00 (${r.params.timezone})` : `${r.params.hours} ${r.params.clock === "working" ? "рабочих" : "календарных"} ч`,
           },
           {
             title: "Действие",

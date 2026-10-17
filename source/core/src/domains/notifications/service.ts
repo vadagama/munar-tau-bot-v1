@@ -1,3 +1,4 @@
+import { requireTask } from "../tasks/access.ts";
 import { notificationParts } from "./text.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import type { Actor } from "../../pdp/types.ts";
@@ -13,6 +14,7 @@ import { deliveryMode, type EventType, type PreferenceMode } from "./policy.ts";
 export interface NoticeOptions {
   type?: EventType;
   requestId?: string;
+  taskId?: string;
   registrationAccess?: { premisesId: string; role: string };
   audience?: "personal" | "resident" | "staff" | "publication";
   important?: boolean;
@@ -74,6 +76,21 @@ export async function noticeAllowed(
         (a.role === role && a.scopeBuildingIds?.includes(premises.building_id))
       )
     ) return false;
+  }
+  if (notice.taskId) {
+    try {
+      await requireTask(
+        exec,
+        actor,
+        notice.taskId,
+        notice.audience === "staff" ? "task.manage" : "task.read",
+      );
+    } catch (e) {
+      if (
+        e instanceof ApiError && ["NOT_FOUND", "FORBIDDEN"].includes(e.code)
+      ) return false;
+      throw e;
+    }
   }
   if (notice.requestId) {
     try {
@@ -219,25 +236,26 @@ export async function dispatchNotices(
             );
           } else if (mode === "immediate") {
             for (const [index, part] of notificationParts(text).entries()) {
-            await exec.query(
-              `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,important,priority,request_id,audience,is_test)
- select telegram_user_id,$2,$3,person_id,case when is_test then 'simulator' else 'telegram' end,$4,$5::text::jsonb,$6,$7,$8,$9,is_test from profile where id=$1 on conflict(dedup_key) do nothing`,
-              [
-                actor.profile.id,
-                part,
-                index === 0 ? n.key : `${n.key}:part:${index + 1}`,
-                type,
-                JSON.stringify({
-                  buildingIds: n.buildingIds ?? [],
-                  registrationAccess: n.registrationAccess,
-                }),
-                n.important ?? type === "request.required",
-                type === "incident" ? 0 : 1,
-                n.requestId ?? null,
-                n.audience ?? "personal",
-              ],
-            );
-          }
+              await exec.query(
+                `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,important,priority,request_id,audience,is_test,task_id)
+ select telegram_user_id,$2,$3,person_id,case when is_test then 'simulator' else 'telegram' end,$4,$5::text::jsonb,$6,$7,$8,$9,is_test,$10 from profile where id=$1 on conflict(dedup_key) do nothing`,
+                [
+                  actor.profile.id,
+                  part,
+                  index === 0 ? n.key : `${n.key}:part:${index + 1}`,
+                  type,
+                  JSON.stringify({
+                    buildingIds: n.buildingIds ?? [],
+                    registrationAccess: n.registrationAccess,
+                  }),
+                  n.important ?? type === "request.required",
+                  type === "incident" ? 0 : 1,
+                  n.requestId ?? null,
+                  n.audience ?? "personal",
+                  n.taskId ?? null,
+                ],
+              );
+            }
           }
         }
         await exec.query("update outbox set processed_at=now() where id=$1", [
@@ -255,8 +273,8 @@ export async function dispatchNotices(
           // Ошибка подготовки тоже видна в журнале; содержимое события не раскрываем.
           // При недоступной БД вся транзакция откатится и событие останется повторяемым.
           await exec.query(
-            `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,important,request_id,audience,is_test,state,attempts,last_error)
- select telegram_user_id,'Не удалось подготовить уведомление / Хабарламаны дайындау мүмкін болмады',$2,person_id,case when is_test then 'simulator' else 'telegram' end,$3,$4::text::jsonb,$5,$6,$7,is_test,'failed',5,'DISPATCH_FAILED' from profile where person_id=$1 and archived_at is null on conflict(dedup_key) do nothing`,
+            `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,important,request_id,audience,is_test,state,attempts,last_error,task_id)
+ select telegram_user_id,'Не удалось подготовить уведомление / Хабарламаны дайындау мүмкін болмады',$2,person_id,case when is_test then 'simulator' else 'telegram' end,$3,$4::text::jsonb,$5,$6,$7,is_test,'failed',5,'DISPATCH_FAILED',$8 from profile where person_id=$1 and archived_at is null on conflict(dedup_key) do nothing`,
             [
               n.personId,
               n.key,
@@ -268,6 +286,7 @@ export async function dispatchNotices(
               n.important ?? n.type === "request.required",
               n.requestId ?? null,
               n.audience ?? "personal",
+              n.taskId ?? null,
             ],
           );
         }

@@ -1,3 +1,4 @@
+import { JobSchedule } from "./job-schedule";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -25,6 +26,7 @@ export function JobTemplates(
   const [error, setError] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
     [action, setAction] = useState<string | null>(null);
+  const [schedule,setSchedule]=useState<Row|null>(null);
   const [form] = Form.useForm();
   const key = useRef(crypto.randomUUID()), generation = useRef(0);
   const fail = (e: unknown) =>
@@ -126,6 +128,7 @@ export function JobTemplates(
           title: "Действия",
           render: (_, r) => (
             <Space wrap>
+              <Button onClick={()=>setSchedule(r)}>Расписание и запуски</Button>
               <Button onClick={() => begin("edit", r)}>Новая версия</Button>
               <Button onClick={() => void history(r)}>История версий</Button>
               <Button disabled={!r.active} onClick={() => begin("run", r)}>
@@ -155,6 +158,7 @@ export function JobTemplates(
           />
         </>
       )}
+      <Modal open={!!schedule} title="Регулярные задания" width={900} footer={null} onCancel={()=>setSchedule(null)} destroyOnClose>{schedule&&<JobSchedule id={String(schedule.id)} onCreated={id=>{setSchedule(null);onCreated(id);}}/>}</Modal>
       <Modal
         title={action === "run" ? "Ручной запуск задания" : "Версия шаблона"}
         open={!!action}

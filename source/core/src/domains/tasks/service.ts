@@ -1,3 +1,4 @@
+import { syncTaskTimers } from "./timing.ts";
 import {
   lockCommonParents,
   managesArea,
@@ -85,6 +86,7 @@ export async function taskLog(
   reason: string | null = null,
   meta: Row = {},
 ) {
+  await syncTaskTimers(exec,row,from);
   await exec.query(
     `insert into task_log(task_id,from_state,to_state,actor_person_id,reason,meta)
     values ($1,$2,$3,$4,$5,$6::text::jsonb)`,
@@ -135,6 +137,14 @@ export async function taskLog(
     ])
   ) {
     if (personId && personId !== actor.person.id) {
+      // Личный факт снятия назначения доступен прежнему исполнителю после отзыва task.read.
+      // Никаких текущих сведений или ссылки на закрытую карточку в этом сообщении нет.
+      if (personId === meta.previous_assignee_id && personId !== row.assignee_person_id) {
+        await notifyPerson(exec, personId, {ru:`Ваше назначение на задание ${row.number} снято.`,kk:`${row.number} тапсырмасына тағайындауыңыз алынып тасталды.`},
+          `task:${row.id}:${row.version}:unassigned:${personId}`,
+          { audience: "personal", isTest: row.is_test });
+        continue;
+      }
       await notifyPerson(
         exec,
         personId,
@@ -144,6 +154,7 @@ export async function taskLog(
           ? "исполнитель сообщил о найденной проблеме"
           : TASK_STATE_TEXT[row.state])}. Откройте карточку задания.`,
         `task:${row.id}:${row.version}:${action}:${personId}`,
+        {taskId:row.id,buildingIds:row.building_ids,isTest:row.is_test,audience:personId===row.assignee_person_id ? "personal" : "staff",type:row.state==="awaiting_acceptance" ? "task.assignment" : "personal",important:row.state==="awaiting_acceptance"},
       );
     }
   }
@@ -322,6 +333,9 @@ export async function getTask(
           [row.template_id, row.template_version],
         ))[0]
         : null,
+      ...(can(actor, "task.manage", taskResource(row)).allow ? { delivery_failures: await exec.query(
+        "select n.id,n.last_error,f.state as followup_state from notification n left join notification_followup f on f.notification_id=n.id where n.task_id=$1 and n.state='failed' and n.is_test=$2 order by n.created_at desc limit 50", [id,actor.person.isTest],
+      ) } : {}),
       can_manage: can(actor, "task.manage", taskResource(row)).allow,
       can_execute: can(actor, "task.execute", taskResource(row)).allow,
       log: await exec.query(

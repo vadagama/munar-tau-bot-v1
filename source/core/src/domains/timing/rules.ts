@@ -104,7 +104,7 @@ export async function changeRule(
     // Единый порядок блокировок для изменения графика и отдельного правила.
     await exec.query("select pg_advisory_xact_lock(814733,5)");
     const rows = await exec.query<RuleRow>(
-      `select r.*,v.params,v.version from time_rule r join lateral (select params,version from time_rule_version where rule_id=r.id order by version desc limit 1) v on true order by r.key for update of r`,
+      `select r.*,v.params,coalesce(v.version,0) as version from time_rule r left join lateral (select params,version from time_rule_version where rule_id=r.id order by version desc limit 1) v on true order by r.key for update of r`,
     );
     const rule = rows.find((r) => r.key === key);
     if (!rule) throw new ApiError("NOT_FOUND");
@@ -137,7 +137,7 @@ export async function changeRule(
       ? rows.filter((r) =>
         r.key === key ||
         (r.kind === "operational" &&
-          jsonValue<RuleParams>(r.params).clock === "working")
+          r.params && jsonValue<RuleParams>(r.params).clock === "working")
       )
       : [rule];
     let result: unknown;

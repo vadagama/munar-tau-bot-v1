@@ -159,6 +159,7 @@ async function workLog(
         request.author_person_id,
         `Обращение ${request.number}: общая работа ${row.number} ${stateText}. ${next}`,
         `common:${row.id}:${row.version}:${request.id}`,
+        {requestId:request.id,audience:"resident",type:row.state==="canceled"?"request.required":"request.status",important:row.state==="canceled",isTest:row.is_test},
       );
     }
   }
@@ -239,6 +240,7 @@ async function link(
       new Date(String(work.due_at)).toISOString()
     }. Проверка результата останется отдельной.`,
     `common:${work.id}:linked:${requestId}:${request.version}`,
+    {requestId,audience:"resident",type:"request.status",isTest:work.is_test},
   );
 }
 export async function createCommonWork(
@@ -467,6 +469,7 @@ export async function unlinkCommonRequest(
         request.author_person_id,
         `Обращение ${request.number}: дальнейший план — ${plan}.`,
         `common:${id}:unlink:${requestId}:${request.version}`,
+      {requestId,audience:"resident",type:"request.status",isTest:actor.person.isTest},
       );
       return updated!;
     }, async () => {

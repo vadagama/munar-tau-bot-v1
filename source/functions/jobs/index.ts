@@ -1,3 +1,8 @@
+import {
+  enqueueSchedules,
+  processScheduledJobs,
+} from "../../core/src/domains/tasks/schedule.ts";
+import { sweepTaskTimers } from "../../core/src/domains/tasks/timing.ts";
 import { dispatchNotices } from "../../core/src/domains/notifications/service.ts";
 import { sweepDigests } from "../../core/src/domains/notifications/digest.ts";
 import { sweepConfirmationTimers } from "../../core/src/domains/timing/request-timers.ts";
@@ -100,6 +105,9 @@ export async function handle(
           (await sweepRegistrations(actual, new Date(), backgroundDeadline)) +
           (await processImportBatches(actual, backgroundDeadline)) +
           (await sweepRequests(actual, backgroundDeadline)) +
+          (await sweepTaskTimers(actual, new Date(), backgroundDeadline)) +
+          (await enqueueSchedules(actual, new Date(), backgroundDeadline)) +
+          (await processScheduledJobs(actual, backgroundDeadline)) +
           (await sweepConfirmationTimers(
             actual,
             new Date(),

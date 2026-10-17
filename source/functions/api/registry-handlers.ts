@@ -355,7 +355,7 @@ routes.push({
   handler: async (ctx) => ({
     body: {
       items: await ctx.deps.db.query(
-        "select r.key,r.kind,r.legal_source,r.legal_revision,r.legal_effective_from,r.legal_scope,r.legal_limits,v.*,p.full_name as created_by_name from time_rule r join time_rule_version v on v.rule_id=r.id left join person p on p.id=v.created_by order by r.key,v.version desc",
+        "select r.id as rule_id,r.key,r.kind,r.legal_source,r.legal_revision,r.legal_effective_from,r.legal_scope,r.legal_limits,v.*,p.full_name as created_by_name from time_rule r left join time_rule_version v on v.rule_id=r.id left join person p on p.id=v.created_by order by r.key,v.version desc",
       ),
     },
   }),
