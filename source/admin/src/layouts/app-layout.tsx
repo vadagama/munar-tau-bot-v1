@@ -52,6 +52,8 @@ export function AppLayout() {
   const items = [
     { key: "/", label: "Главная" },
     { key: "/requests", label: "Обращения" },
+    { key: "/incidents", label: "Аварии" },
+    { key: "/publications", label: "Публикации" },
     { key: "/notifications", label: "Уведомления" },
     ...(roles.some(role=>["chairman","administrator","deputy","executor"].includes(role)) ? [{key:"/tasks",label:"Задания"}] : []),
     ...(canSeeAudit(roles) ? [{ key: "/audit", label: "Журнал действий" }] : []),
