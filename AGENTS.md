@@ -76,7 +76,7 @@ VS-4 реализован в `feature/vs-4-tasks-common-work` (PR #13; план 
 
 ## Команды
 
-**Временное правило разработки (решение пользователя 17.10.2026): интеграционные тесты, включая будущие, сохраняются в Git, но не запускаются автоматически и не запускаются агентом без отдельного явного запроса пользователя.** Обычный `npm run test:integration` завершает работу без подключения к БД. Ручное включение: `RUN_INTEGRATION_TESTS=1 npm run test:integration`; в GitHub — `workflow_dispatch` с `run_integration=true`. Не считать пропущенные проверки пройденными. Вернуть автоматический запуск только по согласованию. Ограничения Sydney, session pooler и advisory lock сохраняются. Модульные/Deno-тесты, lint, typecheck, build и secret-scan продолжают выполняться.
+**Временное правило разработки (решение пользователя 17.10.2026): интеграционные тесты, включая будущие, сохраняются в Git, но не запускаются автоматически и не запускаются агентом без отдельного явного запроса пользователя.** Обычный `npm run test:integration` завершает работу без подключения к БД. Ручное включение: `RUN_INTEGRATION_TESTS=1 npm run test:integration`; интеграционная джоба GitHub CI закомментирована до отдельного согласования. Не считать пропущенные проверки пройденными. Вернуть автоматический запуск только по согласованию. Ограничения Sydney, session pooler и advisory lock сохраняются. Модульные/Deno-тесты, lint, typecheck, build и secret-scan продолжают выполняться.
 
 Все команды для кода выполняются из `source/` (там `package.json` workspaces). Node ≥ 22 (см. `source/.nvmrc`), Deno 2 (для функций).
 
@@ -99,7 +99,7 @@ VS-4 реализован в `feature/vs-4-tasks-common-work` (PR #13; план 
 | Деплой кабинета | `npx wrangler@^4 pages deploy admin/dist --project-name "$CF_PAGES_PROJECT"` (нужен `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) |
 | Настройка секретов функций | `npx supabase@^2 secrets set TELEGRAM_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... X_JOBS_SECRET=... CABINET_ORIGIN=...` (R3). Примечание: префикс `SUPABASE_` в секретах запрещён платформой; `SUPABASE_JWKS` и `SUPABASE_DB_URL` инжектируются в функции автоматически (проверка JWT — ES256 по JWKS; см. ADR-001) |
 
-CI (`.github/workflows/ci.yml`) на каждый PR и push в `main`: node-джоба (ci → lint → typecheck → test → build → secret-scan) и deno-джоба (check → lint → test). Деплой — отдельная джоба при push в `main`, шаги выполняются только при наличии соответствующих секретов репозитория: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, `SUPABASE_DB_PASSWORD`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT`; без них — джоба зелёная с предупреждением. До настройки секретов (R3) деплой фактически не выполняется.
+CI (`.github/workflows/ci.yml`) на каждый PR и push в `main`: node-джоба (ci → lint → typecheck → test → build → secret-scan) и deno-джоба (check → lint → test). Интеграционная джоба `integration` временно закомментирована в CI (2026-10-17): долгий прогон и дедлоки при параллельных запусках; запуск вручную — `npm run test:integration` из `source/` при настроенном `TEST_DATABASE_URL`. Деплой — отдельная джоба при push в `main`, шаги выполняются только при наличии соответствующих секретов репозитория: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, `SUPABASE_DB_PASSWORD`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT`; без них — джоба зелёная с предупреждением. До настройки секретов (R3) деплой фактически не выполняется.
 
 ## Границы и безопасность (не нарушать)
 
