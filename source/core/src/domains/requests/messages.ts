@@ -113,6 +113,7 @@ export async function addMessage(
               [id],
             );
           }
+          await exec.query("update timer set state='canceled',canceled_at=now() where entity_id=$1 and stage='request_first_response' and state='pending' and exists(select 1 from request where id=$1 and first_response_at is not null)",[id]);
           await inform(
             exec,
             row,

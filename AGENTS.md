@@ -22,7 +22,7 @@ VS-3: upload-url возвращает адрес Edge API с окном 5 мин
 
 Очищающие интеграционные тесты разрешены только на Sydney `fuwsmewtmxmzttwkbdex` через session pooler (5432). Global setup удерживает session advisory lock `(814733,3)` на весь прогон отдельным соединением; CI дополнительно сериализует integration. Старые CI-запуски без этой блокировки не запускать одновременно с локальными тестами. Миграции и сид передаются в PostgreSQL файлами (simple protocol), каждый файл атомарен. Frankfurt не используется для тестовых миграций и очистки.
 
-Инфраструктура тестирования подключена: модульные (Vitest: `core` + `admin`; Deno: `functions`), интеграционные против dev-БД Supabase (`TEST_DATABASE_URL` в `source/.env.local` из `tools/scripts/env.example.txt`; идемпотентные миграции, truncate + сид между тестами, SQL-репозитории, RLS-заслон, append-only), джоба `integration` в CI (без секрета — пропуск с предупреждением). Среда разработки — облачный dev-проект Supabase (вымышленные данные, HLD §20). Далее — срезы VS-2…VS-9 (см. `docs/hld.md`, раздел 27). Команды — в разделе «Команды».
+Инфраструктура тестирования подключена: модульные (Vitest: `core` + `admin`; Deno: `functions`), интеграционные против dev-БД Supabase (`TEST_DATABASE_URL` в `source/.env.local` из `tools/scripts/env.example.txt`; идемпотентные миграции, truncate + сид между тестами, SQL-репозитории, RLS-заслон, append-only), джоба `integration` в CI временно закомментирована на время разработки. Среда разработки — облачный dev-проект Supabase (вымышленные данные, HLD §20). Далее — срезы VS-2…VS-9 (см. `docs/hld.md`, раздел 27). Команды — в разделе «Команды».
 
 Кабинет развёрнут на Cloudflare Pages (2026-10-16, [ADR-002](docs/decisions/002-admin-cloudflare-pages.md)): Pages-проект `osi-admin`, адрес `https://osi-admin.pages.dev`; развёрнута сборка ветви `feature/vs-1-access-audit`, в статике только публичные переменные (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`). Автодеплой из CI заработает после добавления секретов репозитория: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT`. Вход через Telegram OIDC ещё не настроен (провайдер Supabase + BotFather): пошаговая инструкция — [docs/setup-telegram-oidc.md](docs/setup-telegram-oidc.md); до настройки вход завершается ошибкой на стороне Supabase Auth.
 
@@ -45,7 +45,7 @@ VS-4 реализован в `feature/vs-4-tasks-common-work` (PR #13; план 
 
 - `docs/` — документация: требования, модель процессов, матрица прав, HLD
 - `docs/decisions/` — ADR: контекст → решение → альтернативы → проверки при реализации → источники
-- `tasks/` — планы и приёмка срезов (текущий — VS-4)
+- `tasks/` — планы и приёмка срезов (текущий — VS-5)
 - `source/` — код, монорепозиторий npm workspaces:
   - `source/core/` — общие модули бота и кабинета: `config/env`, `errors/api` (коды LLD-03 §1.1), `pdp` (Actor, `can()`, реестр действий), `auth` (проверка JWT Supabase: подпись ES256 по SUPABASE_JWKS, политика сеансов AUTH-06), `db` (клиент postgres.js, prepare: false), `bot/registry` (сценарии бота/симулятора), `domains/admin|audit|emulation|registry|registrations|requests|tasks` (порты, SQL-репозитории, сервисы с аудитом; in-memory фейки в `testing/`)
   - `source/admin/` — SPA кабинета (Vite + React + Refine v4 + AntD 5): Telegram-вход, журнал (AUD-02), эмуляция с баннером режима, см. `source/admin/README.md`
@@ -76,6 +76,8 @@ VS-4 реализован в `feature/vs-4-tasks-common-work` (PR #13; план 
 
 ## Команды
 
+**Временное правило разработки (решение пользователя 17.10.2026): интеграционные тесты, включая будущие, сохраняются в Git, но не запускаются автоматически и не запускаются агентом без отдельного явного запроса пользователя.** Обычный `npm run test:integration` завершает работу без подключения к БД. Ручное включение: `RUN_INTEGRATION_TESTS=1 npm run test:integration`; интеграционная джоба GitHub CI закомментирована до отдельного согласования. Не считать пропущенные проверки пройденными. Вернуть автоматический запуск только по согласованию. Ограничения Sydney, session pooler и advisory lock сохраняются. Модульные/Deno-тесты, lint, typecheck, build и secret-scan продолжают выполняться.
+
 Все команды для кода выполняются из `source/` (там `package.json` workspaces). Node ≥ 22 (см. `source/.nvmrc`), Deno 2 (для функций).
 
 | Действие | Команда |
@@ -84,7 +86,7 @@ VS-4 реализован в `feature/vs-4-tasks-common-work` (PR #13; план 
 | Линт всего кода (TS/TSX, кроме functions) | `npm run lint` |
 | Тайпчек по workspaces | `npm run typecheck` |
 | Модульные тесты (Vitest: `core`, `admin`) | `npm test` |
-| Интеграционные тесты (ядро против dev-БД) | `npm run test:integration` (нужен `TEST_DATABASE_URL` в `source/.env.local`; без него — пропуск) |
+| Интеграционные тесты (ядро против dev-БД) | `RUN_INTEGRATION_TESTS=1 npm run test:integration` (только по явному запросу; нужен `TEST_DATABASE_URL` в `source/.env.local`; без него — пропуск) |
 | Сборка кабинета | `npm run build -w admin` (артефакт `admin/dist`) |
 | Проверка функций Deno | `deno task check`, `deno task lint`, `deno task test` (в `source/`) |
 | Сквозная проверка API VS-3 (очищает только dev-БД) | `deno run --allow-env --allow-read --allow-net --config deno.json tools/scripts/check-vs3-api.ts` |
@@ -97,7 +99,7 @@ VS-4 реализован в `feature/vs-4-tasks-common-work` (PR #13; план 
 | Деплой кабинета | `npx wrangler@^4 pages deploy admin/dist --project-name "$CF_PAGES_PROJECT"` (нужен `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) |
 | Настройка секретов функций | `npx supabase@^2 secrets set TELEGRAM_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... X_JOBS_SECRET=... CABINET_ORIGIN=...` (R3). Примечание: префикс `SUPABASE_` в секретах запрещён платформой; `SUPABASE_JWKS` и `SUPABASE_DB_URL` инжектируются в функции автоматически (проверка JWT — ES256 по JWKS; см. ADR-001) |
 
-CI (`.github/workflows/ci.yml`) на каждый PR и push в `main`: node-джоба (ci → lint → typecheck → test → build → secret-scan) и deno-джоба (check → lint → test). Интеграционная джоба `integration` временно закомментирована в CI (2026-10-17): долгий прогон и дедлоки при параллельных запусках; запуск вручную — `npm run test:integration` из `source/` при настроенном `TEST_DATABASE_URL`. Деплой — отдельная джоба при push в `main`, шаги выполняются только при наличии соответствующих секретов репозитория: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, `SUPABASE_DB_PASSWORD`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT`; без них — джоба зелёная с предупреждением. До настройки секретов (R3) деплой фактически не выполняется.
+CI (`.github/workflows/ci.yml`) на каждый PR и push в `main`: node-джоба (ci → lint → typecheck → test → build → secret-scan) и deno-джоба (check → lint → test). Интеграционная джоба `integration` временно закомментирована в CI (2026-10-17): долгий прогон и дедлоки при параллельных запусках; запуск только по явному запросу — `RUN_INTEGRATION_TESTS=1 npm run test:integration` из `source/` при настроенном `TEST_DATABASE_URL`. Деплой — отдельная джоба при push в `main`, шаги выполняются только при наличии соответствующих секретов репозитория: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, `SUPABASE_DB_PASSWORD`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT`; без них — джоба зелёная с предупреждением. До настройки секретов (R3) деплой фактически не выполняется.
 
 ## Границы и безопасность (не нарушать)
 
@@ -139,3 +141,21 @@ CI (`.github/workflows/ci.yml`) на каждый PR и push в `main`: node-д�
 - `fuwsmewtmxmzttwkbdex` (Munar Tau Dev, Sydney) — отдельная БД интеграционных тестов. Только она используется в `TEST_DATABASE_URL` локально и в GitHub CI. Её данные очищаются тестами; расписание доставки выключено, webhook бота на неё не направлен.
 - `SUPABASE_PROJECT_ID` и `SUPABASE_DB_PASSWORD` локально относятся к новому стенду. Никогда не подставлять его URI в `TEST_DATABASE_URL`.
 - OIDC callback нового стенда: `https://ohpjqsudibkcymjjuedy.supabase.co/auth/v1/callback`. После переноса требуется повторный вход; Auth users/identities и привязка tech_admin сохранены, активные Auth-сеансы не переносятся.
+
+## VS-5 — работа в отдельной ветке
+
+VS-5 разрабатывается в `feature/vs-5-regulations-notifications` поверх завершённого VS-4; план — `tasks/plan-vs-5.md`, фактическая приёмка — `docs/vs5-acceptance.md`.
+
+- `work_schedule` меняется отдельно от длительностей; создаются новые версии операционных рабочих правил. Начатые таймеры остаются на прежних версиях; `time_rule_version` append-only.
+- Правовые границы и правовое основание не редактируются обычным API настройки; новая версия сохраняет снимок `legal_basis`.
+- `notifyPerson` пишет `notification.requested` в outbox в той же бизнес-транзакции. `dispatchNotices` материализует уведомления, `sendNotifications` повторно проверяет доступ; синхронные ответы webhook через `notifyTelegram` сохраняют существующую очередь. Вызов enqueueNotice не означает доставку.
+- Обязательность NTF-03 определяется видом события, не клиентским флагом. На окончательную ошибку важной доставки создаётся одна `notification_followup`; фиксация результата звонка не меняет согласия/состояния обращения.
+- Дайджест сохраняет локальный день и отсечку состава, выполняется порциями. Проверка аудитории повторяется перед доставкой; пустое сообщение не создаётся. Тестовые сообщения остаются в simulator.
+
+## VS-5: регламенты, уведомления и расписания
+
+VS-5 реализуется в `feature/vs-5-regulations-notifications` (PR #14) поверх завершённого VS-4. Общий TIM сохраняет версии/график уже запущенных сроков; task_accept/task_escalation поставляются без придуманных нормативов, назначение требует явной настройки. Состояния заданий не меняются автоматически. Регулярные запуски хранят снимок методички и области, отдельную запись на каждую дату и неизгладимый пропуск даже при отмене между тиками. Отозванные полномочия автора блокируют создание; после пяти ошибок — dead, повтор требует действующих прав.
+
+NTF повторно проверяет доступ при материализации и отправке; task_id не раскрывает снятое назначение. Прежний исполнитель получает только личный факт снятия без ссылки на карточку. Ошибка назначения создаёт одну задачу контакта и уведомляет резерв (заместитель/председатель), без автоматической смены исполнителя. История расписания проверяет фактическую область каждого задания. Подробные проверки и зависимости последующих срезов — docs/vs5-acceptance.md. Демонстрационный Frankfurt этим PR не обновляется.
+
+TIM-02: `timing/contracts.ts` — неизменяемый каталог v1 согласованных событий/погашения/действий. Новая версия регламента сохраняет `params.contract`; обычный POST принимает только длительность/график и не разрешает менять обработчик. Старые версии разрешаются в исходный контракт v1 без переписывания истории. Новая семантика требует нового каталога с совместимым исполнением старой версии.

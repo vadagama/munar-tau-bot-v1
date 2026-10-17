@@ -40,6 +40,7 @@ interface Task extends Row {
   can_approve?: boolean;
   can_execute?: boolean;
   log?: Row[];
+  delivery_failures?: {id:string;last_error:string;followup_state:string}[];
 }
 const message = (e: unknown) =>
   e instanceof Error ? e.message : "Ошибка запроса";
@@ -418,6 +419,9 @@ export function TasksPage() {
               children: new Date(card.due_at).toLocaleString("ru-RU"),
             }]}
           />
+          {!!card.overdue_at && <Alert type="warning" showIcon message={`Срок нарушен с ${new Date(String(card.overdue_at)).toLocaleString("ru-RU")}`} />}
+          {!!card.acceptance_due_at && card.state === "awaiting_acceptance" && <p>Ожидаем принятия до {new Date(String(card.acceptance_due_at)).toLocaleString("ru-RU")}</p>}
+          {card.delivery_failures?.map(f => <Alert key={f.id} type="error" showIcon message={f.last_error === "BLOCKED_BY_USER" ? "Бот заблокирован получателем" : f.last_error === "DISPATCH_FAILED" ? "Не удалось подготовить уведомление" : "Доставка не удалась"} description={`Связь: ${f.followup_state === "done" ? "результат записан" : "требуется связаться"}. Подробности — в разделе «Уведомления».`} />)}
           <TaskProblems task={card} onSaved={() => open(card.id)} />
           <Space wrap>
             {card.can_execute && card.state === "in_progress" && (

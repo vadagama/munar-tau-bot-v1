@@ -1,3 +1,4 @@
+import { NOTIFICATION_ROUTES } from "./notification-handlers.ts";
 import { REQUEST_ROUTES } from "./request-handlers.ts";
 import { TASK_ROUTES } from "./task-handlers.ts";
 import { REGISTRY_ROUTES } from "./registry-handlers.ts";
@@ -498,6 +499,7 @@ async function handleEmulationSimulate(ctx: RouteContext): Promise<RouteResult> 
 // ── Таблица маршрутов VS-1 ─────────────────────────────────────────────────
 
 export const ROUTES: readonly Route[] = [
+  ...NOTIFICATION_ROUTES,
   ...REGISTRY_ROUTES,
   ...REQUEST_ROUTES,
   ...TASK_ROUTES,

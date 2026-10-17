@@ -617,6 +617,17 @@ export function RequestsPage() {
                 </Button>
               ))}
             </Space>
+            {card.can_manage === true && ((card.delivery_failures as Row[] | undefined)?.length ?? 0) > 0 && (
+              <Alert type="warning" message="Есть ошибки доставки уведомлений" description={
+                <Space direction="vertical">
+                  {(card.delivery_failures as Row[]).map(f=><span key={String(f.id)}>
+                    {f.last_error === "BLOCKED_BY_USER" ? "Бот заблокирован получателем" : f.last_error === "DISPATCH_FAILED" ? "Не удалось подготовить уведомление" : "Доставка не удалась"}
+                    {f.followup_state === "open" ? ". Требуется связаться с получателем" : f.followup_state === "done" ? ". Результат связи записан" : ""}
+                  </span>)}
+                  <Button href="/notifications">Открыть журнал доставки</Button>
+                </Space>
+              } />
+            )}
             {!!card.confirmation && (
               <Alert
                 type="info"

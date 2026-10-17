@@ -174,6 +174,7 @@ export async function submitRegistration(
           String(owner.person_id),
           `Новая анкета арендатора / Жалға алушының өтінімі: ${row!.id}`,
           `${row!.id}:owner:${owner.person_id}`,
+          { registrationAccess: { premisesId: String(premises.id), role: "owner" }, buildingIds: [String(premises.building_id)] },
         );
     if (stage !== "owner")
       for (const reviewer of await reviewers(
@@ -187,6 +188,7 @@ export async function submitRegistration(
           reviewer,
           `Новая анкета / Жаңа өтінім: ${row!.id}`,
           `${row!.id}:review:${reviewer}`,
+          { registrationAccess: { premisesId: String(premises.id), role: stage }, buildingIds: [String(premises.building_id)] },
         );
     if (actor)
       await recordAudit(
@@ -667,12 +669,14 @@ export async function acceptInvite(
         reviewer,
         `Приглашение принято / Шақыру қабылданды: ${registration!.id}`,
         `${invite.id}:admin:${reviewer}`,
+        { registrationAccess: { premisesId: String(premises.id), role: "administrator" }, buildingIds: [String(premises.building_id)] },
       );
     await notifyPerson(
       exec,
       String(invite.created_by),
       "Приглашение принято / Шақыру қабылданды",
       `${invite.id}:accepted`,
+      { registrationAccess: { premisesId: String(premises.id), role: "owner" }, buildingIds: [String(premises.building_id)] },
     );
     await recordAudit(
       deps,

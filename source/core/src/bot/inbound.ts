@@ -1,3 +1,4 @@
+import { notificationStep } from "./notifications.ts";
 import { TASK_COMMANDS, taskStep } from "./tasks.ts";
 import { queueRequestFile } from "./request-files.ts";
 import { REQUEST_COMMANDS, requestStep } from "./requests.ts";
@@ -49,7 +50,7 @@ export async function processInbound(
         const command = typeof message.text === "string"
           ? message.text.split(/\s+/)[0]
           : "";
-        reply = typeof message.text !== "string"
+        reply = command === "/notifications" ? await notificationStep({...deps,db},String(from.id),String(message.text)) : typeof message.text !== "string"
           ? await queueRequestFile(
             { ...deps, db },
             String(from.id),

@@ -1,3 +1,4 @@
+import { scheduleView, saveSchedule, retryScheduledJob } from "../../core/src/domains/tasks/schedule.ts";
 import {
   linkProblem,
   reportProblem,
@@ -50,6 +51,9 @@ function route(
   };
 }
 export const TASK_ROUTES: Route[] = [
+  route("GET","/v1/job-templates/:id/schedule",async ctx=>({body:await scheduleView(deps(ctx),ctx.actor,ctx.params.id!)})),
+  route("POST","/v1/job-templates/:id/schedule",async ctx=>({body:await saveSchedule(deps(ctx),ctx.actor,ctx.params.id!,ctx.body)})),
+  route("POST","/v1/job-runs/:id/retry",async ctx=>({body:await retryScheduledJob(deps(ctx),ctx.actor,ctx.params.id!)})),
   route(
     "POST",
     "/v1/tasks/:id/problems",

@@ -670,3 +670,37 @@ Deno.test("VS-3: общий rate limit возвращает 429 до выпол�
  const response=await call(deps,"/v1/requests",{token:jwt});
  assertEquals(response.status,429);assertEquals((await response.json()).error.code,"RATE_LIMITED");
 });
+
+Deno.test("VS-5: расписание требует полномочий, даты с часовым поясом и существующей области",async()=>{
+ const {deps,admin}=makeDeps();
+ const actor=makeTestActor("administrator",[B1],{personId:"p-schedule"});
+ seedIdentity(admin,{sub:"sub-schedule",sessionId:"s-schedule",personId:actor.person.id,profileId:actor.profile.id,actor});
+ const jwt=await token({sub:"sub-schedule",sessionId:"s-schedule"});
+ const path="/v1/job-templates/11111111-1111-1111-1111-111111111111/schedule";
+ const unauthenticated=await call(deps,path,{});
+ assertEquals(unauthenticated.status,401);
+ const invalid=await call(deps,path,{token:jwt,method:"POST",body:{enabled:true,next_run_at:"2026-10-18T08:00:00",interval_hours:24,due_hours:8}});
+ assertEquals(invalid.status,400);
+ assertEquals((await invalid.json()).error.code,"VALIDATION_FAILED");
+ const originalQuery=deps.db.query.bind(deps.db);
+ deps.db.query=(sql,params)=>sql.includes("from job_template") ? Promise.resolve([]) : originalQuery(sql,params);
+ const missing=await call(deps,path,{token:jwt});
+ assertEquals(missing.status,403);
+});
+
+Deno.test("VS-5 TIM-02: API раскрывает исходные условия и запрещает подмену действия",async()=>{
+ const {deps,admin}=makeDeps();
+ const actor=makeTestActor("chairman",[],{personId:"p-rules"});
+ seedIdentity(admin,{sub:"sub-rules",sessionId:"s-rules",personId:actor.person.id,profileId:actor.profile.id,actor});
+ const jwt=await token({sub:"sub-rules",sessionId:"s-rules"});
+ const originalQuery=deps.db.query.bind(deps.db);
+ deps.db.query=<T>(sql:string,params?:readonly unknown[])=>sql.includes("from time_rule r left join time_rule_version") ? Promise.resolve([{key:"author_reminder",params:{hours:48,clock:"calendar"}}] as T[]) : originalQuery<T>(sql,params);
+ const view=await call(deps,"/v1/registry/time-rules",{token:jwt});
+ assertEquals(view.status,200);
+ const row=(await view.json()).items[0];
+ assertEquals(row.contract.action,"request.remind_author");
+ assertEquals(row.contract_legacy,true);
+ const invalid=await call(deps,"/v1/registry/time-rules/author_reminder",{token:jwt,method:"POST",body:{params:{hours:48,clock:"calendar",action:"request.close"},reason:"Подмена"}});
+ assertEquals(invalid.status,400);
+ assertEquals((await invalid.json()).error.code,"VALIDATION_FAILED");
+});

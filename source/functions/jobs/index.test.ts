@@ -4,7 +4,7 @@
 
 import { assertEquals } from "@std/assert";
 
-import { JOBS_SECRET_ENV, handle } from "./index.ts";
+import { handle, JOBS_SECRET_ENV } from "./index.ts";
 
 const envWithSecret = (name: string) =>
   name === JOBS_SECRET_ENV ? "stub-secret" : undefined;
@@ -42,8 +42,26 @@ Deno.test("верный заголовок — 200, пустая очередь"
   const response = await handle(
     post({ "x-jobs-secret": "stub-secret" }),
     envWithSecret,
-    { db: {query:()=>Promise.resolve([]),transaction:fn=>fn({query:()=>Promise.resolve([])}),close:()=>Promise.resolve()}, audit:{append:()=>Promise.reject(new Error("unused")),list:()=>Promise.reject(new Error("unused"))} },
-    ()=>Promise.resolve(),
+    {
+      db: {
+        query: () => Promise.resolve([]),
+        transaction: (fn) =>
+          fn({
+            query: <T>(sql: string) =>
+              Promise.resolve(
+                (sql.includes("pg_try_advisory_xact_lock")
+                  ? [{ acquired: true }]
+                  : []) as T[],
+              ),
+          }),
+        close: () => Promise.resolve(),
+      },
+      audit: {
+        append: () => Promise.reject(new Error("unused")),
+        list: () => Promise.reject(new Error("unused")),
+      },
+    },
+    () => Promise.resolve(),
   );
   assertEquals(response.status, 200);
   const body = await response.json();
@@ -67,4 +85,34 @@ Deno.test("GET без /health — 404 NOT_FOUND", async () => {
   );
   assertEquals(response.status, 404);
   assertEquals((await response.json()).error.code, "NOT_FOUND");
+});
+
+Deno.test("занятый advisory lock завершает jobs без обработки очередей", async () => {
+  let queries = 0;
+  const response = await handle(
+    post({ "x-jobs-secret": "stub-secret" }),
+    envWithSecret,
+    {
+      db: {
+        query: () => {
+          throw new Error("Второй jobs не должен читать очередь");
+        },
+        transaction: (fn) =>
+          fn({
+            query: <T>() => {
+              queries++;
+              return Promise.resolve([{ acquired: false }] as T[]);
+            },
+          }),
+        close: () => Promise.resolve(),
+      },
+      audit: {
+        append: () => Promise.reject(new Error("unused")),
+        list: () => Promise.reject(new Error("unused")),
+      },
+    },
+  );
+  assertEquals(response.status, 200);
+  assertEquals((await response.json()).busy, true);
+  assertEquals(queries, 1);
 });

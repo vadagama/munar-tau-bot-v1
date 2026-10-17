@@ -22,7 +22,7 @@ describe("Доставка длинных инструкций", () => {
   });
   it("сохраняет короткие сообщения без изменений", () =>
     expect(notificationParts("Готово")).toEqual(["Готово"]));
-  it("даёт устойчивый отдельный ключ каждой части обоим каналам", async () => {
+  it("сохраняет полный текст в outbox и устойчивые ключи непосредственного ответа", async () => {
     const rows: readonly unknown[][] = [];
     const collected = rows as unknown[][];
     const exec: DbExecutor = {
@@ -34,7 +34,9 @@ describe("Доставка длинных инструкций", () => {
         return [];
       },
     };
-    for (const enqueue of [notifyPerson, notifyTelegram]) {
+    await notifyPerson(exec, "123", "А".repeat(10000), "event");
+    expect(JSON.parse(String(collected[0]![0]))).toMatchObject({text:"А".repeat(10000), key:"event"});
+    for (const enqueue of [notifyTelegram]) {
       collected.length = 0;
       await enqueue(exec, "123", "А".repeat(10000), "event");
       expect(collected.map((r) => r[2])).toEqual([

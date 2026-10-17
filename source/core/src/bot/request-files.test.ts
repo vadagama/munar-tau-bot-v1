@@ -37,8 +37,8 @@ function fixture(attempts = 0, loseLease = false) {
       else if (sql.includes("last_error='FILE_TRANSFER_FAILED'")) {
         state = job.attempts >= 3 ? "failed" : "queued";
         rows = [{ attachment_id: "file" }];
-      } else if (sql.startsWith("insert into notification")) {
-        notifications.push(String(params[1]));
+      } else if (sql.startsWith("insert into outbox")) {
+        notifications.push(JSON.parse(String(params[0])).text);
       }
       return rows as T[];
     },

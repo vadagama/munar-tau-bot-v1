@@ -108,6 +108,7 @@ export async function proposeVisit(
           String(request.author_person_id),
           `Предложен визит: ${start} — ${end}. Подтвердите интервал в карточке обращения.`,
           `visit:${visit!.id}:proposed`,
+          {requestId:String(task.request_id),audience:"resident",type:"request.required",important:true,isTest:task.is_test},
         );
         return visit!;
       },
@@ -211,6 +212,7 @@ export async function updateVisit(
             String(r!.author_person_id),
             "Исполнитель сообщил об отсутствии доступа. Согласуйте новый визит.",
             `visit:${id}:${Number(visit!.version) + 1}:no_access`,
+            {requestId:String(task!.request_id),audience:"resident",type:"request.required",important:true,isTest:task!.is_test},
           );
         }
       } else if (action === "review_no_show") {

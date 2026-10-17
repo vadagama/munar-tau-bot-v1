@@ -1,3 +1,5 @@
+import type { LocalizedNotice } from "../../locales/notifications.ts";
+import { startConfirmationTimers } from "./timers.ts";
 import { cancelParentTasks } from "../tasks/cancellation.ts";
 import { lockRequestWorks, taskResultSnapshot } from "../tasks/results.ts";
 import { requestStateText } from "../../locales/requests.ts";
@@ -152,9 +154,10 @@ async function event(
 export async function inform(
   exec: DbExecutor,
   row: RequestRow,
-  text: string,
+  text: string | LocalizedNotice,
   key: string,
   includeParticipants = false,
+  required = true,
 ): Promise<void> {
   const people = new Set([row.author_person_id]);
   if (includeParticipants) {
@@ -164,12 +167,12 @@ export async function inform(
     );
     rows.forEach((r) => people.add(r.person_id));
   }
-  for (const id of people) await notifyPerson(exec, id, text, `${key}:${id}`);
+  for (const id of people) await notifyPerson(exec, id, text, `${key}:${id}`, {type:required ? "request.required" : "request.status",requestId:row.id,audience:"resident",important:required,isTest:row.is_test});
 }
 export async function informManagers(
   exec: DbExecutor,
   row: RequestRow,
-  text: string,
+  text: string | LocalizedNotice,
   key: string,
 ): Promise<void> {
   const people = await exec.query<{ person_id: string }>(
@@ -185,7 +188,7 @@ export async function informManagers(
     ],
   );
   for (const p of people) {
-    await notifyPerson(exec, p.person_id, text, `${key}:${p.person_id}`);
+    await notifyPerson(exec, p.person_id, text, `${key}:${p.person_id}`, {type:"request.staff",requestId:row.id,audience:"staff",isTest:row.is_test});
   }
 }
 async function register(
@@ -203,8 +206,8 @@ async function register(
     String(seq!.seq).padStart(5, "0")
   }`;
   const [next] = await exec.query<RequestRow>(
-    "update request set state='new',number=$2,first_response_due_at=$3,open_at=now(),version=version+1,updated_at=now() where id=$1 returning *",
-    [row.id, number, due.due.toISOString()],
+    "update request set state='new',number=$2,first_response_due_at=$3,first_response_start_at=$4,open_at=now(),version=version+1,updated_at=now() where id=$1 returning *",
+    [row.id, number, due.due.toISOString(), due.starts.toISOString()],
   );
   await exec.query(
     "insert into timer(rule_version_id,entity_id,stage,due_at) values ($1,$2,'request_first_response',$3) on conflict(entity_id,stage) do nothing",
@@ -374,6 +377,8 @@ export async function createRequest(
           new Date(String(next.first_response_due_at)).toISOString()
         }. / Өтініш тіркелді.`,
         `${id}:created`,
+        false,
+        false,
       );
       await informManagers(
         exec,
@@ -503,6 +508,9 @@ export async function getRequest(
     );
     return {
       ...await publicRequest(exec, actor, row),
+      ...(manager ? { delivery_failures: await exec.query(
+        "select n.id,n.last_error,f.state as followup_state from notification n left join notification_followup f on f.notification_id=n.id where n.request_id=$1 and n.state='failed' and n.is_test=$2 order by n.created_at desc limit 50", [id,actor.person.isTest],
+      ) } : {}),
       messages,
       attachments,
       participants,
@@ -719,6 +727,8 @@ export async function transitionRequest(
             new Date(String(next.first_response_due_at)).toISOString()
           }.`,
           `${id}:created`,
+          false,
+          false,
         );
         await informManagers(
           exec,
@@ -787,6 +797,7 @@ export async function transitionRequest(
           ],
         );
       }
+      if (action === "submit_result") await startConfirmationTimers(exec,id,confirmation);
       if (action === "confirm_result") {
         if (p.confirmation_version !== row.confirmation_version) {
           throw new ApiError(
@@ -962,11 +973,13 @@ export async function transitionRequest(
             "update request set first_response_at=coalesce(first_response_at,now()) where id=$1",
             [id],
           );
+          await exec.query("update timer set state='canceled',canceled_at=now() where entity_id=$1 and stage='request_first_response' and state='pending'",[id]);
         }
       }
+      if (state !== "awaiting_confirmation") await exec.query("update timer set state='canceled',canceled_at=now() where entity_id=$1 and state='pending' and (stage like 'request_author_reminder:%' or stage like 'request_admin_check:%')",[id]);
       if (CLOSED_STATES.includes(state)) {
         await exec.query(
-          "update timer set state='fired',fired_at=now() where entity_id=$1 and state='pending' and stage like 'request_%'",
+          "update timer set state='canceled',canceled_at=now() where entity_id=$1 and state='pending' and stage like 'request_%'",
           [id],
         );
       }
@@ -982,6 +995,7 @@ export async function transitionRequest(
         }. Подробности в карточке обращения.`,
         `${id}:state:${next!.version}`,
         true,
+        ["ask_clarification","submit_result","reject","cancel_request","approve_cancel","reject_cancel"].includes(action),
       );
       await informManagers(
         exec,

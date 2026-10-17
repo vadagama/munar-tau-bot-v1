@@ -46,7 +46,7 @@ jobs:
   # ── ВРЕМЕННО ОТКЛЮЧЕНО (2026-10-17) ─────────────────────────────────────
   # Джоба снята с прогона на время разработки: долгий прогон и дедлоки
   # при параллельных запусках против dev-БД (40P01). Ручной запуск —
-  # `npm run test:integration` из source/ при настроенном TEST_DATABASE_URL
+  # `RUN_INTEGRATION_TESTS=1 npm run test:integration` из source/ при настроенном TEST_DATABASE_URL
   # (см. AGENTS.md, раздел «Команды»). Вернуть — раскомментировать блок ниже.
   #
   # Интеграционные тесты против dev-БД Supabase (TEST_DATABASE_URL из секретов;
@@ -62,6 +62,7 @@ jobs:
   #     run:
   #       working-directory: source
   #   env:
+  #     RUN_INTEGRATION_TESTS: "1"
   #     TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
   #   steps:
   #     - uses: actions/checkout@v4

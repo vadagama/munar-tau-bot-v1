@@ -1,3 +1,4 @@
+import {ruleContract} from "../../core/src/domains/timing/contracts.ts";
 import type { Route, RouteContext } from "./handlers.ts";
 import {
   listRegistry,
@@ -28,17 +29,13 @@ import {
   createInvite,
   acceptInvite,
 } from "../../core/src/domains/registrations/service.ts";
-import { ApiError } from "../../core/src/errors/api.ts";
 import {
   databaseValidation,
   jsonValue,
   type Row,
   text,
 } from "../../core/src/domains/registry/validation.ts";
-import {
-  addRuleHours,
-  type RuleParams,
-} from "../../core/src/domains/registry/time.ts";
+import { changeRule } from "../../core/src/domains/timing/rules.ts";
 const deps = (ctx: RouteContext) => ({
   db: ctx.deps.db,
   audit: ctx.deps.audit,
@@ -358,9 +355,9 @@ routes.push({
   evaluateAs: "effective",
   handler: async (ctx) => ({
     body: {
-      items: await ctx.deps.db.query(
-        "select r.key,v.* from time_rule r join time_rule_version v on v.rule_id=r.id order by r.key,v.version desc",
-      ),
+      items: (await ctx.deps.db.query<{key:string;params:unknown}>(
+        "select r.id as rule_id,r.key,r.kind,r.legal_source,r.legal_revision,r.legal_effective_from,r.legal_scope,r.legal_limits,v.*,p.full_name as created_by_name from time_rule r left join time_rule_version v on v.rule_id=r.id left join person p on p.id=v.created_by order by r.key,v.version desc",
+      )).map(r=>({...r,contract:ruleContract(r.key,r.params),contract_legacy:!r.params || !jsonValue<{contract?:unknown}>(r.params).contract})),
     },
   }),
 });
@@ -369,43 +366,7 @@ routes.push({
   path: "/v1/registry/time-rules/:key",
   action: "registry.rules.edit",
   evaluateAs: "effective",
-  handler: (ctx) => {
-    const allowed = ctx.actor.assignments.some(
-      (a) =>
-        a.role === "chairman" ||
-        a.role === "tech_admin" ||
-        (a.role === "administrator" && a.regulationsRights),
-    );
-    if (!allowed) throw new ApiError("FORBIDDEN");
-    const params = ctx.body.params as RuleParams;
-    if (!params || !["calendar", "working"].includes(params.clock))
-      throw new ApiError("VALIDATION_FAILED");
-    addRuleHours(new Date(), params);
-    return ctx.deps.db.transaction(async (exec) => {
-      const [rule] = await exec.query<{ id: string }>(
-        "select id from time_rule where key=$1 for update",
-        [ctx.params.key],
-      );
-      if (!rule) throw new ApiError("NOT_FOUND");
-      const [version] = await exec.query(
-        "insert into time_rule_version(rule_id,version,params) select $1,coalesce(max(version),0)+1,$2::text::jsonb from time_rule_version where rule_id=$1 returning *",
-        [rule.id, JSON.stringify(params)],
-      );
-      await recordAudit(
-        deps(ctx),
-        exec,
-        ctx.actor,
-        "registry.rules.edit",
-        "time_rule",
-        rule.id,
-        [],
-        null,
-        version,
-        text(ctx.body, "reason"),
-      );
-      return { status: 201, body: version };
-    });
-  },
+  handler: async (ctx) => ({ status: 201, body: await changeRule(deps(ctx),ctx.actor,ctx.params.key!,ctx.body.params,text(ctx.body,"reason")!) }),
 });
 export const REGISTRY_ROUTES: readonly Route[] = routes.map((route) => ({
   ...route,

@@ -5,6 +5,9 @@ import { buildActorForProfile } from "../../src/domains/admin/actor-service.ts";
 import type { DbClient } from "../../src/db/client.ts";
 import { createRequest } from "../../src/domains/requests/service.ts";
 export async function setupTasks(db: DbClient) {
+  // Только фикстура Sydney: эти часы не являются нормативами ОСИ.
+  await db.query(`insert into time_rule_version(rule_id,version,params,reason) select id,1,'{"hours":4,"clock":"calendar"}'::jsonb,'VS-5 test fixture' from time_rule where key in ('task_accept','task_escalation') on conflict(rule_id,version) do nothing`);
+
   await db.query(`with a as (insert into staff_assignment(person_id,role) values ($1,'administrator') returning id)
     insert into staff_scope(assignment_id,building_id) select id,$2 from a`, [SEED.testAdminPersonId, SEED.building1]);
   await db.query(`with a as (insert into staff_assignment(person_id,role) values ($1,'executor') returning id)
