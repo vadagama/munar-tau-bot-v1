@@ -28,6 +28,8 @@ export class ApiClientError extends Error {
 }
 
 export interface ApiRequest {
+  idempotencyKey?: string;
+  file?: File;
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   query?: Record<string, string | undefined>;
@@ -76,9 +78,10 @@ export async function apiFetch<T>(path: string, request: ApiRequest = {}): Promi
     method: request.method ?? "GET",
     headers: {
       "authorization": `Bearer ${token}`,
-      ...(request.body === undefined ? {} : { "content-type": "application/json" }),
+      ...(request.file ? {"content-type":"application/octet-stream"} : request.body === undefined ? {} : { "content-type": "application/json" }),
+      ...(request.idempotencyKey ? {"idempotency-key":request.idempotencyKey} : {}),
     },
-    body: request.body === undefined ? undefined : JSON.stringify(request.body),
+    body: request.file ?? (request.body === undefined ? undefined : JSON.stringify(request.body)),
   });
 
   if (response.status === 401) {
