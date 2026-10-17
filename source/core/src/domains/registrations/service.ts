@@ -188,7 +188,7 @@ export async function submitRegistration(
           reviewer,
           `Новая анкета / Жаңа өтінім: ${row!.id}`,
           `${row!.id}:review:${reviewer}`,
-          { registrationAccess: { premisesId: String(premises.id), role: stage }, buildingIds: [String(premises.building_id)] },
+          { bot: "worker", registrationAccess: { premisesId: String(premises.id), role: stage }, buildingIds: [String(premises.building_id)] },
         );
     if (actor)
       await recordAudit(
@@ -688,7 +688,7 @@ export async function acceptInvite(
         reviewer,
         `Приглашение принято / Шақыру қабылданды: ${registration!.id}`,
         `${invite.id}:admin:${reviewer}`,
-        { registrationAccess: { premisesId: String(premises.id), role: "administrator" }, buildingIds: [String(premises.building_id)] },
+        { bot: "worker", registrationAccess: { premisesId: String(premises.id), role: "administrator" }, buildingIds: [String(premises.building_id)] },
       );
     await notifyPerson(
       exec,

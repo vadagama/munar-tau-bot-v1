@@ -12,6 +12,8 @@ export interface DigestItem {
   building_ids: string[];
   event_type: EventType;
   is_test: boolean;
+  /** Бот, которым сводка доставляется по умолчанию (ADR-009). */
+  bot?: string;
   event_ref?: import("./service.ts").NoticeOptions;
 }
 export async function digestText(
@@ -71,13 +73,17 @@ export async function sweepDigests(
       const actor = await recipientActor(exec, p.recipient_person_id),
         text = actor ? await digestText(exec, actor, items) : null;
       if (actor && text) {
+        // Сводка уходит боту сотрудников только когда все её элементы — служебные
+        // события; смешанная или жительская сводка — боту жителей (ADR-009).
+        const bot = items.every((i) => i.bot === "worker") ? "worker" : "resident";
         await exec.query(
-          `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,priority,is_test) select telegram_user_id,$2,$3,person_id,case when is_test then 'simulator' else 'telegram' end,'digest',$4::text::jsonb,2,is_test from profile where id=$1 on conflict(dedup_key) do nothing`,
+          `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,priority,is_test,bot) select telegram_user_id,$2,$3,person_id,case when is_test then 'simulator' else 'telegram' end,'digest',$4::text::jsonb,2,is_test,$5 from profile where id=$1 on conflict(dedup_key) do nothing`,
           [
             actor.profile.id,
             text,
             `digest:${p.recipient_person_id}:${day}:${claimed[0]!.pages}`,
             JSON.stringify({ items }),
+            bot,
           ],
         );
         count++;

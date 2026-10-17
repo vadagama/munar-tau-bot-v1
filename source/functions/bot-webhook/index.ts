@@ -2,12 +2,17 @@
 // VS-2: анкета и приглашения через общий сценарий бота/эмуляции.
 //
 // Защита: verify_jwt = false (обновления Telegram не несут JWT Supabase);
-// проверка заголовка X-Telegram-Bot-Api-Secret-Token (LLD-03 §6):
+// два бота различаются суффиксом пути (ADR-009): /bot-webhook/resident — жители,
+// /bot-webhook/worker — сотрудники (базовый путь без суффикса — жители, для
+// совместимости с зарегистрированным webhook). Секрет каждого бота — своя
+// переменная среды (X-Telegram-Bot-Api-Secret-Token, LLD-03 §6):
 //   не совпал — 401, тело запроса не читается;
 //   секрет не настроен — 500 INTERNAL (ошибка конфигурации среды).
 // Повторная доставка update_id игнорируется в общей транзакции bot_inbound
+// (ключ bot+update_id — нумерации у ботов независимы)
 // и бизнес-сценария; ответ ставится в устойчивую очередь уведомлений.
 
+import { botFromPath, botWebhookSecretEnv } from "../../core/src/bot/bots.ts";
 import { processInbound } from "../../core/src/bot/inbound.ts";
 import { createDbClient } from "../../core/src/db/client.ts";
 import { SqlAuditRepo } from "../../core/src/domains/audit/repo.ts";
@@ -46,7 +51,11 @@ export async function handle(
       throw new ApiError("NOT_FOUND");
     }
 
-    const expected = env(WEBHOOK_SECRET_ENV);
+    // Бот определяется путём до чтения тела: неизвестный маршрут — 404.
+    const bot = botFromPath(url.pathname);
+    if (!bot) throw new ApiError("NOT_FOUND");
+
+    const expected = env(botWebhookSecretEnv(bot));
     if (expected === undefined) {
       // Секрет не задан: среда не настроена — обрабатывать обновления нельзя.
       throw new ApiError("INTERNAL", "Webhook secret не настроен в среде");
@@ -77,7 +86,7 @@ export async function handle(
       audit: new SqlAuditRepo(),
     };
     try {
-      const handled = await processInbound(actual, update);
+      const handled = await processInbound(actual, update, bot);
       return new Response(JSON.stringify({ ok: true, handled }), {
         status: 200,
         headers: JSON_HEADERS,

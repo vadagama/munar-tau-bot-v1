@@ -1,15 +1,19 @@
-// Настройка меню команд и описания бота в Telegram (срез UX A, бот ОСИ ЖК «Мунар Тау»).
-// Из source/: deno run --allow-env --allow-net tools/scripts/set-bot-commands.ts
-// Требует переменную окружения TELEGRAM_BOT_TOKEN (не коммитится, не печатается).
+// Настройка меню команд и описаний двух ботов ОСИ ЖК «Мунар Тау» (ADR-009):
+// бот жителей (resident) и бот сотрудников (worker).
+// Из source/: deno run --env-file=.env.local --allow-env --allow-net tools/scripts/set-bot-commands.ts
+// Требует TELEGRAM_BOT_TOKEN и/или TELEGRAM_WORKER_BOT_TOKEN (не коммитятся, не печатаются);
+// отсутствующий токен — пропуск с предупреждением, настройка одного бота не мешает другому.
 // Повторный запуск безопасен: методы просто перезаписывают меню и описание.
+
+import { botTokenEnv, type BotKind } from "../../core/src/bot/bots.ts";
 
 interface BotCommand {
   command: string;
   description: string;
 }
 
-// Команды соответствуют сценариям бота: registration, requests, tasks, notifications.
-const COMMANDS_RU: BotCommand[] = [
+// Команды бота жителей: сценарии registration и requests (анкета, обращения).
+const RESIDENT_COMMANDS_RU: BotCommand[] = [
   { command: "start", description: "Запуск и главное меню" },
   { command: "help", description: "Справка по всем командам" },
   { command: "register", description: "Регистрация в ОСИ (анкета)" },
@@ -18,12 +22,9 @@ const COMMANDS_RU: BotCommand[] = [
   { command: "newrequest", description: "Новое обращение" },
   { command: "requests", description: "Мои обращения" },
   { command: "request", description: "Открыть обращение по номеру" },
-  { command: "tasks", description: "Мои задания" },
-  { command: "task", description: "Открыть задание по номеру" },
-  { command: "notifications", description: "Настройки уведомлений" },
 ];
 
-const COMMANDS_KK: BotCommand[] = [
+const RESIDENT_COMMANDS_KK: BotCommand[] = [
   { command: "start", description: "Іске қосу және басты мәзір" },
   { command: "help", description: "Барлық командалар туралы анықтама" },
   { command: "register", description: "ОСИ-де тіркеу (өтінім)" },
@@ -32,38 +33,98 @@ const COMMANDS_KK: BotCommand[] = [
   { command: "newrequest", description: "Жаңа өтініш" },
   { command: "requests", description: "Менің өтініштерім" },
   { command: "request", description: "Өтінішті нөмір бойынша ашу" },
-  { command: "tasks", description: "Менің тапсырмаларым" },
-  { command: "task", description: "Тапсырманы нөмір бойынша ашу" },
-  { command: "notifications", description: "Хабарландырулар баптаулары" },
 ];
 
-const DESCRIPTION_RU =
-  "Бот ОСИ ЖК «Мунар Тау»: обращения жителей, задания исполнителям, уведомления. Начните с /register или /help.";
-const DESCRIPTION_KK =
-  "«Мұнар Тау» ТКБ боты: тұрғындардың өтініштері, орындаушылардың тапсырмалары, хабарландырулар. /register немесе /help-тен бастаңыз.";
-const SHORT_RU = "Обращения, задания и уведомления ОСИ";
-const SHORT_KK = "ОСИ өтініштері, тапсырмалары және хабарландырулары";
+// Команды бота сотрудников: задания исполнителей (WRK); полный список — /help.
+const WORKER_COMMANDS_RU: BotCommand[] = [
+  { command: "start", description: "Запуск и главное меню" },
+  { command: "help", description: "Справка по всем командам" },
+  { command: "tasks", description: "Мои задания" },
+  { command: "task", description: "Открыть задание по номеру" },
+];
 
-// default-область (без language_code) заполняется русскими текстами:
-// Telegram показывает её пользователям с прочими языковыми настройками.
-const SCOPES: {
+const WORKER_COMMANDS_KK: BotCommand[] = [
+  { command: "start", description: "Іске қосу және басты мәзір" },
+  { command: "help", description: "Барлық командалар туралы анықтама" },
+  { command: "tasks", description: "Менің тапсырмаларым" },
+  { command: "task", description: "Тапсырманы нөмір бойынша ашу" },
+];
+
+const RESIDENT_DESCRIPTION_RU =
+  "Бот жителей ОСИ ЖК «Мунар Тау»: регистрация, обращения, уведомления. Начните с /register или /help.";
+const RESIDENT_DESCRIPTION_KK =
+  "«Мұнар Тау» ТКБ тұрғындар боты: тіркеу, өтініштер, хабарландырулар. /register немесе /help-тен бастаңыз.";
+const RESIDENT_SHORT_RU = "Обращения и уведомления жителей ОСИ";
+const RESIDENT_SHORT_KK = "Тұрғындардың өтініштері мен хабарландырулары";
+
+const WORKER_DESCRIPTION_RU =
+  "Бот сотрудников ОСИ ЖК «Мунар Тау»: задания исполнителям, служебные уведомления. Начните с /tasks или /help.";
+const WORKER_DESCRIPTION_KK =
+  "«Мұнар Тау» ТКБ қызметкерлер боты: орындаушылардың тапсырмалары, қызметтік хабарландырулар. /tasks немесе /help-тен бастаңыз.";
+const WORKER_SHORT_RU = "Задания и служебные уведомления ОСИ";
+const WORKER_SHORT_KK = "ОСИ тапсырмалары мен қызметтік хабарландырулары";
+
+interface Scope {
   language_code?: string;
   commands: BotCommand[];
   description: string;
   short: string;
-}[] = [
-  { commands: COMMANDS_RU, description: DESCRIPTION_RU, short: SHORT_RU },
+}
+
+interface BotConfig {
+  kind: BotKind;
+  label: string;
+  scopes: Scope[];
+}
+
+// default-область (без language_code) заполняется русскими текстами:
+// Telegram показывает её пользователям с прочими языковыми настройками.
+const BOTS: BotConfig[] = [
   {
-    language_code: "ru",
-    commands: COMMANDS_RU,
-    description: DESCRIPTION_RU,
-    short: SHORT_RU,
+    kind: "resident",
+    label: "бот жителей",
+    scopes: [
+      {
+        commands: RESIDENT_COMMANDS_RU,
+        description: RESIDENT_DESCRIPTION_RU,
+        short: RESIDENT_SHORT_RU,
+      },
+      {
+        language_code: "ru",
+        commands: RESIDENT_COMMANDS_RU,
+        description: RESIDENT_DESCRIPTION_RU,
+        short: RESIDENT_SHORT_RU,
+      },
+      {
+        language_code: "kk",
+        commands: RESIDENT_COMMANDS_KK,
+        description: RESIDENT_DESCRIPTION_KK,
+        short: RESIDENT_SHORT_KK,
+      },
+    ],
   },
   {
-    language_code: "kk",
-    commands: COMMANDS_KK,
-    description: DESCRIPTION_KK,
-    short: SHORT_KK,
+    kind: "worker",
+    label: "бот сотрудников",
+    scopes: [
+      {
+        commands: WORKER_COMMANDS_RU,
+        description: WORKER_DESCRIPTION_RU,
+        short: WORKER_SHORT_RU,
+      },
+      {
+        language_code: "ru",
+        commands: WORKER_COMMANDS_RU,
+        description: WORKER_DESCRIPTION_RU,
+        short: WORKER_SHORT_RU,
+      },
+      {
+        language_code: "kk",
+        commands: WORKER_COMMANDS_KK,
+        description: WORKER_DESCRIPTION_KK,
+        short: WORKER_SHORT_KK,
+      },
+    ],
   },
 ];
 
@@ -93,42 +154,54 @@ async function callBot(
   }
 }
 
-const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
-if (!token) {
-  console.error(
-    "TELEGRAM_BOT_TOKEN не задан. Пример: TELEGRAM_BOT_TOKEN=123:ABC deno run --allow-env --allow-net tools/scripts/set-bot-commands.ts",
-  );
-  Deno.exit(1);
-}
-
-try {
-  await callBot(token, "getMe", {});
-  for (const scope of SCOPES) {
-    await callBot(token, "setMyCommands", {
-      commands: scope.commands,
-      ...(scope.language_code ? { language_code: scope.language_code } : {}),
-    });
-    await callBot(token, "setMyDescription", {
-      description: scope.description,
-      ...(scope.language_code ? { language_code: scope.language_code } : {}),
-    });
-    await callBot(token, "setMyShortDescription", {
-      short_description: scope.short,
-      ...(scope.language_code ? { language_code: scope.language_code } : {}),
-    });
-    console.log(
-      scope.language_code
-        ? `[ok] область language_code=${scope.language_code}`
-        : "[ok] область по умолчанию",
+let configured = 0;
+let failures = 0;
+for (const bot of BOTS) {
+  const tokenEnv = botTokenEnv(bot.kind);
+  const token = Deno.env.get(tokenEnv);
+  if (!token) {
+    console.warn(
+      `[пропуск] ${bot.label}: ${tokenEnv} не задан — бот не настраивался.`,
     );
+    continue;
   }
-  console.log(
-    "Готово: меню команд, описание и краткое описание установлены (default, ru, kk).",
-  );
-} catch (error) {
+  try {
+    await callBot(token, "getMe", {});
+    for (const scope of bot.scopes) {
+      await callBot(token, "setMyCommands", {
+        commands: scope.commands,
+        ...(scope.language_code ? { language_code: scope.language_code } : {}),
+      });
+      await callBot(token, "setMyDescription", {
+        description: scope.description,
+        ...(scope.language_code ? { language_code: scope.language_code } : {}),
+      });
+      await callBot(token, "setMyShortDescription", {
+        short_description: scope.short,
+        ...(scope.language_code ? { language_code: scope.language_code } : {}),
+      });
+      console.log(
+        scope.language_code
+          ? `[ok] ${bot.label}, область language_code=${scope.language_code}`
+          : `[ok] ${bot.label}, область по умолчанию`,
+      );
+    }
+    configured++;
+  } catch (error) {
+    console.error(
+      `${bot.label}: ошибка обращения к Telegram API:`,
+      error instanceof Error ? error.message : error,
+    );
+    failures++;
+  }
+}
+if (configured === 0 && failures === 0) {
   console.error(
-    "Ошибка обращения к Telegram API:",
-    error instanceof Error ? error.message : error,
+    "Не задан ни один токен ботов (TELEGRAM_BOT_TOKEN, TELEGRAM_WORKER_BOT_TOKEN).",
   );
   Deno.exit(1);
 }
+if (failures > 0) Deno.exit(1);
+console.log(
+  `Готово: настроено ботов — ${configured} из ${BOTS.length} (меню, описание и краткое описание, области default/ru/kk).`,
+);

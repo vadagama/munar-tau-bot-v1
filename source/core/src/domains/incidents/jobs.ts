@@ -77,6 +77,7 @@ export async function sweepEmergencies(
           personId,
           key: `signal:${s.id}:${timer.stage}:${personId}`,
           type: "incident",
+          bot: "worker",
           important: true,
           isTest: Boolean(s.is_test),
           buildingIds: [String(s.building_id)],
@@ -130,6 +131,7 @@ export async function sweepEmergencies(
         incidentId: row.id,
         key: `incident:${row.id}:update:${row.version}`,
         type: "incident",
+        bot: "worker",
         important: true,
         isTest: row.is_test,
         text: {
@@ -172,6 +174,7 @@ export async function sweepEmergencies(
               incidentId: row.id,
               key: `incident:${row.id}:escalated:${row.version}:${c.person_id}`,
               type: "incident",
+              bot: "worker",
               isTest: row.is_test,
               text: {
                 ru:

@@ -188,7 +188,7 @@ export async function informManagers(
     ],
   );
   for (const p of people) {
-    await notifyPerson(exec, p.person_id, text, `${key}:${p.person_id}`, {type:"request.staff",requestId:row.id,audience:"staff",isTest:row.is_test});
+    await notifyPerson(exec, p.person_id, text, `${key}:${p.person_id}`, {type:"request.staff",requestId:row.id,audience:"staff",isTest:row.is_test,bot:"worker"});
   }
 }
 async function register(

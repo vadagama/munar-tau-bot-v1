@@ -7,6 +7,7 @@ import type { RequestRow } from "../requests/access.ts";
 import { type DigestItem, digestText } from "./digest.ts";
 import type { RegistryDeps } from "../registry/service.ts";
 import { jsonValue, type Row } from "../registry/validation.ts";
+import type { BotKind } from "../../bot/bots.ts";
 import {
   noticeAllowed,
   type NoticeOptions,
@@ -15,7 +16,7 @@ import {
 } from "./service.ts";
 import { type EventType, retryPolicy } from "./policy.ts";
 export interface TelegramSender {
-  (telegramId: string, text: string): Promise<void>;
+  (telegramId: string, text: string, bot: BotKind): Promise<void>;
 }
 /** At-least-once: Telegram не поддерживает ключ идемпотентности отправки. */
 export async function sendNotifications(
@@ -109,7 +110,11 @@ export async function sendNotifications(
         row.channel !== "simulator" && !row.is_test && !profile?.is_test &&
         Number(row.telegram_user_id) > 0
       ) {
-        await send(String(row.telegram_user_id), String(row.text));
+        await send(
+          String(row.telegram_user_id),
+          String(row.text),
+          (row.bot as BotKind) ?? "resident",
+        );
         // Один jobs lease на проект; не более 20 отправок/с, личные перед сводкой.
         await new Promise((resolve) => setTimeout(resolve, 50));
       }

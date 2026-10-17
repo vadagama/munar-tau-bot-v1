@@ -1,17 +1,22 @@
-// Smoke-тесты защиты bot-webhook (LLD-03 §6):
+// Smoke-тесты защиты bot-webhook (LLD-03 §6, ADR-009):
 // без секрета в среде — 500; неверный/отсутствующий заголовок — 401 (тело не читается);
-// верный заголовок — 200 accepted; GET .../health — 200.
+// верный заголовок — 200 accepted; секрет каждого бота — своя переменная среды;
+// неизвестный суффикс пути — 404; GET .../health — 200.
 
 import { assertEquals } from "@std/assert";
-
+import { WORKER_WEBHOOK_SECRET_ENV } from "../../core/src/bot/bots.ts";
 import { WEBHOOK_SECRET_ENV, handle } from "./index.ts";
 
+const RESIDENT_SECRET = "stub-secret";
+const WORKER_SECRET = "worker-stub-secret";
 const envWithSecret = (name: string) =>
-  name === WEBHOOK_SECRET_ENV ? "stub-secret" : undefined;
+  name === WEBHOOK_SECRET_ENV ? RESIDENT_SECRET
+  : name === WORKER_WEBHOOK_SECRET_ENV ? WORKER_SECRET
+  : undefined;
 const envEmpty = () => undefined;
 
-function post(headers: Record<string, string>): Request {
-  return new Request("https://example.functions/bot-webhook", {
+function post(headers: Record<string, string>, path = "/bot-webhook"): Request {
+  return new Request(`https://example.functions${path}`, {
     method: "POST",
     headers,
   });
@@ -45,6 +50,38 @@ Deno.test("верный заголовок с пустым телом — 400, u
   );
   assertEquals(response.status, 400);
   assertEquals((await response.json()).error.code, "VALIDATION_FAILED");
+});
+
+Deno.test("worker: верный секрет сотруднического бота с пустым телом — 400", async () => {
+  const response = await handle(
+    post(
+      { "X-Telegram-Bot-Api-Secret-Token": WORKER_SECRET },
+      "/bot-webhook/worker",
+    ),
+    envWithSecret,
+  );
+  assertEquals(response.status, 400);
+  assertEquals((await response.json()).error.code, "VALIDATION_FAILED");
+});
+
+Deno.test("worker: секрет бота жителей не подходит — 401", async () => {
+  const response = await handle(
+    post(
+      { "X-Telegram-Bot-Api-Secret-Token": RESIDENT_SECRET },
+      "/bot-webhook/worker",
+    ),
+    envWithSecret,
+  );
+  assertEquals(response.status, 401);
+});
+
+Deno.test("неизвестный суффикс пути — 404", async () => {
+  const response = await handle(
+    post({ "X-Telegram-Bot-Api-Secret-Token": RESIDENT_SECRET }, "/bot-webhook/other"),
+    envWithSecret,
+  );
+  assertEquals(response.status, 404);
+  assertEquals((await response.json()).error.code, "NOT_FOUND");
 });
 
 Deno.test("GET /health — 200 без секрета", async () => {

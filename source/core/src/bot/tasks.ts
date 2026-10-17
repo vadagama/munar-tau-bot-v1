@@ -1,6 +1,6 @@
 import { reportProblem } from "../domains/tasks/problems.ts";
 import { proposeVisit, updateVisit } from "../domains/tasks/visits.ts";
-import { registrationHelp, taskActions } from "./help.ts";
+import { taskActions, workerHelp } from "./help.ts";
 import { cmd, esc, fmtDate, fmtInterval, numbered } from "./text.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
@@ -28,7 +28,7 @@ export const TASK_COMMANDS = [
   "/taskfiles",
   "/submitreport",
 ];
-const HELP = registrationHelp();
+const HELP = workerHelp();
 export async function taskStep(
   deps: RegistryDeps,
   telegramId: string,

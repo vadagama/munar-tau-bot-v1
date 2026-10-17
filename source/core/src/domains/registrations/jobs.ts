@@ -63,7 +63,7 @@ export async function sweepRegistrations(
             person,
             `Спор просрочен / Дау мерзімі өтті: ${row.id}`,
             `${timer.id}:${person}`,
-            { registrationAccess: { premisesId: String(row.premises_id), role: timer.stage === "dispute:total" ? "chairman" : stage }, buildingIds: [String(row.building_id)] },
+            { bot: "worker" },
           );
       } else {
         if (stage === "owner")
@@ -124,7 +124,7 @@ export async function sweepRegistrations(
             person,
             `Требуется решение по анкете / Өтінім бойынша шешім қажет: ${row.id}`,
             `${timer.id}:${person}`,
-            { registrationAccess: { premisesId: String(row.premises_id), role: timer.stage === "dispute:total" ? "chairman" : stage }, buildingIds: [String(row.building_id)] },
+            { bot: "worker" },
           );
         await notifyTelegram(
           exec,
