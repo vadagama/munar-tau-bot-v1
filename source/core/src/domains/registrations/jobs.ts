@@ -1,3 +1,4 @@
+import {checkTimerContract,ruleContract} from "../timing/contracts.ts";
 import { jsonValue } from "../registry/validation.ts";
 import type { RegistryDeps } from "../registry/service.ts";
 import { reviewers, initialStage } from "./routing.ts";
@@ -12,13 +13,16 @@ export async function sweepRegistrations(
 ): Promise<number> {
   return deps.db.transaction(async (exec) => {
     const timers = await exec.query<Row>(
-      `select t.*,v.params from timer t join time_rule_version v on v.id=t.rule_version_id
+      `select t.*,v.params,r.key as rule_key from timer t join time_rule_version v on v.id=t.rule_version_id join time_rule r on r.id=v.rule_id
       where t.state='pending' and t.due_at<=$1 and (t.stage in ('invite','owner','administrator','deputy','chairman','dispute:total','dispute:administrator','dispute:deputy','dispute:chairman')) order by t.due_at for update of t skip locked limit 10`,
       [now.toISOString()],
     );
     let processed = 0;
     for (const timer of timers) {
       if (Date.now() >= deadline) break;
+      const expectedKey=timer.stage==="invite" ? "invite_expiry" : timer.stage==="owner" ? "tenant_wait" : timer.stage==="dispute:total" ? "dispute_total" : "registration_stage";
+      if(timer.rule_key!==expectedKey) await checkTimerContract(exec,String(timer.rule_version_id),expectedKey);
+      ruleContract(expectedKey,timer.params);
       processed++;
       await exec.query(
         "update timer set state='fired',fired_at=$2 where id=$1",
@@ -90,6 +94,7 @@ export async function sweepRegistrations(
             const [version] = await exec.query<Row>(
               "select v.* from time_rule_version v join time_rule r on r.id=v.rule_id where r.key='registration_stage' order by version desc limit 1",
             );
+            ruleContract("registration_stage",version!.params);
             rule = jsonValue<RuleParams>(version!.params);
             versionId = version!.id;
           }

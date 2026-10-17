@@ -13,6 +13,8 @@ import {
 } from "antd";
 import { apiFetch } from "../lib/api";
 interface Rule {
+  contract?: {version:number;start:string;calendar_pause:string;business_pause:string;finish:string;effect:string};
+  contract_legacy?:boolean;
   id: string;
   key: string;
   version: number;
@@ -91,7 +93,7 @@ export function TimeRulesPage() {
       const { reason, ...params } = values;
       await apiFetch(`/v1/registry/time-rules/${editing!.key}`, {
         method: "POST",
-        body: { params: { ...editing!.params, ...params }, reason },
+        body: { params, reason },
       });
       setEditing(null);
       await load();
@@ -116,8 +118,9 @@ export function TimeRulesPage() {
         loading={busy}
         scroll={{ x: 900 }}
         expandable={{expandedRowRender:r=><Space direction="vertical">
+          {r.contract && <Typography.Paragraph>Начало: {r.contract.start}<br/>Отсчёт: {r.contract.calendar_pause}<br/>{r.contract.business_pause}<br/>Погашение: {r.contract.finish}<br/>По истечении: {r.contract.effect}<br/>Условия, версия {r.contract.version}{r.contract_legacy ? " (исходные условия старой версии)" : ""}</Typography.Paragraph>}
           {r.kind==="legal" && <Alert type="warning" message={`Правовой регламент: ${r.legal_source ?? "источник не заполнен"}; редакция: ${r.legal_revision ?? "не заполнена"}`} description={`Допустимая длительность: ${r.legal_limits?.min_hours ?? "не задана"}–${r.legal_limits?.max_hours ?? "не задана"} ч`} />}
-          {history.filter(v=>v.key===r.key).map(v=><Typography.Paragraph key={v.id}>Версия {v.version} · {new Date(v.created_at).toLocaleString("ru-RU")} · автор: {v.created_by_name ?? (v.created_by ? "Сотрудник" : "Начальная настройка")}<br/>{v.reason}<br/>{ruleDetails(v)}</Typography.Paragraph>)}
+          {history.filter(v=>v.key===r.key && v.version).map(v=><Typography.Paragraph key={v.id}>Версия {v.version} · {new Date(v.created_at).toLocaleString("ru-RU")} · автор: {v.created_by_name ?? (v.created_by ? "Сотрудник" : "Начальная настройка")}<br/>{v.reason}<br/>{ruleDetails(v)}{v.contract && <><br/>Условия, версия {v.contract.version}: {v.contract.effect}{v.contract_legacy ? " (исходные)" : ""}</>}</Typography.Paragraph>)}
         </Space>}}
 
         columns={[

@@ -1,3 +1,4 @@
+import {checkTimerContract} from "../timing/contracts.ts";
 import { firstResponseOverdue, nextActionReminder } from "../../locales/notifications.ts";
 import { informManagers } from "./service.ts";
 import type { RequestRow } from "./access.ts";
@@ -11,14 +12,16 @@ export async function sweepRequests(
     const timers = await exec.query<
       {
         id: string;
+        rule_version_id: string;
         entity_id: string;
         assigned_admin_person_id: string | null;
         number: string;
       }
-    >(`select t.id,t.entity_id,r.assigned_admin_person_id,r.number from timer t join request r on r.id=t.entity_id where t.stage='request_first_response' and t.state='pending' and t.due_at<=now() order by t.due_at for update of t,r skip locked limit 100`);
+    >(`select t.id,t.rule_version_id,t.entity_id,r.assigned_admin_person_id,r.number from timer t join request r on r.id=t.entity_id where t.stage='request_first_response' and t.state='pending' and t.due_at<=now() order by t.due_at for update of t,r skip locked limit 100`);
     let count = 0;
     for (const timer of timers) {
       if (Date.now() >= deadline) break;
+      await checkTimerContract(exec,timer.rule_version_id,"first_response");
       const rows = await exec.query(
         "update request set overdue_since=coalesce(overdue_since,first_response_due_at) where id=$1 and first_response_at is null and state not in ('closed','canceled','rejected') returning id",
         [timer.entity_id],

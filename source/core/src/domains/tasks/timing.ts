@@ -1,3 +1,4 @@
+import {checkTimerContract,ruleContract} from "../timing/contracts.ts";
 import type { LocalizedNotice } from "../../locales/notifications.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import type { RegistryDeps } from "../registry/service.ts";
@@ -94,6 +95,7 @@ export async function sweepTaskTimers(
     const timers = await exec.query<
       {
         id: string;
+        rule_version_id: string;
         entity_id: string;
         stage: string;
         due_at: string;
@@ -106,6 +108,7 @@ export async function sweepTaskTimers(
     let count = 0;
     for (const timer of timers) {
       if (Date.now() >= deadline) break;
+      await checkTimerContract(exec,timer.rule_version_id,timer.stage.startsWith("task_accept:") ? "task_accept" : "task_escalation");
       const [task] = await exec.query<TaskRow>(`${TASK_SELECT} where t.id=$1`, [
         timer.entity_id,
       ]);
@@ -140,6 +143,7 @@ export async function sweepTaskTimers(
             "select params from time_rule_version where id=$1",
             [payload.escalationRuleId],
           );
+          ruleContract("task_escalation",v!.params);
           const due = addRuleHours(
             new Date(timer.due_at),
             jsonValue<RuleParams>(v!.params),

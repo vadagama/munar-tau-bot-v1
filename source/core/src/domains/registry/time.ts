@@ -1,3 +1,4 @@
+import {ruleContract} from "../timing/contracts.ts";
 import { validateRuleChange } from "../timing/rules.ts";
 import { jsonValue } from "./validation.ts";
 import type { DbExecutor } from "../../db/client.ts";
@@ -70,6 +71,7 @@ export async function ruleDeadline(
   );
   if (!version)
     throw new ApiError("VALIDATION_FAILED", `Не настроен регламент ${key}`);
+  ruleContract(key, version.params);
   return {
     id: version.id,
     due: addRuleHours(from, jsonValue<RuleParams>(version.params)),

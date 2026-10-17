@@ -1,3 +1,4 @@
+import {ruleContract} from "../../core/src/domains/timing/contracts.ts";
 import type { Route, RouteContext } from "./handlers.ts";
 import {
   listRegistry,
@@ -354,9 +355,9 @@ routes.push({
   evaluateAs: "effective",
   handler: async (ctx) => ({
     body: {
-      items: await ctx.deps.db.query(
+      items: (await ctx.deps.db.query<{key:string;params:unknown}>(
         "select r.id as rule_id,r.key,r.kind,r.legal_source,r.legal_revision,r.legal_effective_from,r.legal_scope,r.legal_limits,v.*,p.full_name as created_by_name from time_rule r left join time_rule_version v on v.rule_id=r.id left join person p on p.id=v.created_by order by r.key,v.version desc",
-      ),
+      )).map(r=>({...r,contract:ruleContract(r.key,r.params),contract_legacy:!r.params || !jsonValue<{contract?:unknown}>(r.params).contract})),
     },
   }),
 });

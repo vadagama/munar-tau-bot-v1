@@ -687,3 +687,20 @@ Deno.test("VS-5: расписание требует полномочий, да�
  const missing=await call(deps,path,{token:jwt});
  assertEquals(missing.status,403);
 });
+
+Deno.test("VS-5 TIM-02: API раскрывает исходные условия и запрещает подмену действия",async()=>{
+ const {deps,admin}=makeDeps();
+ const actor=makeTestActor("chairman",[],{personId:"p-rules"});
+ seedIdentity(admin,{sub:"sub-rules",sessionId:"s-rules",personId:actor.person.id,profileId:actor.profile.id,actor});
+ const jwt=await token({sub:"sub-rules",sessionId:"s-rules"});
+ const originalQuery=deps.db.query.bind(deps.db);
+ deps.db.query=<T>(sql:string,params?:readonly unknown[])=>sql.includes("from time_rule r left join time_rule_version") ? Promise.resolve([{key:"author_reminder",params:{hours:48,clock:"calendar"}}] as T[]) : originalQuery<T>(sql,params);
+ const view=await call(deps,"/v1/registry/time-rules",{token:jwt});
+ assertEquals(view.status,200);
+ const row=(await view.json()).items[0];
+ assertEquals(row.contract.action,"request.remind_author");
+ assertEquals(row.contract_legacy,true);
+ const invalid=await call(deps,"/v1/registry/time-rules/author_reminder",{token:jwt,method:"POST",body:{params:{hours:48,clock:"calendar",action:"request.close"},reason:"Подмена"}});
+ assertEquals(invalid.status,400);
+ assertEquals((await invalid.json()).error.code,"VALIDATION_FAILED");
+});

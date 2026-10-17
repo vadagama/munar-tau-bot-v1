@@ -1,3 +1,4 @@
+import {ruleContract} from "../timing/contracts.ts";
 import type { RegistryDeps } from "../registry/service.ts";
 import { jsonValue } from "../registry/validation.ts";
 import type { RuleParams } from "../registry/time.ts";
@@ -44,6 +45,7 @@ export async function sweepDigests(
       "select v.params from time_rule r join time_rule_version v on v.rule_id=r.id where r.key='work_schedule' order by v.version desc limit 1",
     );
     if (!schedule) return 0;
+    ruleContract("work_schedule",schedule.params);
     const day = digestWindow(now, jsonValue<RuleParams>(schedule.params));
     if (!day) return 0;
     const people = await exec.query<{ recipient_person_id: string }>(

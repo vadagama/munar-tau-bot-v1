@@ -1,3 +1,4 @@
+import {checkTimerContract} from "./contracts.ts";
 import { adminCheck, authorReminder } from "../../locales/notifications.ts";
 import type { RegistryDeps } from "../registry/service.ts";
 import { inform, informManagers } from "../requests/service.ts";
@@ -10,14 +11,15 @@ export async function sweepConfirmationTimers(
 ) {
   return deps.db.transaction(async (exec) => {
     const timers = await exec.query<
-      { id: string; entity_id: string; stage: string }
+      { id: string; rule_version_id:string; entity_id: string; stage: string }
     >(
-      `select t.id,t.entity_id,t.stage from timer t join request r on r.id=t.entity_id where t.state='pending' and t.due_at<=$1 and (t.stage like 'request_author_reminder:%' or t.stage like 'request_admin_check:%') order by t.due_at for update of t,r skip locked limit 100`,
+      `select t.id,t.rule_version_id,t.entity_id,t.stage from timer t join request r on r.id=t.entity_id where t.state='pending' and t.due_at<=$1 and (t.stage like 'request_author_reminder:%' or t.stage like 'request_admin_check:%') order by t.due_at for update of t,r skip locked limit 100`,
       [now.toISOString()],
     );
     let count = 0;
     for (const t of timers) {
       if (Date.now() >= deadline) break;
+      await checkTimerContract(exec,t.rule_version_id,t.stage.startsWith("request_author_reminder:") ? "author_reminder" : "request_admin_close_wait");
       const [r] = await exec.query<RequestRow>(
         "select * from request where id=$1",
         [t.entity_id],

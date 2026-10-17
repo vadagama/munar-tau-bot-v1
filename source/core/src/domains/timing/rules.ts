@@ -1,3 +1,4 @@
+import {editableRuleParams,ruleContract} from "./contracts.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { can } from "../../pdp/evaluate.ts";
 import { ApiError } from "../../errors/api.ts";
@@ -99,6 +100,7 @@ export async function changeRule(
   if (!reason.trim() || reason.length > 1000) {
     throw new ApiError("VALIDATION_FAILED", "Укажите причину");
   }
+  editableRuleParams(value);
   validateRuleChange("operational", null, value);
   return deps.db.transaction(async (exec) => {
     // Единый порядок блокировок для изменения графика и отдельного правила.
@@ -142,6 +144,7 @@ export async function changeRule(
       : [rule];
     let result: unknown;
     for (const r of affected) {
+      if(r.params) ruleContract(r.key,r.params);
       const params = r.kind === "legal" ? value : scheduleParams(
         r.key === key ? value : jsonValue<RuleParams>(r.params),
         schedule,
@@ -156,7 +159,7 @@ export async function changeRule(
         [
           r.id,
           r.version + 1,
-          JSON.stringify(params),
+          JSON.stringify({...params,contract:ruleContract(r.key)}),
           actor.person.id,
           reason,
           JSON.stringify(

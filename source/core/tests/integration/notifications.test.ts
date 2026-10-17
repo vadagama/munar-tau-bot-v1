@@ -48,6 +48,8 @@ describeWithDb("VS-5 TIM/NTF", (getDb) => {
           days: [0, 1, 2, 3, 4, 5, 6],
           timezone: "Asia/Almaty",
         }, "Тест смены");
+        const [snapshot]=await exec.query<{params:{contract:{version:number;action:string}}}>("select v.params from time_rule_version v join time_rule r on r.id=v.rule_id where r.key='first_response' order by version desc limit 1");
+        expect(snapshot!.params.contract).toMatchObject({version:1,action:"request.first_response_overdue"});
         const after = crypto.randomUUID();
         await startTimer(
           exec,
