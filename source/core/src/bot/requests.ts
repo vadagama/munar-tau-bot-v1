@@ -168,11 +168,14 @@ export async function requestStep(
     if (command === "/objects") {
       const items = await places();
       state.place_options = items;
+      // Нажатие кнопки помещения начинает черновик для него: тот же шаг выбора,
+      // что и после /newrequest, — иначе кнопка вне диалога черновика не работает.
+      state.step = "place";
       return save({
         text:
           (placeMenu(items) ||
             (L === "kk" ? "Расталған үй-жай жоқ" : "Подтверждённых помещений нет")) +
-          `\n/newrequest`,
+          `\n${L === "kk" ? "Түртіңіз нөмірі немесе" : "Нажмите номер помещения или"} /newrequest`,
         buttons: items.slice(0, 20).map((p, i) => [
           btn(`${preview(p.number, 20)}`, String(i + 1)),
         ]),
