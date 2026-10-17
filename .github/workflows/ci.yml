@@ -47,6 +47,9 @@ jobs:
   # тесты применяют миграции и очищают данные — только dev-проект, HLD §20).
   # Без секрета джоба зелёная с предупреждением (по паттерну deploy).
   integration:
+    concurrency:
+      group: munar-tau-dev-integration
+      cancel-in-progress: false
     name: "Node: интеграционные тесты (dev-БД Supabase)"
     runs-on: ubuntu-latest
     defaults:

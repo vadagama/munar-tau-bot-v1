@@ -61,7 +61,16 @@ export function readEnvFileValue(name: string): string | undefined {
 /** Строка подключения: переменная среды, иначе .env.local; null — тесты пропускаются. */
 export function testDatabaseUrl(): string | null {
   const fromEnv = process.env.TEST_DATABASE_URL?.trim();
-  return fromEnv || readEnvFileValue("TEST_DATABASE_URL") || null;
+  const url = fromEnv || readEnvFileValue("TEST_DATABASE_URL") || null;
+  // Эти тесты делают TRUNCATE. Единственная разрешённая облачная БД — Sydney.
+  if (url) {
+    const parsed = new URL(url);
+    if(parsed.port === "6543") throw new Error("Интеграционным тестам нужен session pooler (5432), чтобы удерживать блокировку");
+    if (!(parsed.hostname.endsWith(".supabase.co") || parsed.hostname.endsWith(".supabase.com")) || !(parsed.hostname.includes("fuwsmewtmxmzttwkbdex") || parsed.username === "postgres.fuwsmewtmxmzttwkbdex")) {
+      throw new Error("TEST_DATABASE_URL должен указывать только на тестовый проект fuwsmewtmxmzttwkbdex (Sydney)");
+    }
+  }
+  return url;
 }
 
 export function createTestDb(): DbClient {
@@ -178,10 +187,10 @@ export async function applyMigrations(exec: DbExecutor): Promise<number> {
   let count = 0;
   for (const file of files) {
     const text = readFileSync(resolve(migrationsDir, file), "utf8");
-    for (const statement of splitSqlStatements(text)) {
-      await exec.query(statement);
-      count++;
-    }
+    // postgres.js unsafe без параметров использует simple protocol: один
+    // файл выполняется атомарно за один сетевой round-trip.
+    await exec.query(text);
+    count += splitSqlStatements(text).length;
   }
   return count;
 }
@@ -194,9 +203,7 @@ export async function applyMigrations(exec: DbExecutor): Promise<number> {
  */
 export async function applyRlsShield(exec: DbExecutor): Promise<void> {
   const text = readFileSync(resolve(sourceDir, "db/rls.sql"), "utf8");
-  for (const statement of splitSqlStatements(text)) {
-    await exec.query(statement);
-  }
+  await exec.query(text);
 }
 
 /**
@@ -217,7 +224,7 @@ export async function resetTestData(exec: DbExecutor): Promise<void> {
   if (tables.length === 0) return;
   // Защита снимается до truncate: каскад FK может задевать audit_log,
   // поэтому аудит-таблица должна быть в общем списке с уже выданным TRUNCATE.
-  const list = tables.filter(t => !["time_rule", "time_rule_version"].includes(t.tablename)).map((table) => `"${table.tablename}"`).join(", ");
+  const list = tables.filter(t => !["time_rule", "time_rule_version", "request_category", "file_policy"].includes(t.tablename)).map((table) => `"${table.tablename}"`).join(", ");
   await exec.query("alter table audit_log disable trigger audit_log_append_only_truncate");
   await exec.query("grant truncate on audit_log to postgres");
   try {
@@ -227,9 +234,7 @@ export async function resetTestData(exec: DbExecutor): Promise<void> {
     await exec.query("alter table audit_log enable trigger audit_log_append_only_truncate");
   }
   const seed = readFileSync(seedPath, "utf8");
-  for (const statement of splitSqlStatements(seed)) {
-    await exec.query(statement);
-  }
+  await exec.query(seed);
 }
 
 /**
