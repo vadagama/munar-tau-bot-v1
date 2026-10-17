@@ -37,40 +37,48 @@ import { ApiError, toErrorResponse } from "../../core/src/errors/api.ts";
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
 
 /**
- * Отправка sendMessage с разметкой HTML и выключенным превью ссылок.
- * Если Telegram отклонил разметку (400 — например, в тексте случайный «<»),
- * сообщение повторно уходит без parse_mode — доставка важнее оформления.
+ * Отправка sendMessage с разметкой HTML, выключенным превью ссылок и
+ * необязательной клавиатурой (срез UX B). Если Telegram отклонил запрос
+ * (400 — например, в тексте случайный «<» или сломана разметка), сообщение
+ * повторяется: с клавиатурой без parse_mode, затем совсем без клавиатуры —
+ * доставка важнее оформления.
  */
 export async function telegramSendMessage(
   token: string,
   chatId: string,
   text: string,
+  replyMarkup?: unknown,
 ): Promise<void> {
-  const post = async (payload: Record<string, unknown>) => {
-    const response = await fetch(
-      `https://api.telegram.org/bot${token}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(10000),
-      },
-    );
-    const result = await response.json().catch(() => ({}));
-    return { response, result };
-  };
-  let { response, result } = await post({
-    chat_id: chatId,
-    text,
-    parse_mode: "HTML",
-    link_preview_options: { is_disabled: true },
-  });
-  if (!response.ok && response.status === 400) {
-    ({ response, result } = await post({ chat_id: chatId, text }));
+  const base: Record<string, unknown> = { chat_id: chatId, text };
+  const attempts: Record<string, unknown>[] = [
+    {
+      ...base,
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+      ...(replyMarkup === undefined ? {} : { reply_markup: replyMarkup }),
+    },
+  ];
+  // Отказ 400: без parse_mode, но с клавиатурой; затем совсем без клавиатуры.
+  if (replyMarkup !== undefined) attempts.push({ ...base, reply_markup: replyMarkup });
+  attempts.push({ ...base });
+  let response!: Response;
+  let result: Record<string, unknown> = {};
+  for (const payload of attempts) {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000),
+    });
+    response = res;
+    result = await res.json().catch(() => ({}));
+    if (res.ok && result.ok === true) return;
+    if (res.status !== 400) break;
   }
   if (!response.ok || result.ok !== true) {
+    const parameters = result.parameters as { retry_after?: number } | undefined;
     throw Object.assign(new Error(`TELEGRAM_${response.status}`), {
-      retryAfter: result.parameters?.retry_after,
+      retryAfter: parameters?.retry_after,
       blocked: response.status === 403,
     });
   }
@@ -170,8 +178,13 @@ export async function handle(
           (await dispatchNotices(actual, deadline - 10000)) +
           (await sweepDigests(actual, new Date(), deadline - 10000));
         const send: TelegramSender = sender ??
-          ((chatId, text, bot: BotKind) =>
-            telegramSendMessage(requireEnv(env, botTokenEnv(bot)), chatId, text));
+          ((chatId, text, bot: BotKind, replyMarkup?: unknown) =>
+            telegramSendMessage(
+              requireEnv(env, botTokenEnv(bot)),
+              chatId,
+              text,
+              replyMarkup,
+            ));
         const sent = await sendNotifications(actual, send, deadline);
         return new Response(JSON.stringify({ status: "ok", processed, sent }), {
           status: 200,

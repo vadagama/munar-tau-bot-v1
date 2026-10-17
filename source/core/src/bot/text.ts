@@ -78,3 +78,16 @@ export function resolveRef(
 export function numbered(lines: readonly string[]): string {
   return lines.map((line, i) => `${i + 1}. ${line}`).join("\n");
 }
+
+/** Язык подачи бота (срез UX B): один язык вместо сдвоенных «ru / kk». */
+export type Lang = "ru" | "kk";
+
+/** Язык профиля: неизвестное значение — русский. */
+export function langOf(language: unknown): Lang {
+  return language === "kk" ? "kk" : "ru";
+}
+
+/** Одна реплика на языке пользователя; до выбора языка — русский. */
+export function pick(lang: Lang, ru: string, kk: string): string {
+  return lang === "kk" ? kk : ru;
+}

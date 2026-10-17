@@ -2,6 +2,7 @@ import type { Actor } from "../pdp/types.ts";
 import { ApiError } from "../errors/api.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { actorForTelegram } from "./registration.ts";
+import type { BotReply } from "./keyboard.ts";
 import {
   getPreferences,
   setPreference,
@@ -11,7 +12,7 @@ export async function notificationStep(
   telegramId: string,
   input: string,
   providedActor?: Actor,
-): Promise<string> {
+): Promise<BotReply> {
   const actor = providedActor ?? await actorForTelegram(deps, telegramId);
   if (!actor) {
     throw new ApiError(

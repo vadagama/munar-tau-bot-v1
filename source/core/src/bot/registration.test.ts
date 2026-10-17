@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 
 import { registrationStep } from "./registration.ts";
+import { replyText } from "./keyboard.ts";
 import type { DbClient, DbExecutor } from "../db/client.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import type { Row } from "../domains/registry/validation.ts";
@@ -118,9 +119,12 @@ describe("бот: исправление анкеты (/fix)", () => {
     const phoneReply = await registrationStep(h.deps, "100", "8 777 123 45 67");
     expect(h.state.phone_e164).toBe("+77771234567");
     expect(h.state.step).toBe("consent");
-    expect(nameReply).toContain("Телефон");
-    expect(phoneReply).toContain("Олег Краснов");
-    expect(phoneReply).toContain("да / иә");
+    expect(replyText(nameReply)).toContain("Телефон");
+    // Согласие — один язык и кнопка с текстовым эквивалентом «да».
+    const phoneText = replyText(phoneReply);
+    expect(phoneText).toContain("Олег Краснов");
+    expect(phoneText).toContain("Согласие на обработку");
+    expect(typeof phoneReply === "object" && phoneReply.buttons?.[0]?.[0]?.data).toBe("да");
   });
 
   it("точка сохраняет прежние имя и телефон из анкеты", async () => {
@@ -217,10 +221,10 @@ describe("бот: /edit НОМЕР после /status (регрессия)", () 
       editable: { id: REG_ID },
     });
     const list = await registrationStep(h.deps, "100", "/status");
-    expect(list).toContain("Уточните имя");
+    expect(replyText(list)).toContain("Уточните имя");
     expect(h.state.status_options).toEqual([REG_ID]);
     const reply = await registrationStep(h.deps, "100", "/edit 1");
-    expect(reply).toContain("язык");
+    expect(replyText(reply)).toContain("язык");
     expect(h.state.registration_id).toBe(REG_ID);
     expect(h.state.step).toBe("language");
   });

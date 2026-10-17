@@ -15,8 +15,14 @@ import {
   recipientActor,
 } from "./service.ts";
 import { type EventType, retryPolicy } from "./policy.ts";
+/** Отправка с необязательной разметкой клавиатуры (срез UX B). */
 export interface TelegramSender {
-  (telegramId: string, text: string, bot: BotKind): Promise<void>;
+  (
+    telegramId: string,
+    text: string,
+    bot: BotKind,
+    replyMarkup?: unknown,
+  ): Promise<void>;
 }
 /** At-least-once: Telegram не поддерживает ключ идемпотентности отправки. */
 export async function sendNotifications(
@@ -114,6 +120,7 @@ export async function sendNotifications(
           String(row.telegram_user_id),
           String(row.text),
           (row.bot as BotKind) ?? "resident",
+          row.reply_markup ?? undefined,
         );
         // Один jobs lease на проект; не более 20 отправок/с, личные перед сводкой.
         await new Promise((resolve) => setTimeout(resolve, 50));

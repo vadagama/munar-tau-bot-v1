@@ -6,6 +6,8 @@ import { registrationScenarios } from "./registration.ts";
 import { requestStep } from "./requests.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { ApiError } from "../errors/api.ts";
+// Кнопки остаются сахаром Telegram: эмуляция и симулятор видят только текст.
+import { replyText } from "./keyboard.ts";
 export function botScenarios(deps: RegistryDeps) {
   const scenarios = registrationScenarios(deps);
   for (const id of ["requests","tasks","incidents"]) scenarios.register({
@@ -32,14 +34,19 @@ export function botScenarios(deps: RegistryDeps) {
           },
         }
         : deps;
-      return (id === "requests" ? requestStep : id === "incidents" ? incidentStep : taskStep)(d, String(profile.telegram_user_id), input, ctx.actor);
+      const step = id === "requests"
+        ? requestStep
+        : id === "incidents"
+        ? incidentStep
+        : taskStep;
+      return replyText(await step(d, String(profile.telegram_user_id), input, ctx.actor));
     },
   });
   scenarios.register({id:"notifications",description:"NTF: настройки уведомлений",run:async(input,ctx)=>{
     if(!ctx.actor?.emulation || !ctx.actor.person.isTest) throw new ApiError("FORBIDDEN");
     const exec=ctx.executor;
     const d=exec ? {...deps,db:{...deps.db,query:exec.query.bind(exec),transaction:<T>(fn:(e:DbExecutor)=>Promise<T>)=>fn(exec)}} : deps;
-    return notificationStep(d,"0",input,ctx.actor);
+    return replyText(await notificationStep(d,"0",input,ctx.actor));
   }});
   return scenarios;
 }
