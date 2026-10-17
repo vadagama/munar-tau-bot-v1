@@ -43,3 +43,6 @@ ADR фиксируют решения об аутентификации и ра�
 - [Приёмка VS-2 и команды бота](vs2-acceptance.md)
 
 - [ADR-005: регион API рядом с облачной БД](decisions/005-api-region-near-database.md) — настройка маршрутизации и измерения задержки.
+
+- [ADR-006: обращения, вложения и граница VS-3](decisions/006-vs3-request-files-and-boundaries.md)
+- [Приёмка VS-3 и команды бота](vs3-acceptance.md)

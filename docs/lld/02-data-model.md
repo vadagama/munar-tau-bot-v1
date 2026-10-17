@@ -347,3 +347,26 @@ id PK, number UNIQUE, title, state enum cw_state {planned, in_progress, on_revie
 - `import_batch.payload/errors/preview` — снимок листов, полный отчёт и предварительные счётчики. Состояния VS-2: uploaded, validating, ready, invalid, committed. `import_mapping` использует ключ `(batch_id,entity_type,source_key)`. Исходный файл не хранится; загрузка через JSON/base64, результат/отчёт — XLSX в таком же конверте.
 - `notification` до регистрации допускает Telegram без person; после — recipient_person_id. Каналы telegram/simulator, состояния queued/sending/sent/failed, lease на отправку, next_attempt_at, attempts и last_error. Полный общий outbox и fanout добавляются в последующих срезах.
 - Начальные TIM-ключи реализации: invite_expiry ↔ invite_ttl, tenant_wait ↔ owner_response, registration_stage ↔ escalation_step, dispute_total. Параметры длительности и графика редактируются независимо в новой версии. Общий срок dispute_total — согласованные 36 рабочих часов (REG-14); прежняя строка таблицы с «не заполнен» к нему больше не применяется.
+
+
+## Уточнения VS-3 (17.10.2026)
+
+Физическая схема — миграция `20261017060759_vs3_requests_messaging.sql`:
+
+- `request`: исходное description, created_by отдельно от автора, location_text,
+  is_test, complaint_subject_person_id/complaint_route, work_started_at и неизменяемый
+  по классификации work_execution_required; reopen_until и следующий reminder.
+- `request_confirmation`: составной PK (request_id, version), неизменяемый payload,
+  sent_at, confirmed_at/by, superseded_at, зафиксированный admin_close_after.
+  Вид решения и материалы проверки сохраняются в append-only request_log.
+- `message`: reply_to/corrects_message_id; ограничение ошибочного раскрытия отдельными
+  restricted_at/by/reason, без изменения текста/канала/авторства.
+- `attachment`: request_id для серверной проверки области, filename, upload_expires_at;
+  пути генерирует сервер. Неполное вложение можно отправить с сообщением и дозагрузить.
+- `rating_log` хранит каждую редакцию; rating содержит последнюю оценку текущего
+  подтверждения и withdrawn_at после возврата. request_log/rating_log — append-only.
+- `request_upload_job`: устойчивый перенос Telegram-файлов, lease/attempts/state;
+  `file_policy`: настраиваемое сужение согласованных лимитов и форматов.
+- `idempotency_key`: endpoint включает person_id, тело хешируется канонически;
+  `api_rate_limit`: одна строка на профиль для общего лимита 100 запросов/мин.
+- Новые таблицы закрыты RLS и revoke; содержимое переписки не дублируется в audit_log.
