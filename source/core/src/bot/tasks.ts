@@ -1,7 +1,8 @@
 import { reportProblem } from "../domains/tasks/problems.ts";
 import { proposeVisit, updateVisit } from "../domains/tasks/visits.ts";
 import { taskActions, workerHelp } from "./help.ts";
-import { cmd, esc, fmtDate, fmtInterval, numbered, pick, type Lang } from "./text.ts";
+import { cmd, esc, fmtDate, fmtDay, fmtInterval, numbered, pick, type Lang } from "./text.ts";
+import { visitStateText } from "../locales/tasks.ts";
 import {
   almatyDay,
   bareDayOffset,
@@ -130,14 +131,14 @@ export async function taskStep(
       delete state.visit_when;
       const visible = tasks.slice(0, 30);
       const lines = visible.map((t) =>
-        `<b>${esc(t.number)}</b> — ${esc(String(t.title).slice(0, 100))} — ${
+        `<b>${esc(t.number)}</b> · ${esc(String(t.title).slice(0, 100))} · ${
           esc(stateLabel(t.state, L))
         }`
       );
       return save({
-        text:
-          (lines.length ? numbered(lines) : pick(L, "Заданий нет", "Тапсырма жоқ")) +
-          `\n${cmd("/task НОМЕР")} — ${pick(L, "открыть задание", "тапсырманы ашу")}`,
+        text: lines.length
+          ? numbered(lines)
+          : pick(L, "Заданий нет", "Тапсырма жоқ"),
         // Кнопка в строке списка открывает карточку тем же кодом, что /task НОМЕР.
         buttons: visible.map((t) => [
           btn(
@@ -153,7 +154,7 @@ export async function taskStep(
       delete state.report;
       delete state.visit_when;
       const visits = ((t.visits as Row[]) ?? []).map((v) =>
-        `${pick(L, "Визит", "Сапар")}: ${fmtInterval(v.interval_start, v.interval_end)} — ${esc(String(v.status))}`
+        `${pick(L, "Визит", "Сапар")}: ${fmtInterval(v.interval_start, v.interval_end)} — ${esc(visitStateText(v.status, L))}`
       );
       const actions = taskActions(t.state, L);
       return save({
@@ -164,12 +165,12 @@ export async function taskStep(
           t.methodology
             ? pick(
               L,
-              `Методичка: версия ${(t.methodology as Row).version}, ${esc(String((t.methodology as Row).author_name))}, ${fmtDate((t.methodology as Row).created_at)}`,
-              `Әдістеме: нұсқа ${(t.methodology as Row).version}, ${esc(String((t.methodology as Row).author_name))}, ${fmtDate((t.methodology as Row).created_at)}`,
+              `Методичка: версия ${(t.methodology as Row).version}, действует с ${fmtDay((t.methodology as Row).created_at)}`,
+              `Әдістеме: нұсқа ${(t.methodology as Row).version}, ${fmtDay((t.methodology as Row).created_at)} бастап қолданылады`,
             )
             : "",
           visits.join("\n"),
-          `${pick(L, "Срок", "Мерзім")}: ${fmtDate(t.due_at)} (Алматы)`,
+          `${pick(L, "Срок", "Мерзім")}: ${fmtDate(t.due_at)}`,
           actions,
         ].filter(Boolean).join("\n"),
         buttons: taskButtons(t, L),
