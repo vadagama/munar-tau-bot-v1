@@ -1,6 +1,7 @@
 import type { LocalizedNotice } from "../../locales/notifications.ts";
 import { enqueueNotice, type NoticeOptions } from "../notifications/service.ts";
 import type { DbExecutor } from "../../db/client.ts";
+import type { BotKind } from "../../bot/bots.ts";
 
 import { notificationParts } from "../notifications/text.ts";
 export { notificationParts } from "../notifications/text.ts";
@@ -12,12 +13,13 @@ export async function notifyTelegram(
   telegramId: unknown,
   message: string,
   key: string,
+  bot: BotKind = "resident",
 ): Promise<void> {
   if (!telegramId) return;
   for (const [index, part] of notificationParts(message).entries()) {
     await exec.query(
-      "insert into notification(telegram_user_id,text,dedup_key,channel) values ($1,$2,$3,case when exists(select 1 from profile where telegram_user_id=$1 and is_test=true and archived_at is null) then 'simulator' else 'telegram' end) on conflict(dedup_key) do nothing",
-      [telegramId, part, index === 0 ? key : `${key}:part:${index + 1}`],
+      "insert into notification(telegram_user_id,text,dedup_key,channel,bot) values ($1,$2,$3,case when exists(select 1 from profile where telegram_user_id=$1 and is_test=true and archived_at is null) then 'simulator' else 'telegram' end,$4) on conflict(dedup_key) do nothing",
+      [telegramId, part, index === 0 ? key : `${key}:part:${index + 1}`, bot],
     );
   }
 }

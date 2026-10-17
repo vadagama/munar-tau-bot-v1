@@ -11,6 +11,7 @@ import { sweepDigests } from "../../core/src/domains/notifications/digest.ts";
 import { sweepConfirmationTimers } from "../../core/src/domains/timing/request-timers.ts";
 import { sweepRequests } from "../../core/src/domains/requests/jobs.ts";
 import { processRequestUploads } from "../../core/src/bot/request-files.ts";
+import { botTokenEnv, type BotKind } from "../../core/src/bot/bots.ts";
 import { SupabaseFileStorage } from "../../core/src/domains/requests/files.ts";
 import { processImportBatches } from "../../core/src/domains/registry/import.ts";
 import { createDbClient } from "../../core/src/db/client.ts";
@@ -135,14 +136,19 @@ export async function handle(
         const backgroundDeadline = deadline - 15000;
         const files =
           !deps && env("SUPABASE_URL") && env("SUPABASE_SERVICE_ROLE_KEY") &&
-            env("TELEGRAM_BOT_TOKEN")
+            // Загрузка файлов требует оба токена: file_id привязан к боту,
+            // принявшему файл, — без worker-токена его задания не обработать.
+            env("TELEGRAM_BOT_TOKEN") && env("TELEGRAM_WORKER_BOT_TOKEN")
             ? await processRequestUploads(
               actual,
               new SupabaseFileStorage(
                 requireEnv(env, "SUPABASE_URL"),
                 requireEnv(env, "SUPABASE_SERVICE_ROLE_KEY"),
               ),
-              requireEnv(env, "TELEGRAM_BOT_TOKEN"),
+              {
+                resident: requireEnv(env, "TELEGRAM_BOT_TOKEN"),
+                worker: requireEnv(env, "TELEGRAM_WORKER_BOT_TOKEN"),
+              },
               backgroundDeadline,
             )
             : 0;
@@ -164,8 +170,8 @@ export async function handle(
           (await dispatchNotices(actual, deadline - 10000)) +
           (await sweepDigests(actual, new Date(), deadline - 10000));
         const send: TelegramSender = sender ??
-          ((chatId, text) =>
-            telegramSendMessage(requireEnv(env, "TELEGRAM_BOT_TOKEN"), chatId, text));
+          ((chatId, text, bot: BotKind) =>
+            telegramSendMessage(requireEnv(env, botTokenEnv(bot)), chatId, text));
         const sent = await sendNotifications(actual, send, deadline);
         return new Response(JSON.stringify({ status: "ok", processed, sent }), {
           status: 200,

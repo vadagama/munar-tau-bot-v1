@@ -81,7 +81,12 @@ it("Telegram-файл подтверждается только после пе�
           : new Response(new TextEncoder().encode("%PDF")),
       ),
   );
-  expect(await processRequestUploads(f.deps, f.storage, "not-a-real-token"))
+  expect(
+    await processRequestUploads(f.deps, f.storage, {
+      resident: "not-a-real-token",
+      worker: "not-a-real-token",
+    }),
+  )
     .toBe(1);
   expect(f.state()).toBe("complete");
   expect(f.attachment()).toBe("complete");
@@ -93,7 +98,10 @@ it("ошибка последней попытки оставляет incomplete
     "fetch",
     () => Promise.reject(new Error("secret-token-must-not-leak")),
   );
-  await processRequestUploads(f.deps, f.storage, "secret-token-must-not-leak");
+  await processRequestUploads(f.deps, f.storage, {
+    resident: "secret-token-must-not-leak",
+    worker: "secret-token-must-not-leak",
+  });
   expect(f.state()).toBe("failed");
   expect(f.attachment()).toBe("incomplete");
   expect(f.notifications).toHaveLength(1);
@@ -116,7 +124,10 @@ it("потерявший lease обработчик не объявляет фа
           : new Response(new TextEncoder().encode("%PDF")),
       ),
   );
-  await processRequestUploads(f.deps, f.storage, "not-a-real-token");
+  await processRequestUploads(f.deps, f.storage, {
+    resident: "not-a-real-token",
+    worker: "not-a-real-token",
+  });
   expect(f.attachment()).toBe("incomplete");
   expect(f.notifications).toEqual([]);
 });

@@ -12,6 +12,7 @@ import { SqlAdminRepo } from "../admin/repo.ts";
 import { buildActorForProfile } from "../admin/actor-service.ts";
 import { requireRequest } from "../requests/access.ts";
 import { deliveryMode, type EventType, type PreferenceMode } from "./policy.ts";
+import type { BotKind } from "../../bot/bots.ts";
 
 export interface NoticeOptions {
   scope?: AudienceScope[];
@@ -23,6 +24,8 @@ export interface NoticeOptions {
   taskId?: string;
   registrationAccess?: { premisesId: string; role: string };
   audience?: "personal" | "resident" | "staff" | "publication";
+  /** Канал-бот доставки (ADR-009): по умолчанию — бот жителей. */
+  bot?: BotKind;
   important?: boolean;
   buildingIds?: string[];
   isTest?: boolean;
@@ -282,7 +285,7 @@ export async function dispatchNotices(
             : n.text[actor.profile.language];
           if (mode === "digest") {
             await exec.query(
-              "insert into notification_digest_item(recipient_person_id,event_type,dedup_key,text,building_ids,is_test,event_ref) values ($1,$2,$3,$4,$5::uuid[],$6,$7::text::jsonb) on conflict(dedup_key) do nothing",
+              "insert into notification_digest_item(recipient_person_id,event_type,dedup_key,text,building_ids,is_test,event_ref,bot) values ($1,$2,$3,$4,$5::uuid[],$6,$7::text::jsonb,coalesce($8,'resident')) on conflict(dedup_key) do nothing",
               [
                 n.personId,
                 type,
@@ -294,13 +297,14 @@ export async function dispatchNotices(
                   scope: n.scope,
                   publicationId: n.publicationId,
                 }),
+                n.bot ?? null,
               ],
             );
           } else if (mode === "immediate") {
             for (const [index, part] of notificationParts(text).entries()) {
               await exec.query(
-                `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,important,priority,request_id,audience,is_test,task_id)
- select telegram_user_id,$2,$3,person_id,case when is_test then 'simulator' else 'telegram' end,$4,$5::text::jsonb,$6,$7,$8,$9,is_test,$10 from profile where id=$1 on conflict(dedup_key) do nothing`,
+                `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,important,priority,request_id,audience,is_test,task_id,bot)
+ select telegram_user_id,$2,$3,person_id,case when is_test then 'simulator' else 'telegram' end,$4,$5::text::jsonb,$6,$7,$8,$9,is_test,$10,coalesce($11,'resident') from profile where id=$1 on conflict(dedup_key) do nothing`,
                 [
                   actor.profile.id,
                   part,
@@ -319,6 +323,7 @@ export async function dispatchNotices(
                   n.requestId ?? null,
                   n.audience ?? "personal",
                   n.taskId ?? null,
+                  n.bot ?? null,
                 ],
               );
             }
@@ -339,8 +344,8 @@ export async function dispatchNotices(
           // Ошибка подготовки тоже видна в журнале; содержимое события не раскрываем.
           // При недоступной БД вся транзакция откатится и событие останется повторяемым.
           await exec.query(
-            `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,important,request_id,audience,is_test,state,attempts,last_error,task_id)
- select telegram_user_id,'Не удалось подготовить уведомление / Хабарламаны дайындау мүмкін болмады',$2,person_id,case when is_test then 'simulator' else 'telegram' end,$3,$4::text::jsonb,$5,$6,$7,is_test,'failed',5,'DISPATCH_FAILED',$8 from profile where person_id=$1 and archived_at is null on conflict(dedup_key) do nothing`,
+            `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,important,request_id,audience,is_test,state,attempts,last_error,task_id,bot)
+ select telegram_user_id,'Не удалось подготовить уведомление / Хабарламаны дайындау мүмкін болмады',$2,person_id,case when is_test then 'simulator' else 'telegram' end,$3,$4::text::jsonb,$5,$6,$7,is_test,'failed',5,'DISPATCH_FAILED',$8,coalesce($9,'resident') from profile where person_id=$1 and archived_at is null on conflict(dedup_key) do nothing`,
             [
               n.personId,
               n.key,
@@ -353,6 +358,7 @@ export async function dispatchNotices(
               n.requestId ?? null,
               n.audience ?? "personal",
               n.taskId ?? null,
+              n.bot ?? null,
             ],
           );
         }

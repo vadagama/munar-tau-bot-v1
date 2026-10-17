@@ -145,6 +145,7 @@ async function notifySignal(
     personId,
     key,
     type: "incident",
+    bot: "worker",
     important: true,
     isTest: s.is_test,
     buildingIds: [s.building_id],

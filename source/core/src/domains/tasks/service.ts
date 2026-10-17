@@ -142,7 +142,7 @@ export async function taskLog(
       if (personId === meta.previous_assignee_id && personId !== row.assignee_person_id) {
         await notifyPerson(exec, personId, {ru:`Ваше назначение на задание ${row.number} снято.`,kk:`${row.number} тапсырмасына тағайындауыңыз алынып тасталды.`},
           `task:${row.id}:${row.version}:unassigned:${personId}`,
-          { audience: "personal", isTest: row.is_test });
+          { audience: "personal", isTest: row.is_test, bot: "worker" });
         continue;
       }
       await notifyPerson(
@@ -154,7 +154,7 @@ export async function taskLog(
           ? "исполнитель сообщил о найденной проблеме"
           : TASK_STATE_TEXT[row.state])}. Откройте карточку задания.`,
         `task:${row.id}:${row.version}:${action}:${personId}`,
-        {taskId:row.id,buildingIds:row.building_ids,isTest:row.is_test,audience:personId===row.assignee_person_id ? "personal" : "staff",type:row.state==="awaiting_acceptance" ? "task.assignment" : "personal",important:row.state==="awaiting_acceptance"},
+        {taskId:row.id,buildingIds:row.building_ids,isTest:row.is_test,audience:personId===row.assignee_person_id ? "personal" : "staff",type:row.state==="awaiting_acceptance" ? "task.assignment" : "personal",important:row.state==="awaiting_acceptance",bot:"worker"},
       );
     }
   }

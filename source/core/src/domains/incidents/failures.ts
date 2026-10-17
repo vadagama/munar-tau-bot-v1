@@ -23,6 +23,7 @@ export async function emergencyDeliveryFailure(
         personId: p.person_id,
         key: `incident-failed:${notificationId}:${p.person_id}`,
         type: "incident",
+        bot: "worker",
         important: false,
         audience: "staff",
         isTest: Boolean(n.is_test),

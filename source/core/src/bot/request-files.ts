@@ -2,6 +2,7 @@ import type { RegistryDeps } from "../domains/registry/service.ts";
 import type { Row } from "../domains/registry/validation.ts";
 import { jsonValue } from "../domains/registry/validation.ts";
 import { actorForTelegram } from "./registration.ts";
+import type { BotKind } from "./bots.ts";
 import {
   type FileStorage,
   MAX_FILE_BYTES,
@@ -17,6 +18,7 @@ export async function queueRequestFile(
   telegramId: string,
   message: Row,
   updateId: unknown,
+  bot: BotKind = "resident",
 ): Promise<string> {
   const actor = await actorForTelegram(deps, telegramId);
   if (!actor) throw new ApiError("FORBIDDEN");
@@ -28,7 +30,10 @@ export async function queueRequestFile(
   const taskFile = state.scenario === "tasks";
   const requestId = taskFile ? state.task_id : state.draft_id ?? state.request_id;
   if (!requestId) {
-    return "Сначала создайте или откройте обращение: /newrequest, /request НОМЕР. / Алдымен өтінішті ашыңыз.";
+    // У сотрудника файлы прикрепляются к открытому заданию (ADR-009).
+    return bot === "worker"
+      ? "Откройте задание: /task НОМЕР, затем отправьте файл. / Тапсырманы ашыңыз: /task НӨМІР, сонан кейін файлды жіберіңіз."
+      : "Сначала создайте или откройте обращение: /newrequest, /request НОМЕР. / Алдымен өтінішті ашыңыз.";
   }
   const photos = message.photo as Row[] | undefined;
   const photo = photos?.[photos.length - 1];
@@ -57,8 +62,8 @@ export async function queueRequestFile(
     }, `media:${updateId}`);
   }
   await deps.db.query(
-    "insert into request_upload_job(attachment_id,telegram_file_id,person_id) values ($1,$2,$3) on conflict do nothing",
-    [f.attachment_id, item.file_id, actor.person.id],
+    "insert into request_upload_job(attachment_id,telegram_file_id,person_id,bot) values ($1,$2,$3,$4) on conflict do nothing",
+    [f.attachment_id, item.file_id, actor.person.id, bot],
   );
   if (taskFile) return "Файл задания принят в очередь. Дождитесь сообщения о сохранении, затем /taskfiles. / Файл кезекте.";
   return "Файл принят в очередь, пока не сохранён. Обращение можно отправить независимо: /sendrequest. / Файл кезекте, әлі сақталмады.";
@@ -66,7 +71,7 @@ export async function queueRequestFile(
 export async function processRequestUploads(
   deps: RegistryDeps,
   storage: FileStorage,
-  token: string,
+  botTokens: Record<BotKind, string>,
   deadline = Date.now() + 45000,
 ): Promise<number> {
   let count = 0;
@@ -86,6 +91,10 @@ export async function processRequestUploads(
     if (!job) break;
     count++;
     try {
+      // Файл скачивается токеном того бота, который его принял: file_id
+      // в Telegram привязан к боту-получателю.
+      const token = botTokens[(job.bot as BotKind) ?? "resident"];
+      if (!token) throw new Error("FILE_TRANSFER_FAILED");
       const metadata = await fetch(
         `https://api.telegram.org/bot${token}/getFile`,
         {
@@ -171,6 +180,7 @@ export async function processRequestUploads(
           String(job.person_id),
           "Файл сохранён / Файл сақталды",
           `file:${job.attachment_id}:complete`,
+          { bot: (job.bot as BotKind) ?? "resident" },
         );
       });
     } catch {
@@ -186,6 +196,7 @@ export async function processRequestUploads(
             String(job.person_id),
             "Файл не сохранён: повторите загрузку или выберите другой файл. Текст обращения сохранён. / Файл сақталмады, қайта жүктеңіз.",
             `file:${job.attachment_id}:failed`,
+            { bot: (job.bot as BotKind) ?? "resident" },
           );
         }
       });

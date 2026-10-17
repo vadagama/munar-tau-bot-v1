@@ -34,6 +34,7 @@ export async function informTaskManagers(
       key: `${key}:${person.person_id}`,
       taskId: task.id,
       audience: "staff",
+      bot: "worker",
       buildingIds: task.building_ids,
       isTest: task.is_test,
     });
