@@ -58,5 +58,6 @@ describeWithDb("VS-4 бот исполнителя", (getDb) => {
     );
     expect(dialog!.state.scenario).toBe("requests");
     expect(dialog!.state.request_id).toBeUndefined();
-  });
+  // Полный диалог с запросом остановки выполняет последовательные SQL-транзакции через Sydney.
+  }, 180000);
 });
