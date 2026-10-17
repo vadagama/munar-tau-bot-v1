@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { cmd, esc, fmtDate, fmtInterval, isUuid, numbered, resolveRef } from "./text.ts";
+import {
+  cmd,
+  esc,
+  fmtDate,
+  fmtInterval,
+  isUuid,
+  langOf,
+  numbered,
+  pick,
+  resolveRef,
+} from "./text.ts";
 
 describe("esc", () => {
   it("экранирует спецсимволы HTML", () => {
@@ -69,5 +79,19 @@ describe("прочее", () => {
   });
   it("cmd оборачивает команду в code с экранированием", () => {
     expect(cmd("/say <номер>")).toBe("<code>/say &lt;номер&gt;</code>");
+  });
+});
+
+describe("язык подачи (срез UX B)", () => {
+  it("langOf: kk — казахский, остальное и отсутствие — русский", () => {
+    expect(langOf("kk")).toBe("kk");
+    expect(langOf("ru")).toBe("ru");
+    expect(langOf("fr")).toBe("ru");
+    expect(langOf(undefined)).toBe("ru");
+    expect(langOf(null)).toBe("ru");
+  });
+  it("pick выбирает реплику по языку", () => {
+    expect(pick("ru", "да", "иә")).toBe("да");
+    expect(pick("kk", "да", "иә")).toBe("иә");
   });
 });

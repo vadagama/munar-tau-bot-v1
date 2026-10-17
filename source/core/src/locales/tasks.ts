@@ -1,13 +1,14 @@
-export const TASK_STATE_TEXT: Record<string, string> = {
-  created: "Создано",
-  awaiting_acceptance: "Ожидает принятия",
-  accepted: "Принято",
-  in_progress: "Выполняется",
-  suspended: "Приостановлено",
-  on_review: "На проверке",
-  rework: "На доработке",
-  accepted_admin: "Принято администратором",
-  canceled: "Отменено",
+/** Подписи состояний задания: бот берёт по языку профиля, кабинет — ru. */
+export const TASK_STATE_TEXT: Record<string, { ru: string; kk: string }> = {
+  created: { ru: "Создано", kk: "Құрылды" },
+  awaiting_acceptance: { ru: "Ожидает принятия", kk: "Қабылдауды күтуде" },
+  accepted: { ru: "Принято", kk: "Қабылданды" },
+  in_progress: { ru: "Выполняется", kk: "Орындалуда" },
+  suspended: { ru: "Приостановлено", kk: "Кідіртілді" },
+  on_review: { ru: "На проверке", kk: "Тексеруде" },
+  rework: { ru: "На доработке", kk: "Түзетуде" },
+  accepted_admin: { ru: "Принято администратором", kk: "Әкімші қабылдады" },
+  canceled: { ru: "Отменено", kk: "Болдырылмады" },
 };
 export const TASK_ACTION_TEXT: Record<string, string> = {
   replace_canceled: "Заменить отменённое задание",

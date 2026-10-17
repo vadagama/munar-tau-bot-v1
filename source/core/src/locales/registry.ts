@@ -1,23 +1,54 @@
-export const premiseLabels: Record<string, string> = {
-  apartment: "Квартира / Пәтер",
-  commercial: "Коммерческое помещение / Коммерциялық нысан",
-  parking_slot: "Парковочное место / Тұрақ орны",
-  storage: "Кладовка / Қойма",
+/**
+ * Подписи реестра (срез UX B): один источник, два языка. Бот берёт подпись
+ * по языку профиля; доменные уведомления вне бота сохраняют прежний сдвоенный
+ * вид через labelCombined.
+ */
+export interface Loc {
+  ru: string;
+  kk: string;
+}
+
+export const premiseLabels: Record<string, Loc> = {
+  apartment: { ru: "Квартира", kk: "Пәтер" },
+  commercial: { ru: "Коммерческое помещение", kk: "Коммерциялық нысан" },
+  parking_slot: { ru: "Парковочное место", kk: "Тұрақ орны" },
+  storage: { ru: "Кладовка", kk: "Қойма" },
 };
-export const roleLabels: Record<string, string> = {
-  owner: "Собственник / Меншік иесі",
-  tenant: "Арендатор / Жалға алушы",
-  resident: "Проживающий / Тұрғын",
-  other: "Пользователь / Пайдаланушы",
+export const roleLabels: Record<string, Loc> = {
+  owner: { ru: "Собственник", kk: "Меншік иесі" },
+  tenant: { ru: "Арендатор", kk: "Жалға алушы" },
+  resident: { ru: "Проживающий", kk: "Тұрғын" },
+  other: { ru: "Пользователь", kk: "Пайдаланушы" },
 };
-export const stateLabels: Record<string, string> = {
-  pending_review: "Ожидает проверки / Тексеруді күтуде",
-  need_clarification: "Нужны уточнения / Нақтылау қажет",
-  approved: "Доступ подтверждён / Қолжетімділік расталды",
-  rejected: "Отказано / Бас тартылды",
-  disputed: "Спор / Дау",
-  withdrawn: "Отозвана / Кері қайтарылды",
-  active: "Действует / Белсенді",
-  pending: "Не подтверждено / Расталмаған",
-  revoked: "Прекращено / Тоқтатылған",
+export const stateLabels: Record<string, Loc> = {
+  pending_review: { ru: "Ожидает проверки", kk: "Тексеруді күтуде" },
+  need_clarification: { ru: "Нужны уточнения", kk: "Нақтылау қажет" },
+  approved: { ru: "Доступ подтверждён", kk: "Қолжетімділік расталды" },
+  rejected: { ru: "Отказано", kk: "Бас тартылды" },
+  disputed: { ru: "Спор", kk: "Дау" },
+  withdrawn: { ru: "Отозвана", kk: "Кері қайтарылды" },
+  active: { ru: "Действует", kk: "Белсенді" },
+  pending: { ru: "Не подтверждено", kk: "Расталмаған" },
+  revoked: { ru: "Прекращено", kk: "Тоқтатылған" },
 };
+
+/** Подпись на одном языке; нет записи — запасной текст (обычно сам ключ). */
+export function label(
+  map: Record<string, Loc>,
+  key: unknown,
+  lang: "ru" | "kk",
+  fallback?: string,
+): string {
+  const value = map[String(key)];
+  return value ? value[lang] : fallback ?? String(key ?? "");
+}
+
+/** Сдвоенная подпись «ru / kk» — для уведомлений вне бота (легаси-подача). */
+export function labelCombined(
+  map: Record<string, Loc>,
+  key: unknown,
+  fallback?: string,
+): string {
+  const value = map[String(key)];
+  return value ? `${value.ru} / ${value.kk}` : fallback ?? String(key ?? "");
+}

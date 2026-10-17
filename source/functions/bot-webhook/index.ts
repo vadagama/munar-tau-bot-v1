@@ -12,7 +12,7 @@
 // (ключ bot+update_id — нумерации у ботов независимы)
 // и бизнес-сценария; ответ ставится в устойчивую очередь уведомлений.
 
-import { botFromPath, botWebhookSecretEnv } from "../../core/src/bot/bots.ts";
+import { botFromPath, botTokenEnv, botWebhookSecretEnv } from "../../core/src/bot/bots.ts";
 import { processInbound } from "../../core/src/bot/inbound.ts";
 import { createDbClient } from "../../core/src/db/client.ts";
 import { SqlAuditRepo } from "../../core/src/domains/audit/repo.ts";
@@ -34,6 +34,22 @@ function health(): Response {
     }),
     { status: 200, headers: JSON_HEADERS },
   );
+}
+
+/**
+ * Подтверждение нажатия inline-кнопки (срез UX B): снимает индикатор загрузки.
+ * Best-effort — ошибка подтверждения не влияет на обработку и ответ сценария.
+ */
+export async function answerCallbackQuery(
+  token: string,
+  callbackQueryId: string,
+): Promise<void> {
+  await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ callback_query_id: callbackQueryId }),
+    signal: AbortSignal.timeout(5000),
+  }).catch(() => undefined);
 }
 
 // Секрет проверяется до чтения тела и подключения к БД.
@@ -87,6 +103,15 @@ export async function handle(
     };
     try {
       const handled = await processInbound(actual, update, bot);
+      // Кнопка: подтверждаем нажатие после обработки; токена нет — пропускаем.
+      const callbackQuery = (update as { callback_query?: { id: string } })
+        .callback_query;
+      if (callbackQuery && env(botTokenEnv(bot))) {
+        await answerCallbackQuery(
+          String(env(botTokenEnv(bot))),
+          String(callbackQuery.id),
+        );
+      }
       return new Response(JSON.stringify({ ok: true, handled }), {
         status: 200,
         headers: JSON_HEADERS,

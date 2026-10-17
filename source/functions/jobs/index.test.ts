@@ -163,6 +163,40 @@ Deno.test("отказ разбора разметки (400) — повтор б�
   }
 });
 
+Deno.test("клавиатура уходит с первой попыткой (срез UX B)", async () => {
+  const stub = stubFetch([{ status: 200, body: { ok: true } }]);
+  try {
+    const markup = { inline_keyboard: [[{ text: "Далее", callback_data: "/requests page:2" }]] };
+    await telegramSendMessage("token", "123", "готово", markup);
+    assertEquals(stub.calls.length, 1);
+    assertEquals(stub.calls[0]!.reply_markup, markup);
+    assertEquals(stub.calls[0]!.parse_mode, "HTML");
+  } finally {
+    stub.restore();
+  }
+});
+
+Deno.test("отказ 400 с клавиатурой — повтор без parse_mode, но с клавиатурой, затем совсем без неё", async () => {
+  const stub = stubFetch([
+    { status: 400, body: { ok: false, description: "Bad Request: can't parse entities" } },
+    { status: 400, body: { ok: false, description: "Bad Request" } },
+    { status: 200, body: { ok: true } },
+  ]);
+  try {
+    const markup = { keyboard: [[{ text: "/tasks" }]], is_persistent: true };
+    await telegramSendMessage("token", "123", "текст", markup);
+    assertEquals(stub.calls.length, 3);
+    assertEquals(stub.calls[0]!.parse_mode, "HTML");
+    assertEquals(stub.calls[0]!.reply_markup, markup);
+    assertEquals(stub.calls[1]!.parse_mode, undefined);
+    assertEquals(stub.calls[1]!.reply_markup, markup);
+    assertEquals(stub.calls[2]!.reply_markup, undefined);
+    assertEquals(stub.calls[2]!.text, "текст");
+  } finally {
+    stub.restore();
+  }
+});
+
 Deno.test("ошибка не-400 после fallback — выбрасывается для повторной попытки очереди", async () => {
   const stub = stubFetch([
     { status: 429, body: { ok: false, parameters: { retry_after: 3 } } },

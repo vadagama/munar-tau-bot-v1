@@ -152,7 +152,7 @@ export async function taskLog(
           ? "исполнитель запросил остановку: " + reason
           : action === "found_problem"
           ? "исполнитель сообщил о найденной проблеме"
-          : TASK_STATE_TEXT[row.state])}. Откройте карточку задания.`,
+          : TASK_STATE_TEXT[row.state]?.ru)}. Откройте карточку задания.`,
         `task:${row.id}:${row.version}:${action}:${personId}`,
         {taskId:row.id,buildingIds:row.building_ids,isTest:row.is_test,audience:personId===row.assignee_person_id ? "personal" : "staff",type:row.state==="awaiting_acceptance" ? "task.assignment" : "personal",important:row.state==="awaiting_acceptance",bot:"worker"},
       );

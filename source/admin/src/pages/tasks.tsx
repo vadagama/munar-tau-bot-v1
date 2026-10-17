@@ -379,7 +379,7 @@ export function TasksPage() {
           {
             title: "Состояние",
             dataIndex: "state",
-            render: (s: string) => <Tag>{TASK_STATE_TEXT[s] ?? s}</Tag>,
+            render: (s: string) => <Tag>{TASK_STATE_TEXT[s]?.ru ?? s}</Tag>,
           },
           {
             title: "Срок",
@@ -395,7 +395,7 @@ export function TasksPage() {
             items={[{
               key: "state",
               label: "Состояние",
-              children: TASK_STATE_TEXT[card.state],
+              children: TASK_STATE_TEXT[card.state]?.ru,
             }, {
               key: "instruction",
               label: "Инструкция",
@@ -505,7 +505,7 @@ export function TasksPage() {
             renderItem={(item) => (
               <List.Item>
                 {new Date(String(item.at)).toLocaleString("ru-RU")} —{" "}
-                {TASK_STATE_TEXT[String(item.to_state)]}
+                {TASK_STATE_TEXT[String(item.to_state)]?.ru}
                 {item.reason ? `: ${String(item.reason)}` : ""}
               </List.Item>
             )}

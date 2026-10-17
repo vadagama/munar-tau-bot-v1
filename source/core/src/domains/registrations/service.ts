@@ -1,5 +1,5 @@
 import { notifyPerson, notifyTelegram } from "./notifications.ts";
-import { stateLabels } from "../../locales/registry.ts";
+import { labelCombined, stateLabels } from "../../locales/registry.ts";
 import { jsonValue } from "../registry/validation.ts";
 import { initialStage, reviewers } from "./routing.ts";
 import type { Actor } from "../../pdp/types.ts";
@@ -533,7 +533,7 @@ export async function reviewRegistration(
     await notifyTelegram(
       exec,
       row.telegram_user_id,
-      `Состояние регистрации / Тіркелу күйі: ${stateLabels[state]}.${reason ? ` ${reason}` : ""}` +
+      `Состояние регистрации / Тіркелу күйі: ${labelCombined(stateLabels, state)}.${reason ? ` ${reason}` : ""}` +
         (decision === "clarify"
           ? " Исправьте анкету: отправьте боту /fix. / Түзету үшін ботыға /fix жіберіңіз."
           : ""),
