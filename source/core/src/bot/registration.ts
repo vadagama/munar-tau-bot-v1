@@ -92,7 +92,7 @@ export async function registrationStep(
         numbered(rows.map((r) =>
           `<b>${esc(stateLabels[String(r.state)] ?? String(r.state))}</b>${r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""}`
         )) +
-        `\n${cmdCode("/edit НОМЕР")} — исправить анкету / өтінімді түзету`,
+        `\n${cmdCode("/fix")} — исправить анкету после уточнения; ${cmdCode("/edit НОМЕР")} — заполнить заново / өтінімді түзету`,
       );
     }
     if (cmd === "/pending" || cmd === "/accesses") {
@@ -225,22 +225,78 @@ export async function registrationStep(
       cmd === "/edit" ||
       (cmd === "/start" && parts[1]?.startsWith("invite_"))
     ) {
-      for (const key of Object.keys(state)) delete state[key];
       if (cmd === "/edit") {
+        // Номер резолвим до очистки состояния: status_options ещё живы.
         if (!parts[1])
-          throw new ApiError("VALIDATION_FAILED", "Укажите номер из /status или ID анкеты / Тізім нөмірін немесе ID-ны көрсетіңіз");
+          throw new ApiError(
+            "VALIDATION_FAILED",
+            "Укажите номер из /status или ID анкеты / Тізім нөмірін немесе ID-ны көрсетіңіз",
+          );
         const id = resolveRef(parts[1], [state.status_options as string[]]);
-        if (!id) throw new ApiError("VALIDATION_FAILED", "Не понял ссылку. Откройте /status и укажите номер строки / Тізім нөмірін көрсетіңіз");
+        if (!id)
+          throw new ApiError(
+            "VALIDATION_FAILED",
+            "Не понял ссылку. Откройте /status и укажите номер строки / Тізім нөмірін көрсетіңіз",
+          );
         const [registration] = await exec.query<Row>(
           "select id from registration where id=$1 and telegram_user_id=$2 and state in ('pending_review','need_clarification','rejected')",
           [id, telegramId],
         );
         if (!registration) throw new ApiError("NOT_FOUND");
+        for (const key of Object.keys(state)) delete state[key];
         state.registration_id = id;
+        state.step = "language";
+        return save("Выберите язык / Тілді таңдаңыз: ru / kk");
       }
+      for (const key of Object.keys(state)) delete state[key];
       if (parts[1]?.startsWith("invite_")) state.invite = parts[1].slice(7);
       state.step = "language";
       return save("Выберите язык / Тілді таңдаңыз: ru / kk");
+    }
+    if (cmd === "/fix") {
+      // Простое исправление анкеты после уточнения: бот сам находит редактируемую
+      // анкету и переспрашивает только имя и телефон; помещение, роль и язык
+      // сохраняются из анкеты. Номер резолвится по свежему запросу — ничего
+      // в состоянии не хранится (иначе воспроизводится баг /edit).
+      const rows = await exec.query<Row>(
+        `select id,state,decided_reason,draft,premises_id,role from registration
+        where telegram_user_id=$1 and is_test=$2 and state in ('need_clarification','rejected','pending_review') and total_due_at is null
+        order by case state when 'need_clarification' then 0 when 'rejected' then 1 else 2 end, updated_at desc`,
+        [telegramId, actor?.person.isTest ?? false],
+      );
+      if (!rows.length)
+        return "Анкет для исправления нет: уточнений и отказов не найдено. /register — новая анкета. / Түзететін өтінім жоқ. /register — жаңа өтінім";
+      if (!parts[1] && rows.length > 1)
+        return (
+          numbered(rows.map((r) =>
+            `<b>${esc(stateLabels[String(r.state)] ?? String(r.state))}</b>${r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""}`,
+          )) +
+          `\n${cmdCode("/fix НОМЕР")} — какую анкету исправить? / Қайсысын түзетеміз?`
+        );
+      const id = parts[1]
+        ? resolveRef(parts[1], [rows.map((r) => String(r.id))])
+        : String(rows[0]!.id);
+      if (!id)
+        throw new ApiError(
+          "VALIDATION_FAILED",
+          "Не понял ссылку. Укажите номер из списка / Тізім нөмірін көрсетіңіз",
+        );
+      const reg = rows.find((r) => String(r.id) === id)!;
+      const draft = jsonValue<Row>(reg.draft);
+      for (const key of Object.keys(state)) delete state[key];
+      state.registration_id = String(reg.id);
+      state.language = ["ru", "kk"].includes(String(draft.language))
+        ? String(draft.language)
+        : "ru";
+      state.premises_id = String(reg.premises_id);
+      state.role = String(reg.role);
+      state.step = "fix_name";
+      return save(
+        (reg.decided_reason
+          ? `Вопрос администратора / Әкімшінің сұрағы: ${esc(String(reg.decided_reason))}\n`
+          : "") +
+          "Введите имя и фамилию (или точку, чтобы оставить прежнее) / Аты-жөнді жазыңыз (немесе нүкте — өзгеріссіз):",
+      );
     }
     if (!state.step || cmd === "/start" || cmd === "/help") return HELP;
     switch (state.step) {
@@ -334,6 +390,37 @@ export async function registrationStep(
         return save(
           `<b>Проверьте / Тексеріңіз</b>: ${esc(state.full_name)}, ${esc(state.phone_e164)}, ${esc(premiseLabels[String(state.kind)] ?? state.kind)}, ${esc(roleLabels[String(state.role)] ?? state.role)}.\nСогласие на обработку этих данных для регистрации в ОСИ: да / иә. Отмена: ${cmdCode("/cancel")}. / ОСИ тіркелуі үшін осы деректерді өңдеуге келісіңіз: иә.`,
         );
+      case "fix_name": {
+        const name = input.trim() === "." ? "" : input.trim();
+        if (name.length > 300) throw new ApiError("VALIDATION_FAILED");
+        if (!name) {
+          const [reg] = await exec.query<Row>(
+            "select draft from registration where id=$1 and telegram_user_id=$2",
+            [state.registration_id, telegramId],
+          );
+          if (!reg) throw new ApiError("NOT_FOUND");
+          state.full_name = jsonValue<Row>(reg.draft).full_name;
+        } else state.full_name = name;
+        state.step = "fix_phone";
+        return save(
+          "Телефон (+7…) — или точку, чтобы оставить прежний / Телефон (+7…) — немесе нүкте — өзгеріссіз:",
+        );
+      }
+      case "fix_phone": {
+        if (input.trim() !== ".") state.phone_e164 = normalizePhone(input);
+        else {
+          const [reg] = await exec.query<Row>(
+            "select draft from registration where id=$1 and telegram_user_id=$2",
+            [state.registration_id, telegramId],
+          );
+          if (!reg) throw new ApiError("NOT_FOUND");
+          state.phone_e164 = jsonValue<Row>(reg.draft).phone_e164;
+        }
+        state.step = "consent";
+        return save(
+          `<b>Проверьте / Тексеріңіз</b>: ${esc(String(state.full_name))}, ${esc(String(state.phone_e164))}. Помещение и роль сохранены / Нысан мен рөл сақталды.\nСогласие на обработку этих данных для регистрации в ОСИ: да / иә. Отмена: ${cmdCode("/cancel")}. / ОСИ тіркелуі үшін осы деректерді өңдеуге келісіңіз: иә.`,
+        );
+      }
       case "consent": {
         if (!["да", "иә"].includes(input.trim().toLowerCase()))
           return "Для согласия / Келісу үшін: да / иә. Отмена / Бас тарту: /cancel";

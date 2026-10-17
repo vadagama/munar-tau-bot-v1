@@ -517,7 +517,10 @@ export async function reviewRegistration(
     await notifyTelegram(
       exec,
       row.telegram_user_id,
-      `Состояние регистрации / Тіркелу күйі: ${stateLabels[state]}. ${reason}`,
+      `Состояние регистрации / Тіркелу күйі: ${stateLabels[state]}. ${reason}` +
+        (decision === "clarify"
+          ? " Исправьте анкету: отправьте боту /fix. / Түзету үшін ботыға /fix жіберіңіз."
+          : ""),
       `${id}:${state}:${row.updated_at}`,
     );
     await recordAudit(
