@@ -38,3 +38,22 @@ it("при отзыве доступа очищает старую карточ�
   await screen.findByText("Задание недоступно");
   expect(screen.queryByText("Проверить герметичность")).toBeNull();
 });
+it("приёмка требует явного решения по отсутствующему доказательству",async()=>{
+ const reviewed={...task,state:"on_review",can_execute:false,can_manage:true,reports:[{id:"report",version:2,performed_work:"Замена",result:"Течь устранена",limitations:"",evidence:[],missing_evidence:["Фото"]}]};
+ vi.mocked(apiFetch).mockImplementation(async(path,opts)=>{
+  if(path==="/v1/tasks")return {items:[reviewed]};
+  if(opts?.method==="POST")return {...reviewed,state:"accepted_admin"};
+  return reviewed;
+ });
+ render(<TasksPage/>);
+ fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
+ fireEvent.click(await screen.findByText("Принять результат",{selector:"button > span"}));
+ const buttons=await screen.findAllByText("Принять результат",{selector:"button > span"});
+ fireEvent.click(buttons[buttons.length-1]!);
+ await screen.findByText("Подтвердите проверку");
+ expect(vi.mocked(apiFetch).mock.calls.some(([,opts])=>opts?.method==="POST")).toBe(false);
+ fireEvent.click(screen.getByLabelText("Результат и чек-лист проверены"));
+ fireEvent.change(screen.getByLabelText("Решение по отсутствующему доказательству: Фото"),{target:{value:"Осмотрено на месте"}});
+ fireEvent.click(buttons[buttons.length-1]!);
+ await waitFor(()=>expect(apiFetch).toHaveBeenCalledWith("/v1/tasks/t/transitions",expect.objectContaining({body:expect.objectContaining({report_version:2,result_checked:true,evidence_decisions:[{requirement_id:"Фото",reason:"Осмотрено на месте"}]})})));
+});
