@@ -22,9 +22,13 @@ export function esc(value: unknown): string {
     .replaceAll(">", "&gt;");
 }
 
-/** Моноширинная команда в подсказке. */
+/**
+ * Команда в тексте подсказки. Без <code>: Telegram сам распознаёт /команды
+ * в исходящих сообщениях (сущность bot_command) и делает их кликабельными —
+ * по кодовому блоку распознавание не работает.
+ */
 export function cmd(command: string): string {
-  return `<code>${esc(command)}</code>`;
+  return esc(command);
 }
 
 const pad2 = (n: number): string => String(n).padStart(2, "0");

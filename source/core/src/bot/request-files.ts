@@ -12,6 +12,7 @@ import {
 import { addMessage } from "../domains/requests/messages.ts";
 import { ApiError } from "../errors/api.ts";
 import { notifyPerson } from "../domains/registrations/notifications.ts";
+import { pick, type Lang } from "./text.ts";
 /** Webhook фиксирует только метаданные; getFile/загрузка выполняются jobs. */
 export async function queueRequestFile(
   deps: RegistryDeps,
@@ -22,6 +23,7 @@ export async function queueRequestFile(
 ): Promise<string> {
   const actor = await actorForTelegram(deps, telegramId);
   if (!actor) throw new ApiError("FORBIDDEN");
+  const L: Lang = actor.profile.language ?? "ru";
   const [dialog] = await deps.db.query<{ state: unknown }>(
     "select state from bot_dialog where telegram_user_id=$1",
     [telegramId],
@@ -32,14 +34,26 @@ export async function queueRequestFile(
   if (!requestId) {
     // У сотрудника файлы прикрепляются к открытому заданию (ADR-009).
     return bot === "worker"
-      ? "Откройте задание: /task НОМЕР, затем отправьте файл. / Тапсырманы ашыңыз: /task НӨМІР, сонан кейін файлды жіберіңіз."
-      : "Сначала создайте или откройте обращение: /newrequest, /request НОМЕР. / Алдымен өтінішті ашыңыз.";
+      ? pick(
+        L,
+        "Откройте задание: /task НОМЕР, затем отправьте файл.",
+        "Тапсырманы ашыңыз: /task НӨМІР, сонан кейін файлды жіберіңіз.",
+      )
+      : pick(
+        L,
+        "Сначала создайте или откройте обращение: /newrequest, /request НОМЕР.",
+        "Алдымен өтінішті ашыңыз: /newrequest, /request НӨМІР.",
+      );
   }
   const photos = message.photo as Row[] | undefined;
   const photo = photos?.[photos.length - 1];
   const item = (message.document ?? message.video ?? photo) as Row | undefined;
   if (!item || typeof item.file_id !== "string") {
-    return "Этот вид файла не поддерживается. Отправьте документом. / Файлды құжат ретінде жіберіңіз.";
+    return pick(
+      L,
+      "Этот вид файла не поддерживается. Отправьте документом.",
+      "Бұл файл түріне қолдау жоқ. Құжат ретінде жіберіңіз.",
+    );
   }
   const filename = String(
     item.file_name ?? (photo ? "photo.jpg" : "video.mp4"),
@@ -65,8 +79,18 @@ export async function queueRequestFile(
     "insert into request_upload_job(attachment_id,telegram_file_id,person_id,bot) values ($1,$2,$3,$4) on conflict do nothing",
     [f.attachment_id, item.file_id, actor.person.id, bot],
   );
-  if (taskFile) return "Файл задания принят в очередь. Дождитесь сообщения о сохранении, затем /taskfiles. / Файл кезекте.";
-  return "Файл принят в очередь, пока не сохранён. Обращение можно отправить независимо: /sendrequest. / Файл кезекте, әлі сақталмады.";
+  if (taskFile) {
+    return pick(
+      L,
+      "Файл задания принят в очередь. Дождитесь сообщения о сохранении, затем /taskfiles.",
+      "Файл кезекте. Сақталғаны туралы хабарламаны күтіңіз, содан кейін /taskfiles.",
+    );
+  }
+  return pick(
+    L,
+    "Файл принят в очередь, пока не сохранён. Обращение можно отправить независимо: /sendrequest.",
+    "Файл кезекте, әлі сақталмады. Өтінішті /sendrequest арқылы жібере аласыз.",
+  );
 }
 export async function processRequestUploads(
   deps: RegistryDeps,
@@ -178,7 +202,7 @@ export async function processRequestUploads(
         await notifyPerson(
           exec,
           String(job.person_id),
-          "Файл сохранён / Файл сақталды",
+          { ru: "Файл сохранён", kk: "Файл сақталды" },
           `file:${job.attachment_id}:complete`,
           { bot: (job.bot as BotKind) ?? "resident" },
         );
@@ -194,7 +218,10 @@ export async function processRequestUploads(
           await notifyPerson(
             exec,
             String(job.person_id),
-            "Файл не сохранён: повторите загрузку или выберите другой файл. Текст обращения сохранён. / Файл сақталмады, қайта жүктеңіз.",
+            {
+              ru: "Файл не сохранён: повторите загрузку или выберите другой файл. Текст обращения сохранён.",
+              kk: "Файл сақталмады: қайта жүктеңіз немесе басқа файлды таңдаңыз. Өтініш мәтіні сақталды.",
+            },
             `file:${job.attachment_id}:failed`,
             { bot: (job.bot as BotKind) ?? "resident" },
           );

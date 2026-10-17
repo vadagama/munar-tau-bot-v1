@@ -28,6 +28,7 @@ export type ActionKey =
   | "registry.export"
   | "registration.self"
   | "registration.review"
+  | "privacy.request"
   | "meta.me"
   | "meta.dictionary"
   | "audit.read"
@@ -83,6 +84,8 @@ export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
   "registry.export": { privileged: true, roles: ["chairman", "administrator" ] },
   "registration.self": { privileged: false },
   "registration.review": { privileged: false, roles: ["chairman", "administrator", "deputy"] },
+  // PRV-02: запрос удаления профиля/отзыва согласия подаёт сам житель.
+  "privacy.request": { privileged: false },
   "meta.me": { privileged: false },
   "meta.dictionary": { privileged: false },
 

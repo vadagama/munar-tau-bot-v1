@@ -2,6 +2,7 @@ import type { LocalizedNotice } from "../../locales/notifications.ts";
 import { enqueueNotice, type NoticeOptions } from "../notifications/service.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import type { BotKind } from "../../bot/bots.ts";
+import { langOf, pick } from "../../bot/text.ts";
 import {
   type BotReply,
   type InlineButton,
@@ -37,17 +38,32 @@ export function telegramReplyMarkup(
 export async function notifyPerson(exec: DbExecutor, personId: string, message: string | LocalizedNotice, key: string, options: NoticeOptions = {}): Promise<void> {
   await enqueueNotice(exec,{personId,text:message,key,...options});
 }
+/**
+ * Синхронный ответ в чат webhook'а. Текст — реплика сценария либо {ru, kk}:
+ * для локализованного уведомления язык берётся из профиля получателя.
+ */
 export async function notifyTelegram(
   exec: DbExecutor,
   telegramId: unknown,
-  message: BotReply,
+  message: BotReply | LocalizedNotice,
   key: string,
   bot: BotKind = "resident",
   menu?: string[][],
 ): Promise<void> {
   if (!telegramId) return;
-  const text = replyText(message);
-  const markup = telegramReplyMarkup(message, menu);
+  let reply: BotReply = message as BotReply;
+  if (
+    message && typeof message === "object" && "ru" in message && "kk" in message
+  ) {
+    const loc = message as LocalizedNotice;
+    const [p] = await exec.query<{ language: string }>(
+      "select language from profile where telegram_user_id=$1 and archived_at is null limit 1",
+      [telegramId],
+    );
+    reply = pick(langOf(p?.language), loc.ru, loc.kk);
+  }
+  const text = replyText(reply);
+  const markup = telegramReplyMarkup(reply, menu);
   const parts = notificationParts(text);
   for (const [index, part] of parts.entries()) {
     // Разметка уходит с последней частью: кнопки завершают сообщение.

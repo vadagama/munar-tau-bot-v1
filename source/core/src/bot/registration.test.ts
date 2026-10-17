@@ -1,7 +1,8 @@
 /**
  * Модульные тесты регистрационного сценария бота: /fix (простое исправление
- * анкеты после уточнения) и регрессия /edit НОМЕР (резолв ссылки до очистки
- * состояния диалога). SQL имитируется по префиксам запросов — как в
+ * анкеты после уточнения), регрессия /edit НОМЕР (резолв ссылки до очистки
+ * состояния), guard /register при существующей анкете и /delete (PRV-02).
+ * SQL имитируется по префиксам запросов — как в
  * domains/registrations/service.test.ts.
  */
 import { describe, expect, it } from "vitest";
@@ -15,8 +16,24 @@ import type { Row } from "../domains/registry/validation.ts";
 const REG_ID = "11111111-1111-1111-1111-111111111111";
 const REG_ID_2 = "22222222-2222-2222-2222-222222222222";
 
-function harness(opts: { registrations?: Row[]; editable?: Row | null } = {}) {
+const ACTIVE_STATES = [
+  "pending_review",
+  "need_clarification",
+  "approved",
+  "rejected",
+];
+
+function harness(
+  opts: {
+    registrations?: Row[];
+    editable?: Row | null;
+    profile?: boolean;
+    openPrivacyRequests?: Row[];
+  } = {},
+) {
   const registrations = opts.registrations ?? [];
+  const audit: Row[] = [];
+  const prefs: unknown[][] = [];
   let current: Row = {};
   const queries: string[] = [];
   const exec: DbExecutor = {
@@ -28,10 +45,15 @@ function harness(opts: { registrations?: Row[]; editable?: Row | null } = {}) {
         current = JSON.parse(String(params![1])) as Row;
         return Promise.resolve([] as T[]);
       }
+      // /status (все анкеты) и guard /register (только действующие состояния):
+      // guard-запрос различается по фильтру состояний в SQL.
+      if (sql.startsWith("select r.id,r.state,r.decided_reason")) {
+        const rows = sql.includes("'approved'")
+          ? registrations.filter((r) => ACTIVE_STATES.includes(String(r.state)))
+          : registrations;
+        return Promise.resolve(rows as T[]);
+      }
       if (
-        sql.startsWith(
-          "select id,state,decided_reason,review_stage from registration",
-        ) ||
         sql.includes(
           "state in ('need_clarification','rejected','pending_review') and total_due_at is null",
         )
@@ -49,6 +71,50 @@ function harness(opts: { registrations?: Row[]; editable?: Row | null } = {}) {
             ? [{ draft: registrations[0]!.draft }]
             : []) as T[],
         );
+      // PRV-02: запрос удаления анкеты (сервис privacy).
+      if (sql.startsWith("select id from privacy_request"))
+        return Promise.resolve((opts.openPrivacyRequests ?? []) as T[]);
+      if (sql.startsWith("insert into privacy_request"))
+        return Promise.resolve([
+          { id: "prq-1", person_id: params![0], kind: params![1], state: "received" },
+        ] as T[]);
+      if (sql.startsWith("insert into notification_pref")) {
+        prefs.push(params!);
+        return Promise.resolve([] as T[]);
+      }
+      if (sql.startsWith("select distinct p.building_id from connection"))
+        return Promise.resolve([] as T[]);
+      if (sql.startsWith("select distinct a.person_id from staff_assignment"))
+        return Promise.resolve([] as T[]);
+      if (opts.profile) {
+        // Минимальная цепочка actorForTelegram: связь профиль→персона,
+        // сам профиль, персона. Назначения (роли) — пусто по умолчанию.
+        if (sql.startsWith("select pr.id from profile pr join person")) {
+          return Promise.resolve([{ id: "prof-1" }] as T[]);
+        }
+        if (sql.startsWith("select id, person_id, telegram_user_id")) {
+          return Promise.resolve([{
+            id: "prof-1",
+            person_id: "pers-1",
+            telegram_user_id: 100,
+            supabase_user_id: null,
+            language: "ru",
+            is_test: false,
+            archived_at: null,
+          }] as T[]);
+        }
+        if (sql.startsWith("select id, full_name, phone_e164")) {
+          return Promise.resolve([{
+            id: "pers-1",
+            full_name: "Тест Тестов",
+            phone_e164: null,
+            status: "active",
+            is_test: false,
+            comment: null,
+          }] as T[]);
+        }
+      }
+      // actorForTelegram, bot_dialog, статус доставки, язык профиля и прочее — пусто.
       return Promise.resolve([] as T[]);
     },
   };
@@ -58,8 +124,18 @@ function harness(opts: { registrations?: Row[]; editable?: Row | null } = {}) {
     close: () => Promise.resolve(),
   };
   return {
-    deps: { db, audit: {} } as unknown as RegistryDeps,
+    deps: {
+      db,
+      audit: {
+        append: (_exec: DbExecutor, input: Row) => {
+          audit.push(input);
+          return Promise.resolve();
+        },
+      },
+    } as unknown as RegistryDeps,
     queries,
+    audit,
+    prefs,
     get state(): Row {
       return current;
     },
@@ -244,5 +320,116 @@ describe("бот: /edit НОМЕР после /status (регрессия)", () 
     await expect(registrationStep(h.deps, "100", "/edit 1")).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
+  });
+});
+
+describe("бот: /register при существующей анкете (guard)", () => {
+  it("approved — актуальный статус вместо мастера регистрации", async () => {
+    const h = harness({
+      registrations: [
+        {
+          id: REG_ID,
+          state: "approved",
+          draft,
+          premises_id: "p1",
+          role: "owner",
+          kind: "apartment",
+          number: "12",
+          code: "Ж1",
+        },
+      ],
+    });
+    const reply = await registrationStep(h.deps, "100", "/register");
+    const text = replyText(reply);
+    expect(text).toContain("Вы уже зарегистрированы. Повторная регистрация не нужна.");
+    expect(text).toContain("Oleg Krasnov");
+    expect(text).toContain("Квартира Ж1/12");
+    expect(h.state.step).toBeUndefined();
+  });
+
+  it("анкета на проверке — «уже есть анкета» и подсказки /status и /fix", async () => {
+    const h = harness({
+      registrations: [
+        {
+          id: REG_ID,
+          state: "pending_review",
+          decided_reason: null,
+          draft,
+          premises_id: "p1",
+          role: "resident",
+          kind: "apartment",
+          number: "12",
+          code: "Ж1",
+        },
+      ],
+    });
+    const reply = await registrationStep(h.deps, "100", "/register");
+    const text = replyText(reply);
+    expect(text).toContain("У вас уже есть анкета. Повторная регистрация не нужна.");
+    expect(text).toContain("/status");
+    expect(text).toContain("/fix");
+    expect(text).toContain("/add");
+    expect(h.state.step).toBeUndefined();
+  });
+
+  it("отозванная анкета не мешает новой регистрации (мастер запускается)", async () => {
+    const h = harness({
+      registrations: [
+        { id: REG_ID, state: "withdrawn", draft, premises_id: "p1", role: "resident" },
+      ],
+    });
+    const reply = await registrationStep(h.deps, "100", "/register");
+    expect(replyText(reply)).toContain("язык");
+    expect(h.state.step).toBe("language");
+  });
+
+  it("анкет нет — мастер регистрации запускается", async () => {
+    const h = harness();
+    const reply = await registrationStep(h.deps, "100", "/register");
+    expect(replyText(reply)).toContain("язык");
+    expect(h.state.step).toBe("language");
+  });
+});
+
+describe("бот: /delete — запрос удаления анкеты (PRV-02)", () => {
+  it("без регистрации — подсказка /register, запрос не подаётся", async () => {
+    const h = harness();
+    const reply = await registrationStep(h.deps, "100", "/delete confirm");
+    expect(replyText(reply)).toContain("Сначала регистрация: /register");
+    expect(h.audit.length).toBe(0);
+  });
+
+  it("без confirm — предупреждение с кнопкой подтверждения, ничего не подаётся", async () => {
+    const h = harness({ profile: true });
+    const reply = await registrationStep(h.deps, "100", "/delete");
+    const text = replyText(reply);
+    expect(text).toContain("запрос на удаление анкеты");
+    expect(text).toContain("История обращений и операций сохранится");
+    expect(typeof reply === "object" && reply.buttons?.[0]?.[0]?.data).toBe(
+      "/delete confirm",
+    );
+    expect(h.audit.length).toBe(0);
+  });
+
+  it("confirm — запрос подан, аудит записан, необязательные рассылки отключены", async () => {
+    const h = harness({ profile: true });
+    const reply = await registrationStep(h.deps, "100", "/delete confirm");
+    expect(replyText(reply)).toContain(
+      "Запрос на удаление анкеты отправлен администратору",
+    );
+    expect(h.audit.length).toBe(1);
+    expect(h.audit[0]).toMatchObject({ action: "privacy.request" });
+    expect(h.state).toEqual({});
+    // publication, work.report, request.status — три отключения; mode='off' —
+    // литерал SQL, а не параметр.
+    expect(
+      h.queries.filter((sql) => sql.startsWith("insert into notification_pref"))
+        .length,
+    ).toBe(3);
+    expect(
+      h.queries
+        .filter((sql) => sql.startsWith("insert into notification_pref"))
+        .every((sql) => sql.includes("'off'")),
+    ).toBe(true);
   });
 });

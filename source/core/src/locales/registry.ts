@@ -1,7 +1,6 @@
 /**
- * Подписи реестра (срез UX B): один источник, два языка. Бот берёт подпись
- * по языку профиля; доменные уведомления вне бота сохраняют прежний сдвоенный
- * вид через labelCombined.
+ * Подписи реестра (срез UX B): один источник, два языка. Бот и доменные
+ * уведомления берут подпись по языку профиля получателя.
  */
 export interface Loc {
   ru: string;
@@ -41,14 +40,4 @@ export function label(
 ): string {
   const value = map[String(key)];
   return value ? value[lang] : fallback ?? String(key ?? "");
-}
-
-/** Сдвоенная подпись «ru / kk» — для уведомлений вне бота (легаси-подача). */
-export function labelCombined(
-  map: Record<string, Loc>,
-  key: unknown,
-  fallback?: string,
-): string {
-  const value = map[String(key)];
-  return value ? `${value.ru} / ${value.kk}` : fallback ?? String(key ?? "");
 }

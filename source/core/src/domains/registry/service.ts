@@ -268,7 +268,10 @@ export async function mutateRegistry(
               await notifyPerson(
                 exec,
                 String(connection.person_id),
-                "Связь прекращена при смене собственника / Меншік иесі ауысқанда байланыс тоқтатылды",
+                {
+                  ru: "Связь прекращена при смене собственника",
+                  kk: "Меншік иесі ауысқанда байланыс тоқтатылды",
+                },
                 `${connection.id}:owner-change`,
               );
               await recordAudit(
@@ -347,7 +350,10 @@ export async function mutateRegistry(
       await notifyPerson(
         exec,
         String(after.person_id),
-        `Связь прекращена / Байланыс тоқтатылды: ${after.revoked_reason}`,
+        {
+          ru: `Связь прекращена: ${after.revoked_reason}`,
+          kk: `Байланыс тоқтатылды: ${after.revoked_reason}`,
+        },
         `${after.id}:revoked`,
       );
     await recordAudit(

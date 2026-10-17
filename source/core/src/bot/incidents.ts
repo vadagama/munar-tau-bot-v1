@@ -59,7 +59,7 @@ async function incidentPlainStep(
     );
     return `${
       contact.phone ?? pick(L, "Телефон ещё не настроен", "Телефон әлі бапталмаған")
-    }\n${contact.notice}`;
+    }\n${pick(L, contact.notice.ru, contact.notice.kk)}`;
   }
   if (!actor) {
     throw new ApiError(
@@ -140,7 +140,7 @@ async function incidentPlainStep(
     }, key);
     return `Сигнал: ${signal.id}\n${
       signal.contact.phone ?? ""
-    }\n${signal.contact.notice}`;
+    }\n${pick(L, signal.contact.notice.ru, signal.contact.notice.kk)}`;
   }
   if (command === "/publications") {
     return (await listPublications(deps, actor)).filter((r) =>

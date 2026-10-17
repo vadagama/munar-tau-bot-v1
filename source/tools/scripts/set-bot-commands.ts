@@ -14,53 +14,61 @@ interface BotCommand {
 
 // Команды бота жителей: сценарии registration и requests (анкета, обращения).
 const RESIDENT_COMMANDS_RU: BotCommand[] = [
-  { command: "start", description: "Запуск и главное меню" },
-  { command: "help", description: "Справка по всем командам" },
-  { command: "register", description: "Регистрация в ОСИ (анкета)" },
-  { command: "status", description: "Статус анкеты регистрации" },
-  { command: "objects", description: "Мои помещения" },
-  { command: "newrequest", description: "Новое обращение" },
-  { command: "requests", description: "Мои обращения" },
-  { command: "request", description: "Открыть обращение по номеру" },
+  { command: "start", description: "🚀 Запуск и главное меню" },
+  { command: "help", description: "❓ Справка по всем командам" },
+  { command: "register", description: "📝 Регистрация в ОСИ (анкета)" },
+  { command: "status", description: "🔎 Статус анкеты регистрации" },
+  { command: "fix", description: "✏️ Исправить анкету после уточнения" },
+  { command: "delete", description: "🗑 Запрос на удаление анкеты" },
+  { command: "objects", description: "🏠 Мои помещения" },
+  { command: "add", description: "➕ Добавить помещение" },
+  { command: "newrequest", description: "🆕 Новое обращение" },
+  { command: "requests", description: "📬 Мои обращения" },
+  { command: "request", description: "💬 Открыть обращение по номеру" },
+  { command: "notifications", description: "⚙️ Уведомления и язык" },
 ];
 
 const RESIDENT_COMMANDS_KK: BotCommand[] = [
-  { command: "start", description: "Іске қосу және басты мәзір" },
-  { command: "help", description: "Барлық командалар туралы анықтама" },
-  { command: "register", description: "ОСИ-де тіркеу (өтінім)" },
-  { command: "status", description: "Тіркелу өтінімінің күйі" },
-  { command: "objects", description: "Менің үй-жайларым" },
-  { command: "newrequest", description: "Жаңа өтініш" },
-  { command: "requests", description: "Менің өтініштерім" },
-  { command: "request", description: "Өтінішті нөмір бойынша ашу" },
+  { command: "start", description: "🚀 Іске қосу және басты мәзір" },
+  { command: "help", description: "❓ Барлық командалар туралы анықтама" },
+  { command: "register", description: "📝 ОСИ-де тіркеу (өтінім)" },
+  { command: "status", description: "🔎 Тіркелу өтінімінің күйі" },
+  { command: "fix", description: "✏️ Өтінімді түзету" },
+  { command: "delete", description: "🗑 Өтінімді жою туралы сұрау" },
+  { command: "objects", description: "🏠 Менің үй-жайларым" },
+  { command: "add", description: "➕ Үй-жай қосу" },
+  { command: "newrequest", description: "🆕 Жаңа өтініш" },
+  { command: "requests", description: "📬 Менің өтініштерім" },
+  { command: "request", description: "💬 Өтінішті нөмір бойынша ашу" },
+  { command: "notifications", description: "⚙️ Хабарламалар мен тіл" },
 ];
 
 // Команды бота сотрудников: задания исполнителей (WRK); полный список — /help.
 const WORKER_COMMANDS_RU: BotCommand[] = [
-  { command: "start", description: "Запуск и главное меню" },
-  { command: "help", description: "Справка по всем командам" },
-  { command: "tasks", description: "Мои задания" },
-  { command: "task", description: "Открыть задание по номеру" },
+  { command: "start", description: "🚀 Запуск и главное меню" },
+  { command: "help", description: "❓ Справка по всем командам" },
+  { command: "tasks", description: "🗂 Мои задания" },
+  { command: "task", description: "🔎 Открыть задание по номеру" },
 ];
 
 const WORKER_COMMANDS_KK: BotCommand[] = [
-  { command: "start", description: "Іске қосу және басты мәзір" },
-  { command: "help", description: "Барлық командалар туралы анықтама" },
-  { command: "tasks", description: "Менің тапсырмаларым" },
-  { command: "task", description: "Тапсырманы нөмір бойынша ашу" },
+  { command: "start", description: "🚀 Іске қосу және басты мәзір" },
+  { command: "help", description: "❓ Барлық командалар туралы анықтама" },
+  { command: "tasks", description: "🗂 Менің тапсырмаларым" },
+  { command: "task", description: "🔎 Тапсырманы нөмір бойынша ашу" },
 ];
 
 const RESIDENT_DESCRIPTION_RU =
-  "Бот жителей ОСИ ЖК «Мунар Тау»: регистрация, обращения, уведомления. Начните с /register или /help.";
+  "Бот жителей ОСИ ЖК «Мунар Тау»: регистрация, обращения, уведомления.";
 const RESIDENT_DESCRIPTION_KK =
-  "«Мұнар Тау» ТКБ тұрғындар боты: тіркеу, өтініштер, хабарландырулар. /register немесе /help-тен бастаңыз.";
+  "«Мұнар Тау» ТКБ тұрғындар боты: тіркеу, өтініштер, хабарландырулар.";
 const RESIDENT_SHORT_RU = "Обращения и уведомления жителей ОСИ";
 const RESIDENT_SHORT_KK = "Тұрғындардың өтініштері мен хабарландырулары";
 
 const WORKER_DESCRIPTION_RU =
-  "Бот сотрудников ОСИ ЖК «Мунар Тау»: задания исполнителям, служебные уведомления. Начните с /tasks или /help.";
+  "Бот сотрудников ОСИ ЖК «Мунар Тау»: задания исполнителям, служебные уведомления.";
 const WORKER_DESCRIPTION_KK =
-  "«Мұнар Тау» ТКБ қызметкерлер боты: орындаушылардың тапсырмалары, қызметтік хабарландырулар. /tasks немесе /help-тен бастаңыз.";
+  "«Мұнар Тау» ТКБ қызметкерлер боты: орындаушылардың тапсырмалары, қызметтік хабарландырулар.";
 const WORKER_SHORT_RU = "Задания и служебные уведомления ОСИ";
 const WORKER_SHORT_KK = "ОСИ тапсырмалары мен қызметтік хабарландырулары";
 

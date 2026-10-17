@@ -75,6 +75,7 @@ describe("реестр действий", () => {
       "meta.me",
       "notification.failures",
       "notification.preferences",
+      "privacy.request",
       "publication.approve", "publication.manage", "publication.read",
       "registration.review",
       "registration.self",

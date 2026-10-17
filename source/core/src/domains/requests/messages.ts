@@ -117,14 +117,20 @@ export async function addMessage(
           await inform(
             exec,
             row,
-            `${row.number}: новое сообщение / жаңа хабарлама. Откройте карточку обращения.`,
+            {
+              ru: `${row.number}: новое сообщение. Откройте карточку обращения.`,
+              kk: `${row.number}: жаңа хабарлама. Өтініш карточкасын ашыңыз.`,
+            },
             `${id}:message:${messageId}`,
             true,
           );
           await informManagers(
             exec,
             row,
-            `${row.number}: новое сообщение / жаңа хабарлама`,
+            {
+              ru: `${row.number}: новое сообщение`,
+              kk: `${row.number}: жаңа хабарлама`,
+            },
             `${messageId}:admin`,
           );
         }
@@ -266,7 +272,10 @@ export async function rateRequest(
       await informManagers(
         exec,
         row,
-        `${row.number}: низкая оценка / төмен баға`,
+        {
+          ru: `${row.number}: низкая оценка`,
+          kk: `${row.number}: төмен баға`,
+        },
         `${id}:rating:${crypto.randomUUID()}`,
       );
     }

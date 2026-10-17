@@ -18,7 +18,7 @@ function fixture(attempts = 0, loseLease = false) {
   let state = "queued",
     attachment = "incomplete",
     stored: Uint8Array | undefined;
-  const notifications: string[] = [];
+  const notifications: (string | { ru: string; kk: string })[] = [];
   const db: DbClient = {
     async query<T>(sql: string, params: readonly unknown[] = []): Promise<T[]> {
       let rows: unknown[] = [];
@@ -90,7 +90,8 @@ it("Telegram-файл подтверждается только после пе�
     .toBe(1);
   expect(f.state()).toBe("complete");
   expect(f.attachment()).toBe("complete");
-  expect(f.notifications).toEqual(["Файл сохранён / Файл сақталды"]);
+  // Текст уведомления локализуется на доставке по языку профиля.
+  expect(f.notifications).toEqual([{ ru: "Файл сохранён", kk: "Файл сақталды" }]);
 });
 it("ошибка последней попытки оставляет incomplete и предлагает повтор без утечки токена", async () => {
   const f = fixture(2);
@@ -105,7 +106,9 @@ it("ошибка последней попытки оставляет incomplete
   expect(f.state()).toBe("failed");
   expect(f.attachment()).toBe("incomplete");
   expect(f.notifications).toHaveLength(1);
-  expect(f.notifications[0]).toContain("не сохранён");
+  const notice = f.notifications[0] as { ru: string; kk: string };
+  expect(notice.ru).toContain("не сохранён");
+  expect(notice.kk).toContain("сақталмады");
   expect(f.notifications.join()).not.toContain("secret-token");
 });
 it("потерявший lease обработчик не объявляет файл сохранённым", async () => {

@@ -368,7 +368,7 @@ export async function dispatchNotices(
           // При недоступной БД вся транзакция откатится и событие останется повторяемым.
           await exec.query(
             `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,important,request_id,audience,is_test,state,attempts,last_error,task_id,bot)
- select telegram_user_id,'Не удалось подготовить уведомление / Хабарламаны дайындау мүмкін болмады',$2,person_id,case when is_test then 'simulator' else 'telegram' end,$3,$4::text::jsonb,$5,$6,$7,is_test,'failed',5,'DISPATCH_FAILED',$8,coalesce($9,'resident') from profile where person_id=$1 and archived_at is null on conflict(dedup_key) do nothing`,
+ select telegram_user_id,(case when language='kk' then 'Хабарламаны дайындау мүмкін болмады' else 'Не удалось подготовить уведомление' end),$2,person_id,case when is_test then 'simulator' else 'telegram' end,$3,$4::text::jsonb,$5,$6,$7,is_test,'failed',5,'DISPATCH_FAILED',$8,coalesce($9,'resident') from profile where person_id=$1 and archived_at is null on conflict(dedup_key) do nothing`,
             [
               n.personId,
               n.key,

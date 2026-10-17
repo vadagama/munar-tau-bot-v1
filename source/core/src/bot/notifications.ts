@@ -15,9 +15,17 @@ export async function notificationStep(
 ): Promise<BotReply> {
   const actor = providedActor ?? await actorForTelegram(deps, telegramId);
   if (!actor) {
+    // Ошибка до Actor: язык берём напрямую из профиля (нет профиля — русский).
+    const [p] = await deps.db.query<{ language: string }>(
+      "select language from profile where telegram_user_id=$1 and archived_at is null limit 1",
+      [telegramId],
+    );
+    const lang = p?.language === "kk" ? "kk" : "ru";
     throw new ApiError(
       "FORBIDDEN",
-      "Сначала подтвердите регистрацию / Алдымен тіркелуді растаңыз",
+      lang === "kk"
+        ? "Алдымен тіркелуді растаңыз: /register"
+        : "Сначала подтвердите регистрацию: /register",
     );
   }
   const [, requestedType, requestedMode, language] = input.trim().toLowerCase()
