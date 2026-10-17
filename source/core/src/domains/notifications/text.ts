@@ -4,6 +4,9 @@
  * Telegram отклонит разметку части. Нумерованные части сохраняют весь
  * текст, даже если доставка повторяется или меняет порядок.
  */
+import { pick, type Lang } from "../../bot/text.ts";
+import { btn, inlineMarkup } from "../../bot/keyboard.ts";
+
 const HARD_LIMIT = 4096;
 const PART_LIMIT = 4000;
 /** Теги нашей разметки короткие; мнемоники — не длиннее нескольких символов. */
@@ -38,4 +41,23 @@ export function notificationParts(message: string): string[] {
     start = end;
   }
   return raw.map((text, index) => `[${index + 1}/${raw.length}]\n${text}`);
+}
+
+/**
+ * Кнопка-точка входа в уведомлении (срез C): подпись «Открыть …», а
+ * callback_data — точная команда открытия карточки, которую пользователь
+ * мог бы набрать сам. Паритет с текстом по построению: webhook исполняет
+ * callback как текстовый шаг, PDP и аудит общие. Уведомление доставляет
+ * тот бот, кому оно адресовано (notification.bot, ADR-009), поэтому кнопка
+ * работает у обоих ботов без различий.
+ */
+export function entryMarkup(
+  kind: "request" | "task",
+  number: string,
+  lang: Lang,
+): unknown {
+  const label = kind === "request"
+    ? pick(lang, "Открыть обращение", "Өтінішті ашу")
+    : pick(lang, "Открыть задание", "Тапсырманы ашу");
+  return inlineMarkup([[btn(label, `${kind === "request" ? "/request" : "/task"} ${number}`)]]);
 }

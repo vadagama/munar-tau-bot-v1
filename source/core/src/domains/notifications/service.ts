@@ -1,7 +1,7 @@
 import { requireIncident } from "../incidents/access.ts";
 import { audienceMember, type AudienceScope } from "../incidents/audience.ts";
 import { requireTask } from "../tasks/access.ts";
-import { notificationParts } from "./text.ts";
+import { entryMarkup, notificationParts } from "./text.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { can } from "../../pdp/evaluate.ts";
@@ -301,10 +301,29 @@ export async function dispatchNotices(
               ],
             );
           } else if (mode === "immediate") {
-            for (const [index, part] of notificationParts(text).entries()) {
+            const parts = notificationParts(text);
+            // Точка входа (срез C): кнопка открытия карточки на последней части.
+            // Номер резолвим по id здесь — команды принимают и номер, и UUID,
+            // но пользователь видит привычный номер, а карточка открывается тем
+            // же кодом, что и по текстовой команде (PDP и аудит общие).
+            let markup: unknown = null;
+            if (n.requestId) {
+              const [r] = await exec.query<{ number: string }>(
+                "select number from request where id=$1",
+                [n.requestId],
+              );
+              if (r) markup = entryMarkup("request", r.number, actor.profile.language);
+            } else if (n.taskId) {
+              const [t] = await exec.query<{ number: string }>(
+                "select number from task where id=$1",
+                [n.taskId],
+              );
+              if (t) markup = entryMarkup("task", t.number, actor.profile.language);
+            }
+            for (const [index, part] of parts.entries()) {
               await exec.query(
-                `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,important,priority,request_id,audience,is_test,task_id,bot)
- select telegram_user_id,$2,$3,person_id,case when is_test then 'simulator' else 'telegram' end,$4,$5::text::jsonb,$6,$7,$8,$9,is_test,$10,coalesce($11,'resident') from profile where id=$1 on conflict(dedup_key) do nothing`,
+                `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,important,priority,request_id,audience,is_test,task_id,bot,reply_markup)
+ select telegram_user_id,$2,$3,person_id,case when is_test then 'simulator' else 'telegram' end,$4,$5::text::jsonb,$6,$7,$8,$9,is_test,$10,coalesce($11,'resident'),$12::text::jsonb from profile where id=$1 on conflict(dedup_key) do nothing`,
                 [
                   actor.profile.id,
                   part,
@@ -324,6 +343,10 @@ export async function dispatchNotices(
                   n.audience ?? "personal",
                   n.taskId ?? null,
                   n.bot ?? null,
+                  // Разметка уходит с последней частью: кнопки завершают сообщение.
+                  index === parts.length - 1 && markup !== null
+                    ? JSON.stringify(markup)
+                    : null,
                 ],
               );
             }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { notificationParts } from "./text.ts";
+import { entryMarkup, notificationParts } from "./text.ts";
 
 describe("notificationParts", () => {
   it("короткое сообщение не режется", () => {
@@ -41,5 +41,29 @@ describe("notificationParts", () => {
     expect(parts.length).toBeGreaterThan(1);
     const joined = parts.map((p) => p.replace(/^\[\d+\/\d+\]\n/, "")).join("");
     expect(joined).toBe(text);
+  });
+});
+
+describe("entryMarkup (срез C: точка входа в уведомлении)", () => {
+  it("кнопка обращения — callback_data равен команде открытия карточки", () => {
+    const markup = entryMarkup("request", "З-26-00001", "ru") as {
+      inline_keyboard: { text: string; callback_data: string }[][];
+    };
+    expect(markup.inline_keyboard).toEqual([[
+      { text: "Открыть обращение", callback_data: "/request З-26-00001" },
+    ]]);
+  });
+
+  it("кнопка задания — подпись на языке получателя", () => {
+    for (const [lang, label] of [
+      ["ru", "Открыть задание"],
+      ["kk", "Тапсырманы ашу"],
+    ] as const) {
+      const markup = entryMarkup("task", "З-26-1", lang) as {
+        inline_keyboard: { text: string; callback_data: string }[][];
+      };
+      expect(markup.inline_keyboard[0]![0]!.text).toBe(label);
+      expect(markup.inline_keyboard[0]![0]!.callback_data).toBe("/task З-26-1");
+    }
   });
 });
