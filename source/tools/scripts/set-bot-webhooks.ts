@@ -6,6 +6,10 @@
 // Секреты: TELEGRAM_WEBHOOK_SECRET и TELEGRAM_WORKER_WEBHOOK_SECRET
 // (совпадают с секретами функций; не коммитятся, не печатаются).
 // Повторный запуск безопасен: setWebhook просто перезаписывает адрес.
+// allowed_updates задаётся явно: опущенный параметр Telegram сохраняет
+// прежний фильтр (документация setWebhook), из-за чего однажды
+// зарегистрированный ["message"] навсегда отсекал callback_query —
+// нажатия кнопок не доходили до вебхука (инцидент 17.10.2026).
 
 import {
   botTokenEnv,
@@ -94,11 +98,22 @@ for (const bot of BOTS) {
   const url = `${base}/functions/v1/bot-webhook/${bot.suffix}`;
   try {
     await callBot(token, "getMe", {});
-    await callBot(token, "setWebhook", { url, secret_token: secret });
+    await callBot(token, "setWebhook", {
+      url,
+      secret_token: secret,
+      // Текстовые команды и нажатия inline-кнопок (callback_data = команда).
+      allowed_updates: ["message", "callback_query"],
+    });
     const info = await callBot(token, "getWebhookInfo", {});
     if (info.url !== url) {
       throw new Error(
         `getWebhookInfo вернул другой адрес: ${String(info.url)}`,
+      );
+    }
+    const allowed = (info.allowed_updates as string[] | undefined) ?? [];
+    if (!allowed.includes("callback_query")) {
+      throw new Error(
+        `getWebhookInfo не показывает callback_query в allowed_updates: ${JSON.stringify(allowed)} — кнопки не будут работать`,
       );
     }
     console.log(`[ok] ${bot.label}: ${url}`);
