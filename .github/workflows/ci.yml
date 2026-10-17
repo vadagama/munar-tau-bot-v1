@@ -43,34 +43,40 @@ jobs:
       - run: deno task lint
       - run: deno task test
 
+  # ── ВРЕМЕННО ОТКЛЮЧЕНО (2026-10-17) ─────────────────────────────────────
+  # Джоба снята с прогона на время разработки: долгий прогон и дедлоки
+  # при параллельных запусках против dev-БД (40P01). Ручной запуск —
+  # `npm run test:integration` из source/ при настроенном TEST_DATABASE_URL
+  # (см. AGENTS.md, раздел «Команды»). Вернуть — раскомментировать блок ниже.
+  #
   # Интеграционные тесты против dev-БД Supabase (TEST_DATABASE_URL из секретов;
   # тесты применяют миграции и очищают данные — только dev-проект, HLD §20).
   # Без секрета джоба зелёная с предупреждением (по паттерну deploy).
-  integration:
-    concurrency:
-      group: munar-tau-dev-integration
-      cancel-in-progress: false
-    name: "Node: интеграционные тесты (dev-БД Supabase)"
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: source
-    env:
-      TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: source/.nvmrc
-          cache: npm
-          cache-dependency-path: source/package-lock.json
-      - run: npm ci
-      - name: Интеграционные тесты (TEST_DATABASE_URL настроен)
-        if: env.TEST_DATABASE_URL != ''
-        run: npm run test:integration
-      - name: TEST_DATABASE_URL не настроен — предупреждение
-        if: env.TEST_DATABASE_URL == ''
-        run: echo "::warning::TEST_DATABASE_URL не настроен — интеграционные тесты пропущены. Задайте секрет с URI session-pooler dev-проекта (см. AGENTS.md, раздел «Команды»)."
+  # integration:
+  #   concurrency:
+  #     group: munar-tau-dev-integration
+  #     cancel-in-progress: false
+  #   name: "Node: интеграционные тесты (dev-БД Supabase)"
+  #   runs-on: ubuntu-latest
+  #   defaults:
+  #     run:
+  #       working-directory: source
+  #   env:
+  #     TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version-file: source/.nvmrc
+  #         cache: npm
+  #         cache-dependency-path: source/package-lock.json
+  #     - run: npm ci
+  #     - name: Интеграционные тесты (TEST_DATABASE_URL настроен)
+  #       if: env.TEST_DATABASE_URL != ''
+  #       run: npm run test:integration
+  #     - name: TEST_DATABASE_URL не настроен — предупреждение
+  #       if: env.TEST_DATABASE_URL == ''
+  #       run: echo "::warning::TEST_DATABASE_URL не настроен — интеграционные тесты пропущены. Задайте секрет с URI session-pooler dev-проекта (см. AGENTS.md, раздел «Команды»)."
 
   # Task 8: деплой из CI — только push в main, после зелёного CI.
   # Каждый шаг выполняется при наличии своих секретов; если секреты не
