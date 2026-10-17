@@ -34,6 +34,19 @@ export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {})
     return resident || staff ? ALLOW : deny("Обращение недоступно");
   }
 
+  if ((action.startsWith("incident.") && action !== "incident.use") || action.startsWith("publication.")) {
+    const r = action.startsWith("incident.") ? resource.incidentAccess : resource.publicationAccess;
+    if (!r || r.isTest !== actor.person.isTest || actor.person.status !== "active" || !r.buildingIds.length) return deny("Объект недоступен");
+    const inScope = (a: Actor["assignments"][number]) => r.buildingIds.every(id => a.scopeBuildingIds?.includes(id));
+    const chairman = actor.assignments.some(a => a.role === "chairman");
+    const manager = chairman || actor.assignments.some(a => ["administrator", "deputy"].includes(a.role) && inScope(a));
+    const duty = resource.incidentAccess?.responsibleId === actor.person.id && actor.assignments.some(a => a.role === "duty" && inScope(a));
+    if (action === "publication.approve") return chairman ? ALLOW : deny("Требуется председатель");
+    if (action === "incident.link" || action === "publication.manage") return manager ? ALLOW : deny("Требуется администратор области");
+    if (action === "incident.manage") return manager || duty ? ALLOW : deny("Требуется администратор или назначенный дежурный");
+    return manager || (action === "incident.read" && duty) || (r.published && r.member) ? ALLOW : deny("Объект недоступен");
+  }
+
   // Собственный ресурс: любой аутентифицированный завершает свой сеанс (AUTH-06).
   if (action.startsWith("task.") && action !== "task.use") {
     const r = resource.taskAccess;

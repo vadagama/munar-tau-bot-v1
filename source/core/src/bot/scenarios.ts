@@ -1,3 +1,4 @@
+import { incidentStep } from "./incidents.ts";
 import { notificationStep } from "./notifications.ts";
 import { taskStep } from "./tasks.ts";
 import type { DbExecutor } from "../db/client.ts";
@@ -7,9 +8,9 @@ import type { RegistryDeps } from "../domains/registry/service.ts";
 import { ApiError } from "../errors/api.ts";
 export function botScenarios(deps: RegistryDeps) {
   const scenarios = registrationScenarios(deps);
-  for (const id of ["requests","tasks"]) scenarios.register({
+  for (const id of ["requests","tasks","incidents"]) scenarios.register({
     id,
-    description: id === "requests" ? "REQ/SHR/MSG: обращения и переписка" : "WRK: задания исполнителя",
+    description: id === "requests" ? "REQ/SHR/MSG: обращения и переписка" : id === "incidents" ? "EMG/PUB: аварии и публикации" : "WRK: задания исполнителя",
     run: async (input, ctx) => {
       if (
         !ctx.actor?.emulation || !ctx.actor.person.isTest
@@ -31,7 +32,7 @@ export function botScenarios(deps: RegistryDeps) {
           },
         }
         : deps;
-      return (id === "requests" ? requestStep : taskStep)(d, String(profile.telegram_user_id), input, ctx.actor);
+      return (id === "requests" ? requestStep : id === "incidents" ? incidentStep : taskStep)(d, String(profile.telegram_user_id), input, ctx.actor);
     },
   });
   scenarios.register({id:"notifications",description:"NTF: настройки уведомлений",run:async(input,ctx)=>{

@@ -1,0 +1,503 @@
+import dayjs from "dayjs";
+import { useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  DatePicker,
+  Form,
+  Input,
+  List,
+  Modal,
+  Select,
+  Space,
+  Table,
+  Typography,
+} from "antd";
+import { apiFetch } from "../lib/api";
+import { useCabinetIdentity } from "../lib/identity";
+type Row = Record<string, unknown>;
+const required = [{ required: true, message: "Заполните поле" }];
+const kinds: Record<string, string> = {
+  announcement: "Объявление",
+  outage: "Плановое отключение",
+  work_report: "Отчёт о работе",
+  financial_report: "Финансовый отчёт",
+};
+const states: Record<string, string> = {
+  draft: "Черновик",
+  pending_approval: "На согласовании",
+  scheduled: "Запланирована",
+  published: "Опубликована",
+  archived: "В архиве",
+};
+export function PublicationsPage() {
+  const { roles } = useCabinetIdentity(),
+    manager = roles.some((r) =>
+      ["chairman", "administrator", "deputy"].includes(r)
+    );
+  const [rows, setRows] = useState<Row[]>([]),
+    [card, setCard] = useState<Row | null>(null),
+    [buildings, setBuildings] = useState<Row[]>([]),
+    [works, setWorks] = useState<Row[]>([]),
+    [people, setPeople] = useState<Row[]>([]),
+    [error, setError] = useState<string | null>(null),
+    [busy, setBusy] = useState(false),
+    [action, setAction] = useState<string | null>(null),
+    [form] = Form.useForm();
+  const kind = Form.useWatch("kind", form),
+    key = useRef(crypto.randomUUID()),
+    generation = useRef(0);
+  const fail = (e: unknown) =>
+    setError(e instanceof Error ? e.message : "Ошибка запроса");
+  async function refresh() {
+    const g = ++generation.current;
+    setBusy(true);
+    try {
+      const r = await apiFetch<{ items: Row[] }>("/v1/publications");
+      if (g === generation.current) setRows(r.items);
+    } catch (e) {
+      if (g === generation.current) fail(e);
+    } finally {
+      if (g === generation.current) setBusy(false);
+    }
+  }
+  useEffect(() => {
+    void refresh();
+    return () => {
+      generation.current++;
+    };
+  }, []);
+  async function open(id: string) {
+    try {
+      setCard(await apiFetch<Row>(`/v1/publications/${id}`));
+      setError(null);
+    } catch (e) {
+      fail(e);
+    }
+  }
+  async function begin(a: string) {
+    setAction(a);
+    key.current = crypto.randomUUID();
+    form.resetFields();
+    form.setFieldsValue({ kind: "announcement", requires_document: false });
+    if (a === "edit" && card) {
+      form.setFieldsValue({
+        ...card,
+        planned_start: card.planned_start
+          ? dayjs(String(card.planned_start))
+          : undefined,
+        planned_end: card.planned_end
+          ? dayjs(String(card.planned_end))
+          : undefined,
+      });
+    }
+    if (a === "media") {
+      form.setFieldsValue({
+        attachment_ids: ((card?.files as Row[]) ?? []).map((f) => f.id),
+      });
+    }
+    if (a === "create" || a === "edit") {
+      try {
+        const [b, w, p] = await Promise.all([
+          apiFetch<{ items: Row[] }>("/v1/registry/buildings"),
+          apiFetch<{ items: Row[] }>("/v1/common-works"),
+          apiFetch<{ persons: Row[] }>("/v1/incidents/context"),
+        ]);
+        setBuildings(b.items);
+        setWorks(w.items.filter((x) => x.state === "completed"));
+        setPeople(p.persons);
+      } catch (e) {
+        fail(e);
+      }
+    }
+  }
+  async function submit() {
+    try {
+      const values = await form.validateFields();
+      for (
+        const name of [
+          "planned_start",
+          "planned_end",
+          "publish_at",
+          "restored_at",
+        ]
+      ) if (values[name]) values[name] = values[name].toISOString();
+      setBusy(true);
+      setError(null);
+      const result = await apiFetch<Row>(
+        action === "create"
+          ? "/v1/publications"
+          : action === "edit"
+          ? `/v1/publications/${card!.id}`
+          : `/v1/publications/${card!.id}/${
+            action === "media"
+              ? "media"
+              : action === "problem"
+              ? "problems"
+              : "transitions"
+          }`,
+        {
+          method: action === "edit" ? "PATCH" : "POST",
+          body: action === "create"
+            ? values
+            : { ...values, action, expected_version: card!.version },
+          idempotencyKey: key.current,
+        },
+      );
+      setAction(null);
+      await refresh();
+      if (action !== "problem") await open(String(result.id));
+    } catch (e) {
+      if (e instanceof Error) fail(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      <Typography.Title level={2}>Публикации и отключения</Typography.Title>
+      {error && <Alert type="error" message={error} showIcon />}
+      <Space wrap>
+        <Button loading={busy} onClick={() => void refresh()}>Обновить</Button>
+        {manager && (
+          <Button type="primary" onClick={() => void begin("create")}>
+            Создать публикацию
+          </Button>
+        )}
+      </Space>
+      <Table
+        rowKey="id"
+        dataSource={rows}
+        loading={busy}
+        scroll={{ x: 650 }}
+        locale={{ emptyText: "Публикаций нет" }}
+        columns={[{ title: "Название", dataIndex: "title" }, {
+          title: "Вид",
+          dataIndex: "kind",
+          render: (k) => kinds[String(k)],
+        }, {
+          title: "Состояние",
+          dataIndex: "state",
+          render: (s) => states[String(s)],
+        }, {
+          title: "",
+          render: (_, r) => (
+            <Button onClick={() => void open(String(r.id))}>Открыть</Button>
+          ),
+        }]}
+      />
+      {card && (
+        <Card
+          title={String(card.title)}
+          extra={<Button onClick={() => setCard(null)}>Закрыть</Button>}
+        >
+          <Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>
+            {String(card.body)}
+          </Typography.Paragraph>
+          {card.kind === "outage" && (
+            <Alert
+              type="info"
+              message={`План: ${card.planned_start} — ${card.planned_end}. Фактическое восстановление: ${
+                card.restored_at ?? "не подтверждено"
+              }`}
+            />
+          )}
+          <List
+            dataSource={(card.files as Row[]) ?? []}
+            renderItem={(f) => (
+              <List.Item>
+                <Button
+                  onClick={() => {
+                    void apiFetch<{ url: string }>(
+                      `/v1/publications/${card.id}/files/${f.id}/url`,
+                    ).then((r) =>
+                      window.open(r.url, "_blank", "noopener,noreferrer")
+                    ).catch(fail);
+                  }}
+                >
+                  {String(f.filename)}
+                </Button>
+              </List.Item>
+            )}
+          />
+          {card.kind === "work_report" && card.state === "published" && (
+            <Button onClick={() => void begin("problem")}>
+              Сообщить о проблеме с этой работой
+            </Button>
+          )}
+          {manager && (
+            <Space wrap style={{ marginTop: 16 }}>
+              {card.state === "draft" && (
+                <>
+                  <Button onClick={() => void begin("edit")}>
+                    Редактировать
+                  </Button>
+                  {card.kind === "work_report" && (
+                    <Button onClick={() => void begin("media")}>
+                      Выбрать фото и видео
+                    </Button>
+                  )}
+                </>
+              )}
+              {card.state === "draft" && (
+                <>
+                  {card.kind === "financial_report"
+                    ? (
+                      <Button onClick={() => void begin("submit_approval")}>
+                        На согласование председателю
+                      </Button>
+                    )
+                    : (
+                      <>
+                        <Button
+                          type="primary"
+                          onClick={() => void begin("publish")}
+                        >
+                          Опубликовать
+                        </Button>
+                        <Button onClick={() => void begin("schedule")}>
+                          Запланировать
+                        </Button>
+                      </>
+                    )}
+                </>
+              )}
+              {card.state === "pending_approval" &&
+                roles.includes("chairman") && (
+                <Button onClick={() => void begin("approve")}>
+                  Разрешить публикацию
+                </Button>
+              )}
+              {card.state === "published" && card.kind === "outage" &&
+                !card.restored_at && (
+                <>
+                  <Button onClick={() => void begin("update_outage")}>
+                    Обновить план
+                  </Button>
+                  <Button
+                    onClick={() => void begin("restore")}
+                  >
+                    Подтвердить восстановление
+                  </Button>
+                </>
+              )}
+              {["published", "scheduled"].includes(String(card.state)) && (
+                <Button onClick={() => void begin("archive")}>В архив</Button>
+              )}
+            </Space>
+          )}
+          <List
+            header="История"
+            dataSource={(card.history as Row[]) ?? []}
+            renderItem={(h) => (
+              <List.Item>{String(h.at)} — версия {String(h.version)}</List.Item>
+            )}
+          />
+        </Card>
+      )}
+      <Modal
+        open={!!action}
+        title={action === "create"
+          ? "Новая публикация"
+          : "Действие с публикацией"}
+        onCancel={() => setAction(null)}
+        onOk={() => void submit()}
+        confirmLoading={busy}
+        width={650}
+      >
+        <Form form={form} layout="vertical" disabled={busy}>
+          {["create", "edit"].includes(action ?? "") && (
+            <>
+              <Form.Item name="kind" label="Вид" rules={required}>
+                <Select
+                  options={Object.entries(kinds).map(([value, label]) => ({
+                    value,
+                    label,
+                  }))}
+                />
+              </Form.Item>
+              <Form.Item name="title" label="Название" rules={required}>
+                <Input />
+              </Form.Item>
+              <Form.Item name="body" label="Текст для жителей" rules={required}>
+                <Input.TextArea rows={5} />
+              </Form.Item>
+              <Form.Item name="building_ids" label="Аудитория" rules={required}>
+                <Select
+                  mode="multiple"
+                  options={buildings.map((b) => ({
+                    value: String(b.id),
+                    label: String(b.code),
+                  }))}
+                />
+              </Form.Item>
+              <Form.Item name="requires_document" valuePropName="checked">
+                <Checkbox>
+                  Сообщение о взносах, правилах или решении — требуется
+                  утверждённый документ
+                </Checkbox>
+              </Form.Item>
+              <Alert
+                type="info"
+                message="Документальные основания подключаются в VS-8. Публикация с обязательным документом пока блокируется."
+              />
+              {kind === "work_report" && (
+                <Form.Item
+                  name="common_work_id"
+                  label="Принятая общая работа"
+                  rules={required}
+                >
+                  <Select
+                    options={works.map((w) => ({
+                      value: String(w.id),
+                      label: `${w.number}: ${w.title}`,
+                    }))}
+                  />
+                </Form.Item>
+              )}
+              {kind === "outage" && (
+                <>
+                  <Form.Item name="service" label="Услуга" rules={required}>
+                    <Input />
+                  </Form.Item>
+                  <Form.Item
+                    name="responsible_person_id"
+                    label="Ответственный"
+                    rules={required}
+                  >
+                    <Select
+                      options={people.map((p) => ({
+                        value: String(p.id),
+                        label: String(p.full_name),
+                      }))}
+                    />
+                  </Form.Item>
+                  {[["planned_start", "Начало"], ["planned_end", "Окончание"]]
+                    .map(([name, label]) => (
+                      <Form.Item
+                        key={name}
+                        name={name}
+                        label={label}
+                        rules={required}
+                      >
+                        <DatePicker showTime format="DD.MM.YYYY HH:mm" />
+                      </Form.Item>
+                    ))}
+                </>
+              )}
+            </>
+          )}
+          {action === "media" && (
+            <>
+              <Form.Item
+                name="attachment_ids"
+                label="Выбранные материалы"
+                rules={required}
+              >
+                <Select
+                  mode="multiple"
+                  options={((card?.available_files as Row[]) ?? []).map(
+                    (f) => ({ value: String(f.id), label: String(f.filename) }),
+                  )}
+                />
+              </Form.Item>
+              <Form.Item name="privacy_checked" valuePropName="checked">
+                <Checkbox>
+                  Проверено: выбранные материалы можно раскрыть аудитории
+                  публикации; чужих личных данных нет
+                </Checkbox>
+              </Form.Item>
+            </>
+          )}
+          {action === "problem" && (
+            <>
+              <Form.Item name="building_id" label="Объект" rules={required}>
+                <Select
+                  options={((card?.building_ids as string[]) ?? []).map(
+                    (value) => ({
+                      value,
+                      label: buildings.find((b) =>
+                        b.id === value
+                      )?.code as string ?? "Объект публикации",
+                    }),
+                  )}
+                />
+              </Form.Item>
+              <Form.Item
+                name="location_text"
+                label="Где сохранилась проблема"
+                rules={required}
+              >
+                <Input />
+              </Form.Item>
+              <Form.Item name="text" label="Описание" rules={required}>
+                <Input.TextArea />
+              </Form.Item>
+            </>
+          )}
+          {action === "schedule" && (
+            <Form.Item
+              name="publish_at"
+              label="Время публикации"
+              rules={required}
+            >
+              <DatePicker showTime format="DD.MM.YYYY HH:mm" />
+            </Form.Item>
+          )}
+          {action === "approve" && (
+            <Form.Item
+              name="approval_note"
+              label="Основание внешних согласований"
+              rules={required}
+            >
+              <Input.TextArea />
+            </Form.Item>
+          )}
+          {action === "archive" && (
+            <Form.Item name="reason" label="Причина" rules={required}>
+              <Input.TextArea />
+            </Form.Item>
+          )}
+          {["restore", "update_outage"].includes(action ?? "") && (
+            <>
+              <Form.Item
+                name="body"
+                label="Обновление для жителей"
+                rules={required}
+              >
+                <Input.TextArea />
+              </Form.Item>
+              <Form.Item
+                name={action === "restore" ? "restored_at" : "planned_end"}
+                label={action === "restore"
+                  ? "Фактическое восстановление"
+                  : "Новый срок окончания"}
+                rules={required}
+              >
+                <DatePicker showTime format="DD.MM.YYYY HH:mm" />
+              </Form.Item>
+              {action === "restore" && (
+                <Form.Item
+                  name="restoration_method"
+                  label="Как проверено восстановление"
+                  rules={required}
+                >
+                  <Input.TextArea />
+                </Form.Item>
+              )}
+            </>
+          )}
+          {action === "publish" && (
+            <Alert
+              type="warning"
+              showIcon
+              message="Проверьте текст и аудиторию. Публикация будет доступна жителям и попадёт в их уведомления по настройкам."
+            />
+          )}
+        </Form>
+      </Modal>
+    </Space>
+  );
+}

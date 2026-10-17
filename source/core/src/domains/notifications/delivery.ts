@@ -1,3 +1,4 @@
+import { emergencyDeliveryFailure } from "../incidents/failures.ts";
 import { informTaskManagers } from "../tasks/timing.ts";
 import { TASK_SELECT, type TaskRow } from "../tasks/access.ts";
 import { deliveryFailed } from "../../locales/notifications.ts";
@@ -63,6 +64,11 @@ export async function sendNotifications(
             isTest: Boolean(row.is_test),
             buildingIds: ref.buildingIds,
             registrationAccess: ref.registrationAccess,
+            type: row.event_type as EventType,
+            signalId: ref.signalId,
+            scope: ref.scope,
+            incidentId: ref.incidentId,
+            publicationId: ref.publicationId,
           }) ||
           await preference(
               deps.db,
@@ -135,12 +141,18 @@ export async function sendNotifications(
       `insert into notification_followup(notification_id) select n.id from notification n where n.state='failed' and n.important and not exists(select 1 from notification_followup f where f.notification_id=n.id) order by n.created_at limit 100 on conflict(notification_id) do nothing returning notification_id`,
     );
     for (const item of created) {
+      await emergencyDeliveryFailure(exec, item.notification_id);
       const [task] = await exec.query<TaskRow>(
         `${TASK_SELECT} join notification n on n.task_id=t.id where n.id=$1`,
         [item.notification_id],
       );
       if (task) {
-        const message = {ru:`Назначение задания ${task.number} не доставлено. Требуется резервный ответственный.`,kk:`${task.number}: тапсырма тағайындауы жеткізілмеді. Қосалқы жауапты қажет.`};
+        const message = {
+          ru:
+            `Назначение задания ${task.number} не доставлено. Требуется резервный ответственный.`,
+          kk:
+            `${task.number}: тапсырма тағайындауы жеткізілмеді. Қосалқы жауапты қажет.`,
+        };
         await informTaskManagers(
           exec,
           task,

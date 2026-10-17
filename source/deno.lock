@@ -62,6 +62,14 @@
             "npm:vitest@3"
           ]
         }
+      },
+      "landing": {
+        "packageJson": {
+          "dependencies": [
+            "npm:qrcode@^1.5.4",
+            "npm:vite@^7.3.7"
+          ]
+        }
       }
     }
   }

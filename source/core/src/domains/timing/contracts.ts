@@ -14,6 +14,9 @@ export interface RuleContract {
 }
 // Версия 1 неизменна: новая семантика требует нового каталога и совместимого обработчика.
 const definitions: Record<string, [string, string, string, string]> = {
+  emergency_primary: ["Направление сигнала основному дежурному", "Явное принятие или передача", "incident.reserve", "Передать резервному и уведомить администратора, не принимать автоматически"],
+  emergency_reserve: ["Передача резервному дежурному", "Явное принятие или передача", "incident.administrator", "Передать администратору и уведомить председателя, не принимать автоматически"],
+  incident_update_escalation: ["Пропуск обещанного обновления", "Публикация нового обновления или завершение", "incident.update_overdue", "Уведомить председателя, не завершать инцидент"],
   work_schedule: [
     "Начало отсчёта нового рабочего срока",
     "Окончание соответствующего срока",
@@ -104,7 +107,8 @@ export function ruleContract(key: string, value: unknown = {}): RuleContract {
     action: d[2],
     effect: d[3],
   };
-  const p = jsonValue<{ contract?: unknown }>(value ?? {});
+  const p = jsonValue<{ contract?: unknown; clock?: unknown }>(value ?? {});
+  if(key.startsWith("emergency_") && p.clock!==undefined && p.clock!=="calendar") throw new ApiError("VALIDATION_FAILED","Аварийное дежурство действует круглосуточно");
   if (p.contract !== undefined) {
     const actual = p.contract as Record<string, unknown> | null;
     if (

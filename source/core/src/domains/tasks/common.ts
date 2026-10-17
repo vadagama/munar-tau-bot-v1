@@ -159,7 +159,15 @@ async function workLog(
         request.author_person_id,
         `Обращение ${request.number}: общая работа ${row.number} ${stateText}. ${next}`,
         `common:${row.id}:${row.version}:${request.id}`,
-        {requestId:request.id,audience:"resident",type:row.state==="canceled"?"request.required":"request.status",important:row.state==="canceled",isTest:row.is_test},
+        {
+          requestId: request.id,
+          audience: "resident",
+          type: row.state === "canceled"
+            ? "request.required"
+            : "request.status",
+          important: row.state === "canceled",
+          isTest: row.is_test,
+        },
       );
     }
   }
@@ -240,7 +248,12 @@ async function link(
       new Date(String(work.due_at)).toISOString()
     }. Проверка результата останется отдельной.`,
     `common:${work.id}:linked:${requestId}:${request.version}`,
-    {requestId,audience:"resident",type:"request.status",isTest:work.is_test},
+    {
+      requestId,
+      audience: "resident",
+      type: "request.status",
+      isTest: work.is_test,
+    },
   );
 }
 export async function createCommonWork(
@@ -446,6 +459,15 @@ export async function unlinkCommonRequest(
         CLOSED_STATES.includes(request.state) ||
         request.state === "awaiting_confirmation"
       ) invalid("Сначала отзовите результат или возобновите обращение");
+      const incidentOwned = await exec.query(
+        "select incident_id from incident_work_request where common_work_id=$1 and request_id=$2",
+        [id, requestId],
+      );
+      if (incidentOwned.length) {
+        invalid(
+          "Отсоедините обращение или работу через карточку инцидента, указав дальнейший маршрут",
+        );
+      }
       const removed = await exec.query(
         "delete from common_work_request where common_work_id=$1 and request_id=$2 returning request_id",
         [id, requestId],
@@ -469,7 +491,12 @@ export async function unlinkCommonRequest(
         request.author_person_id,
         `Обращение ${request.number}: дальнейший план — ${plan}.`,
         `common:${id}:unlink:${requestId}:${request.version}`,
-      {requestId,audience:"resident",type:"request.status",isTest:actor.person.isTest},
+        {
+          requestId,
+          audience: "resident",
+          type: "request.status",
+          isTest: actor.person.isTest,
+        },
       );
       return updated!;
     }, async () => {
