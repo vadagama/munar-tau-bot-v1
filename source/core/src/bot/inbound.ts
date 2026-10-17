@@ -5,10 +5,13 @@ import { jsonValue } from "../domains/registry/validation.ts";
 import { ApiError } from "../errors/api.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { registrationStep } from "./registration.ts";
-import { workerHelp } from "./help.ts";
+import { residentMenu, workerHelp, workerMenu } from "./help.ts";
 import { notifyTelegram } from "../domains/registrations/notifications.ts";
 import type { BotKind } from "./bots.ts";
 import type { Row } from "../domains/registry/validation.ts";
+import { type BotReply, replyText } from "./keyboard.ts";
+import { botErrorText } from "./bot-errors.ts";
+import { langOf, pick, type Lang } from "./text.ts";
 
 /**
  * Маршрутизация шага внутри бота (ADR-009): файлы — в очередь загрузок,
@@ -24,7 +27,7 @@ async function routeStep(
   command: string,
   operationId: string,
   updateId: unknown,
-): Promise<string> {
+): Promise<BotReply> {
   if (message.photo || message.document || message.video) {
     return queueRequestFile(deps, telegramId, message, updateId, bot);
   }
@@ -36,7 +39,7 @@ async function routeStep(
         "update bot_dialog set state='{}'::text::jsonb,updated_at=now() where telegram_user_id=$1",
         [telegramId],
       );
-      return workerHelp();
+      return workerHelp(await profileLang(deps.db, telegramId));
     }
     return TASK_COMMANDS.includes(command) || state.scenario === "tasks"
       ? taskStep(deps, telegramId, text, undefined, operationId)
@@ -45,6 +48,18 @@ async function routeStep(
   return REQUEST_COMMANDS.includes(command) || state.scenario === "requests"
     ? requestStep(deps, telegramId, text, undefined, operationId)
     : registrationStep(deps, telegramId, text);
+}
+
+/** Язык профиля для подачи ответа; профиля нет — русский. */
+async function profileLang(
+  exec: { query: <T>(sql: string, params?: unknown[]) => Promise<T[]> },
+  telegramId: string,
+): Promise<Lang> {
+  const [row] = await exec.query<{ language: string }>(
+    "select language from profile where telegram_user_id=$1 and archived_at is null limit 1",
+    [telegramId],
+  );
+  return langOf(row?.language);
 }
 
 export async function processInbound(
@@ -62,9 +77,15 @@ export async function processInbound(
       [bot, update.update_id, JSON.stringify(update)],
     );
     if (!inserted.length) return false;
-    const message = update.message as Row | undefined;
-    const from = message?.from as Row | undefined,
+    // Срез UX B: нажатие inline-кнопки исполняется как её текстовый эквивалент —
+    // callback_data равен команде, которую пользователь мог бы набрать сам.
+    const callback = update.callback_query as Row | undefined;
+    const message = (update.message ?? callback?.message) as Row | undefined;
+    const from = (callback?.from ?? message?.from) as Row | undefined,
       chat = message?.chat as Row | undefined;
+    const callbackData = typeof callback?.data === "string" && callback.data
+      ? callback.data
+      : undefined;
     if (
       message &&
       from &&
@@ -72,11 +93,11 @@ export async function processInbound(
       Number.isSafeInteger(from.id) &&
       from.id === chat.id &&
       chat.type === "private" &&
-      (typeof message.text === "string" || message.photo || message.document ||
-        message.video)
+      (callbackData !== undefined || typeof message.text === "string" ||
+        message.photo || message.document || message.video)
     ) {
       await exec.query("savepoint bot_scenario");
-      let reply: string;
+      let reply: BotReply = "";
       try {
         const db = {
           ...deps.db,
@@ -88,35 +109,52 @@ export async function processInbound(
           [from.id],
         );
         const state = dialog ? jsonValue<Row>(dialog.state) : {};
-        const command = typeof message.text === "string"
-          ? message.text.split(/\s+/)[0]
-          : "";
+        const text = callbackData ?? String(message.text ?? "");
+        const command = text.split(/\s+/)[0] ?? "";
         reply = await routeStep(
           { ...deps, db },
           bot,
           String(from.id),
-          message,
+          callback ? { ...message, text } : message,
           state,
-          command ?? "",
+          command,
           `telegram:${update.update_id}`,
           update.update_id,
         );
       } catch (error) {
         await exec.query("rollback to savepoint bot_scenario");
-        if (error instanceof ApiError) reply = error.message;
-        else if ((error as { code?: string }).code === "23505") {
-          reply =
-            "Телефон или привязка уже существует. Требуется проверка администратора. / Телефон немесе тіркелгі бар. Әкімшінің тексеруі қажет.";
+        if (error instanceof ApiError) {
+          reply = botErrorText(
+            error,
+            await profileLang(exec, String(from.id)),
+          );
+        } else if ((error as { code?: string }).code === "23505") {
+          reply = pick(
+            await profileLang(exec, String(from.id)),
+            "Телефон или привязка уже существует. Требуется проверка администратора.",
+            "Телефон немесе тіркелгі бар. Әкімшінің тексеруі қажет.",
+          );
         } else throw error;
       }
+      // Reply-меню прикрепляется к справке: постоянная клавиатура ставится
+      // один раз и остаётся, пока пользователь её не скроет.
+      const command = (callbackData ?? String(message.text ?? "")).split(
+        /\s+/,
+      )[0] ?? "";
+      const menu = command === "/start" || command === "/help"
+        ? bot === "worker" ? workerMenu() : residentMenu()
+        : undefined;
       // Ответ уходит тем же ботом, который принял обновление.
-      await notifyTelegram(
-        exec,
-        from.id,
-        reply,
-        `update:${update.update_id}:reply`,
-        bot,
-      );
+      if (replyText(reply)) {
+        await notifyTelegram(
+          exec,
+          from.id,
+          reply,
+          `update:${update.update_id}:reply`,
+          bot,
+          menu,
+        );
+      }
     }
     await exec.query(
       "update bot_inbound set status='processed',processed_at=now() where bot=$2 and update_id=$1",
