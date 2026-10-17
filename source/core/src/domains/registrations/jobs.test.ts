@@ -67,6 +67,6 @@ it("блокировка бота немедленно видна как failed"
     Promise.reject(Object.assign(new Error("TELEGRAM_403"), { blocked: true })),
   );
   expect(
-    h.updates.some((p) => p[1] === "failed" && p[2] === "TELEGRAM_403"),
+    h.updates.some((p) => p[1] === "failed" && p[2] === "BLOCKED_BY_USER"),
   ).toBe(true);
 });

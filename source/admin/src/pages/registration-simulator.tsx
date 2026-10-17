@@ -30,7 +30,8 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
   return (
     <Card title="Симулятор бота" style={{ marginBottom: 16 }}>
       <Space direction="vertical" style={{ width: "100%" }}>
-        <Select aria-label="Сценарий симулятора" value={scenario} onChange={setScenario} options={[{value:"registration",label:"Регистрация"},{value:"requests",label:"Обращения"}]} />
+        <Select aria-label="Сценарий симулятора" value={scenario} onChange={setScenario} options={[{value:"registration",label:"Регистрация"},{value:"requests",label:"Обращения"},{value:"notifications",label:"Уведомления"}]} />
+        {scenario === "notifications" && <Button disabled={!active || busy} onClick={()=>void send("/notifications")}>Настройки уведомлений</Button>}
         {scenario === "requests" && <Space wrap><Button disabled={!active || busy} onClick={()=>void send("/newrequest")}>Новое обращение</Button><Button disabled={!active || busy} onClick={()=>void send("/requests")}>Мои обращения</Button></Space>}
         {!active && (
           <Alert

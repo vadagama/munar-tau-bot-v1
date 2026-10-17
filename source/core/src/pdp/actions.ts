@@ -5,6 +5,8 @@
 import type { SpecialRights, StaffRole } from "./types.ts";
 
 export type ActionKey =
+  | "notification.preferences"
+  | "notification.failures"
   | "request.use"
   | "request.read"
   | "request.manage"
@@ -47,6 +49,8 @@ export interface ActionSpec {
 }
 
 export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
+  "notification.preferences": { privileged: false },
+  "notification.failures": { privileged: false, roles: ["chairman", "administrator", "deputy"] },
   "request.use": { privileged: false },
   "request.read": { privileged: false },
   "request.manage": { privileged: false },

@@ -72,6 +72,8 @@ describe("реестр действий", () => {
       "emulation.simulate",
       "meta.dictionary",
       "meta.me",
+      "notification.failures",
+      "notification.preferences",
       "registration.review",
       "registration.self",
       "registry.export",

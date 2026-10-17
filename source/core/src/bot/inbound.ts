@@ -1,3 +1,4 @@
+import { notificationStep } from "./notifications.ts";
 import { queueRequestFile } from "./request-files.ts";
 import { requestStep,REQUEST_COMMANDS } from "./requests.ts";
 import { jsonValue } from "../domains/registry/validation.ts";
@@ -41,7 +42,7 @@ export async function processInbound(
         const [dialog]=await exec.query<{state:unknown}>("select state from bot_dialog where telegram_user_id=$1",[from.id]);
         const state=dialog ? jsonValue<Row>(dialog.state):{};
         const command=typeof message.text==="string" ? message.text.split(/\s+/)[0]:"";
-        reply = typeof message.text!=="string" ? await queueRequestFile({...deps,db},String(from.id),message,update.update_id) : REQUEST_COMMANDS.includes(command ?? "") || state.scenario==="requests"
+        reply = command === "/notifications" ? await notificationStep({...deps,db},String(from.id),String(message.text)) : typeof message.text!=="string" ? await queueRequestFile({...deps,db},String(from.id),message,update.update_id) : REQUEST_COMMANDS.includes(command ?? "") || state.scenario==="requests"
           ? await requestStep({...deps,db},String(from.id),String(message.text),undefined,`telegram:${update.update_id}`)
           : await registrationStep({...deps,db},String(from.id),String(message.text));
       } catch (error) {

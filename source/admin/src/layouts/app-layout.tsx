@@ -52,8 +52,9 @@ export function AppLayout() {
   const items = [
     { key: "/", label: "Главная" },
     { key: "/requests", label: "Обращения" },
+    { key: "/notifications", label: "Уведомления" },
     ...(canSeeAudit(roles) ? [{ key: "/audit", label: "Журнал действий" }] : []),
-    ...(roles.some(role=>["chairman","administrator","tech_admin"].includes(role)) ? [{key:"/time-rules",label:"Регламенты регистрации"}] : []),
+    ...(roles.some(role=>["chairman","administrator","tech_admin"].includes(role)) ? [{key:"/time-rules",label:"Регламенты"}] : []),
     ...(canUseEmulation(roles) || identity?.me.emulation ? [{ key: "/emulation", label: "Эмуляция" }] : []),
     ...(["chairman","administrator","deputy"].some(role=>roles.includes(role as typeof roles[number])) ? [{key:"/registry",label:"Реестр"},{key:"/registrations",label:"Регистрация и споры"},{key:"/invites",label:"Приглашения"},{key:"/registry-import",label:"Импорт и экспорт"}] : []),
   ];

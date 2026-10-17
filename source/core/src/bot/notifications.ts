@@ -1,0 +1,75 @@
+import type { Actor } from "../pdp/types.ts";
+import { ApiError } from "../errors/api.ts";
+import type { RegistryDeps } from "../domains/registry/service.ts";
+import { actorForTelegram } from "./registration.ts";
+import {
+  getPreferences,
+  setPreference,
+} from "../domains/notifications/service.ts";
+export async function notificationStep(
+  deps: RegistryDeps,
+  telegramId: string,
+  input: string,
+  providedActor?: Actor,
+): Promise<string> {
+  const actor = providedActor ?? await actorForTelegram(deps, telegramId);
+  if (!actor) {
+    throw new ApiError(
+      "FORBIDDEN",
+      "Сначала подтвердите регистрацию / Алдымен тіркелуді растаңыз",
+    );
+  }
+  const [, requestedType, requestedMode, language] = input.trim().toLowerCase()
+    .split(/\s+/);
+  const types: Record<string, string> = {
+    новости: "publication",
+    жаңалықтар: "publication",
+    отчёты: "work.report",
+    есептер: "work.report",
+    статусы: "request.status",
+    күйлер: "request.status",
+  };
+  const modes: Record<string, string> = {
+    сразу: "immediate",
+    бірден: "immediate",
+    сводка: "digest",
+    шолу: "digest",
+    выключено: "off",
+    өшіру: "off",
+  };
+  const type = requestedType
+    ? types[requestedType] ?? requestedType
+    : undefined;
+  const mode = requestedMode
+    ? modes[requestedMode] ?? requestedMode
+    : undefined;
+  const settings = type
+    ? await setPreference(deps, actor, type, mode, language)
+    : await getPreferences(deps.db, actor);
+  const kk = settings.language === "kk";
+  const names: Record<string, string> = kk
+    ? {
+      publication: "Жаңалықтар",
+      "work.report": "Жарияланған есептер",
+      "request.status": "Өтініш күйлері",
+      immediate: "бірден",
+      digest: "шолу",
+      off: "өшіру",
+    }
+    : {
+      publication: "Новости",
+      "work.report": "Опубликованные отчёты",
+      "request.status": "Статусы обращений",
+      immediate: "сразу",
+      digest: "сводка",
+      off: "выключено",
+    };
+  const help = kk
+    ? "Өзгерту мысалы: /notifications жаңалықтар шолу kk\nТүрлер: жаңалықтар, есептер, күйлер. Режимдер: бірден, шолу, өшіру. Күйлер үшін шолу қолжетімсіз.\nМіндетті келісімдер мен апаттар туралы хабарламалар өшірілмейді."
+    : "Пример изменения: /notifications новости сводка ru\nВиды: новости, отчёты, статусы. Режимы: сразу, сводка, выключено. Для статусов сводка недоступна.\nОбязательные согласования и аварии не отключаются.";
+  return `${
+    settings.items.map((i) => `${names[i.event_type]}: ${names[i.mode]}`).join(
+      "\n",
+    )
+  }\n\n${help}`;
+}

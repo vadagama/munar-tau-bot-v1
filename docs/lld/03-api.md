@@ -378,3 +378,14 @@
 В VS-3 минимальное формирование `notification` выполняется в той же транзакции;
 соответствующее событие outbox помечается обработанным атомарно с постановкой
 уведомлений. VS-5 не должен повторно рассылать эти исторические события.
+
+### VS-5: предпочтения и журнал доставки
+
+| Метод и путь | Право | Назначение |
+| --- | --- | --- |
+| GET /v1/notifications/preferences | notification.preferences | Настройки собственной персоны, язык и перечень обязательных событий |
+| POST /v1/notifications/preferences | notification.preferences | event_type, mode и необязательный language (ru/kk); сервер разрешает только publication/work.report/request.status |
+| GET /v1/notifications/failures | notification.failures | Ошибки в области домов и аудитории сотрудника; без текста уведомления |
+| POST /v1/notifications/followups/:id/complete | notification.failures | Обязательный непустой result; повторное завершение даёт 409, доступ проверяется заново |
+
+Существующий API регламентов возвращает автора/причину версии и правовое основание. Правовые границы нарушать нельзя (422 RULE_LEGAL_BOUNDARY); изменение графика требует registry.rules.edit и явной причины. digest_time следует work_schedule и не редактируется отдельно.

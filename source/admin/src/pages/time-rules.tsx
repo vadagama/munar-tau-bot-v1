@@ -16,6 +16,14 @@ interface Rule {
   id: string;
   key: string;
   version: number;
+  kind: string;
+  created_by: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  reason: string | null;
+  legal_source: string | null;
+  legal_revision: string | null;
+  legal_limits: {min_hours?:number;max_hours?:number;clock?:string} | null;
   params: {
     hours: number;
     clock: string;
@@ -26,16 +34,27 @@ interface Rule {
   };
 }
 const names: Record<string, string> = {
+  work_schedule: "Рабочий график",
+  first_response: "Первый ответ",
+  author_reminder: "Напоминание автору",
+  request_admin_close_wait: "Проверка при отсутствии ответа автора",
+  request_reopen: "Окно повторного открытия",
+  digest_time: "Сводка — в конце смены",
   invite_expiry: "Срок приглашения",
   tenant_wait: "Ожидание собственника",
   registration_stage: "Этап рассмотрения",
   dispute_total: "Общий срок спора",
+};
+const ruleDetails=(rule:Rule)=>{
+ const p=typeof rule.params==="string" ? JSON.parse(rule.params) as Rule["params"] : rule.params;
+ return `${p.hours} ${p.clock==="working" ? "рабочих" : "календарных"} ч${p.clock==="working" ? `; график ${p.start ?? 8}:00–${p.end ?? 20}:00, ${p.timezone ?? "Asia/Almaty"}; дни: ${(p.days ?? [0,1,2,3,4,5,6]).map(d=>["Вс","Пн","Вт","Ср","Чт","Пт","Сб"][d]).join(", ")}` : ""}`;
 };
 export function TimeRulesPage() {
   const [rules, setRules] = useState<Rule[]>([]),
     [error, setError] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
     [editing, setEditing] = useState<Rule | null>(null);
+  const [history, setHistory] = useState<Rule[]>([]);
   const [form] = Form.useForm();
   const load = async () => {
     setBusy(true);
@@ -43,6 +62,7 @@ export function TimeRulesPage() {
       const result = await apiFetch<{ items: Rule[] }>(
         "/v1/registry/time-rules",
       );
+      setHistory(result.items);
       setRules(
         result.items
           .map((r) => ({
@@ -68,7 +88,7 @@ export function TimeRulesPage() {
       const { reason, ...params } = values;
       await apiFetch(`/v1/registry/time-rules/${editing!.key}`, {
         method: "POST",
-        body: { params, reason },
+        body: { params: { ...editing!.params, ...params }, reason },
       });
       setEditing(null);
       await load();
@@ -80,7 +100,7 @@ export function TimeRulesPage() {
   };
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Typography.Title level={2}>Регламенты регистрации</Typography.Title>
+      <Typography.Title level={2}>Регламенты</Typography.Title>
       <Alert
         type="info"
         showIcon
@@ -91,7 +111,12 @@ export function TimeRulesPage() {
         rowKey="id"
         dataSource={rules}
         loading={busy}
-        scroll={{ x: 700 }}
+        scroll={{ x: 900 }}
+        expandable={{expandedRowRender:r=><Space direction="vertical">
+          {r.kind==="legal" && <Alert type="warning" message={`Правовой регламент: ${r.legal_source ?? "источник не заполнен"}; редакция: ${r.legal_revision ?? "не заполнена"}`} description={`Допустимая длительность: ${r.legal_limits?.min_hours ?? "не задана"}–${r.legal_limits?.max_hours ?? "не задана"} ч`} />}
+          {history.filter(v=>v.key===r.key).map(v=><Typography.Paragraph key={v.id}>Версия {v.version} · {new Date(v.created_at).toLocaleString("ru-RU")} · автор: {v.created_by_name ?? (v.created_by ? "Сотрудник" : "Начальная настройка")}<br/>{v.reason}<br/>{ruleDetails(v)}</Typography.Paragraph>)}
+        </Space>}}
+
         columns={[
           {
             title: "Правило",
@@ -102,13 +127,15 @@ export function TimeRulesPage() {
           {
             title: "Длительность",
             render: (_, r) =>
-              `${r.params.hours} ${r.params.clock === "working" ? "рабочих" : "календарных"} ч`,
+              r.key==="digest_time" ? "Окончание текущей смены" : r.key==="work_schedule" ? `${r.params.start}:00–${r.params.end}:00 (${r.params.timezone})` : `${r.params.hours} ${r.params.clock === "working" ? "рабочих" : "календарных"} ч`,
           },
           {
             title: "Действие",
             render: (_, r) => (
               <Button
+                disabled={r.key === "digest_time"}
                 onClick={() => {
+                  form.resetFields();
                   form.setFieldsValue({
                     ...r.params,
                     timezone: r.params.timezone ?? "Asia/Almaty",
@@ -124,7 +151,7 @@ export function TimeRulesPage() {
         ]}
       />
       <Modal
-        title={editing ? names[editing.key] : "Регламент"}
+        title={editing ? names[editing.key] ?? editing.key : "Регламент"}
         open={!!editing}
         onCancel={() => setEditing(null)}
         onOk={() => void save()}
@@ -135,17 +162,19 @@ export function TimeRulesPage() {
         <Form name="registration-time-rule" form={form} layout="vertical">
           <Form.Item
             name="hours"
+            hidden={editing?.key==="work_schedule"}
             label="Длительность, часов"
             rules={[{ required: true }]}
           >
-            <InputNumber min={0.5} max={8784} />
+            <InputNumber disabled={editing?.key==="work_schedule"} min={0.5} max={8784} />
           </Form.Item>
           <Form.Item
             name="clock"
+            hidden={editing?.key==="work_schedule"}
             label="Отсчёт времени"
             rules={[{ required: true }]}
           >
-            <Select
+            <Select disabled={editing?.key==="work_schedule"}
               options={[
                 { value: "calendar", label: "Календарное" },
                 { value: "working", label: "Рабочее" },
@@ -153,16 +182,17 @@ export function TimeRulesPage() {
             />
           </Form.Item>
           <Form.Item name="start" label="Открытие, час">
-            <InputNumber min={0} max={23} precision={0} />
+            <InputNumber disabled={editing?.key!=="work_schedule"} min={0} max={23} precision={0} />
           </Form.Item>
           <Form.Item name="end" label="Окончание, час">
-            <InputNumber min={1} max={24} precision={0} />
+            <InputNumber disabled={editing?.key!=="work_schedule"} min={1} max={24} precision={0} />
           </Form.Item>
           <Form.Item name="timezone" label="Часовой пояс">
-            <Input />
+            <Input disabled={editing?.key!=="work_schedule"} />
           </Form.Item>
           <Form.Item name="days" label="Рабочие дни">
             <Select
+              disabled={editing?.key!=="work_schedule"}
               mode="multiple"
               options={["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"].map(
                 (label, value) => ({ label, value }),

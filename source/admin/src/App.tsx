@@ -1,3 +1,4 @@
+import { NotificationsPage } from "./pages/notifications";
 import { RequestsPage } from "./pages/requests";
 import { TimeRulesPage } from "./pages/time-rules";
 import { InvitesPage } from "./pages/invites";
@@ -41,6 +42,7 @@ export default function App() {
               }
             >
               <Route path="/" element={<HomePage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/time-rules" element={<TimeRulesPage />} />
               <Route path="/invites" element={<InvitesPage />} />
               <Route path="/requests" element={<RequestsPage />} />

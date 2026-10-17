@@ -1,3 +1,6 @@
+import { dispatchNotices } from "../../core/src/domains/notifications/service.ts";
+import { sweepDigests } from "../../core/src/domains/notifications/digest.ts";
+import { sweepConfirmationTimers } from "../../core/src/domains/timing/request-timers.ts";
 import { sweepRequests } from "../../core/src/domains/requests/jobs.ts";
 import { processRequestUploads } from "../../core/src/bot/request-files.ts";
 import { SupabaseFileStorage } from "../../core/src/domains/requests/files.ts";
@@ -6,8 +9,8 @@ import { createDbClient } from "../../core/src/db/client.ts";
 import { SqlAuditRepo } from "../../core/src/domains/audit/repo.ts";
 import { requireEnv } from "../../core/src/config/env.ts";
 import {
-  sweepRegistrations,
   sendNotifications,
+  sweepRegistrations,
   type TelegramSender,
 } from "../../core/src/domains/registrations/jobs.ts";
 import type { RegistryDeps } from "../../core/src/domains/registry/service.ts";
@@ -68,36 +71,67 @@ export async function handle(
       audit: new SqlAuditRepo(),
     };
     try {
-      const deadline = Date.now() + 45000;
-      const files = !deps && env("SUPABASE_URL") && env("SUPABASE_SERVICE_ROLE_KEY") && env("TELEGRAM_BOT_TOKEN") ? await processRequestUploads(actual,new SupabaseFileStorage(requireEnv(env,"SUPABASE_URL"),requireEnv(env,"SUPABASE_SERVICE_ROLE_KEY")),requireEnv(env,"TELEGRAM_BOT_TOKEN"),deadline) : 0;
-      const processed = files +
-        (await sweepRegistrations(actual, new Date(), deadline)) +
-        (await processImportBatches(actual, deadline)) +
-        (deps ? 0 : await sweepRequests(actual,deadline));
-      const send: TelegramSender =
-        sender ??
-        (async (chatId, text) => {
-          const token = requireEnv(env, "TELEGRAM_BOT_TOKEN");
-          const response = await fetch(
-            `https://api.telegram.org/bot${token}/sendMessage`,
-            {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ chat_id: chatId, text }),
-              signal: AbortSignal.timeout(10000),
-            },
+      return await actual.db.transaction(async (guard) => {
+        const [lock] = await guard.query<{ acquired: boolean }>(
+          "select pg_try_advisory_xact_lock(814733,6) as acquired",
+        );
+        if (!lock?.acquired) {
+          return new Response(
+            JSON.stringify({ status: "ok", processed: 0, sent: 0, busy: true }),
+            { headers: JSON_HEADERS },
           );
-          const result = await response.json();
-          if (!response.ok || result.ok !== true)
-            throw Object.assign(new Error(`TELEGRAM_${response.status}`), {
-              retryAfter: result.parameters?.retry_after,
-              blocked: response.status === 403,
-            });
+        }
+        const deadline = Date.now() + 45000;
+        const backgroundDeadline = deadline - 15000;
+        const files =
+          !deps && env("SUPABASE_URL") && env("SUPABASE_SERVICE_ROLE_KEY") &&
+            env("TELEGRAM_BOT_TOKEN")
+            ? await processRequestUploads(
+              actual,
+              new SupabaseFileStorage(
+                requireEnv(env, "SUPABASE_URL"),
+                requireEnv(env, "SUPABASE_SERVICE_ROLE_KEY"),
+              ),
+              requireEnv(env, "TELEGRAM_BOT_TOKEN"),
+              backgroundDeadline,
+            )
+            : 0;
+        const processed = files +
+          (await sweepRegistrations(actual, new Date(), backgroundDeadline)) +
+          (await processImportBatches(actual, backgroundDeadline)) +
+          (await sweepRequests(actual, backgroundDeadline)) +
+          (await sweepConfirmationTimers(
+            actual,
+            new Date(),
+            backgroundDeadline,
+          )) +
+          (await dispatchNotices(actual, deadline - 10000)) +
+          (await sweepDigests(actual, new Date(), deadline - 10000));
+        const send: TelegramSender = sender ??
+          (async (chatId, text) => {
+            const token = requireEnv(env, "TELEGRAM_BOT_TOKEN");
+            const response = await fetch(
+              `https://api.telegram.org/bot${token}/sendMessage`,
+              {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ chat_id: chatId, text }),
+                signal: AbortSignal.timeout(10000),
+              },
+            );
+            const result = await response.json();
+            if (!response.ok || result.ok !== true) {
+              throw Object.assign(new Error(`TELEGRAM_${response.status}`), {
+                retryAfter: result.parameters?.retry_after,
+                blocked: response.status === 403,
+              });
+            }
+          });
+        const sent = await sendNotifications(actual, send, deadline);
+        return new Response(JSON.stringify({ status: "ok", processed, sent }), {
+          status: 200,
+          headers: JSON_HEADERS,
         });
-      const sent = await sendNotifications(actual, send, deadline);
-      return new Response(JSON.stringify({ status: "ok", processed, sent }), {
-        status: 200,
-        headers: JSON_HEADERS,
       });
     } finally {
       if (!deps) await actual.db.close();
@@ -113,6 +147,6 @@ export async function handle(
 
 if (import.meta.main) {
   Deno.serve((request: Request) =>
-    handle(request, (name) => Deno.env.get(name)),
+    handle(request, (name) => Deno.env.get(name))
   );
 }

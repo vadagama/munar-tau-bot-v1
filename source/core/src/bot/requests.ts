@@ -235,8 +235,8 @@ export async function requestStep(
       state.step = "";
       return save(
         `${sent.number}: зарегистрировано / тіркелді. Первый ответ / Алғашқы жауап: ${
-          new Date(String(sent.first_response_due_at)).toISOString()
-        }. Вне графика немедленной обработки нет / Жұмыс уақытынан тыс дереу өңдеу жоқ. При непосредственной угрозе жизни звоните 112 / Тікелей қауіп кезінде 112.\n${HELP}`,
+          new Date(String(sent.first_response_due_at)).toLocaleString("ru-RU",{timeZone:"Asia/Almaty"})
+        }. Начало обработки / Өңдеудің басталуы: ${new Date(String(sent.first_response_start_at)).toLocaleString("ru-RU",{timeZone:"Asia/Almaty"})} (Алматы). Вне графика немедленной обработки нет / Жұмыс уақытынан тыс дереу өңдеу жоқ. При непосредственной угрозе жизни звоните 112 / Тікелей қауіп кезінде 112.\n${HELP}`,
       );
     }
     if (state.step === "place") {

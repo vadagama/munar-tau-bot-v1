@@ -1,16 +1,9 @@
+import type { LocalizedNotice } from "../../locales/notifications.ts";
 import type { DbExecutor } from "../../db/client.ts";
 
-export async function notifyPerson(
-  exec: DbExecutor,
-  personId: string,
-  message: string,
-  key: string,
-): Promise<void> {
-  await exec.query(
-    `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel)
-    select telegram_user_id,$2,$3,person_id,case when is_test then 'simulator' else 'telegram' end from profile where person_id=$1 and archived_at is null on conflict(dedup_key) do nothing`,
-    [personId, message, key],
-  );
+import { enqueueNotice, type NoticeOptions } from "../notifications/service.ts";
+export async function notifyPerson(exec: DbExecutor, personId: string, message: string | LocalizedNotice, key: string, options: NoticeOptions = {}): Promise<void> {
+  await enqueueNotice(exec,{personId,text:message,key,...options});
 }
 export async function notifyTelegram(
   exec: DbExecutor,
