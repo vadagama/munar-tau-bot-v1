@@ -24,6 +24,22 @@ VITE_SUPABASE_PUBLISHABLE_KEY=YOUR-PUBLISHABLE-KEY
 VITE_SUPABASE_FUNCTION_REGION=eu-central-1
 ```
 
+Локальная интеграция с облачным бэкендом: функция api допускает только origin
+кабинета (секрет `CABINET_ORIGIN`), поэтому из браузера под localhost прод
+напрямую недоступен — CORS. Обход: задайте `ADMIN_UPSTREAM_URL = адрес
+Supabase-проекта` (в `admin/.env.local` или в окружении) и
+`VITE_SUPABASE_URL = http://localhost:5173` — dev-сервер Vite проксирует
+`/auth/v1` и `/functions/v1` на прод, браузер ходит на свой origin. redirect
+`http://localhost:5173` уже есть в allow-list Supabase Auth стенда.
+
+```bash
+VITE_SUPABASE_URL=http://localhost:5173 \
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_... \
+VITE_SUPABASE_FUNCTION_REGION=eu-central-1 \
+ADMIN_UPSTREAM_URL=https://YOUR-SUPABASE-HOST \
+npm run dev -w admin
+```
+
 Запрещено помещать сюда секреты: service-role key, токен бота, OIDC Client Secret.
 Они живут только в секретах среды на сервере (см. `AGENTS.md`, «Границы и безопасность»).
 Сборка проверяется автоматикой на отсутствие секретов (Task 7, VS-0).
