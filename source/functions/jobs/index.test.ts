@@ -2,9 +2,9 @@
 // секрет не настроен в среде — 500; неверный/отсутствующий заголовок x-jobs-secret — 401;
 // верный заголовок — 200, обработано 0 задач (VS-0); GET .../health — 200; прочий GET — 404.
 
-import { assertEquals } from "@std/assert";
+import { assertRejects, assertEquals } from "@std/assert";
 
-import { handle, JOBS_SECRET_ENV } from "./index.ts";
+import { handle, JOBS_SECRET_ENV, telegramSendMessage } from "./index.ts";
 
 const envWithSecret = (name: string) =>
   name === JOBS_SECRET_ENV ? "stub-secret" : undefined;
@@ -115,4 +115,65 @@ Deno.test("занятый advisory lock завершает jobs без обра�
   assertEquals(response.status, 200);
   assertEquals((await response.json()).busy, true);
   assertEquals(queries, 1);
+});
+
+function stubFetch(responses: { status: number; body: unknown }[]) {
+  const calls: Record<string, unknown>[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (_input, init) => {
+    calls.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
+    const next = responses[Math.min(calls.length - 1, responses.length - 1)]!;
+    return Promise.resolve(
+      new Response(JSON.stringify(next.body), { status: next.status }),
+    );
+  };
+  return {
+    calls,
+    restore: () => {
+      globalThis.fetch = original;
+    },
+  };
+}
+
+Deno.test("sendMessage уходит с HTML-разметкой и без превью ссылок", async () => {
+  const stub = stubFetch([{ status: 200, body: { ok: true } }]);
+  try {
+    await telegramSendMessage("token", "123", "<b>З-26-1</b> готово");
+    assertEquals(stub.calls.length, 1);
+    assertEquals(stub.calls[0]!.parse_mode, "HTML");
+    assertEquals(stub.calls[0]!.link_preview_options, { is_disabled: true });
+  } finally {
+    stub.restore();
+  }
+});
+
+Deno.test("отказ разбора разметки (400) — повтор без parse_mode", async () => {
+  const stub = stubFetch([
+    { status: 400, body: { ok: false, description: "Bad Request: can't parse entities" } },
+    { status: 200, body: { ok: true } },
+  ]);
+  try {
+    await telegramSendMessage("token", "123", "текст со случайным <b>");
+    assertEquals(stub.calls.length, 2);
+    assertEquals(stub.calls[0]!.parse_mode, "HTML");
+    assertEquals(stub.calls[1]!.parse_mode, undefined);
+    assertEquals(stub.calls[1]!.text, "текст со случайным <b>");
+  } finally {
+    stub.restore();
+  }
+});
+
+Deno.test("ошибка не-400 после fallback — выбрасывается для повторной попытки очереди", async () => {
+  const stub = stubFetch([
+    { status: 429, body: { ok: false, parameters: { retry_after: 3 } } },
+  ]);
+  try {
+    await assertRejects(
+      () => telegramSendMessage("token", "123", "текст"),
+      Error,
+      "TELEGRAM_429",
+    );
+  } finally {
+    stub.restore();
+  }
 });

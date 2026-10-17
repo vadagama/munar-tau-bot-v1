@@ -1,4 +1,5 @@
 import { notificationStep } from "./notifications.ts";
+import { botErrorText } from "./bot-errors.ts";
 import { TASK_COMMANDS, taskStep } from "./tasks.ts";
 import { queueRequestFile } from "./request-files.ts";
 import { REQUEST_COMMANDS, requestStep } from "./requests.ts";
@@ -83,7 +84,7 @@ export async function processInbound(
           );
       } catch (error) {
         await exec.query("rollback to savepoint bot_scenario");
-        if (error instanceof ApiError) reply = error.message;
+        if (error instanceof ApiError) reply = botErrorText(error);
         else if ((error as { code?: string }).code === "23505") {
           reply =
             "Телефон или привязка уже существует. Требуется проверка администратора. / Телефон немесе тіркелгі бар. Әкімшінің тексеруі қажет.";
