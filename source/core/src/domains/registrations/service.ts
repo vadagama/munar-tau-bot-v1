@@ -1,5 +1,5 @@
 import { notifyPerson, notifyTelegram } from "./notifications.ts";
-import { label, stateLabels } from "../../locales/registry.ts";
+import { label, premiseLabels, stateLabels } from "../../locales/registry.ts";
 import { jsonValue } from "../registry/validation.ts";
 import { initialStage, reviewers } from "./routing.ts";
 import type { Actor } from "../../pdp/types.ts";
@@ -167,14 +167,16 @@ export async function submitRegistration(
       row!.id,
       due.toISOString(),
     ]);
+    const premiseText = `${label(premiseLabels, premises.kind, "ru")} ${premises.number}`,
+      premiseTextKk = `${label(premiseLabels, premises.kind, "kk")} ${premises.number}`;
     for (const owner of owners)
       if (stage === "owner")
         await notifyPerson(
           exec,
           String(owner.person_id),
           {
-            ru: `Новая анкета арендатора: ${row!.id}`,
-            kk: `Жалға алушының өтінімі: ${row!.id}`,
+            ru: `Новая анкета арендатора: ${fullName}, ${premiseText}. Рассмотрите её в кабинете или боте (/pending).`,
+            kk: `Жалға алушының өтінімі: ${fullName}, ${premiseTextKk}. Кабинетте немесе ботыпта қарастырыңыз (/pending).`,
           },
           `${row!.id}:owner:${owner.person_id}`,
           { registrationAccess: { premisesId: String(premises.id), role: "owner" }, buildingIds: [String(premises.building_id)] },
@@ -190,8 +192,8 @@ export async function submitRegistration(
           exec,
           reviewer,
           {
-            ru: `Новая анкета: ${row!.id}`,
-            kk: `Жаңа өтінім: ${row!.id}`,
+            ru: `Новая анкета: ${fullName}, ${premiseText}`,
+            kk: `Жаңа өтінім: ${fullName}, ${premiseTextKk}`,
           },
           `${row!.id}:review:${reviewer}`,
           { bot: "worker", registrationAccess: { premisesId: String(premises.id), role: stage }, buildingIds: [String(premises.building_id)] },
@@ -697,8 +699,8 @@ export async function acceptInvite(
         exec,
         reviewer,
         {
-          ru: `Приглашение принято: ${registration!.id}`,
-          kk: `Шақыру қабылданды: ${registration!.id}`,
+          ru: `Принято приглашение собственника: ${actor.person.fullName}, ${label(premiseLabels, premises.kind, "ru")} ${premises.number}`,
+          kk: `Меншік иесінің шақырысы қабылданды: ${actor.person.fullName}, ${label(premiseLabels, premises.kind, "kk")} ${premises.number}`,
         },
         `${invite.id}:admin:${reviewer}`,
         { bot: "worker", registrationAccess: { premisesId: String(premises.id), role: "administrator" }, buildingIds: [String(premises.building_id)] },

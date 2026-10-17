@@ -4,7 +4,15 @@ import type { RegistryDeps } from "../registry/service.ts";
 import { reviewers, initialStage } from "./routing.ts";
 import { addRuleHours, type RuleParams } from "../registry/time.ts";
 import { notifyPerson, notifyTelegram } from "./notifications.ts";
+import { label, premiseLabels } from "../../locales/registry.ts";
 import type { Row } from "../registry/validation.ts";
+
+/** Кто и куда: имя из черновика анкеты и помещение — вместо UUID. */
+function registrationSubject(row: Row): string {
+  const draft = row.draft ? jsonValue<Row>(row.draft) : {};
+  const premise = `${label(premiseLabels, row.kind, "ru")} ${row.number ?? "—"}`;
+  return `${draft.full_name ?? ""}, ${premise}`.replace(/^, /, "");
+}
 
 export async function sweepRegistrations(
   deps: RegistryDeps,
@@ -36,7 +44,7 @@ export async function sweepRegistrations(
         continue;
       }
       const [row] = await exec.query<Row>(
-        `select r.*,p.building_id from registration r join premises p on p.id=r.premises_id where r.id=$1 for update of r`,
+        `select r.*,p.building_id,p.kind,p.number from registration r join premises p on p.id=r.premises_id where r.id=$1 for update of r`,
         [timer.entity_id],
       );
       if (
@@ -62,8 +70,8 @@ export async function sweepRegistrations(
             exec,
             person,
             {
-              ru: `Спор просрочен: ${row.id}`,
-              kk: `Дау мерзімі өтті: ${row.id}`,
+              ru: `Спор просрочен: ${registrationSubject(row)}. Рассмотрите в кабинете.`,
+              kk: `Дау мерзімі өтті: ${registrationSubject(row)}. Кабинетте қарастырыңыз.`,
             },
             `${timer.id}:${person}`,
             { bot: "worker" },
@@ -126,8 +134,8 @@ export async function sweepRegistrations(
             exec,
             person,
             {
-              ru: `Требуется решение по анкете: ${row.id}`,
-              kk: `Өтінім бойынша шешім қажет: ${row.id}`,
+              ru: `Требуется решение по анкете: ${registrationSubject(row)}. Рассмотрите в кабинете.`,
+              kk: `Өтінім бойынша шешім қажет: ${registrationSubject(row)}. Кабинетте қарастырыңыз.`,
             },
             `${timer.id}:${person}`,
             { bot: "worker" },

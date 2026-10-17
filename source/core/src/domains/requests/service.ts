@@ -1,4 +1,5 @@
 import type { LocalizedNotice } from "../../locales/notifications.ts";
+import { fmtDate } from "../../bot/text.ts";
 import { startConfirmationTimers } from "./timers.ts";
 import { cancelParentTasks } from "../tasks/cancellation.ts";
 import { lockRequestWorks, taskResultSnapshot } from "../tasks/results.ts";
@@ -375,10 +376,10 @@ export async function createRequest(
         next,
         {
           ru: `${next.number}: обращение зарегистрировано. Первый ответ до ${
-            new Date(String(next.first_response_due_at)).toISOString()
+            fmtDate(next.first_response_due_at)
           }.`,
           kk: `${next.number}: өтініш тіркелді. Алғашқы жауап ${
-            new Date(String(next.first_response_due_at)).toISOString()
+            fmtDate(next.first_response_due_at)
           }.`,
         },
         `${id}:created`,
@@ -491,7 +492,12 @@ export async function getRequest(
     row.can_comment = manager ||
       (!!place?.active_author && row.state !== "draft");
     const messages = await exec.query(
-      `select id,channel,author_person_id,text,reply_to,corrects_message_id,restricted_at,created_at from message where request_id=$1 and ($2 or (channel='resident' and restricted_at is null)) order by created_at,id`,
+      `select m.id,m.channel,m.author_person_id,m.text,m.reply_to,m.corrects_message_id,m.restricted_at,m.created_at,
+      case when m.author_person_id = r.author_person_id then 'author'
+           when exists(select 1 from staff_assignment s where s.person_id = m.author_person_id and s.status = 'active') then 'staff'
+           else 'participant' end as author_kind
+      from message m join request r on r.id = m.request_id
+      where m.request_id=$1 and ($2 or (m.channel='resident' and m.restricted_at is null)) order by m.created_at,m.id`,
       [id, manager],
     );
     const attachments = await exec.query(
@@ -733,10 +739,10 @@ export async function transitionRequest(
           next,
           {
             ru: `${next.number}: зарегистрировано. Первый ответ до ${
-              new Date(String(next.first_response_due_at)).toISOString()
+              fmtDate(next.first_response_due_at)
             }.`,
             kk: `${next.number}: тіркелді. Алғашқы жауап ${
-              new Date(String(next.first_response_due_at)).toISOString()
+              fmtDate(next.first_response_due_at)
             }.`,
           },
           `${id}:created`,

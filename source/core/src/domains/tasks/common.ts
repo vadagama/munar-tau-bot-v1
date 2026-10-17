@@ -9,6 +9,8 @@ import { content, idempotent } from "../requests/service.ts";
 import { requireRequest } from "../requests/access.ts";
 import { checkVersion, CLOSED_STATES } from "../requests/fsm.ts";
 import { notifyPerson } from "../registrations/notifications.ts";
+import { COMMON_WORK_STATE_TEXT } from "../../locales/tasks.ts";
+import { fmtDate } from "../../bot/text.ts";
 import {
   aggregateCommonWorkState,
   type CommonWorkState,
@@ -139,25 +141,30 @@ async function workLog(
     { state: row.state, version: row.version },
   );
   if (from !== null && from !== row.state) {
-    const stateText = {
-      planned: "запланирована",
-      in_progress: "выполняется",
-      on_review: "на проверке",
-      completed: "завершена",
-      canceled: "отменена",
-    }[row.state];
+    const stateText = COMMON_WORK_STATE_TEXT[row.state];
     for (
       const request of linked.filter((r) => !CLOSED_STATES.includes(r.state))
     ) {
       const next = row.state === "completed"
-        ? request.unfinished > 0
-          ? "Остаются локальные задания; результат обращения пока не готов."
-          : "Администратор подготовит результат для вашего отдельного подтверждения."
-        : "Проверка вашего обращения остаётся отдельной.";
+        ? {
+          ru: request.unfinished > 0
+            ? "Остаются локальные задания; результат обращения пока не готов."
+            : "Администратор подготовит результат для вашего отдельного подтверждения.",
+          kk: request.unfinished > 0
+            ? "Жергілікті тапсырмалар бар; өтініштің нәтижесі әзірше дайын емес."
+            : "Әкімші нәтижені сіздің жеке растауыңызға дайындайды.",
+        }
+        : {
+          ru: "Проверка вашего обращения остаётся отдельной.",
+          kk: "Сіздің өтінішіңіздің тексерісі бөлек өтеді.",
+        };
       await notifyPerson(
         exec,
         request.author_person_id,
-        `Обращение ${request.number}: общая работа ${row.number} ${stateText}. ${next}`,
+        {
+          ru: `Обращение ${request.number}: общая работа ${row.number} ${stateText?.ru ?? row.state}. ${next.ru}`,
+          kk: `${request.number} өтінім: жалпы жұмыс ${row.number} ${stateText?.kk ?? row.state}. ${next.kk}`,
+        },
         `common:${row.id}:${row.version}:${request.id}`,
         {
           requestId: request.id,
@@ -244,9 +251,14 @@ async function link(
   await notifyPerson(
     exec,
     request.author_person_id,
-    `Обращение ${request.number} связано с работой ${work.number}. План: ${work.plan}. Срок: ${
-      new Date(String(work.due_at)).toISOString()
-    }. Проверка результата останется отдельной.`,
+    {
+      ru: `Обращение ${request.number} включено в общую работу ${work.number}. ${
+        work.plan ? `План: ${work.plan}. ` : ""
+      }Срок: ${fmtDate(work.due_at)}. Результат по вашему обращению подтвердят отдельно.`,
+      kk: `${request.number} өтінім ${work.number} жалпы жұмысына енгізілді. ${
+        work.plan ? `Жоспар: ${work.plan}. ` : ""
+      }Мерзім: ${fmtDate(work.due_at)}. Өтінішіңіздің нәтижесі бөлек расталады.`,
+    },
     `common:${work.id}:linked:${requestId}:${request.version}`,
     {
       requestId,
@@ -489,7 +501,10 @@ export async function unlinkCommonRequest(
       await notifyPerson(
         exec,
         request.author_person_id,
-        `Обращение ${request.number}: дальнейший план — ${plan}.`,
+        {
+          ru: `Обращение ${request.number}: дальнейший план — ${plan}.`,
+          kk: `${request.number} өтінім: әрі қарайғы жоспар — ${plan}.`,
+        },
         `common:${id}:unlink:${requestId}:${request.version}`,
         {
           requestId,

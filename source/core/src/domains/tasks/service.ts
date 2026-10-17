@@ -148,11 +148,22 @@ export async function taskLog(
       await notifyPerson(
         exec,
         personId,
-        `Задание ${row.number}: ${(action === "request_pause"
-          ? "исполнитель запросил остановку: " + reason
-          : action === "found_problem"
-          ? "исполнитель сообщил о найденной проблеме"
-          : TASK_STATE_TEXT[row.state]?.ru)}. Откройте карточку задания.`,
+        {
+          ru: `Задание ${row.number}: ${
+            action === "request_pause"
+              ? "исполнитель запросил остановку: " + reason
+              : action === "found_problem"
+              ? "исполнитель сообщил о найденной проблеме"
+              : TASK_STATE_TEXT[row.state]?.ru
+          }. Откройте карточку задания.`,
+          kk: `${row.number} тапсырма: ${
+            action === "request_pause"
+              ? "орындаушы тоқтату сұрады: " + reason
+              : action === "found_problem"
+              ? "орындаушы табылған мәселе туралы хабарлады"
+              : TASK_STATE_TEXT[row.state]?.kk
+          }. Тапсырма картасын ашыңыз.`,
+        },
         `task:${row.id}:${row.version}:${action}:${personId}`,
         {taskId:row.id,buildingIds:row.building_ids,isTest:row.is_test,audience:personId===row.assignee_person_id ? "personal" : "staff",type:row.state==="awaiting_acceptance" ? "task.assignment" : "personal",important:row.state==="awaiting_acceptance",bot:"worker"},
       );

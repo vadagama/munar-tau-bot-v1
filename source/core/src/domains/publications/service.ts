@@ -10,6 +10,7 @@ import { dateInput } from "../tasks/service.ts";
 import { buildingInput, requireCommon } from "../tasks/common.ts";
 import { audienceMember } from "../incidents/audience.ts";
 import { queueBroadcast } from "../incidents/broadcast.ts";
+import { fmtDate, fmtInterval } from "../../bot/text.ts";
 import { responsibleInput } from "../incidents/service.ts";
 import { validatePublicationRelease } from "./policy.ts";
 export interface Publication extends Row {
@@ -235,15 +236,15 @@ export async function broadcastPublication(exec: DbExecutor, row: Publication) {
     text: {
       ru: `${row.title}\n${row.body}${
         row.kind === "outage"
-          ? `\nПлан: ${row.planned_start} — ${row.planned_end}. Восстановление: ${
-            row.restored_at ?? "не подтверждено"
+          ? `\nПлан: ${fmtInterval(row.planned_start, row.planned_end)}. Восстановление: ${
+            row.restored_at ? fmtDate(row.restored_at) : "пока не подтверждено"
           }`
           : ""
       }`,
       kk: `${row.title}\n${row.body}${
         row.kind === "outage"
-          ? `\nЖоспар: ${row.planned_start} — ${row.planned_end}. Қалпына келтіру: ${
-            row.restored_at ?? "расталмады"
+          ? `\nЖоспар: ${fmtInterval(row.planned_start, row.planned_end)}. Қалпына келтіру: ${
+            row.restored_at ? fmtDate(row.restored_at) : "әлі расталмады"
           }`
           : ""
       }`,

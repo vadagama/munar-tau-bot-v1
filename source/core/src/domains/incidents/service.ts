@@ -25,6 +25,7 @@ import {
   requireFullRecovery,
 } from "./fsm.ts";
 import { queueBroadcast } from "./broadcast.ts";
+import { fmtDate } from "../../bot/text.ts";
 
 export async function responsibleInput(
   exec: DbExecutor,
@@ -93,21 +94,22 @@ export async function broadcastIncident(
   if (!row.public_text) {
     invalid("Укажите публичное обновление без персональных данных");
   }
+  const next = row.next_update_at ? `${fmtDate(row.next_update_at)}` : null;
   await queueBroadcast(exec, {
     key: `incident:${row.id}:${row.version}`,
     type: "incident",
     text: {
       ru:
-        `Авария ${row.number}: ${row.title}\n${row.public_text}\nУслуга: ${row.service}. Ограничения: ${
-          row.restrictions || "не указаны"
-        }\nПрогноз: ${row.forecast}\nСледующее обновление: ${
-          row.next_update_at ?? "—"
+        `🚨 Авария ${row.number}: ${row.title}\n${row.public_text}\nУслуга: ${row.service}\nПрогноз: ${row.forecast}${
+          next ? `\nСледующее обновление: ${next}` : ""
+        }${
+          row.restrictions ? `\nОграничения: ${row.restrictions}` : ""
         }`,
       kk:
-        `Апат ${row.number}: ${row.title}\n${row.public_text}\nҚызмет: ${row.service}. Шектеулер: ${
-          row.restrictions || "көрсетілмеген"
-        }\nБолжам: ${row.forecast}\nКелесі жаңарту: ${
-          row.next_update_at ?? "—"
+        `🚨 Апат ${row.number}: ${row.title}\n${row.public_text}\nҚызмет: ${row.service}\nБолжам: ${row.forecast}${
+          next ? `\nКелесі жаңарту: ${next}` : ""
+        }${
+          row.restrictions ? `\nШектеулер: ${row.restrictions}` : ""
         }`,
     },
     scope,

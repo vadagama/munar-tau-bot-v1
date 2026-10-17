@@ -6,6 +6,7 @@ import { digestWindow, type EventType } from "./policy.ts";
 import { noticeAllowed, preference, recipientActor } from "./service.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import type { Actor } from "../../pdp/types.ts";
+import { fmtDay } from "../../bot/text.ts";
 export interface DigestItem {
   id: string;
   text: string;
@@ -20,6 +21,7 @@ export async function digestText(
   exec: DbExecutor,
   actor: Actor,
   items: DigestItem[],
+  day?: string,
 ): Promise<string | null> {
   const visible: string[] = [];
   for (const item of items) {
@@ -33,12 +35,15 @@ export async function digestText(
         buildingIds: item.building_ids,
         isTest: item.is_test,
       })
-    ) visible.push(item.text.slice(0, 160));
+    ) {
+      const text = item.text;
+      visible.push(text.length > 160 ? `${text.slice(0, 160)}…` : text);
+    }
   }
   return visible.length
     ? `${
       actor.profile.language === "kk" ? "Күндік шолу" : "Ежедневная сводка"
-    }\n\n${visible.map((t) => `• ${t}`).join("\n\n")}`
+    }${day ? ` ${fmtDay(day)}` : ""}\n\n${visible.map((t) => `• ${t}`).join("\n\n")}`
     : null;
 }
 export async function sweepDigests(
@@ -71,7 +76,9 @@ export async function sweepDigests(
         [p.recipient_person_id, claimed[0]!.cutoff_at],
       );
       const actor = await recipientActor(exec, p.recipient_person_id),
-        text = actor ? await digestText(exec, actor, items) : null;
+        text = actor
+          ? await digestText(exec, actor, items, day)
+          : null;
       if (actor && text) {
         // Сводка уходит боту сотрудников только когда все её элементы — служебные
         // события; смешанная или жительская сводка — боту жителей (ADR-009).
