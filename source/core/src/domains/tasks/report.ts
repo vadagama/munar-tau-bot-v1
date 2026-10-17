@@ -3,6 +3,7 @@ import { ApiError } from "../../errors/api.ts";
 export interface EvidenceRequirement {
   readonly id: string;
   readonly required: boolean;
+  readonly kind?: "file" | "photo";
 }
 export interface ReportEvidence {
   readonly requirementId: string;
@@ -30,14 +31,21 @@ export function validateReport(
   if (!report.performedWork.trim() || !report.result.trim()) {
     invalid("Укажите выполненный объём и результат");
   }
-  if (!report.performedAt.trim() || !Number.isFinite(Date.parse(report.performedAt))) {
+  if (
+    !report.performedAt.trim() ||
+    !Number.isFinite(Date.parse(report.performedAt))
+  ) {
     invalid("Укажите время выполнения");
   }
   const known = new Set(requirements.map((requirement) => requirement.id));
-  if (known.size !== requirements.length) invalid("Пункты чек-листа повторяются");
+  if (known.size !== requirements.length) {
+    invalid("Пункты чек-листа повторяются");
+  }
   const provided = new Map<string, ReportEvidence>();
   for (const evidence of report.evidence) {
-    if (!known.has(evidence.requirementId) || provided.has(evidence.requirementId)) {
+    if (
+      !known.has(evidence.requirementId) || provided.has(evidence.requirementId)
+    ) {
       invalid("Неизвестный или повторный пункт чек-листа");
     }
     if (evidence.attachmentIds.some((id) => !verifiedAttachmentIds.has(id))) {
@@ -61,13 +69,20 @@ export function validateReport(
 /** Само объяснение исполнителя не заменяет явное решение администратора. */
 export function validateEvidenceAcceptance(
   missing: readonly string[],
-  decisions: readonly { readonly requirementId: string; readonly reason: string }[],
+  decisions: readonly {
+    readonly requirementId: string;
+    readonly reason: string;
+  }[],
 ): void {
   const approved = new Set<string>();
   for (const decision of decisions) {
-    if (!missing.includes(decision.requirementId) ||
-      approved.has(decision.requirementId) || !decision.reason.trim()) {
-      invalid("Укажите отдельное обоснованное решение по недостающему доказательству");
+    if (
+      !missing.includes(decision.requirementId) ||
+      approved.has(decision.requirementId) || !decision.reason.trim()
+    ) {
+      invalid(
+        "Укажите отдельное обоснованное решение по недостающему доказательству",
+      );
     }
     approved.add(decision.requirementId);
   }

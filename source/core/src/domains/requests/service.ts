@@ -1,4 +1,6 @@
-import {requestStateText} from "../../locales/requests.ts";
+import { cancelParentTasks } from "../tasks/cancellation.ts";
+import { lockRequestWorks, taskResultSnapshot } from "../tasks/results.ts";
+import { requestStateText } from "../../locales/requests.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { ApiError } from "../../errors/api.ts";
 import type { DbExecutor } from "../../db/client.ts";
@@ -671,6 +673,9 @@ export async function transitionRequest(
         : authorActions.includes(action)
         ? "request.author"
         : "request.manage";
+      if (["submit_result", "confirm_result", "admin_close"].includes(action)) {
+        await lockRequestWorks(exec, id);
+      }
       const row = await requireRequest(exec, actor, id, permission, true);
       checkVersion(row.version, input.expected_version);
       let state = nextState(row.state, action);
@@ -726,24 +731,46 @@ export async function transitionRequest(
       if (["start_work", "plan_rework"].includes(action)) {
         content(p.plan, "план/ответственного за подготовку ответа");
       }
-      // Задания/платежи подключаются VS-4/6: нельзя завершать работу фиктивным флагом клиента.
-      if (
-        action === "submit_result" &&
-        (row.kind === "request" || row.work_execution_required === true)
-      ) {
-        throw new ApiError(
-          "VALIDATION_FAILED",
-          "Передача результата работы пока недоступна: нужна проверка приёмки заданий",
+      const needsWork = row.kind === "request" ||
+        row.work_execution_required === true;
+      const workSnapshot = needsWork &&
+          ["submit_result", "confirm_result", "admin_close"].includes(action)
+        ? await taskResultSnapshot(exec, id)
+        : { task_report_ids: [], task_results: [] };
+      if (needsWork && ["confirm_result", "admin_close"].includes(action)) {
+        const [active] = await exec.query(
+          "select payload from request_confirmation where request_id=$1 and version=$2 and superseded_at is null",
+          [id, row.confirmation_version],
         );
+        const saved = active
+          ? jsonValue<Row>(active.payload).task_report_ids
+          : undefined;
+        if (
+          !Array.isArray(saved) ||
+          JSON.stringify([...saved].sort()) !==
+            JSON.stringify([...workSnapshot.task_report_ids].sort())
+        ) {
+          throw new ApiError(
+            "CONCURRENT_MODIFICATION",
+            "Комплект результата изменился: отзовите и передайте результат заново",
+          );
+        }
       }
       let confirmation = row.confirmation_version;
       if (action === "submit_result") {
         const payload = p.confirmation_payload as Row | undefined;
         content(payload?.summary, "итоговый ответ жителю");
         if (
-          (payload?.document_version_ids as unknown[] | undefined)?.length ||
-          (payload?.task_report_ids as unknown[] | undefined)?.length
-        ) invalid("Комплект заданий/документов ещё не подключён");
+          (payload?.document_version_ids as unknown[] | undefined)?.length
+        ) invalid("Контур обязательных документов ещё не подключён");
+        if (
+          payload?.task_report_ids !== undefined &&
+          (!Array.isArray(payload.task_report_ids) ||
+            JSON.stringify([...payload.task_report_ids].sort()) !==
+              JSON.stringify(
+                [...(workSnapshot.task_report_ids as string[])].sort(),
+              ))
+        ) invalid("Состав отчётов не совпадает с принятым объёмом");
         confirmation++;
         const wait = await ruleDeadline(exec, "request_admin_close_wait");
         await exec.query(
@@ -754,7 +781,7 @@ export async function transitionRequest(
             JSON.stringify({
               summary: payload!.summary,
               document_version_ids: [],
-              task_report_ids: [],
+              ...workSnapshot,
             }),
             wait.due.toISOString(),
           ],
@@ -851,6 +878,16 @@ export async function transitionRequest(
           [id],
         );
       }
+      if (["canceled", "rejected"].includes(state)) {
+        await cancelParentTasks(
+          deps,
+          exec,
+          actor,
+          "request",
+          id,
+          reason ?? "Обращение прекращено",
+        );
+      }
       const reopenUntil = state === "closed"
         ? (await ruleDeadline(exec, "request_reopen")).due.toISOString()
         : null;
@@ -940,7 +977,9 @@ export async function transitionRequest(
       await inform(
         exec,
         next!,
-        `${row.number}: ${requestStateText(state)}. Подробности в карточке обращения.`,
+        `${row.number}: ${
+          requestStateText(state)
+        }. Подробности в карточке обращения.`,
         `${id}:state:${next!.version}`,
         true,
       );

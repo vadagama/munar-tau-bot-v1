@@ -1,3 +1,5 @@
+import { requireTask, taskResource } from "../tasks/access.ts";
+import { can } from "../../pdp/evaluate.ts";
 import { ApiError } from "../../errors/api.ts";
 import type { Actor } from "../../pdp/types.ts";
 import type { RegistryDeps } from "../registry/service.ts";
@@ -134,7 +136,7 @@ export async function prepareFile(
   return deps.db.transaction(async (exec) => {
     const ownerType = input.owner_type ?? "request";
     if (
-      !["request", "message"].includes(String(ownerType)) ||
+      !["request", "message", "task"].includes(String(ownerType)) ||
       typeof input.owner_id !== "string"
     ) invalid("Некорректный владелец вложения");
     const requestId = input.owner_id;
@@ -142,27 +144,32 @@ export async function prepareFile(
       // Отправленные сообщения неизменяемы: материалы добавляются следующим сообщением.
       invalid("Загрузите файл для обращения и приложите к новому сообщению");
     }
-    const bucket = input.bucket ?? "resident";
+    const bucket = input.bucket ?? (ownerType === "task" ? "internal" : "resident");
     if (!["resident", "internal"].includes(String(bucket))) {
       throw new ApiError("FORBIDDEN");
     }
-    const row = await requireRequest(
-      exec,
-      actor,
-      requestId,
-      "request.read",
-      true,
-    );
-    if (row.state === "draft") {
-      if (row.author_person_id !== actor.person.id || bucket !== "resident") {
-        throw new ApiError("FORBIDDEN");
-      }
-    } else {await requireRequest(
+    if (ownerType === "task") {
+      const task = await requireTask(exec, actor, requestId, "task.execute", true);
+      if (task.state !== "in_progress" || bucket !== "internal") throw new ApiError("INVALID_TRANSITION", "Файлы отчёта доступны при выполнении задания");
+    } else {
+      const row = await requireRequest(
         exec,
         actor,
         requestId,
-        bucket === "internal" ? "request.internal" : "request.comment",
-      );}
+        "request.read",
+        true,
+      );
+      if (row.state === "draft") {
+        if (row.author_person_id !== actor.person.id || bucket !== "resident") {
+          throw new ApiError("FORBIDDEN");
+        }
+      } else {await requireRequest(
+          exec,
+          actor,
+          requestId,
+          bucket === "internal" ? "request.internal" : "request.comment",
+        );}
+    }
     const extension = typeof input.filename === "string"
       ? input.filename.split(".").pop()!.toLowerCase()
       : "";
@@ -179,8 +186,8 @@ export async function prepareFile(
       !policy.extensions.includes(extension)
     ) throw new ApiError("FILE_LIMIT", "Файл не соответствует настройкам ОСИ");
     const [count] = await exec.query<{ n: string }>(
-      "select count(*)::text n from attachment where request_id=$1 and owner_type='request' and uploaded_by=$2 and bucket=$3",
-      [requestId, actor.person.id, bucket],
+      "select count(*)::text n from attachment where owner_id=$1 and owner_type=$4 and task_report_id is null and uploaded_by=$2 and bucket=$3",
+      [requestId, actor.person.id, bucket, ownerType],
     );
     if (Number(count!.n) >= policy.max_per_message) {
       throw new ApiError(
@@ -190,17 +197,9 @@ export async function prepareFile(
     }
     const id = crypto.randomUUID();
     await exec.query(
-      "insert into attachment(id,request_id,owner_type,owner_id,bucket,storage_path,filename,size_bytes,mime,uploaded_by) values ($1,$2,'request',$2,$3,$4,$5,$6,$7,$8)",
-      [
-        id,
-        requestId,
-        bucket,
-        `${requestId}/${id}`,
-        f.filename,
-        f.size,
-        f.mime,
-        actor.person.id,
-      ],
+      "insert into attachment(id,request_id,task_id,owner_type,owner_id,bucket,storage_path,filename,size_bytes,mime,uploaded_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+      [id,ownerType === "task" ? null : requestId,ownerType === "task" ? requestId : null,ownerType,requestId,bucket,
+        `${requestId}/${id}`,f.filename,f.size,f.mime,actor.person.id],
     );
     return {
       attachment_id: id,
@@ -220,6 +219,16 @@ async function fileAccess(
     id,
   ]);
   if (!a) throw new ApiError("NOT_FOUND");
+  if (a.owner_type === "task") {
+    const task = await requireTask(deps.db,actor,String(a.task_id),write ? "task.execute" : "task.read");
+    if (write && (task.state !== "in_progress" || a.task_report_id || a.uploaded_by !== actor.person.id)) throw new ApiError("FORBIDDEN");
+    if(!write && a.uploaded_by!==actor.person.id){
+      const published=a.task_report_id || (await deps.db.query("select id from task_log where task_id=$1 and meta->>'action'='found_problem' and (meta->'attachment_ids') ? $2::text",[a.task_id,id])).length>0;
+      if(!published||!can(actor,"task.manage",taskResource(task)).allow)throw new ApiError("NOT_FOUND");
+    }
+    return a;
+  }
+
   await requireRequest(
     deps.db,
     actor,
