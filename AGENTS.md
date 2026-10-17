@@ -22,7 +22,7 @@ VS-3: upload-url возвращает адрес Edge API с окном 5 мин
 
 Очищающие интеграционные тесты разрешены только на Sydney `fuwsmewtmxmzttwkbdex` через session pooler (5432). Global setup удерживает session advisory lock `(814733,3)` на весь прогон отдельным соединением; CI дополнительно сериализует integration. Старые CI-запуски без этой блокировки не запускать одновременно с локальными тестами. Миграции и сид передаются в PostgreSQL файлами (simple protocol), каждый файл атомарен. Frankfurt не используется для тестовых миграций и очистки.
 
-Инфраструктура тестирования подключена: модульные (Vitest: `core` + `admin`; Deno: `functions`), интеграционные против dev-БД Supabase (`TEST_DATABASE_URL` в `source/.env.local` из `tools/scripts/env.example.txt`; идемпотентные миграции, truncate + сид между тестами, SQL-репозитории, RLS-заслон, append-only), джоба `integration` в CI (без секрета — пропуск с предупреждением). Среда разработки — облачный dev-проект Supabase (вымышленные данные, HLD §20). Далее — срезы VS-2…VS-9 (см. `docs/hld.md`, раздел 27). Команды — в разделе «Команды».
+Инфраструктура тестирования подключена: модульные (Vitest: `core` + `admin`; Deno: `functions`), интеграционные против dev-БД Supabase (`TEST_DATABASE_URL` в `source/.env.local` из `tools/scripts/env.example.txt`; идемпотентные миграции, truncate + сид между тестами, SQL-репозитории, RLS-заслон, append-only), джоба `integration` в CI (временно только явный ручной запуск; без секрета — пропуск с предупреждением). Среда разработки — облачный dev-проект Supabase (вымышленные данные, HLD §20). Далее — срезы VS-2…VS-9 (см. `docs/hld.md`, раздел 27). Команды — в разделе «Команды».
 
 Кабинет развёрнут на Cloudflare Pages (2026-10-16, [ADR-002](docs/decisions/002-admin-cloudflare-pages.md)): Pages-проект `osi-admin`, адрес `https://osi-admin.pages.dev`; развёрнута сборка ветви `feature/vs-1-access-audit`, в статике только публичные переменные (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`). Автодеплой из CI заработает после добавления секретов репозитория: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT`. Вход через Telegram OIDC ещё не настроен (провайдер Supabase + BotFather): пошаговая инструкция — [docs/setup-telegram-oidc.md](docs/setup-telegram-oidc.md); до настройки вход завершается ошибкой на стороне Supabase Auth.
 
@@ -76,6 +76,8 @@ VS-4 реализован в `feature/vs-4-tasks-common-work` (PR #13; план 
 
 ## Команды
 
+**Временное правило разработки (решение пользователя 17.10.2026): интеграционные тесты, включая будущие, сохраняются в Git, но не запускаются автоматически и не запускаются агентом без отдельного явного запроса пользователя.** Обычный `npm run test:integration` завершает работу без подключения к БД. Ручное включение: `RUN_INTEGRATION_TESTS=1 npm run test:integration`; в GitHub — `workflow_dispatch` с `run_integration=true`. Не считать пропущенные проверки пройденными. Вернуть автоматический запуск только по согласованию. Ограничения Sydney, session pooler и advisory lock сохраняются. Модульные/Deno-тесты, lint, typecheck, build и secret-scan продолжают выполняться.
+
 Все команды для кода выполняются из `source/` (там `package.json` workspaces). Node ≥ 22 (см. `source/.nvmrc`), Deno 2 (для функций).
 
 | Действие | Команда |
@@ -84,7 +86,7 @@ VS-4 реализован в `feature/vs-4-tasks-common-work` (PR #13; план 
 | Линт всего кода (TS/TSX, кроме functions) | `npm run lint` |
 | Тайпчек по workspaces | `npm run typecheck` |
 | Модульные тесты (Vitest: `core`, `admin`) | `npm test` |
-| Интеграционные тесты (ядро против dev-БД) | `npm run test:integration` (нужен `TEST_DATABASE_URL` в `source/.env.local`; без него — пропуск) |
+| Интеграционные тесты (ядро против dev-БД) | `RUN_INTEGRATION_TESTS=1 npm run test:integration` (только по явному запросу; нужен `TEST_DATABASE_URL` в `source/.env.local`; без него — пропуск) |
 | Сборка кабинета | `npm run build -w admin` (артефакт `admin/dist`) |
 | Проверка функций Deno | `deno task check`, `deno task lint`, `deno task test` (в `source/`) |
 | Сквозная проверка API VS-3 (очищает только dev-БД) | `deno run --allow-env --allow-read --allow-net --config deno.json tools/scripts/check-vs3-api.ts` |
