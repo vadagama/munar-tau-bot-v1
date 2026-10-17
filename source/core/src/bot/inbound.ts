@@ -5,6 +5,7 @@ import { jsonValue } from "../domains/registry/validation.ts";
 import { ApiError } from "../errors/api.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { registrationStep } from "./registration.ts";
+import { notificationStep } from "./notifications.ts";
 import { residentMenu, workerHelp, workerMenu } from "./help.ts";
 import { notifyTelegram } from "../domains/registrations/notifications.ts";
 import type { BotKind } from "./bots.ts";
@@ -17,6 +18,12 @@ import { langOf, pick, type Lang } from "./text.ts";
  * Маршрутизация шага внутри бота (ADR-009): файлы — в очередь загрузок,
  * у бота жителей далее анкета (по умолчанию) и обращения (REQ),
  * у бота сотрудников — задания (WRK), прочее — справка сотрудника.
+ *
+ * Слэш-команды не отдаются активному сценарию на съедание шагами ввода:
+ * команды обращений — в requestStep, настройки уведомлений — в
+ * notificationStep, остальное — в сценарий регистрации (он же справка).
+ * Иначе застреваешь в шаге выбора помещения: любая команда отвечает
+ * «Выберите номер из списка» (инцидент 17.10.2026).
  */
 async function routeStep(
   deps: RegistryDeps,
@@ -32,6 +39,7 @@ async function routeStep(
     return queueRequestFile(deps, telegramId, message, updateId, bot);
   }
   const text = String(message.text);
+  const isCommand = command.startsWith("/");
   if (bot === "worker") {
     if (command === "/cancel") {
       // Сотрудник отменил сценарий; у жителя то же делает registrationStep.
@@ -41,11 +49,23 @@ async function routeStep(
       );
       return workerHelp(await profileLang(deps.db, telegramId));
     }
-    return TASK_COMMANDS.includes(command) || state.scenario === "tasks"
+    // Справка и старт доступны из любого сценария — глобальные выходы.
+    if (command === "/help" || command === "/start") {
+      return workerHelp(await profileLang(deps.db, telegramId));
+    }
+    return TASK_COMMANDS.includes(command) || (state.scenario === "tasks" && !isCommand)
       ? taskStep(deps, telegramId, text, undefined, operationId)
       : workerHelp();
   }
-  return REQUEST_COMMANDS.includes(command) || state.scenario === "requests"
+  if (isCommand) {
+    if (command === "/notifications") {
+      return notificationStep(deps, telegramId, text);
+    }
+    return REQUEST_COMMANDS.includes(command)
+      ? requestStep(deps, telegramId, text, undefined, operationId)
+      : registrationStep(deps, telegramId, text);
+  }
+  return state.scenario === "requests"
     ? requestStep(deps, telegramId, text, undefined, operationId)
     : registrationStep(deps, telegramId, text);
 }
