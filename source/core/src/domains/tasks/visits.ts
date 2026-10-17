@@ -15,6 +15,7 @@ import {
   type TaskRow,
 } from "./access.ts";
 import { dateInput, taskLog } from "./service.ts";
+import { fmtInterval } from "../../bot/text.ts";
 async function residentAccess(exec: DbExecutor, actor: Actor, task: TaskRow) {
   if (!task.request_id) throw new ApiError("FORBIDDEN");
   const request = await requireRequest(exec, actor, task.request_id);
@@ -106,7 +107,10 @@ export async function proposeVisit(
         await notifyPerson(
           exec,
           String(request.author_person_id),
-          `Предложен визит: ${start} — ${end}. Подтвердите интервал в карточке обращения.`,
+          {
+            ru: `Предложен визит: ${fmtInterval(start, end)}. Подтвердите интервал в карточке обращения.`,
+            kk: `Сапар ұсынылды: ${fmtInterval(start, end)}. Аралықты өтініш картасында растаңыз.`,
+          },
           `visit:${visit!.id}:proposed`,
           {requestId:String(task.request_id),audience:"resident",type:"request.required",important:true,isTest:task.is_test},
         );
@@ -210,7 +214,10 @@ export async function updateVisit(
           await notifyPerson(
             exec,
             String(r!.author_person_id),
-            "Исполнитель сообщил об отсутствии доступа. Согласуйте новый визит.",
+            {
+              ru: "Исполнитель сообщил об отсутствии доступа. Согласуйте новый визит.",
+              kk: "Орындаушы қолжетімділік жоқ екенін хабарлады. Жаңа сапарды келістіріңіз.",
+            },
             `visit:${id}:${Number(visit!.version) + 1}:no_access`,
             {requestId:String(task!.request_id),audience:"resident",type:"request.required",important:true,isTest:task!.is_test},
           );

@@ -28,6 +28,12 @@ function harness(
     registrations?: Row[];
     editable?: Row | null;
     profile?: boolean;
+    profileLanguage?: "ru" | "kk";
+    personPhone?: string | null;
+    /** Связи исходного реестра для списка /add (premises_id, role, kind, number, code). */
+    addConnections?: Row[];
+    /** Детали выбранной связи для шага add_select. */
+    selectedConnection?: Row | null;
     openPrivacyRequests?: Row[];
   } = {},
 ) {
@@ -74,6 +80,14 @@ function harness(
       // PRV-02: запрос удаления анкеты (сервис privacy).
       if (sql.startsWith("select id from privacy_request"))
         return Promise.resolve((opts.openPrivacyRequests ?? []) as T[]);
+      // Мастер регистрации: список зданий для шага выбора.
+      if (sql.startsWith("select id,code,kind from building"))
+        return Promise.resolve([
+          { id: "b1", code: "Ж1", kind: "house" },
+        ] as T[]);
+      // Шаг «номер помещения»: одно активное помещение.
+      if (sql.startsWith("select id from premises"))
+        return Promise.resolve([{ id: "p1" }] as T[]);
       if (sql.startsWith("insert into privacy_request"))
         return Promise.resolve([
           { id: "prq-1", person_id: params![0], kind: params![1], state: "received" },
@@ -98,7 +112,7 @@ function harness(
             person_id: "pers-1",
             telegram_user_id: 100,
             supabase_user_id: null,
-            language: "ru",
+            language: opts.profileLanguage ?? "ru",
             is_test: false,
             archived_at: null,
           }] as T[]);
@@ -112,6 +126,20 @@ function harness(
             is_test: false,
             comment: null,
           }] as T[]);
+        }
+        // /add: телефон и связи исходного реестра предзаполнения анкеты.
+        if (sql.startsWith("select phone_e164 from person")) {
+          return Promise.resolve([
+            { phone_e164: opts.personPhone === undefined ? "+77771234567" : opts.personPhone },
+          ] as T[]);
+        }
+        if (sql.startsWith("select c.premises_id")) {
+          return Promise.resolve((opts.addConnections ?? []) as T[]);
+        }
+        if (sql.startsWith("select c.role")) {
+          return Promise.resolve(
+            (opts.selectedConnection ? [opts.selectedConnection] : []) as T[],
+          );
         }
       }
       // actorForTelegram, bot_dialog, статус доставки, язык профиля и прочее — пусто.
@@ -391,7 +419,133 @@ describe("бот: /register при существующей анкете (guard)
   });
 });
 
-describe("бот: /delete — запрос удаления анкеты (PRV-02)", () => {
+describe("бот: /add — добавление помещения", () => {
+  const P1 = "aaaaaaaa-1111-1111-1111-111111111111";
+  const P2 = "aaaaaaaa-2222-2222-2222-222222222222";
+  const connections = [
+    { premises_id: P1, role: "owner", kind: "apartment", number: "12", code: "Ж1" },
+    { premises_id: P2, role: "owner", kind: "parking_slot", number: "3", code: "П1" },
+  ];
+
+  it("есть связанные помещения — список, анкетные данные предзаполнены, вопросы о языке/имени/телефоне не задаются", async () => {
+    const h = harness({ profile: true, addConnections: connections });
+    const reply = await registrationStep(h.deps, "100", "/add");
+    const text = replyText(reply);
+    expect(text).toContain("связанные с вами");
+    expect(text).toContain("Квартира Ж1/12 — Собственник");
+    expect(text).toContain("Парковочное место П1/3 — Собственник");
+    expect(text).not.toContain("Ваше имя");
+    expect(text).not.toContain("Телефон");
+    expect(h.state.step).toBe("add_select");
+    expect(h.state.language).toBe("ru");
+    expect(h.state.full_name).toBe("Тест Тестов");
+    expect(h.state.phone_e164).toBe("+77771234567");
+    expect(h.state.add_options).toEqual([P1, P2]);
+  });
+
+  it("язык профиля kk — список и согласие на казахском", async () => {
+    const h = harness({
+      profile: true,
+      profileLanguage: "kk",
+      addConnections: [connections[0]!],
+      selectedConnection: connections[0]!,
+    });
+    const reply = await registrationStep(h.deps, "100", "/add");
+    expect(replyText(reply)).toContain("ОСИ реестрінде");
+    expect(h.state.language).toBe("kk");
+    const consent = await registrationStep(h.deps, "100", "1");
+    expect(replyText(consent)).toContain("Тексеріңіз");
+    expect(replyText(consent)).toContain("Меншік иесі");
+  });
+
+  it("выбор номера строки — сводка с помещением и шаг согласия", async () => {
+    const h = harness({
+      profile: true,
+      addConnections: connections,
+      selectedConnection: connections[1]!,
+    });
+    await registrationStep(h.deps, "100", "/add");
+    const reply = await registrationStep(h.deps, "100", "2");
+    const text = replyText(reply);
+    expect(text).toContain("Проверьте");
+    expect(text).toContain("Парковочное место П1/3");
+    expect(text).toContain("Собственник");
+    expect(h.state.step).toBe("consent");
+    expect(h.state.premises_id).toBe(P2);
+    expect(h.state.kind).toBe("parking_slot");
+    expect(h.state.role).toBe("owner");
+  });
+
+  it("неверный номер строки — ошибка валидации", async () => {
+    const h = harness({ profile: true, addConnections: connections });
+    await registrationStep(h.deps, "100", "/add");
+    await expect(registrationStep(h.deps, "100", "9")).rejects.toThrow();
+  });
+
+  it("нет связанных помещений — сразу выбор здания с предзаполненными данными", async () => {
+    const h = harness({ profile: true });
+    const reply = await registrationStep(h.deps, "100", "/add");
+    expect(replyText(reply)).toContain("Выберите здание");
+    expect(h.state.step).toBe("building");
+    expect(h.state.full_name).toBe("Тест Тестов");
+    expect(h.state.phone_e164).toBe("+77771234567");
+    expect(h.state.language).toBe("ru");
+  });
+
+  it("кнопка «Ввести вручную» (/add manual) — сразу выбор здания", async () => {
+    const h = harness({ profile: true, addConnections: connections });
+    const reply = await registrationStep(h.deps, "100", "/add manual");
+    expect(replyText(reply)).toContain("Выберите здание");
+    expect(h.state.step).toBe("building");
+    expect(h.state.add_options).toBeUndefined();
+  });
+
+  it("без регистрации — полный мастер: сначала язык", async () => {
+    const h = harness();
+    const reply = await registrationStep(h.deps, "100", "/add");
+    expect(replyText(reply)).toContain("язык");
+    expect(h.state.step).toBe("language");
+  });
+});
+
+describe("бот: короткий /start и шаги анкеты (UX-фиксы)", () => {
+  it("/start — короткое приветствие вместо полной справки", async () => {
+    const h = harness();
+    const reply = await registrationStep(h.deps, "100", "/start");
+    const text = replyText(reply);
+    expect(text).toContain("/register");
+    expect(text).toContain("/help");
+    // Полная справка остаётся на /help: там раздел «Обращения».
+    expect(text).not.toContain("Доступы собственника");
+  });
+
+  it("/help — полная справка", async () => {
+    const h = harness();
+    expect(replyText(await registrationStep(h.deps, "100", "/help"))).toContain(
+      "Доступы собственника",
+    );
+  });
+
+  it("шаги «Тип помещения» и «Ваша роль» без двойной нумерации", async () => {
+    const h = harness();
+    await registrationStep(h.deps, "100", "/register");
+    await registrationStep(h.deps, "100", "ru");
+    await registrationStep(h.deps, "100", "Имя Фамилия");
+    await registrationStep(h.deps, "100", "+77010000000");
+    // Выбор здания возвращает список типов помещений.
+    const kind = replyText(await registrationStep(h.deps, "100", "1"));
+    // numbered() нумерует сам; двойного «1. 1.» в списке нет.
+    expect(kind).toContain("1. Квартира");
+    expect(kind).not.toContain("1. 1.");
+    await registrationStep(h.deps, "100", "1"); // тип помещения
+    // Ввод номера помещения возвращает список ролей.
+    const role = replyText(await registrationStep(h.deps, "100", "1"));
+    expect(role).toContain("1. Собственник");
+    expect(role).not.toContain("1. 1.");
+  });
+});
+
+describe("бот: /delete — запрос удаления анкеты (PRV-02) [L394-435]", () => {
   it("без регистрации — подсказка /register, запрос не подаётся", async () => {
     const h = harness();
     const reply = await registrationStep(h.deps, "100", "/delete confirm");

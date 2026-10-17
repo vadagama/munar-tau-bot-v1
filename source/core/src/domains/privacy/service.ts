@@ -78,8 +78,8 @@ export async function submitPrivacyRequest(
           exec,
           person,
           {
-            ru: `Запрос (${KIND_TEXT[kind].ru}): ${actor.person.fullName}. Рассмотрите в кабинете — privacy_request.`,
-            kk: `Сұрау (${KIND_TEXT[kind].kk}): ${actor.person.fullName}. Кабинетте қарастырыңыз — privacy_request.`,
+            ru: `Запрос (${KIND_TEXT[kind].ru}): ${actor.person.fullName}. Рассмотрите его в кабинете ОСИ.`,
+            kk: `Сұрау (${KIND_TEXT[kind].kk}): ${actor.person.fullName}. ОСИ кабинетінде қарастырыңыз.`,
           },
           `${row!.id}:${person}`,
           { bot: "worker", buildingIds: building ? [building] : [], isTest: actor.person.isTest },

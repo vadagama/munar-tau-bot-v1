@@ -22,7 +22,7 @@ import {
 } from "../domains/registrations/service.ts";
 import { submitPrivacyRequest } from "../domains/privacy/service.ts";
 import { ScenarioRegistry } from "./registry.ts";
-import { registrationHelp } from "./help.ts";
+import { registrationHelp, welcomeText } from "./help.ts";
 import { btn, type BotReply, replyText } from "./keyboard.ts";
 import {
   cmd as cmdCode,
@@ -55,13 +55,30 @@ export async function actorForTelegram(
 const KIND_OPTIONS = ["apartment", "commercial", "parking_slot", "storage"];
 const ROLE_OPTIONS = ["owner", "tenant", "resident", "other"];
 const KIND_TEXT = (lang: Lang) =>
-  numbered(KIND_OPTIONS.map((kind, i) =>
-    `${i + 1}. ${label(premiseLabels, kind, lang)}`
-  ));
+  numbered(KIND_OPTIONS.map((kind) => label(premiseLabels, kind, lang)));
 const ROLE_TEXT = (lang: Lang) =>
-  numbered(ROLE_OPTIONS.map((role, i) =>
-    `${i + 1}. ${label(roleLabels, role, lang)}`
-  ));
+  numbered(ROLE_OPTIONS.map((role) => label(roleLabels, role, lang)));
+
+/**
+ * Роль из слова жителя («арендатор», «проживающий», «жилец») или слага;
+ * английские слаги сохранены для совместимости.
+ */
+const ROLE_WORDS: Record<string, string> = {
+  "арендатор": "tenant",
+  "жалға алушы": "tenant",
+  "жилец": "resident",
+  "проживающий": "resident",
+  "тұрғын": "resident",
+  "другое": "other",
+  "басқа": "other",
+  tenant: "tenant",
+  resident: "resident",
+  other: "other",
+};
+function roleFromWord(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  return ROLE_WORDS[value.trim().toLowerCase()];
+}
 
 /** Строка списка анкет: состояние, анкетные данные, помещение, роль, причина. */
 function registrationLines(rows: Row[], L: Lang): string[] {
@@ -144,7 +161,7 @@ export async function registrationStep(
       return save({
         text:
           numbered(registrationLines(rows, L)) +
-          `\n${cmdCode("/fix")} — ${pick(L, "исправить анкету после уточнения", "өтінімді нақтылаудан кейін түзету")}; ${cmdCode("/edit НОМЕР")} — ${pick(L, "заполнить заново", "қайта толтыру")}`,
+          `\n${cmdCode("/fix")} — ${pick(L, "исправить анкету после уточнения", "өтінімді нақтылаудан кейін түзету")}`,
         ...(buttons.length ? { buttons } : {}),
       });
     }
@@ -174,7 +191,7 @@ export async function registrationStep(
               const draft = jsonValue<Row>(r.draft);
               return `<b>${esc(draft.full_name)}</b>, ${esc(draft.phone_e164)}; ${esc(label(premiseLabels, r.kind, L, "помещение"))} ${esc(r.number)}`;
             })) +
-            `\n${cmdCode("/approve НОМЕР")} — ${pick(L, "подтвердить", "растау")}; ${cmdCode("/reject НОМЕР причина")} — ${pick(L, "отказ", "бас тарту")}; ${cmdCode("/dispute НОМЕР причина")} — ${pick(L, "спор", "дау")}`,
+            `\n${pick(L, "Для отказа", "Бас тарту үшін")}: ${cmdCode("/reject НОМЕР причина")}; ${pick(L, "для спора", "дау үшін")}: ${cmdCode("/dispute НОМЕР причина")}`,
           // Подтвердить можно кнопкой: причина подставится автоматически.
           buttons: rows.map((r, i) => [
             btn(pick(L, `Подтвердить ${i + 1}`, `Растау ${i + 1}`), `/approve ${i + 1}`),
@@ -224,7 +241,7 @@ export async function registrationStep(
         numbered(rows.map((r) =>
           `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${esc(r.code)}/${esc(r.number)} — ${esc(label(roleLabels, r.role, L))}, ${esc(label(stateLabels, r.status, L))}`
         )) +
-        `\n${cmdCode("/invite НОМЕР tenant|resident|other")} — ${pick(L, "пригласить жильца", "тұрғынды шақыру")}`,
+        `\n${cmdCode("/invite НОМЕР роль")} — ${pick(L, "пригласить жильца: арендатор, проживающий или другое", "тұрғынды шақыру: жалға алушы, тұрғын немесе басқа")}`,
       );
     }
     if (
@@ -247,8 +264,8 @@ export async function registrationStep(
           "VALIDATION_FAILED",
           pick(
             L,
-            "Укажите номер из списка или ID",
-            "Тізім нөмірін немесе ID-ны көрсетіңіз",
+            "Укажите номер из списка",
+            "Тізім нөмірін көрсетіңіз",
           ),
         );
       }
@@ -268,9 +285,20 @@ export async function registrationStep(
         return id;
       };
       if (cmd === "/invite") {
+        const role = roleFromWord(parts[2]);
+        if (!role) {
+          throw new ApiError(
+            "VALIDATION_FAILED",
+            pick(
+              L,
+              "Укажите роль: арендатор, проживающий или другое",
+              "Рөлді көрсетіңіз: жалға алушы, тұрғын немесе басқа",
+            ),
+          );
+        }
         const invite = await createInvite(d, actor, {
           premises_id: ref([state.object_options as string[]]),
-          role: parts[2],
+          role,
         });
         return save(
           `${pick(L, "Приглашение", "Шақыру")}: ${cmdCode(`/start invite_${invite.token}`)}\n${pick(L, "Действует до", "Жарамды")}: ${fmtDate(invite.expires_at)}`,
@@ -312,15 +340,72 @@ export async function registrationStep(
       );
       return save(pick(L, "Решение сохранено", "Шешім сақталды"));
     }
+    if (cmd === "/add") {
+      for (const key of Object.keys(state)) delete state[key];
+      if (!actor) {
+        // У нового пользователя ещё нет настроек — полный мастер анкеты (REG-01).
+        state.step = "language";
+        return save(languageStepText());
+      }
+      // У зарегистрированного пользователя анкетные данные уже известны (REG-01):
+      // язык — из профиля, имя и телефон — из карточки реестра. Персона всегда
+      // есть: профиль создаётся вместе с карточкой при первой проверке анкеты.
+      state.language = String(actor.profile.language);
+      state.full_name = actor.person.fullName;
+      const [person] = await exec.query<Row>(
+        "select phone_e164 from person where id=$1",
+        [actor.person.id],
+      );
+      if (person?.phone_e164) state.phone_e164 = String(person.phone_e164);
+      if (parts[1] === "manual") return save(await askBuilding(exec, state, L));
+      // Помещения, связанные с пользователем связями исходного реестра (IMP-12:
+      // импорт не подтверждает доступ автоматически), без действующей связи
+      // и без анкеты в работе — их и предлагаем списком.
+      const rows = await exec.query<Row>(
+        `select c.premises_id,c.role,p.kind,p.number,b.code
+        from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id
+        where c.person_id=$1 and c.status='pending' and p.status='active' and p.is_test=$2
+        and not exists(select 1 from connection a where a.person_id=c.person_id and a.premises_id=c.premises_id and a.status='active')
+        and not exists(select 1 from registration r where r.person_id=c.person_id and r.premises_id=c.premises_id and r.state in ('pending_review','need_clarification','approved','disputed'))
+        order by b.code,p.number limit 20`,
+        [actor.person.id, actor.person.isTest],
+      );
+      const seen = new Set<string>();
+      const options = rows.filter((r) => {
+        const id = String(r.premises_id);
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+      if (!options.length) return save(await askBuilding(exec, state, L));
+      state.add_options = options.map((r) => String(r.premises_id));
+      state.step = "add_select";
+      return save({
+        text:
+          pick(
+            L,
+            "В реестре ОСИ найдены помещения, связанные с вами. Выберите номер строки, чтобы подать анкету:",
+            "ОСИ реестрінде сізбен байланысқан нысандар табылды. Өтінім беру үшін жол нөмірін таңдаңыз:",
+          ) +
+          "\n" +
+          numbered(options.map((r) =>
+            `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${esc(r.code)}/${esc(r.number)} — ${esc(label(roleLabels, r.role, L))}`,
+          )),
+        buttons: [
+          ...options.map((r, i) => [btn(`${r.code}/${r.number}`, String(i + 1))]),
+          [btn(pick(L, "Ввести вручную", "Қолмен енгізу"), "/add manual")],
+        ],
+      });
+    }
     if (
       cmd === "/register" ||
-      cmd === "/add" ||
       cmd === "/edit" ||
       (cmd === "/start" && parts[1]?.startsWith("invite_"))
     ) {
       // Повторная регистрация бессмысленна: если анкета уже есть и не отозвана —
-      // показываем её актуальный статус вместо мастера. /add и /start invite_*
-      // сознательно проходят мимо guard: это осознанные пути добавления объекта.
+      // показываем её актуальный статус вместо мастера. /start invite_*
+      // сознательно проходит мимо guard: осознанный путь добавления объекта.
+      // Добавление ещё одного помещения — /add, у него отдельная ветка выше.
       if (cmd === "/register") {
         const rows = await exec.query<Row>(
           `select r.id,r.state,r.decided_reason,r.review_stage,r.draft,r.role,p.kind,p.number,b.code
@@ -358,8 +443,8 @@ export async function registrationStep(
             "VALIDATION_FAILED",
             pick(
               L,
-              "Укажите номер из /status или ID анкеты",
-              "/status тізімінің нөмірін немесе ID-ны көрсетіңіз",
+              "Укажите номер из /status",
+              "/status тізімінің нөмірін көрсетіңіз",
             ),
           );
         }
@@ -481,7 +566,10 @@ export async function registrationStep(
         ),
       );
     }
-    if (!state.step || cmd === "/start" || cmd === "/help") return help();
+    // /start — короткое приветствие (полная справка остаётся на /help);
+    // свободный текст без активного шага — полная справка, как раньше.
+    if (cmd === "/start") return welcomeText(L);
+    if (!state.step || cmd === "/help") return help();
     switch (state.step) {
       case "language":
         if (!["ru", "kk"].includes(input.trim())) {
@@ -512,19 +600,50 @@ export async function registrationStep(
             ),
           ].join("\n")));
         }
-        const buildings = await exec.query<Row>(
-          "select id,code,kind from building order by code",
+        return save(await askBuilding(exec, state, L));
+      }
+      case "add_select": {
+        const id = resolveRef(input.trim(), [state.add_options as string[]]);
+        if (!id) {
+          throw new ApiError(
+            "VALIDATION_FAILED",
+            pick(
+              L,
+              "Выберите номер строки из списка /add",
+              "Тізімнен жол нөмірін таңдаңыз",
+            ),
+          );
+        }
+        // Роль и помещение берём заново: связи могли измениться между /add
+        // и выбором номера. Роль связи сохраняется в анкете.
+        const [conn] = await exec.query<Row>(
+          `select c.role,p.kind,p.number,b.code from connection c
+          join premises p on p.id=c.premises_id join building b on b.id=p.building_id
+          where c.person_id=$1 and c.premises_id=$2 and c.status='pending'`,
+          [actor?.person.id ?? null, id],
         );
-        state.buildings = buildings;
-        state.step = "building";
-        return save({
-          text:
-            pick(L, "Выберите здание:", "Ғимаратты таңдаңыз:") + "\n" +
-            numbered(buildings.map((b) => `${esc(b.code)} (${esc(b.kind)})`)),
-          buttons: buildings.map((b, i) => [
-            btn(String(b.code), String(i + 1)),
-          ]),
-        });
+        if (!conn) {
+          throw new ApiError(
+            "INVALID_TRANSITION",
+            pick(
+              L,
+              "Связь уже обработана. Отправьте /add заново.",
+              "Байланыс өңделген. /add қайта жіберіңіз.",
+            ),
+          );
+        }
+        state.premises_id = id;
+        state.kind = String(conn.kind);
+        state.role = String(conn.role);
+        state.step = "consent";
+        return save(consentText(L, [
+          `<b>${pick(L, "Проверьте", "Тексеріңіз")}</b>: ${esc(String(state.full_name))}, ${esc(String(state.phone_e164))}, ${esc(label(premiseLabels, state.kind, L))} ${esc(String(conn.code))}/${esc(String(conn.number))}, ${esc(label(roleLabels, state.role, L))}.`,
+          pick(
+            L,
+            "Согласие на обработку этих данных для регистрации в ОСИ. Отмена:",
+            "ОСИ тіркелуі үшін осы деректерді өңдеуге келісім. Болдырмау:",
+          ) + ` ${cmdCode("/cancel")}`,
+        ].join("\n")));
       }
       case "building": {
         const selected = (state.buildings as Row[])[Number(input) - 1];
@@ -669,6 +788,27 @@ function languageStepText(): BotReply {
   return {
     text: "Выберите язык анкеты / Өтінім тілін таңдаңыз:",
     buttons: [[btn("Русский (ru)", "ru"), btn("Қазақша (kk)", "kk")]],
+  };
+}
+
+/** Шаг выбора здания: шаг и список — в состояние диалога, ответ — с кнопками. */
+async function askBuilding(
+  exec: DbExecutor,
+  state: Row,
+  L: Lang,
+): Promise<BotReply> {
+  const buildings = await exec.query<Row>(
+    "select id,code,kind from building order by code",
+  );
+  state.step = "building";
+  state.buildings = buildings;
+  return {
+    text:
+      pick(L, "Выберите здание:", "Ғимаратты таңдаңыз:") + "\n" +
+      numbered(buildings.map((b) => `${esc(b.code)} (${esc(b.kind)})`)),
+    buttons: buildings.map((b, i) => [
+      btn(String(b.code), String(i + 1)),
+    ]),
   };
 }
 

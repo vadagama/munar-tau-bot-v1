@@ -45,6 +45,15 @@ export function fmtDate(value: unknown): string {
   return `${pad2(shifted.getUTCDate())}.${pad2(shifted.getUTCMonth() + 1)}.${shifted.getUTCFullYear()} ${pad2(shifted.getUTCHours())}:${pad2(shifted.getUTCMinutes())}`;
 }
 
+/** Дата без времени: «17.10.2026» (списки обращений, методички). */
+export function fmtDay(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const date = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(date.getTime())) return esc(String(value));
+  const shifted = new Date(date.getTime() + 5 * 60 * 60 * 1000);
+  return `${pad2(shifted.getUTCDate())}.${pad2(shifted.getUTCMonth() + 1)}.${shifted.getUTCFullYear()}`;
+}
+
 /** Интервал визита/согласования: «17.10.2026 14:00 – 17.10.2026 16:00». */
 export function fmtInterval(start: unknown, end: unknown): string {
   return `${fmtDate(start)} – ${fmtDate(end)}`;

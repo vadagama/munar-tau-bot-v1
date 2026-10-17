@@ -7,6 +7,7 @@ import {
   requestListText,
 } from "./request-text.ts";
 import { cmd, esc, fmtDate, fmtInterval, numbered } from "./text.ts";
+import { visitStateText } from "../locales/tasks.ts";
 import { registrationHelp } from "./help.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
@@ -118,7 +119,7 @@ export async function requestStep(
       const report=reports[index];
       if(!report)return preview(esc(L==="kk"?"Нәтиже әлі берілмеген":"Результат ещё не передан"),3500);
       return preview(
-        `<b>${esc(r.number)}</b> — ${L==="kk"?"нәтиже нұсқасы":"версия результата"} ${r.confirmation_version}. ${L==="kk"?"Есеп":"Отчёт"} ${index+1}/${reports.length}: ${esc(String(report.task_number))}, ${L==="kk"?"нұсқа":"версия"} ${report.report_version}.\n${esc(report.performed_work)}\n${esc(report.result)}\n${L==="kk"?"Шектеулер":"Ограничения"}: ${esc(report.limitations|| (L==="kk"?"жоқ":"нет"))}\n${cmd(`/result ${r.number} ${index+2}`)} — ${L==="kk"?"келесі есеп":"следующий отчёт"}`,
+        `<b>${esc(r.number)}</b> · ${L==="kk"?"Есеп":"Отчёт"} ${index+1} ${L==="kk"?"із ішінен":"из"} ${reports.length} · ${L==="kk"?"тапсырма":"задание"} ${esc(String(report.task_number))}\n${esc(report.performed_work)}\n${esc(report.result)}\n${L==="kk"?"Шектеулер":"Ограничения"}: ${esc(report.limitations|| (L==="kk"?"жоқ":"нет"))}${index+1<reports.length?`\n${cmd(`/result ${r.number} ${index+2}`)} — ${L==="kk"?"келесі есеп":"следующий отчёт"}`:""}`,
         3500,
       );
     }
@@ -127,14 +128,14 @@ export async function requestStep(
       const visits = await listRequestVisits(d,actor,String(r.id));
       state.scenario="requests";state.visit_options=visits;
       const lines = visits.map((v) =>
-        `${fmtInterval(v.interval_start, v.interval_end)} — ${esc(String(v.status))}`
+        `${fmtInterval(v.interval_start, v.interval_end)} — ${esc(visitStateText(v.status, L))}`
       );
       return save({
         text:
           (lines.length
             ? numbered(lines)
             : L === "kk" ? "Сапарлар жоқ" : "Визитов нет") +
-          `\n${cmd("/confirmvisit НОМЕР_ОБРАЩЕНИЯ НОМЕР_В_СПИСКЕ")} — ${L === "kk" ? "келісу" : "согласовать"}; ${cmd("/missedvisit НОМЕР_ОБРАЩЕНИЯ НОМЕР_В_СПИСКЕ причина")} — ${L === "kk" ? "орындаушы келмеді" : "исполнитель не пришёл"}`,
+          `\n${cmd("/missedvisit НОМЕР_ОБРАЩЕНИЯ НОМЕР_В_СПИСКЕ причина")} — ${L === "kk" ? "орындаушы келмеді" : "исполнитель не пришёл"}`,
         // Согласование визита — кнопкой по строке списка.
         buttons: visits.map((v, i) => [
           btn(
@@ -337,12 +338,12 @@ export async function requestStep(
       return save(
         `<b>${esc(sent.number)}</b> — ${L === "kk" ? "тіркелді" : "зарегистрировано"}. ${L === "kk" ? "Алғашқы жауап" : "Первый ответ"}: ${
           fmtDate(sent.first_response_due_at)
-        }. ${L === "kk" ? "Өңдеудің басталуы" : "Начало обработки"}: ${fmtDate(sent.first_response_start_at)} (${L === "kk" ? "Алматы" : "Алматы"}).\n${
+        }.\n${
           requestActions(sent.state, L)
         }\n${
           L === "kk"
-            ? "Жұмыс уақытынан тыс дереу өңдеу жоқ. Тікелей қауіп кезінде 112 нөміріне қоңырау шалыңыз."
-            : "Вне графика немедленной обработки нет. При непосредственной угрозе жизни звоните 112."
+            ? "Төтенше қызметтерді бот алмастырмайды: өмірге тікелей қауіп төнгенде 112 нөміріне қоңырау шалыңыз."
+            : "Экстренные службы бот не заменяет: при непосредственной угрозе жизни звоните 112."
         }`,
       );
     }
