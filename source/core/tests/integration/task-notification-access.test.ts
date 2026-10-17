@@ -24,6 +24,8 @@ describeWithDb("VS-5 отзыв назначения", (getDb) => {
     async () => {
       const { deps, admin, worker, input } = await setupTasks(getDb());
       const task = await createTask(deps, admin, input, "create");
+      // Доставка назначения уже подготовлена; снятие должно погасить её при send.
+      await dispatchNotices(deps, Date.now() + 120000);
       await transitionTask(deps, admin, task.id, {
         action: "reassign",
         version: task.version,

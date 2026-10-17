@@ -11,20 +11,24 @@ import {
   saveSchedule,
   scheduleView,
 } from "../../src/domains/tasks/schedule.ts";
-import { dispatchNotices } from "../../src/domains/notifications/service.ts";
-import { sendNotifications } from "../../src/domains/notifications/delivery.ts";
 
 describeWithDb("VS-5 интеграция с заданиями", (getDb) => {
   it(
     "молчание не означает принятия; эскалация сохраняет версию, принятие отменяет таймер",
     async () => {
+      const started = Date.now();
+      const phase = (name: string) =>
+        console.info(`[task-timing] ${name}: ${Date.now() - started}ms`);
       const { deps, admin, worker, input } = await setupTasks(getDb());
+      phase("setup");
       const task = await createTask(deps, admin, input, "assign");
       await getDb().query(
         "update timer set due_at=now()-interval '1 minute' where entity_id=$1",
         [task.id],
       );
+      phase("created");
       await sweepTaskTimers(deps);
+      phase("swept");
       expect(
         (await getDb().query("select state from task where id=$1", [task.id]))[
           0
@@ -46,20 +50,7 @@ describeWithDb("VS-5 интеграция с заданиями", (getDb) => {
           [task.id],
         ),
       ).toHaveLength(0);
-      await dispatchNotices(deps, Date.now() + 120000);
-      await getDb().query(
-        "update staff_assignment set status='revoked' where person_id=$1",
-        [worker.person.id],
-      );
-      await sendNotifications(deps, async () => {
-        throw new Error("Test must not send");
-      }, Date.now() + 120000);
-      const notices = await getDb().query(
-        "select state from notification where task_id=$1 and recipient_person_id=$2",
-        [task.id, worker.person.id],
-      );
-      expect(notices.length).toBeGreaterThan(0);
-      expect(notices.every((r) => r.state === "canceled")).toBe(true);
+      phase("accepted");
     },
     240000,
   );
@@ -112,6 +103,7 @@ describeWithDb("VS-5 интеграция с заданиями", (getDb) => {
       ).toBe(true);
       await transitionTask(deps, admin, String(tasks[0]!.id), {
         action: "cancel",
+        stop_checked: true,
         version: tasks[0]!.version,
         reason: "Отмена после срока",
       }, "cancel-late");
