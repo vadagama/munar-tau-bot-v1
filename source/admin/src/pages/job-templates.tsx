@@ -3,6 +3,7 @@ import {
   Alert,
   Button,
   Checkbox,
+  Collapse,
   Form,
   Input,
   List,
@@ -13,6 +14,7 @@ import {
   Typography,
 } from "antd";
 import { apiFetch } from "../lib/api";
+import { OSI_PRESETS, type TemplatePreset } from "./job-template-presets";
 type Row = Record<string, unknown>;
 const required = [{ required: true, message: "Заполните поле" }];
 export function JobTemplates(
@@ -62,6 +64,15 @@ export function JobTemplates(
     if (row && value === "edit") {
       form.setFieldsValue({ ...row, ...row.blueprint as Row });
     }
+  }
+  function beginPreset(p: TemplatePreset) {
+    begin("create", null);
+    form.setFieldsValue({
+      name: p.name,
+      title: p.title,
+      instruction: p.instruction,
+      required_evidence: p.evidence.map((e) => ({ ...e })),
+    });
   }
   async function history(row: Row) {
     const g = ++generation.current;
@@ -114,6 +125,37 @@ export function JobTemplates(
       <Button disabled={busy} onClick={() => begin("create", null)}>
         Создать шаблон
       </Button>
+      <Collapse
+        ghost
+        items={[{
+          key: "presets",
+          label: `Готовые шаблоны для ОСИ (${OSI_PRESETS.length})`,
+          children: (
+            <List
+              size="small"
+              dataSource={OSI_PRESETS}
+              renderItem={(p) => (
+                <List.Item
+                  actions={[
+                    <Button
+                      key="use"
+                      disabled={busy}
+                      onClick={() => beginPreset(p)}
+                    >
+                      Взять за основу
+                    </Button>,
+                  ]}
+                >
+                  <List.Item.Meta
+                    title={`${p.name} · ${p.periodicity}`}
+                    description={p.instruction}
+                  />
+                </List.Item>
+              )}
+            />
+          ),
+        }]}
+      />
       <Table
         rowKey="id"
         loading={busy}
