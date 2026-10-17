@@ -144,6 +144,7 @@ CI (`.github/workflows/ci.yml`) на каждый PR и push в `main`: node-д�
 - `fuwsmewtmxmzttwkbdex` (Munar Tau Dev, Sydney) — отдельная БД интеграционных тестов. Только она используется в `TEST_DATABASE_URL` локально и в GitHub CI. Её данные очищаются тестами; расписание доставки выключено, webhook бота на неё не направлен.
 - `SUPABASE_PROJECT_ID` и `SUPABASE_DB_PASSWORD` локально относятся к новому стенду. Никогда не подставлять его URI в `TEST_DATABASE_URL`.
 - OIDC callback нового стенда: `https://ohpjqsudibkcymjjuedy.supabase.co/auth/v1/callback`. После переноса требуется повторный вход; Auth users/identities и привязка tech_admin сохранены, активные Auth-сеансы не переносятся.
+- Функции и схему БД стенда обновлять вместе: после деплоя функций применять `npm run db:push` (если миграции попали в середину истории стенда — с `--include-all`). Иначе jobs падает с 500 на отсутствующих колонках (инцидент 17.10.2026: функции с VS-5-кодом при старой схеме — `outbox.next_attempt_at` не существовал, очередь стояла до применения миграций).
 
 ## VS-5 — работа в отдельной ветке
 
