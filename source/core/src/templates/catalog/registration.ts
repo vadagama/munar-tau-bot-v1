@@ -21,11 +21,16 @@ export const registrationTemplates: readonly TemplateDef[] = [
   {
     "key": "registration.snachala_registratsiya_register",
     "section": "registration",
-    "title": "Сначала регистрация: /register",
+    "title": "Сначала регистрация",
     "description": "Реплика registration",
     "variables": [],
-    "ru": "Сначала регистрация: /register",
-    "kk": "Алдымен тіркеліңіз: /register",
+    "ru": "Сначала регистрация.",
+    "kk": "Алдымен тіркеліңіз.",
+    "buttons": [{
+      "id": "register",
+      "ru": "Зарегистрироваться",
+      "kk": "Тіркелу",
+    }],
   },
   {
     "key": "registration.anket_na_podtverzhdenie_net",
@@ -126,6 +131,27 @@ export const registrationTemplates: readonly TemplateDef[] = [
     "variables": [],
     "ru": "Укажите роль: арендатор, проживающий или другое",
     "kk": "Рөлді көрсетіңіз: жалға алушы, тұрғын немесе басқа",
+    "buttons": [{
+      "id": "role",
+      "ru": "{label}",
+      "kk": "{label}",
+      "variables": [{
+        "name": "label",
+        "description": "Название роли",
+        "example": "Арендатор",
+      }],
+    }],
+    "examples": [{
+      "id": "default",
+      "title": "Выбор роли",
+      "ru": {},
+      "kk": {},
+      "buttons": [[{
+        "id": "role",
+        "vars_ru": { "label": "Арендатор" },
+        "vars_kk": { "label": "Жалға алушы" },
+      }]],
+    }],
   },
   {
     "key": "registration.priglashenie",
@@ -241,14 +267,16 @@ export const registrationTemplates: readonly TemplateDef[] = [
   {
     "key": "registration.anket_dlya_ispravleniya_net_utochneniy_i_otkazov",
     "section": "registration",
-    "title":
-      "Анкет для исправления нет: уточнений и отказов не найдено. /register — новая анкета.",
+    "title": "Анкет для исправления нет: уточнений и отказов не найдено.",
     "description": "Реплика registration",
     "variables": [],
-    "ru":
-      "Анкет для исправления нет: уточнений и отказов не найдено. /register — новая анкета.",
-    "kk":
-      "Түзететін өтінім жоқ: нақтылау мен бас тарту табылмады. /register — жаңа өтінім.",
+    "ru": "Анкет для исправления нет: уточнений и отказов не найдено.",
+    "kk": "Түзететін өтінім жоқ: нақтылау мен бас тарту табылмады.",
+    "buttons": [{
+      "id": "register",
+      "ru": "Новая анкета",
+      "kk": "Жаңа өтінім",
+    }],
   },
   {
     "key": "registration.kakuyu_anketu_ispravit",
@@ -353,11 +381,16 @@ export const registrationTemplates: readonly TemplateDef[] = [
   {
     "key": "registration.svyaz_uzhe_obrabotana_otpravte_add_zanovo",
     "section": "registration",
-    "title": "Связь уже обработана. Отправьте /add заново.",
+    "title": "Связь уже обработана",
     "description": "Реплика registration",
     "variables": [],
-    "ru": "Связь уже обработана. Отправьте /add заново.",
-    "kk": "Байланыс өңделген. /add қайта жіберіңіз.",
+    "ru": "Связь уже обработана.",
+    "kk": "Байланыс өңделген.",
+    "buttons": [{
+      "id": "add",
+      "ru": "Добавить помещение",
+      "kk": "Үй-жай қосу",
+    }],
   },
   {
     "key": "registration.proverte",

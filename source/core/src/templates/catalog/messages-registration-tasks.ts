@@ -56,6 +56,7 @@ const values: Record<string, [string, string]> = {
   kind: ["Тип помещения", "Квартира"],
   code: ["Код здания", "1"],
   number: ["Номер помещения или задания", "4"],
+  index: ["Номер анкеты в списке", "1"],
   role: ["Роль жителя", "Собственник"],
   tasks: [
     "Список заданий с состояниями",
@@ -232,9 +233,10 @@ const defs: TemplateDef[] = [
     "/status",
     [R + "ispravit_anketu_posle_utochneniya"],
     (l) =>
-      "{registrations}\n/fix — " +
-      old(R + "ispravit_anketu_posle_utochneniya", l),
-    [{ id: "edit", ru: "Исправить", kk: "Түзету" }],
+      l === "kk"
+        ? "Өтінім күйі:\n{registrations}"
+        : "Статус анкеты:\n{registrations}",
+    [{ id: "edit", ru: "Исправить анкету", kk: "Өтінімді түзету" }],
   ),
   def(
     "message.registration.pending",
@@ -242,19 +244,36 @@ const defs: TemplateDef[] = [
     "/pending",
     [R + "dlya_otkaza", R + "dlya_spora"],
     (l) =>
-      "{registrations}\n" + old(R + "dlya_otkaza", l) +
-      ": /reject НОМЕР причина; " + old(R + "dlya_spora", l) +
-      ": /dispute НОМЕР причина",
+      l === "kk"
+        ? "Растауға өтінімдер:\n{registrations}"
+        : "Анкеты на подтверждение:\n{registrations}",
     [{
       id: "approve",
-      ru: "Подтвердить {index}",
-      kk: "Растау {index}",
-      variables: [{
-        name: "index",
-        description: "Номер анкеты в списке",
-        example: "1",
-      }],
+      ru: "Подтвердить — {index}",
+      kk: "Растау — {index}",
+      variables: variables("{index}", ""),
+    }, {
+      id: "reject",
+      ru: "Отказать — {index}",
+      kk: "Бас тарту — {index}",
+      variables: variables("{index}", ""),
+    }, {
+      id: "dispute",
+      ru: "Спор — {index}",
+      kk: "Дау — {index}",
+      variables: variables("{index}", ""),
     }],
+  ),
+  def(
+    "message.registration.reason_prompt",
+    "Решение — причина отказа, спора или отзыва",
+    "/pending",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Себебін бір хабарламада көрсетіңіз."
+        : "Укажите причину одним сообщением.",
+    [{ id: "cancel", ru: "Отмена", kk: "Болдырмау" }],
   ),
   def(
     "message.registration.accesses",
@@ -262,8 +281,20 @@ const defs: TemplateDef[] = [
     "/accesses",
     [R + "prekratit_dostup", R + "spor_po_ankete"],
     (l) =>
-      "{accesses}\n/revoke НОМЕР причина — " + old(R + "prekratit_dostup", l) +
-      "; /dispute НОМЕР причина — " + old(R + "spor_po_ankete", l),
+      l === "kk"
+        ? "Берілген қолжетімділіктер:\n{accesses}"
+        : "Выданные доступы:\n{accesses}",
+    [{
+      id: "revoke",
+      ru: "Прекратить доступ — {index}",
+      kk: "Қолжетімділікті тоқтату — {index}",
+      variables: variables("{index}", ""),
+    }, {
+      id: "dispute",
+      ru: "Спор — {index}",
+      kk: "Өтінім бойынша дау — {index}",
+      variables: variables("{index}", ""),
+    }],
   ),
   def(
     "message.registration.objects",
@@ -271,8 +302,19 @@ const defs: TemplateDef[] = [
     "/objects",
     [R + "priglasit_zhiltsa_arendator_prozhivayuschiy_ili_drugoe"],
     (l) =>
-      "{premises}\n/invite НОМЕР роль — " +
-      old(R + "priglasit_zhiltsa_arendator_prozhivayuschiy_ili_drugoe", l),
+      l === "kk"
+        ? "Менің үй-жайларым:\n{premises}"
+        : "Мои помещения:\n{premises}",
+    [{
+      id: "invite",
+      ru: "Пригласить жильца",
+      kk: "Тұрғынды шақыру",
+    }, {
+      id: "invite_premise",
+      ru: "Пригласить — {code}/{number}",
+      kk: "Шақыру — {code}/{number}",
+      variables: variables("{code}/{number}", ""),
+    }],
   ),
   def(
     "message.registration.invite",
@@ -311,11 +353,20 @@ const defs: TemplateDef[] = [
         R + "ispravit_anketu",
         R + "dobavit_esche_obekt",
       ],
-      (l) =>
-        old(R + name, l) + "\n{registrations}\n/status — " +
-        old(R + "status_anket", l) + "; /fix — " +
-        old(R + "ispravit_anketu", l) + "; /add — " +
-        old(R + "dobavit_esche_obekt", l),
+      (l) => old(R + name, l) + "\n{registrations}",
+      [{
+        id: "status",
+        ru: "Статус анкет",
+        kk: "Өтінімдер күйі",
+      }, {
+        id: "fix",
+        ru: "Исправить анкету",
+        kk: "Өтінімді түзету",
+      }, {
+        id: "add",
+        ru: "Добавить помещение",
+        kk: "Үй-жай қосу",
+      }],
     )
   ),
   def(
@@ -324,7 +375,19 @@ const defs: TemplateDef[] = [
     "/fix",
     [R + "kakuyu_anketu_ispravit"],
     (l) =>
-      "{registrations}\n/fix НОМЕР — " + old(R + "kakuyu_anketu_ispravit", l),
+      l === "kk"
+        ? "Қайсысын түзетеміз?\n{registrations}"
+        : "Какую анкету исправить?\n{registrations}",
+    [{
+      id: "fix",
+      ru: "Исправить — {index}",
+      kk: "Түзету — {index}",
+      variables: [{
+        name: "index",
+        description: "Номер анкеты в списке",
+        example: "1",
+      }],
+    }],
   ),
   def(
     "message.registration.fix_name_reason",
@@ -421,8 +484,9 @@ const defs: TemplateDef[] = [
             (name === "premises_consent" ? " {code}/{number}" : "") +
             ", {role}.") +
         "\n" +
-        old(R + "soglasie_na_obrabotku_etih_dannyh_dlya_registratsii", l) +
-        " /cancel",
+        (l === "kk"
+          ? "ОСИ тіркелуі үшін осы деректерді өңдеуге келісім."
+          : "Согласие на обработку этих данных для регистрации в ОСИ."),
       consentButtons,
     )
   ),
@@ -432,7 +496,9 @@ const defs: TemplateDef[] = [
     "/register",
     [R + "dlya_prodolzheniya_podtverdite_soglasie_otmena"],
     (l) =>
-      old(R + "dlya_prodolzheniya_podtverdite_soglasie_otmena", l) + " /cancel",
+      l === "kk"
+        ? "Жалғастыру үшін келісімді растаңыз."
+        : "Для продолжения подтвердите согласие.",
     consentButtons,
   ),
   def(
@@ -443,9 +509,8 @@ const defs: TemplateDef[] = [
       R + "anketa_prinyata_dostup_ozhidaet_podtverzhdeniya",
       R + "status_ankety",
     ],
-    (l) =>
-      old(R + "anketa_prinyata_dostup_ozhidaet_podtverzhdeniya", l) +
-      "\n/status — " + old(R + "status_ankety", l),
+    (l) => old(R + "anketa_prinyata_dostup_ozhidaet_podtverzhdeniya", l),
+    [{ id: "status", ru: "Статус анкет", kk: "Өтінімдер күйі" }],
   ),
   def(
     "message.tasks.list",

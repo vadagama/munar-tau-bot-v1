@@ -184,13 +184,7 @@ export async function registrationStep(
     }
     if (cmd === "/pending" || cmd === "/accesses") {
       if (!actor) {
-        return save(
-          message(
-            deps.templates,
-            L,
-            "registration.snachala_registratsiya_register",
-          ),
-        );
+        return save(registerPrompt(deps.templates, L));
       }
       if (cmd === "/pending") {
         const rows = await exec.query<Row>(
@@ -217,7 +211,7 @@ export async function registrationStep(
               }`;
             }))),
           }),
-          // Подтвердить можно кнопкой: причина подставится автоматически.
+          // Решение по каждой анкете — кнопкой; отказ и спор спросят причину.
           buttons: rows.map((r, i) => [
             btn(
               messageButton(
@@ -228,6 +222,26 @@ export async function registrationStep(
                 { index: i + 1 },
               ),
               `/approve ${i + 1}`,
+            ),
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.pending",
+                "reject",
+                { index: i + 1 },
+              ),
+              `/reject ${i + 1}`,
+            ),
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.pending",
+                "dispute",
+                { index: i + 1 },
+              ),
+              `/dispute ${i + 1}`,
             ),
           ]),
         });
@@ -244,8 +258,8 @@ export async function registrationStep(
       state.access_options = rows.map((r) => String(r.id));
       const disputeRefs = rows.map((r) => r.registration_id).filter(Boolean);
       state.dispute_options = disputeRefs.map(String);
-      return save(
-        message(deps.templates, L, "message.registration.accesses", {
+      return save({
+        text: message(deps.templates, L, "message.registration.accesses", {
           accesses: safeBlock(
             numbered(
               rows.map((r) =>
@@ -256,17 +270,34 @@ export async function registrationStep(
             ),
           ),
         }),
-      );
+        // Прекратить и оспорить — кнопками; обе спросят причину.
+        buttons: rows.map((r, i) => [
+          btn(
+            messageButton(
+              deps.templates,
+              L,
+              "message.registration.accesses",
+              "revoke",
+              { index: i + 1 },
+            ),
+            `/revoke ${i + 1}`,
+          ),
+          btn(
+            messageButton(
+              deps.templates,
+              L,
+              "message.registration.accesses",
+              "dispute",
+              { index: i + 1 },
+            ),
+            `/dispute ${i + 1}`,
+          ),
+        ]),
+      });
     }
     if (cmd === "/objects") {
       if (!actor) {
-        return save(
-          message(
-            deps.templates,
-            L,
-            "registration.snachala_registratsiya_register",
-          ),
-        );
+        return save(registerPrompt(deps.templates, L));
       }
       const rows = await exec.query<Row>(
         "select c.id,c.premises_id,c.role,c.status,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1",
@@ -286,8 +317,8 @@ export async function registrationStep(
         seen.add(id);
         return [id];
       });
-      return save(
-        message(deps.templates, L, "message.registration.objects", {
+      return save({
+        text: message(deps.templates, L, "message.registration.objects", {
           premises: safeBlock(
             numbered(
               rows.map((r) =>
@@ -300,7 +331,18 @@ export async function registrationStep(
             ),
           ),
         }),
-      );
+        buttons: [[
+          btn(
+            messageButton(
+              deps.templates,
+              L,
+              "message.registration.objects",
+              "invite",
+            ),
+            "/invite",
+          ),
+        ]],
+      });
     }
     if (
       [
@@ -313,13 +355,7 @@ export async function registrationStep(
       ].includes(cmd ?? "")
     ) {
       if (!actor) {
-        return save(
-          message(
-            deps.templates,
-            L,
-            "registration.snachala_registratsiya_register",
-          ),
-        );
+        return save(registerPrompt(deps.templates, L));
       }
       if (!parts[1]) {
         throw new BotTemplateError(
@@ -343,16 +379,78 @@ export async function registrationStep(
         return id;
       };
       if (cmd === "/invite") {
+        if (!parts[1]) {
+          const options = state.object_options as string[] | undefined;
+          if (!options?.length) {
+            throw new BotTemplateError(
+              "VALIDATION_FAILED",
+              message(
+                deps.templates,
+                L,
+                "registration.ukazhite_nomer_iz_spiska",
+              ),
+            );
+          }
+          if (options.length === 1) {
+            parts[1] = "1";
+          } else {
+            // Несколько помещений: выбор строки кнопками, затем роль.
+            const rows = await exec.query<Row>(
+              "select c.premises_id,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1",
+              [actor.person.id],
+            );
+            const seen = new Set<string>();
+            const optRows: Row[] = [];
+            for (const r of rows) {
+              const id = String(r.premises_id);
+              if (!seen.has(id)) {
+                seen.add(id);
+                optRows.push(r);
+              }
+            }
+            return save({
+              text: message(
+                deps.templates,
+                L,
+                "registration.ukazhite_nomer_iz_spiska",
+              ),
+              buttons: optRows.map((r, i) => [
+                btn(
+                  messageButton(
+                    deps.templates,
+                    L,
+                    "message.registration.objects",
+                    "invite_premise",
+                    { code: r.code, number: r.number },
+                  ),
+                  `/invite ${i + 1}`,
+                ),
+              ]),
+            });
+          }
+        }
         const role = roleFromWord(parts[2]);
         if (!role) {
-          throw new BotTemplateError(
-            "VALIDATION_FAILED",
-            message(
+          // Роль не указана: выбор роли кнопками для выбранного помещения.
+          return save({
+            text: message(
               deps.templates,
               L,
               "registration.ukazhite_rol_arendator_prozhivayuschiy_ili_drugoe",
             ),
-          );
+            buttons: ["tenant", "resident", "other"].map((id) => [
+              btn(
+                messageButton(
+                  deps.templates,
+                  L,
+                  "registration.ukazhite_rol_arendator_prozhivayuschiy_ili_drugoe",
+                  "role",
+                  { label: label(roleLabels, id, L) },
+                ),
+                `/invite ${parts[1]} ${id}`,
+              ),
+            ]),
+          });
         }
         const invite = await createInvite(d, actor, {
           premises_id: ref([state.object_options as string[]]),
@@ -372,31 +470,46 @@ export async function registrationStep(
         );
       }
       if (cmd === "/revoke") {
-        await revokeOwnConnection(
-          d,
-          actor,
-          ref([state.access_options as string[]]),
-          parts.slice(2).join(" "),
-        );
+        const reason = parts.slice(2).join(" ");
+        const target = ref([state.access_options as string[]]);
+        if (!reason) {
+          state.reason_action = "revoke";
+          state.reason_id = target;
+          state.step = "reason_prompt";
+          return save(reasonPromptText(deps.templates, L));
+        }
+        await revokeOwnConnection(d, actor, target, reason);
         return save(
           message(deps.templates, L, "registration.svyaz_prekraschena"),
         );
       }
+      const decision = cmd === "/approve"
+        ? "approve"
+        : cmd === "/reject"
+        ? "reject"
+        : "dispute";
+      const reason = parts.slice(2).join(" ");
+      const target = ref([
+        state.pending_options as string[],
+        state.dispute_options as string[],
+        state.status_options as string[],
+      ]);
+      if (decision !== "approve" && !reason) {
+        // Отказ и спор требуют основания: номер резолвим сразу, а следующее
+        // сообщение собственника станет причиной решения (как в /edit —
+        // резолв до очистки состояния).
+        state.reason_action = decision;
+        state.reason_id = target;
+        state.step = "reason_prompt";
+        return save(reasonPromptText(deps.templates, L));
+      }
       await reviewRegistration(
         d,
         actor,
-        ref([
-          state.pending_options as string[],
-          state.dispute_options as string[],
-          state.status_options as string[],
-        ]),
-        cmd === "/approve"
-          ? "approve"
-          : cmd === "/reject"
-          ? "reject"
-          : "dispute",
+        target,
+        decision,
         {
-          reason: parts.slice(2).join(" ") ||
+          reason: reason ||
             message(deps.templates, L, "registration.reshenie_sobstvennika"),
         },
         true,
@@ -509,18 +622,30 @@ export async function registrationStep(
         );
         if (rows.length) {
           const hasApproved = rows.some((r) => r.state === "approved");
-          return save(
-            message(
-              deps.templates,
-              L,
-              hasApproved
-                ? "message.registration.already_registered"
-                : "message.registration.already_applied",
-              {
-                registrations: safeBlock(numbered(registrationLines(rows, L))),
-              },
-            ),
-          );
+          const key = hasApproved
+            ? "message.registration.already_registered"
+            : "message.registration.already_applied";
+          return save({
+            text: message(deps.templates, L, key, {
+              registrations: safeBlock(
+                numbered(registrationLines(rows, L)),
+              ),
+            }),
+            buttons: [[
+              btn(
+                messageButton(deps.templates, L, key, "status"),
+                "/status",
+              ),
+              btn(
+                messageButton(deps.templates, L, key, "fix"),
+                "/fix",
+              ),
+              btn(
+                messageButton(deps.templates, L, key, "add"),
+                "/add",
+              ),
+            ]],
+          });
         }
       }
       if (cmd === "/edit") {
@@ -569,15 +694,28 @@ export async function registrationStep(
         [telegramId, actor?.person.isTest ?? false],
       );
       if (!rows.length) {
-        return message(
-          deps.templates,
-          L,
-          "registration.anket_dlya_ispravleniya_net_utochneniy_i_otkazov",
-        );
+        return {
+          text: message(
+            deps.templates,
+            L,
+            "registration.anket_dlya_ispravleniya_net_utochneniy_i_otkazov",
+          ),
+          buttons: [[
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "registration.anket_dlya_ispravleniya_net_utochneniy_i_otkazov",
+                "register",
+              ),
+              "/register",
+            ),
+          ]],
+        };
       }
       if (!parts[1] && rows.length > 1) {
-        return save(
-          message(deps.templates, L, "message.registration.fix_select", {
+        return save({
+          text: message(deps.templates, L, "message.registration.fix_select", {
             registrations: safeBlock(
               numbered(
                 rows.map((r) =>
@@ -590,7 +728,20 @@ export async function registrationStep(
               ),
             ),
           }),
-        );
+          // Запрос /fix уже отфильтровал редактируемые состояния — кнопка у каждой строки.
+          buttons: rows.map((r, i) => [
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.fix_select",
+                "fix",
+                { index: i + 1 },
+              ),
+              `/fix ${i + 1}`,
+            ),
+          ]),
+        });
       }
       const id = parts[1]
         ? resolveRef(parts[1], [rows.map((r) => String(r.id))])
@@ -631,13 +782,7 @@ export async function registrationStep(
       // история обращений и операций сохраняется. Подтверждение — кнопкой
       // или текстовым эквивалентом "/delete confirm".
       if (!actor) {
-        return save(
-          message(
-            deps.templates,
-            L,
-            "registration.snachala_registratsiya_register",
-          ),
-        );
+        return save(registerPrompt(deps.templates, L));
       }
       if (parts[1] !== "confirm") {
         return save({
@@ -740,14 +885,24 @@ export async function registrationStep(
           [actor?.person.id ?? null, id],
         );
         if (!conn) {
-          throw new BotTemplateError(
-            "INVALID_TRANSITION",
-            message(
+          return save({
+            text: message(
               deps.templates,
               L,
               "registration.svyaz_uzhe_obrabotana_otpravte_add_zanovo",
             ),
-          );
+            buttons: [[
+              btn(
+                messageButton(
+                  deps.templates,
+                  L,
+                  "registration.svyaz_uzhe_obrabotana_otpravte_add_zanovo",
+                  "add",
+                ),
+                "/add",
+              ),
+            ]],
+          });
         }
         state.premises_id = id;
         state.kind = String(conn.kind);
@@ -952,8 +1107,56 @@ export async function registrationStep(
         }
         await submitRegistration(d, actor, state, telegramId);
         for (const key of Object.keys(state)) delete state[key];
+        return save({
+          text: message(
+            deps.templates,
+            L,
+            "message.registration.submitted",
+          ),
+          buttons: [[
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.submitted",
+                "status",
+              ),
+              "/status",
+            ),
+          ]],
+        });
+      }
+      case "reason_prompt": {
+        // Причина решения: следующее после вопроса сообщение — основание.
+        if (!actor) {
+          return save(registerPrompt(deps.templates, L));
+        }
+        const reason = input.trim();
+        if (!reason) return reasonPromptText(deps.templates, L);
+        const action = String(state.reason_action ?? "");
+        const target = String(state.reason_id ?? "");
+        if (!target) throw new ApiError("NOT_FOUND");
+        for (const key of Object.keys(state)) delete state[key];
+        if (action === "revoke") {
+          await revokeOwnConnection(d, actor, target, reason);
+        } else {
+          await reviewRegistration(
+            d,
+            actor,
+            target,
+            action === "dispute" ? "dispute" : "reject",
+            { reason },
+            true,
+          );
+        }
         return save(
-          message(deps.templates, L, "message.registration.submitted"),
+          message(
+            deps.templates,
+            L,
+            action === "revoke"
+              ? "registration.svyaz_prekraschena"
+              : "registration.reshenie_sohraneno",
+          ),
         );
       }
     }
@@ -973,6 +1176,37 @@ function languageStepText(store?: TemplateStore): BotReply {
       btn(
         messageButton(store, "ru", "registration.language_prompt", "kk"),
         "kk",
+      ),
+    ]],
+  };
+}
+
+/** Вопрос о причине решения: ответ — следующим сообщением, отмена — /cancel. */
+function reasonPromptText(store?: TemplateStore, L: Lang = "ru"): BotReply {
+  return {
+    text: message(store, L, "message.registration.reason_prompt"),
+    buttons: [[
+      btn(
+        messageButton(store, L, "message.registration.reason_prompt", "cancel"),
+        "/cancel",
+      ),
+    ]],
+  };
+}
+
+/** Заглушка без профиля: приглашение к регистрации кнопкой мастера. */
+function registerPrompt(store?: TemplateStore, L: Lang = "ru"): BotReply {
+  return {
+    text: message(store, L, "registration.snachala_registratsiya_register"),
+    buttons: [[
+      btn(
+        messageButton(
+          store,
+          L,
+          "registration.snachala_registratsiya_register",
+          "register",
+        ),
+        "/register",
       ),
     ]],
   };

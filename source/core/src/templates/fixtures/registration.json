@@ -14,8 +14,8 @@
   {
     "key": "registration.snachala_registratsiya_register",
     "source": "registration",
-    "ru": "Сначала регистрация: /register",
-    "kk": "Алдымен тіркеліңіз: /register"
+    "ru": "Сначала регистрация.",
+    "kk": "Алдымен тіркеліңіз."
   },
   {
     "key": "registration.anket_na_podtverzhdenie_net",
@@ -158,8 +158,8 @@
   {
     "key": "registration.anket_dlya_ispravleniya_net_utochneniy_i_otkazov",
     "source": "registration",
-    "ru": "Анкет для исправления нет: уточнений и отказов не найдено. /register — новая анкета.",
-    "kk": "Түзететін өтінім жоқ: нақтылау мен бас тарту табылмады. /register — жаңа өтінім."
+    "ru": "Анкет для исправления нет: уточнений и отказов не найдено.",
+    "kk": "Түзететін өтінім жоқ: нақтылау мен бас тарту табылмады."
   },
   {
     "key": "registration.kakuyu_anketu_ispravit",
@@ -224,8 +224,8 @@
   {
     "key": "registration.svyaz_uzhe_obrabotana_otpravte_add_zanovo",
     "source": "registration",
-    "ru": "Связь уже обработана. Отправьте /add заново.",
-    "kk": "Байланыс өңделген. /add қайта жіберіңіз."
+    "ru": "Связь уже обработана.",
+    "kk": "Байланыс өңделген."
   },
   {
     "key": "registration.proverte",
