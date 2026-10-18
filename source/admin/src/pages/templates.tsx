@@ -1,3 +1,5 @@
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import "./templates.css";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -121,6 +123,7 @@ export function TemplatesPage() {
       if (seq === request.current) setBusy(false);
     }
   }
+  usePageRefresh(refresh, allowed && !busy);
   useEffect(() => {
     if (allowed) void refresh();
     return () => {
@@ -314,15 +317,8 @@ export function TemplatesPage() {
     )
   );
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Typography.Title level={2}>Шаблоны сообщений</Typography.Title>
-      <Typography.Paragraph>
-        Выберите сценарий и шаг: редактируется целое сообщение с кнопками.
-        Справа показан ответ жителю на вымышленных данных. История изменений
-        сохраняется.
-      </Typography.Paragraph>
-      {error && !selected && <Alert type="error" message={error} showIcon />}
-      <Space wrap>
+    <PageLayout title="Шаблоны сообщений"
+      filters={<Space wrap>
         <Input.Search
           aria-label="Поиск шаблонов"
           placeholder="Сценарий, команда или сообщение"
@@ -341,8 +337,15 @@ export function TemplatesPage() {
             label,
           }))}
         />
-        <Button onClick={() => void refresh()} loading={busy}>Обновить</Button>
-      </Space>
+      </Space>}>
+
+      <Typography.Paragraph>
+        Выберите сценарий и шаг: редактируется целое сообщение с кнопками.
+        Справа показан ответ жителю на вымышленных данных. История изменений
+        сохраняется.
+      </Typography.Paragraph>
+      {error && !selected && <Alert type="error" message={error} showIcon />}
+
       <Collapse
         defaultActiveKey={Object.keys(sections)}
         items={Object.entries(sections).filter(([id]) =>
@@ -747,6 +750,6 @@ export function TemplatesPage() {
           </Space>
         )}
       </Drawer>
-    </Space>
+    </PageLayout>
   );
 }

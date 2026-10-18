@@ -13,6 +13,7 @@ export function ActionPanel(props: {
   onCancel: () => void;
   onOk?: () => void;
   okText?: string;
+  okIcon?: ReactNode;
   hasUnsavedChanges?: () => boolean;
   form?: FormInstance;
   children: ReactNode;
@@ -56,13 +57,14 @@ export function ActionPanel(props: {
   const host = context?.host;
   useLayoutEffect(() => {
     if (!props.open) return;
-    root.current?.focus();
-    root.current?.scrollIntoView?.({ block: "start" });
+    root.current?.focus({ preventScroll: true });
+    const scroll = root.current?.closest(".ant-drawer-body");
+    if (scroll) scroll.scrollTop = 0;
   }, [props.open, host]);
   if (!props.open) return null;
   const panel = <ConfigProvider componentDisabled={!!props.busy}>
     <div role="region" className="card-action-panel" ref={root} tabIndex={-1} aria-label={typeof props.title === "string" ? props.title : "Действие"}>
-      <Card title={props.title} styles={{ title: { whiteSpace: "normal", overflowWrap: "anywhere" }, header: { paddingBlock: token.paddingXS } }} style={{ marginBottom: 16 }}
+      <Card title={props.title} styles={{ title: { whiteSpace: "normal", overflowWrap: "anywhere" }, header: { paddingBlock: token.paddingXS, background: token.colorPrimaryBg, borderBottomColor: token.colorPrimaryBorder } }} style={{ marginBottom: token.margin, borderColor: token.colorPrimaryBorder, borderInlineStartWidth: token.lineWidthBold * 2 }}
         extra={<Button disabled={props.busy} onClick={cancel}>Отмена</Button>}>
         {props.error && <Alert role="alert" type="error" showIcon message={props.error} style={{ marginBottom: 16 }} />}
         {discard && <Alert type="warning" showIcon message="Выйти без сохранения введённых данных?"
@@ -75,7 +77,7 @@ export function ActionPanel(props: {
           </Space>} />}
         {props.children}
         {props.onOk && <Space style={{ position: "sticky", bottom: 0, paddingBlock: token.paddingSM, background: token.colorBgContainer, width: "100%" }}>
-          <Button type="primary" loading={props.busy} onClick={props.onOk}>{props.okText ?? "Сохранить"}</Button>
+          <Button type="primary" icon={props.okIcon} loading={props.busy} onClick={props.onOk}>{props.okText ?? "Сохранить"}</Button>
         </Space>}
       </Card>
     </div>

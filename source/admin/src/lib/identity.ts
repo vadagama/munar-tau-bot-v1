@@ -16,10 +16,11 @@ export function useCabinetIdentity(): {
   isLoading: boolean;
   roles: string[];
   isError: boolean;
+  refreshIdentity: () => Promise<unknown>;
 } {
-  const { data, isLoading, isError } = useGetIdentity<CabinetIdentity>();
+  const { data, isLoading, isError, refetch } = useGetIdentity<CabinetIdentity>();
   const roles = data?.me.assignments.map((assignment) => assignment.role) ?? [];
-  return { identity: data, isLoading, roles: [...new Set(roles)], isError };
+  return { identity: data, isLoading, roles: [...new Set(roles)], isError, refreshIdentity: refetch };
 }
 
 /** Доступные разделы по ролям (сервер всё равно проверяет PDP). */

@@ -1,3 +1,5 @@
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { useState } from "react";
 import {
   Alert,
@@ -56,6 +58,9 @@ export function RegistryImportPage() {
       setBusy(false);
     }
   };
+  usePageRefresh(() => run(async () => {
+    if (batch) setBatch(await apiFetch<Batch>(`/v1/registry/imports/${batch.id}`));
+  }), !!batch && !busy);
   const upload = async (file: File) =>
     run(async () => {
       if (
@@ -75,20 +80,7 @@ export function RegistryImportPage() {
       setBatch(await apiFetch<Batch>(`/v1/registry/imports/${created.id}`));
     });
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <div>
-        <Typography.Title level={2}>
-          Первичная загрузка реестра
-        </Typography.Title>
-        <Typography.Paragraph type="secondary">
-          Четыре связанных листа: здания и паркинги, помещения, лица, связи. В
-          загрузке — только собственники. Любая ошибка блокирует сохранение
-          всего файла.
-        </Typography.Paragraph>
-      </div>
-      {error && <Alert type="error" showIcon message={error} />}
-      <Card title="1. Подготовьте Excel">
-        <Space wrap>
+    <PageLayout title="Первичная загрузка реестра" actions={<Space wrap>
           <Button
             disabled={busy}
             onClick={() =>
@@ -115,7 +107,17 @@ export function RegistryImportPage() {
           >
             Экспорт реестра
           </Button>
-        </Space>
+        </Space>}>
+      <div>
+        <Typography.Paragraph type="secondary">
+          Четыре связанных листа: здания и паркинги, помещения, лица, связи. В
+          загрузке — только собственники. Любая ошибка блокирует сохранение
+          всего файла.
+        </Typography.Paragraph>
+      </div>
+      {error && <Alert type="error" showIcon message={error} />}
+      <Card title="1. Подготовьте Excel">
+
         <Typography.Paragraph style={{ marginTop: 16, marginBottom: 0 }}>
           У каждого человека обязательны ФИО и телефон. Не включайте ИИН и
           паспортные данные. Постоянные идентификаторы сохраняются в выгрузке.
@@ -228,6 +230,6 @@ export function RegistryImportPage() {
           </Space>
         </Card>
       )}
-    </Space>
+    </PageLayout>
   );
 }

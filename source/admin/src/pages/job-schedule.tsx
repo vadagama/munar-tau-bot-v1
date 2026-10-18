@@ -1,3 +1,4 @@
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
 import { useEffect, useState } from "react";
 import {
@@ -63,6 +64,13 @@ export function JobSchedule(
   async function refresh() {
     setData(await apiFetch(`/v1/job-templates/${id}/schedule`));
   }
+  usePageRefresh(async () => {
+    try {
+      const next = await apiFetch<NonNullable<typeof data>>(`/v1/job-templates/${id}/schedule`);
+      // Фоновое чтение обновляет запуски, сохраняя версию редактируемого расписания.
+      setData(current => current ? { ...current, runs: next.runs, assignees: next.assignees } : next);
+    } catch (e) { setError(e instanceof Error ? e.message : "Не удалось обновить запуски"); }
+  }, !busy);
   async function save(values: Row) {
     setBusy(true);
     setError(undefined);
@@ -153,12 +161,6 @@ export function JobSchedule(
           Сохранить расписание
         </Button>
       </Form>
-      <Button
-        disabled={busy}
-        onClick={() => void refresh().catch((e) => setError(e.message))}
-      >
-        Обновить запуски
-      </Button>
       <Table
         rowKey="id"
         dataSource={data?.runs ?? []}

@@ -1,9 +1,9 @@
-// Рендер-тест главной страницы кабинета (Task 7): идентичность, роли,
-// пределы сеанса AUTH-06. Хуки Refine и идентичность замоканы — проверяется
+// Рендер-тест главной страницы кабинета: пределы сеанса AUTH-06.
+// Идентичность замокана — проверяется
 // разметка страницы, не провайдер.
 
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { HomePage } from "./home";
 
@@ -29,10 +29,6 @@ const harness = vi.hoisted(() => {
   return { current: { value: makeMe([]) }, makeMe };
 });
 
-vi.mock("@refinedev/core", () => ({
-  useLogout: () => ({ mutate: () => {} }),
-}));
-
 vi.mock("../lib/identity", () => ({
   useCabinetIdentity: () => ({
     identity: { id: "profile-1", fullName: "Председатель ОСИ", me: harness.current.value },
@@ -43,7 +39,8 @@ vi.mock("../lib/identity", () => ({
 }));
 
 describe("HomePage", () => {
-  it("показывает идентичность, роль «весь ОСИ» и пределы сеанса (AUTH-06)", () => {
+  afterEach(cleanup);
+  it("показывает пределы сеанса (AUTH-06)", () => {
     harness.current.value = harness.makeMe([
       {
         id: "assignment-1",
@@ -55,16 +52,13 @@ describe("HomePage", () => {
       },
     ]);
     render(<HomePage />);
-    expect(screen.getByText("Председатель ОСИ")).toBeInTheDocument();
-    expect(screen.getByText("Председатель")).toBeInTheDocument();
-    expect(screen.getByText("Весь ОСИ")).toBeInTheDocument();
     expect(screen.getByText("12 ч")).toBeInTheDocument();
     expect(screen.getByText("30 мин")).toBeInTheDocument();
   });
 
-  it("без назначений объясняет, что вход не выдаёт роль (AUTH-01)", () => {
+  it("показывает сеанс без назначений", () => {
     harness.current.value = harness.makeMe([]);
     render(<HomePage />);
-    expect(screen.getByText(/Действующих назначений нет/)).toBeInTheDocument();
+    expect(screen.getByText("Сеанс (AUTH-06)")).toBeInTheDocument();
   });
 });

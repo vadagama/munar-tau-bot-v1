@@ -1,3 +1,5 @@
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
 import { ActionPanel } from "./action-panel";
 import { TaskProblems } from "./task-problems";
@@ -70,6 +72,7 @@ export function TasksPage() {
     [error, setError] = useState<string | null>(null);
   const [requests, setRequests] = useState<Row[]>([]),
     [people, setPeople] = useState<Row[]>([]);
+  const [preparingCreation, setPreparingCreation] = useState(false);
   const [creating, setCreating] = useState(false),
     [action, setAction] = useState<string | null>(null),
     [reporting, setReporting] = useState(false);
@@ -101,6 +104,7 @@ export function TasksPage() {
       if (current === generation.current) setLoading(false);
     }
   }
+  usePageRefresh(() => refresh(true), !loading && !saving && !actionLoading && !reportBusy);
   useEffect(() => {
     setCreating(false);
     setAction(null);
@@ -159,8 +163,9 @@ export function TasksPage() {
     }
   }
   async function newTask(commonWorkId?: string) {
+    if (preparingCreation) return;
     setError(null);
-    setLoading(true);
+    setPreparingCreation(true);
     try {
       const [result, common] = await Promise.all([
         apiFetch<{ items: Row[] }>("/v1/requests"),
@@ -187,7 +192,7 @@ export function TasksPage() {
     } catch (e) {
       setError(message(e));
     } finally {
-      setLoading(false);
+      setPreparingCreation(false);
     }
   }
   async function beginAction(value: string) {
@@ -340,44 +345,16 @@ export function TasksPage() {
     adminActions.push("return");
   }
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 16,
-          flexWrap: "wrap",
-        }}
-      >
-        <Typography.Title level={2} style={{ margin: 0 }}>
-          Задания
-        </Typography.Title>
-        <ViewToggle kind={view} onChange={setView} />
-      </div>
-      {manager && (
-        <Space>
-          <Button href="/common-works">Общие работы</Button>
-          <Button href="/job-templates">
-            Шаблоны заданий
-          </Button>
-        </Space>
-      )}
+    <PageLayout title="Задания"
+      extra={<ViewToggle kind={view} onChange={setView} />}
+      actions={manager ? <>
+        <Button type="primary" onClick={() => void newTask()}>Создать задание</Button>
+        <Button href="/common-works">Общие работы</Button>
+        <Button href="/job-templates">Шаблоны заданий</Button>
+      </> : null}>
+
       {error && !card && !creating && <Alert type="error" showIcon message={error} />}
-      <Space wrap>
-        <Button onClick={() => void refresh()} loading={loading}>
-          Обновить
-        </Button>
-        {manager && (
-          <Button
-            type="primary"
-            onClick={() => void newTask()}
-            disabled={loading}
-          >
-            Создать задание
-          </Button>
-        )}
-      </Space>
+
       {view === "board" ? (
         <BoardView
           columns={BOARD_COLUMNS}
@@ -458,6 +435,11 @@ export function TasksPage() {
         {error && card && !action && !creating && !reporting && <Alert role="alert" type="error" showIcon message={error} />}
         {card && (
           <>
+          {!!card.linked_request && <Typography.Paragraph>
+            Обращение: <Typography.Link href={`/requests?request=${encodeURIComponent(String((card.linked_request as Row).id))}`}>
+              {String((card.linked_request as Row).number)}
+            </Typography.Link>
+          </Typography.Paragraph>}
           <Descriptions
             column={1}
             items={[{
@@ -922,8 +904,6 @@ export function TasksPage() {
       </ActionPanel>
       </CardDrawer>
 
-
-
-    </Space>
+    </PageLayout>
   );
 }
