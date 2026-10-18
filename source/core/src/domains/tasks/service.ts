@@ -13,7 +13,7 @@ import { ApiError } from "../../errors/api.ts";
 import { can } from "../../pdp/evaluate.ts";
 import { recordAudit, type RegistryDeps } from "../registry/service.ts";
 import { invalid, jsonValue, type Row } from "../registry/validation.ts";
-import { requireRequest } from "../requests/access.ts";
+import { isManager, requireRequest } from "../requests/access.ts";
 import { content, idempotent } from "../requests/service.ts";
 import { checkVersion, CLOSED_STATES } from "../requests/fsm.ts";
 import { notifyPerson } from "../registrations/notifications.ts";
@@ -165,6 +165,20 @@ export async function createTask(
 ): Promise<TaskRow> {
   return deps.db.transaction((exec) =>
     idempotent(exec, actor, "tasks:create", key, input, async () => {
+      return createTaskInTransaction(deps, exec, actor, input);
+    }, async (row) => {
+      await requireTask(exec, actor, row.id, "task.manage");
+    })
+  );
+}
+
+/** Создание с теми же проверками и уведомлениями внутри бизнес-транзакции. */
+export async function createTaskInTransaction(
+  deps: RegistryDeps,
+  exec: DbExecutor,
+  actor: Actor,
+  input: Row,
+): Promise<TaskRow> {
       if (!!input.request_id === !!input.common_work_id) {
         invalid("Укажите обращение или общую работу");
       }
@@ -305,10 +319,7 @@ export async function createTask(
       );
       if (work) await syncCommonWork(deps, exec, actor, work.id);
       return row;
-    }, async (row) => {
-      await requireTask(exec, actor, row.id, "task.manage");
-    })
-  );
+
 }
 
 export async function getTask(
@@ -318,12 +329,22 @@ export async function getTask(
 ): Promise<Row> {
   return deps.db.transaction(async (exec) => {
     const row = await requireTask(exec, actor, id);
+    let linkedRequest: Row | null = null;
+    if (row.request_id) {
+      try {
+        const request = await requireRequest(exec, actor, row.request_id);
+        if (await isManager(exec, actor, request)) linkedRequest = { id: request.id, number: request.number };
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.code !== "NOT_FOUND") throw error;
+      }
+    }
     const reports = await exec.query(
       "select * from task_report where task_id=$1 and ($2::boolean or created_by=$3) order by version",
       [id,can(actor,"task.manage",taskResource(row)).allow,actor.person.id],
     );
     return {
       ...row,
+      linked_request: linkedRequest,
       methodology: row.template_id
         ? (await exec.query(
           "select v.version,v.created_at,p.full_name as author_name from job_template_version v join person p on p.id=v.created_by where v.template_id=$1 and v.version=$2",
