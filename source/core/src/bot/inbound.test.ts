@@ -140,7 +140,7 @@ describe("processInbound: callback_query (срез UX B)", () => {
     expect(await processInbound(h.deps, update, "resident")).toBe(true);
     expect(h.notifications.length).toBe(1);
     // Без профиля /objects отвечает подсказкой регистрации — команда дошла.
-    expect(h.notifications[0]!.params![1]).toContain("Сначала регистрация: /register");
+    expect(h.notifications[0]!.params![1]).toContain("Сначала регистрация.");
   });
 
   it("кнопка сценария без профиля — дружелюбная ошибка вместо кода API", async () => {

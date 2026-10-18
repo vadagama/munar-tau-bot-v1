@@ -34,6 +34,14 @@ function harness(
     addConnections?: Row[];
     /** Детали выбранной связи для шага add_select. */
     selectedConnection?: Row | null;
+    /** Анкеты для списка /pending (review_stage='owner'). */
+    pendingRows?: Row[];
+    /** Анкета для reviewRegistration (select * from registration … for update). */
+    reviewRow?: Row | null;
+    /** Доступы для списка /accesses. */
+    accessRows?: Row[];
+    /** Связь для revokeOwnConnection (select * from connection … for update). */
+    revokeRow?: Row | null;
     openPrivacyRequests?: Row[];
   } = {},
 ) {
@@ -65,6 +73,38 @@ function harness(
         )
       )
         return Promise.resolve(registrations as T[]);
+      // /pending: анкеты на подтверждение собственника.
+      if (sql.startsWith("select r.id,r.draft,p.kind,p.number")) {
+        return Promise.resolve((opts.pendingRows ?? []) as T[]);
+      }
+      // reviewRegistration: анкета, помещение и активная связь собственника.
+      if (sql.startsWith("select * from registration where id=$1 for update")) {
+        return Promise.resolve(
+          (opts.reviewRow ? [opts.reviewRow] : []) as T[],
+        );
+      }
+      if (sql.startsWith("select * from premises where id=$1")) {
+        return Promise.resolve([
+          { id: "p1", is_test: false, building_id: "b1" },
+        ] as T[]);
+      }
+      if (
+        sql.startsWith(
+          "select id from connection where person_id=$1 and premises_id=$2 and role='owner' and status='active' for update",
+        )
+      ) {
+        return Promise.resolve([{ id: "c1" }] as T[]);
+      }
+      // /accesses: выданные доступы собственника.
+      if (sql.startsWith("select c.id,c.confirmed_by,n.full_name")) {
+        return Promise.resolve((opts.accessRows ?? []) as T[]);
+      }
+      // revokeOwnConnection: связь, которую отзывают.
+      if (sql.startsWith("select * from connection where id=$1 for update")) {
+        return Promise.resolve(
+          (opts.revokeRow ? [opts.revokeRow] : []) as T[],
+        );
+      }
       if (sql.startsWith("select id from registration where id=$1"))
         return Promise.resolve(
           opts.editable === undefined || opts.editable === null
@@ -276,9 +316,16 @@ describe("бот: исправление анкеты (/fix)", () => {
       ],
     });
     const reply = await registrationStep(h.deps, "100", "/fix");
-    expect(reply).toContain("Уточните имя");
-    expect(reply).toContain("Отказ");
-    expect(reply).toContain("/fix НОМЕР");
+    const text = replyText(reply);
+    expect(text).toContain("Какую анкету исправить?");
+    expect(text).toContain("Уточните имя");
+    expect(text).toContain("Отказ");
+    expect(reply).toMatchObject({
+      buttons: [
+        [{ text: "Исправить — 1", data: "/fix 1" }],
+        [{ text: "Исправить — 2", data: "/fix 2" }],
+      ],
+    });
     expect(h.state.step).toBeUndefined();
     await registrationStep(h.deps, "100", "/fix 2");
     expect(h.state.registration_id).toBe(REG_ID);
@@ -288,7 +335,10 @@ describe("бот: исправление анкеты (/fix)", () => {
   it("редактируемых анкет нет — подсказка /register", async () => {
     const h = harness({ registrations: [] });
     const reply = await registrationStep(h.deps, "100", "/fix");
-    expect(reply).toContain("/register");
+    expect(replyText(reply)).toContain("Анкет для исправления нет");
+    expect(reply).toMatchObject({
+      buttons: [[{ text: "Новая анкета", data: "/register" }]],
+    });
     expect(h.state.step).toBeUndefined();
   });
 
@@ -308,6 +358,123 @@ describe("бот: исправление анкеты (/fix)", () => {
     await expect(
       registrationStep(h.deps, "100", "/fix 5"),
     ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+  });
+});
+
+describe("бот: подтверждение анкет собственником (/pending)", () => {
+  const pendingRow = {
+    id: REG_ID,
+    state: "pending_review",
+    review_stage: "owner",
+    draft,
+    premises_id: "p1",
+    role: "tenant",
+    kind: "apartment",
+    number: "4",
+  };
+
+  it("список — заголовок и три решения кнопками, команд в тексте нет", async () => {
+    const h = harness({ profile: true, pendingRows: [pendingRow] });
+    const reply = await registrationStep(h.deps, "100", "/pending");
+    const text = replyText(reply);
+    expect(text).toContain("Анкеты на подтверждение:");
+    expect(text).not.toContain("/reject");
+    expect(reply).toMatchObject({
+      buttons: [[
+        { text: "Подтвердить — 1", data: "/approve 1" },
+        { text: "Отказать — 1", data: "/reject 1" },
+        { text: "Спор — 1", data: "/dispute 1" },
+      ]],
+    });
+  });
+
+  it("отказ без причины — вопрос о причине, отмена сбрасывает диалог", async () => {
+    const h = harness({ profile: true, pendingRows: [pendingRow] });
+    await registrationStep(h.deps, "100", "/pending");
+    const reply = await registrationStep(h.deps, "100", "/reject 1");
+    expect(replyText(reply)).toContain("Укажите причину одним сообщением");
+    expect(reply).toMatchObject({
+      buttons: [[{ text: "Отмена", data: "/cancel" }]],
+    });
+    expect(h.state.step).toBe("reason_prompt");
+    expect(h.state.reason_action).toBe("reject");
+    expect(h.state.reason_id).toBe(REG_ID);
+    await registrationStep(h.deps, "100", "/cancel");
+    expect(h.state.step).toBeUndefined();
+  });
+
+  it("причина следующим сообщением — решение сохранено, состояние очищено", async () => {
+    const h = harness({
+      profile: true,
+      pendingRows: [pendingRow],
+      reviewRow: {
+        id: REG_ID,
+        is_test: false,
+        premises_id: "p1",
+        role: "tenant",
+        review_stage: "owner",
+        state: "pending_review",
+        telegram_user_id: 777,
+      },
+    });
+    await registrationStep(h.deps, "100", "/pending");
+    await registrationStep(h.deps, "100", "/reject 1");
+    const reply = await registrationStep(h.deps, "100", "Не проживаю здесь");
+    expect(replyText(reply)).toContain("Решение сохранено");
+    expect(h.audit.length).toBe(1);
+    expect(h.audit[0]).toMatchObject({ action: "registration.reject" });
+    expect(h.state).toEqual({});
+  });
+});
+
+describe("бот: выданные доступы (/accesses)", () => {
+  const accessRow = {
+    id: "conn-1",
+    confirmed_by: "pers-1",
+    full_name: "Алия Омарова",
+    kind: "apartment",
+    number: "4",
+    registration_id: REG_ID,
+  };
+
+  it("список — заголовок и две кнопки на доступ, команд в тексте нет", async () => {
+    const h = harness({ profile: true, accessRows: [accessRow] });
+    const reply = await registrationStep(h.deps, "100", "/accesses");
+    const text = replyText(reply);
+    expect(text).toContain("Выданные доступы:");
+    expect(text).not.toContain("/revoke");
+    expect(reply).toMatchObject({
+      buttons: [[
+        { text: "Прекратить доступ — 1", data: "/revoke 1" },
+        { text: "Спор — 1", data: "/dispute 1" },
+      ]],
+    });
+  });
+
+  it("отзыв без причины — вопрос о причине; причина текстом — связь прекращена", async () => {
+    const h = harness({
+      profile: true,
+      accessRows: [accessRow],
+      revokeRow: {
+        id: "conn-1",
+        premises_id: "p1",
+        role: "resident",
+        confirmed_by: "pers-1",
+        status: "active",
+        person_id: "pers-2",
+      },
+    });
+    await registrationStep(h.deps, "100", "/accesses");
+    const reply = await registrationStep(h.deps, "100", "/revoke 1");
+    expect(replyText(reply)).toContain("Укажите причину одним сообщением");
+    expect(h.state.step).toBe("reason_prompt");
+    expect(h.state.reason_action).toBe("revoke");
+    expect(h.state.reason_id).toBe("conn-1");
+    const done = await registrationStep(h.deps, "100", "Выехал");
+    expect(replyText(done)).toContain("Связь прекращена");
+    expect(h.audit.length).toBe(1);
+    expect(h.audit[0]).toMatchObject({ action: "connection.revoke" });
+    expect(h.state).toEqual({});
   });
 });
 
@@ -375,7 +542,7 @@ describe("бот: /register при существующей анкете (guard)
     expect(h.state.step).toBeUndefined();
   });
 
-  it("анкета на проверке — «уже есть анкета» и подсказки /status и /fix", async () => {
+  it("анкета на проверке — «уже есть анкета» и кнопки /status, /fix, /add", async () => {
     const h = harness({
       registrations: [
         {
@@ -394,9 +561,13 @@ describe("бот: /register при существующей анкете (guard)
     const reply = await registrationStep(h.deps, "100", "/register");
     const text = replyText(reply);
     expect(text).toContain("У вас уже есть анкета. Повторная регистрация не нужна.");
-    expect(text).toContain("/status");
-    expect(text).toContain("/fix");
-    expect(text).toContain("/add");
+    expect(reply).toMatchObject({
+      buttons: [[
+        { text: "Статус анкет", data: "/status" },
+        { text: "Исправить анкету", data: "/fix" },
+        { text: "Добавить помещение", data: "/add" },
+      ]],
+    });
     expect(h.state.step).toBeUndefined();
   });
 
@@ -549,7 +720,10 @@ describe("бот: /delete — запрос удаления анкеты (PRV-02
   it("без регистрации — подсказка /register, запрос не подаётся", async () => {
     const h = harness();
     const reply = await registrationStep(h.deps, "100", "/delete confirm");
-    expect(replyText(reply)).toContain("Сначала регистрация: /register");
+    expect(replyText(reply)).toContain("Сначала регистрация.");
+    expect(reply).toMatchObject({
+      buttons: [[{ text: "Зарегистрироваться", data: "/register" }]],
+    });
     expect(h.audit.length).toBe(0);
   });
 
