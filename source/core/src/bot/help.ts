@@ -81,8 +81,8 @@ const MENU_LABELS: Record<"ru" | "kk", Record<MenuKey, string>> = {
   ru: {
     newrequest: "🆕 Новое обращение",
     requests: "📬 Мои обращения",
-    objects: "🏠 Мои объекты",
-    add: "➕ Добавить объект",
+    objects: "🏠 Мои помещения",
+    add: "➕ Добавить помещение",
     notifications: "⚙️ Настройки",
     help: "❓ Помощь",
     tasks: "🗂 Мои задания",
@@ -90,8 +90,8 @@ const MENU_LABELS: Record<"ru" | "kk", Record<MenuKey, string>> = {
   kk: {
     newrequest: "🆕 Жаңа өтініш",
     requests: "📬 Менің өтініштерім",
-    objects: "🏠 Менің нысандарым",
-    add: "➕ Нысан қосу",
+    objects: "🏠 Менің үй-жайларым",
+    add: "➕ Үй-жай қосу",
     notifications: "⚙️ Баптаулар",
     help: "❓ Анықтама",
     tasks: "🗂 Менің тапсырмаларым",
