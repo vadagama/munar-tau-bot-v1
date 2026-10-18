@@ -1,3 +1,4 @@
+import { staffTemplates } from "./staff.ts";
 import { requestsMessageTemplates } from "./messages-requests.ts";
 import { registrationTasksMessageTemplates } from "./messages-registration-tasks.ts";
 import { otherMessageTemplates } from "./messages-other.ts";
@@ -15,6 +16,7 @@ import { registrationTemplates } from "./registration.ts";
 import { errors } from "./errors.ts";
 import type { TemplateDef } from "./types.ts";
 const legacyCatalog: readonly TemplateDef[] = [
+  ...staffTemplates,
   ...errors,
   ...commonTemplates,
   ...noticesTemplates,

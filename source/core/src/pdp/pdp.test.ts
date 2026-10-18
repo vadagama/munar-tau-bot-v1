@@ -88,6 +88,7 @@ describe("реестр действий", () => {
       "request.author", "request.category.edit", "request.comment", "request.internal", "request.manage", "request.read", "request.use",
       "settings.templates.edit",
       "settings.templates.read",
+      "staff.edit", "staff.read",
       "task.execute", "task.manage", "task.read", "task.use",
     ]);
   });

@@ -2,9 +2,10 @@
 // Новая операция добавляется сюда; privileged-действия (AUTH-03) доступны
 // только через кабинет и запрещены в эмуляции.
 
-import type { SpecialRights, StaffRole } from "./types.ts";
+import { STAFF_ROLES, type SpecialRights, type StaffRole } from "./types.ts";
 
 export type ActionKey =
+  | "staff.read" | "staff.edit"
   | "settings.templates.read" | "settings.templates.edit"
   | "incident.use" | "incident.read" | "incident.manage" | "incident.link"
   | "publication.read" | "publication.manage" | "publication.approve"
@@ -57,6 +58,8 @@ export interface ActionSpec {
 }
 
 export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
+  "staff.read": { privileged:false, roles:["chairman","administrator","deputy"] },
+  "staff.edit": { privileged:true, roles:["chairman","administrator","deputy"] },
   "settings.templates.read": {privileged:false,roles:["chairman","administrator","tech_admin"]},
   "settings.templates.edit": {privileged:true,roles:["chairman","administrator","tech_admin"]},
   "incident.use": { privileged: false },
@@ -68,7 +71,7 @@ export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
   "publication.approve": { privileged: false },
   "notification.preferences": { privileged: false },
   "notification.failures": { privileged: false, roles: ["chairman", "administrator", "deputy"] },
-  "task.use": { privileged: false, roles: ["chairman", "administrator", "deputy", "executor"] },
+  "task.use": { privileged: false, roles: STAFF_ROLES },
   "task.read": { privileged: false },
   "task.manage": { privileged: false },
   "task.execute": { privileged: false },

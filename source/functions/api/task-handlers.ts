@@ -1,3 +1,4 @@
+import { startRequestWork } from "../../core/src/domains/tasks/start-request-work.ts";
 import { scheduleView, saveSchedule, retryScheduledJob } from "../../core/src/domains/tasks/schedule.ts";
 import {
   linkProblem,
@@ -277,6 +278,11 @@ export const TASK_ROUTES: Route[] = [
       },
     }),
   ),
+  route("POST", "/v1/requests/:id/start-work", async (ctx) => ({
+    status: 201,
+    body: await startRequestWork(deps(ctx), ctx.actor, ctx.params.id!, ctx.body,
+      ctx.request.headers.get("idempotency-key")),
+  })),
   route(
     "GET",
     "/v1/requests/:id/task-assignees",

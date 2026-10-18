@@ -1,3 +1,5 @@
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { ActionPanel } from "./action-panel";
 import { CardDrawer } from "./card-drawer";
 import { useEffect, useState } from "react";
@@ -132,6 +134,7 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
       setBusy(false);
     }
   };
+  usePageRefresh(load, !busy && !saving);
   useEffect(() => {
     void load();
   }, [entity]);
@@ -227,15 +230,22 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
     </Form.Item>
   );
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <div>
-        <Typography.Title level={2}>{users === "staff" ? "Сотрудники" : users ? "Жители" : "Помещения"}</Typography.Title>
-        <Typography.Paragraph type="secondary">
+    <PageLayout title={users === "staff" ? "Сотрудники" : users ? "Жители" : "Помещения"}
+      actions={users !== "staff" ? <Button type="primary" onClick={() => open(null)}>Добавить запись</Button> : null}
+      filters={!users && <Tabs
+        activeKey={entity}
+        onChange={switchEntity}
+        items={Object.keys(LABELS)
+          .filter((k) =>
+            ["buildings", "premises", "connections"].includes(k),
+          )
+          .map((key) => ({ key, label: LABELS[key] }))}
+      />}> <Typography.Paragraph type="secondary">
           {users === "staff" ? "Пользователи с действующими служебными полномочиями в доступной области." : users
             ? "Жители без действующих служебных назначений. Совпадение телефона не объединяет карточки."
             : "Здания, помещения и привязки помещений к пользователям. Изменения сохраняются в журнале."}
         </Typography.Paragraph>
-      </div>
+
       {error && editing === undefined && !recovery && (
         <Alert
           type="error"
@@ -245,23 +255,7 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
           onClose={() => setError(null)}
         />
       )}
-      {!users && <Tabs
-        activeKey={entity}
-        onChange={switchEntity}
-        items={Object.keys(LABELS)
-          .filter((k) =>
-            ["buildings", "premises", "connections"].includes(k),
-          )
-          .map((key) => ({ key, label: LABELS[key] }))}
-      />}
-      <Space>
-        {users !== "staff" && <Button type="primary" onClick={() => open(null)}>
-          Добавить запись
-        </Button>}
-        <Button onClick={() => void load()} loading={busy}>
-          Обновить
-        </Button>
-      </Space>
+
       <Table
         rowKey="id"
         loading={busy}
@@ -488,6 +482,6 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
       </ActionPanel>
       </CardDrawer>
 
-    </Space>
+    </PageLayout>
   );
 }

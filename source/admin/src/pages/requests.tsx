@@ -1,3 +1,11 @@
+import { taskAssigneeOptions } from "./task-assignees";
+import { REQUEST_ACTION_ICONS } from "./request-action-icons";
+import { TASK_STATE_TEXT } from "../../../core/src/locales/tasks";
+import { DetailSection } from "../components/detail-section";
+import { PageLayout } from "../components/page-layout";
+import { requestOverdue, requestOverdueDetails } from "./request-overdue";
+import "./requests.css";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
 import { ActionPanel } from "./action-panel";
 import { TaskVisits } from "./task-visits";
@@ -52,7 +60,7 @@ const ACTIONS: Record<string, string> = {
   start_work: "Начать работу",
   hold: "Отложить",
   resume: "Возобновить",
-  submit_result: "Направить итоговый ответ",
+  submit_result: "Итоговый ответ",
   confirm_result: "Подтвердить результат",
   return_result: "Вернуть на доработку",
   admin_close: "Закрыть после проверки",
@@ -62,7 +70,7 @@ const ACTIONS: Record<string, string> = {
   cancel_request: "Отменить / запросить отмену",
   approve_cancel: "Согласовать отмену",
   reject_cancel: "Отклонить отмену",
-  reject: "Отказать по ответственности",
+  reject: "Отклонить",
   appeal_reject: "Оспорить отказ",
   uphold_appeal: "Удовлетворить оспаривание",
   submit: "Отправить черновик",
@@ -90,11 +98,6 @@ const BOARD_COLUMNS = Object.entries(REQUEST_STATES).map(([value, label]) => ({
   value,
   label,
 }));
-const TERMINAL_STATES = ["closed", "canceled", "rejected"];
-const overdue = (r: Row) =>
-  !!r.first_response_due_at &&
-  new Date(String(r.first_response_due_at)).getTime() < Date.now() &&
-  !TERMINAL_STATES.includes(String(r.state));
 export function RequestsPage() {
   const { identity, roles } = useCabinetIdentity();
   const [view, setView] = useBoardView("view.requests");
@@ -110,7 +113,7 @@ export function RequestsPage() {
     [saving, setSaving] = useState(false),
     [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [premisesFilter, setPremisesFilter] = useState<string>(),
+  const [buildingFilter, setBuildingFilter] = useState<string>(),
     [from, setFrom] = useState(""),
     [to, setTo] = useState("");
   const [search, setSearch] = useState(""),
@@ -137,6 +140,19 @@ export function RequestsPage() {
   // Повтор после неопределённого ответа сохраняет ключ и тело операции.
   const draftMessages = useRef<Record<string, string>>({});
   const openEpoch = useRef(0);
+  const startWorkKey = useRef(crypto.randomUUID());
+  const [executors, setExecutors] = useState<Row[]>([]);
+  const [executorsLoading, setExecutorsLoading] = useState(false);
+  useEffect(() => {
+    if (action !== "start_work" || !card) return;
+    let active = true;
+    setExecutors([]); setExecutorsLoading(true);
+    void apiFetch<{ items: Row[] }>(`/v1/requests/${card.id}/task-assignees`)
+      .then(result => { if (active) setExecutors(result.items); })
+      .catch(error => { if (active) setError(errorText(error)); })
+      .finally(() => { if (active) setExecutorsLoading(false); });
+    return () => { active = false; };
+  }, [action, card?.id]);
   const messageKey = useRef(crypto.randomUUID()),
     createKey = useRef(crypto.randomUUID());
   const load = async (cursor?: string) => {
@@ -151,7 +167,7 @@ export function RequestsPage() {
           search,
           state,
           cursor,
-          premises_id: premisesFilter,
+          building_id: buildingFilter,
           from: from ? `${from}T00:00:00+05:00` : undefined,
           to: to ? `${to}T23:59:59+05:00` : undefined,
         },
@@ -194,6 +210,15 @@ export function RequestsPage() {
       setBusy(false);
     }
   };
+  useEffect(() => {
+    if (!identity?.me.person.id) return;
+    const url = new URL(window.location.href);
+    const requestId = url.searchParams.get("request");
+    if (!requestId) return;
+    url.searchParams.delete("request");
+    window.history.replaceState(null, "", url);
+    void open(requestId);
+  }, [identity?.me.person.id]);
   const refresh = async () => {
     if (card) {
       const next = await apiFetch<Row>(`/v1/requests/${card.id}`);
@@ -201,6 +226,7 @@ export function RequestsPage() {
     }
     await load();
   };
+  usePageRefresh(() => load(), !busy && !saving);
   useEffect(() => {
     if (staff) {
       void Promise.all([
@@ -227,6 +253,9 @@ export function RequestsPage() {
       setError(null);
       const payload = {
         ...values,
+        ...(action === "reject" && card.work_started_at
+          ? { stop_resolution: values.reason }
+          : {}),
         confirmation_version: card.confirmation_version,
         confirmation_payload: {
           summary: values.summary,
@@ -236,12 +265,20 @@ export function RequestsPage() {
           ? new Date(values.next_action_at).toISOString()
           : undefined,
       };
-      await apiFetch(`/v1/requests/${card.id}/transitions`, {
+      if (action === "start_work") {
+        await apiFetch(`/v1/requests/${card.id}/start-work`, {
+          method: "POST",
+          body: { expected_version: card.version, plan: values.plan,
+            assignee_person_id: values.assignee_person_id,
+            due_at: new Date(values.due_at).toISOString() },
+          idempotencyKey: startWorkKey.current,
+        });
+      } else await apiFetch(`/v1/requests/${card.id}/transitions`, {
         method: "POST",
         body: {
           action,
           expected_version: card.version,
-          reason: values.reason,
+          reason: action === "ask_clarification" ? values.question : values.reason,
           payload,
         },
         idempotencyKey: action === "submit"
@@ -370,30 +407,14 @@ export function RequestsPage() {
       : []),
   ];
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 16,
-          flexWrap: "wrap",
-        }}
-      >
-        <Typography.Title level={2} style={{ margin: 0 }}>
-          Обращения
-        </Typography.Title>
-        <ViewToggle kind={view} onChange={setView} />
-      </div>
-      {error && !card && !create && (
-        <Alert
-          type="error"
-          showIcon
-          message={error}
-          action={<Button onClick={() => void load()}>Обновить</Button>}
-        />
-      )}
-      <Space wrap>
+    <PageLayout title="Обращения"
+      extra={<ViewToggle kind={view} onChange={setView} />}
+      actions={<Space wrap>
+        <Button type="primary" onClick={() => { form.resetFields(); createKey.current = crypto.randomUUID(); setCreate(true); }}>
+          Новое обращение
+        </Button>
+      </Space>}
+      filters={<Space wrap>
         <Input.Search
           aria-label="Поиск обращений"
           placeholder="Номер или описание"
@@ -415,23 +436,15 @@ export function RequestsPage() {
           style={{ width: 230 }}
         />
         <Select
-          aria-label="Фильтр по помещению"
+          aria-label="Фильтр по зданию"
           allowClear
-          placeholder="Все помещения"
-          value={premisesFilter}
-          onChange={setPremisesFilter}
+          placeholder="Все здания"
+          value={buildingFilter}
+          onChange={setBuildingFilter}
           style={{ width: 210 }}
-          options={[
-            ...context.premises,
-            ...registry.premises.filter((p) =>
-              !context.premises.some((c) => c.id === p.id)
-            ),
-          ].map((p) => ({
-            value: String(p.id),
-            label: `${
-              context.buildings.find((b) => b.id === p.building_id)?.name ??
-                "Дом"
-            }, ${p.number}`,
+          options={context.buildings.map((b) => ({
+            value: String(b.id),
+            label: String(b.name),
           }))}
         />
         <Input
@@ -449,11 +462,16 @@ export function RequestsPage() {
           style={{ width: 155 }}
         />
         <Button onClick={() => void load()}>Применить</Button>
-        <Button type="primary" onClick={() => { form.resetFields(); createKey.current = crypto.randomUUID(); setCreate(true); }}>
-          Новое обращение
-        </Button>
+      </Space>}>
 
-      </Space>
+      {error && !card && !create && (
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+        />
+      )}
+
       {view === "board" ? (
         <BoardView
           columns={BOARD_COLUMNS}
@@ -477,15 +495,18 @@ export function RequestsPage() {
               <Typography.Text type="secondary">
                 {KINDS[String(r.kind)]}
               </Typography.Text>
-              {!!r.first_response_due_at && (
+              {!!(r.open_at ?? r.created_at) && (
                 <Typography.Text
-                  type={overdue(r) ? "danger" : "secondary"}
-                  style={{ display: "block" }}
+                  className="request-card__date"
+                  type={requestOverdue(r) ? "danger" : "secondary"}
+                  title={requestOverdue(r) ? "Обращение просрочено" : "Дата и время подачи обращения"}
                 >
-                  {`Первый ответ до ${
-                    new Date(String(r.first_response_due_at))
-                      .toLocaleString("ru-RU")
-                  }`}
+                  {new Date(String(r.open_at ?? r.created_at)).toLocaleString("ru-RU", {
+                      timeZone: "Asia/Almaty",
+                      year: "numeric", month: "2-digit", day: "2-digit",
+                      hour: "2-digit", minute: "2-digit",
+                    })}
+                  {requestOverdue(r) && <span role="img" aria-label="Просрочено"> ⚠</span>}
                 </Typography.Text>
               )}
             </>
@@ -553,373 +574,416 @@ export function RequestsPage() {
         {error && card && !action && !placeEdit && !create && !restricting && <Alert role="alert" type="error" showIcon message={error} />}
         {card && (
           <Space direction="vertical" size="large" style={{ width: "100%" }}>
-            <Descriptions
-              column={{ xs: 1, sm: 2 }}
-              items={[{
-                key: "kind",
-                label: "Вид",
-                children: KINDS[String(card.kind)],
-              }, {
-                key: "place",
-                label: "Место",
-                children: String(
-                  card.place_label ?? card.location_text ?? "Общая территория",
-                ),
-              }, {
-                key: "source",
-                label: "Источник",
-                children: ({
-                  bot: "Telegram",
-                  web: "Кабинет",
-                  admin: "Администратор",
-                  phone: "Телефон",
-                  personal: "Лично",
-                  whatsapp: "WhatsApp",
-                } as Record<string, string>)[String(card.source)] ??
-                  String(card.source),
-              }, {
-                key: "close",
-                label: "Подтверждение",
-                children: card.close_method === "administrative"
-                  ? "Закрыто администратором"
-                  : card.close_method === "author"
-                  ? "Подтверждено автором"
-                  : "Ожидается",
-              }]}
-            />
-            <Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>
-              {String(card.description)}
-            </Typography.Paragraph>
-            {manage && (
-              <Space wrap>
-                <Button
-                  onClick={() => {
-                    placeForm.resetFields();
-                    placeForm.setFieldsValue({
-                      ...card,
-                      reason: "",
-                      assigned_admin_person_id: card.assigned_admin_person_id ??
-                        identity?.me.person.id,
-                    });
-                    setPlaceEdit(true);
-                  }}
-                >
-                  Исправить место
-                </Button>
-                <Select
-                  aria-label="Срочность обращения"
-                  value={String(card.urgency ?? "normal")}
-                  options={[
-                    { value: "low", label: "Низкая срочность" },
-                    { value: "normal", label: "Обычная срочность" },
-                    { value: "high", label: "Высокая срочность" },
-                    { value: "critical", label: "Критическая срочность" },
-                  ]}
-                  onChange={async (urgency) => {
-                    try {
-                      await apiFetch(`/v1/requests/${card.id}`, {
-                        method: "PATCH",
-                        body: { expected_version: card.version, urgency },
-                      });
-                      await refresh();
-                    } catch (e) {
-                      setError(errorText(e));
-                    }
-                  }}
-                />
-                <Select
-                  aria-label="Техническая категория"
-                  value={card.category_id as string | undefined}
-                  placeholder="Классифицировать"
-                  options={categories.filter((c) => c.active).map((c) => ({
-                    value: String(c.id),
-                    label: String(c.name_ru),
-                  }))}
-                  onChange={async (value) => {
-                    try {
-                      await apiFetch(`/v1/requests/${card.id}`, {
-                        method: "PATCH",
-                        body: {
-                          expected_version: card.version,
-                          category_id: value,
-                        },
-                      });
-                      await refresh();
-                    } catch (e) {
-                      setError(errorText(e));
-                    }
-                  }}
-                  style={{ minWidth: 250 }}
-                />
-                <Select
-                  aria-label="Вид обращения"
-                  value={String(card.kind)}
-                  options={Object.entries(KINDS).map(([value, label]) => ({
-                    value,
-                    label,
-                  }))}
-                  onChange={async (value) => {
-                    try {
-                      await apiFetch(`/v1/requests/${card.id}`, {
-                        method: "PATCH",
-                        body: { expected_version: card.version, kind: value },
-                      });
-                      await refresh();
-                    } catch (e) {
-                      setError(errorText(e));
-                    }
-                  }}
-                />
-              </Space>
-            )}
-            <Space wrap>
-              {[...new Set(actions)].filter((a) =>
-                a !== "submit_result" ||
-                (card.kind !== "request" && !card.work_execution_required)
-              ).map((a) => (
-                <Button
-                  key={a}
-                  onClick={() => {
-                    actionForm.resetFields();
-                    setAction(a);
-                  }}
-                >
-                  {ACTIONS[a]}
-                </Button>
-              ))}
-            </Space>
-            {card.can_manage === true && ((card.delivery_failures as Row[] | undefined)?.length ?? 0) > 0 && (
-              <Alert type="warning" message="Есть ошибки доставки уведомлений" description={
-                <Space direction="vertical">
-                  {(card.delivery_failures as Row[]).map(f=><span key={String(f.id)}>
-                    {f.last_error === "BLOCKED_BY_USER" ? "Бот заблокирован получателем" : f.last_error === "DISPATCH_FAILED" ? "Не удалось подготовить уведомление" : "Доставка не удалась"}
-                    {f.followup_state === "open" ? ". Требуется связаться с получателем" : f.followup_state === "done" ? ". Результат связи записан" : ""}
-                  </span>)}
-                  <Button href="/notifications">Открыть журнал доставки</Button>
-                </Space>
-              } />
-            )}
-            {!!card.confirmation && (
+            {requestOverdue(card) && (
               <Alert
-                type="info"
-                message={`Результат, версия ${
-                  String(card.confirmation_version)
-                }`}
-                description={String(
-                  ((card.confirmation as Row).payload as Row)?.summary ?? "",
-                )}
-              />
-            )}
-            {!!card.confirmation && <List dataSource={((((card.confirmation as Row).payload as Row)?.task_results as Row[])??[])} renderItem={r=><List.Item><div>{String(r.task_number)} — отчёт, версия {String(r.report_version)}<p>{String(r.performed_work)}. {String(r.result)}</p>{!!r.limitations&&<p>Ограничения: {String(r.limitations)}</p>}</div></List.Item>}/>}
-            {own && card.can_share !== false && (
-              <Space wrap>
-                <Select
-                  aria-label="Предоставить совместный доступ"
-                  placeholder="Житель того же помещения"
-                  options={candidates.map((c) => ({
-                    value: String(c.person_id),
-                    label: String(c.full_name),
-                  }))}
-                  style={{ width: 260 }}
-                  onChange={async (person) => {
-                    try {
-                      await apiFetch(`/v1/requests/${card.id}/participants`, {
-                        method: "POST",
-                        body: { person_id: person },
-                      });
-                      await refresh();
-                    } catch (e) {
-                      setError(errorText(e));
-                    }
-                  }}
-                />
-                {(card.participants as Row[]).filter((p) =>
-                  p.role === "participant" && !p.revoked_at
-                ).map((p) => (
-                  <Button
-                    key={String(p.person_id)}
-                    onClick={async () => {
-                      try {
-                        await apiFetch(
-                          `/v1/requests/${card.id}/participants/${p.person_id}`,
-                          { method: "DELETE" },
-                        );
-                        await refresh();
-                      } catch (e) {
-                        setError(errorText(e));
-                      }
-                    }}
-                  >
-                    Отозвать доступ{" "}
-                    {candidates.find((c) => c.person_id === p.person_id)
-                      ?.full_name as string ?? "участника"}
-                  </Button>
-                ))}
-              </Space>
-            )}
-            <Tabs
-              activeKey={channel}
-              onChange={(value) => {
-                if (saving || fileBusy) return;
-                if (attachments.length) {
-                  setError(
-                    "Сначала отправьте принятые вложения в выбранный канал",
-                  );
-                  return;
-                }
-                draftMessages.current[channel] = message;
-                setMessage(draftMessages.current[value] ?? "");
-                messageKey.current = crypto.randomUUID();
-                setChannel(value);
-              }}
-              items={[
-                { key: "resident", label: "Жителю" },
-                ...(manage ? [{ key: "internal", label: "Внутреннее" }] : []),
-              ]}
-            />
-            {channel === "internal" && (
-              <Alert
-                type="warning"
+                role="alert"
+                aria-label="Просрочка обращения"
+                type="error"
                 showIcon
-                message="Внутреннее сообщение: житель его не увидит"
+                message="Обращение просрочено"
+                description={
+                  <Space direction="vertical" size={4}>
+                    {requestOverdueDetails(card).map(detail => <span key={detail}>{detail}</span>)}
+                  </Space>
+                }
               />
             )}
-            <List
-              locale={{ emptyText: "В этом канале пока нет сообщений" }}
-              dataSource={(card.messages as Row[]).filter((m) =>
-                m.channel === channel
+            <DetailSection title="Информация об обращении">
+              <Descriptions
+                column={{ xs: 1, sm: 2 }}
+                items={[{
+                  key: "author",
+                  label: "Инициатор",
+                  children: String(card.author_name ?? "Не указан"),
+                }, {
+                  key: "kind",
+                  label: "Вид",
+                  children: KINDS[String(card.kind)],
+                }, {
+                  key: "place",
+                  label: "Место",
+                  children: String(
+                    card.place_label ?? card.location_text ?? "Общая территория",
+                  ),
+                }, {
+                  key: "source",
+                  label: "Источник",
+                  children: ({
+                    bot: "Telegram",
+                    web: "Кабинет",
+                    admin: "Администратор",
+                    phone: "Телефон",
+                    personal: "Лично",
+                    whatsapp: "WhatsApp",
+                  } as Record<string, string>)[String(card.source)] ??
+                    String(card.source),
+                }, {
+                  key: "close",
+                  label: "Подтверждение",
+                  children: card.close_method === "administrative"
+                    ? "Закрыто администратором"
+                    : card.close_method === "author"
+                    ? "Подтверждено автором"
+                    : "Ожидается",
+                }]}
+              />
+              <div>
+                <Typography.Text type="secondary">Сообщение:</Typography.Text>
+                <Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>
+                  {String(card.description)}
+                </Typography.Paragraph>
+              </div>
+              {!!card.confirmation && (
+                <Alert
+                  type="info"
+                  message={`Результат, версия ${
+                    String(card.confirmation_version)
+                  }`}
+                  description={String(
+                    ((card.confirmation as Row).payload as Row)?.summary ?? "",
+                  )}
+                />
               )}
-              renderItem={(m) => (
-                <List.Item
-                  actions={manage && !m.restricted_at
-                    ? [
-                      <Button
-                        key="restrict"
-                        size="small"
-                        onClick={() => { setError(null); setRestricting(m); }}
-                      >
-                        Ограничить
-                      </Button>,
-                    ]
-                    : []}
-                >
-                  <List.Item.Meta
-                    title={`${m.channel === "internal" ? "Внутреннее · " : ""}${
-                      new Date(String(m.created_at)).toLocaleString("ru-RU")
-                    }`}
-                    description={
-                      <Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>
-                        {String(m.text)}
-                        {!!m.restricted_at && (
-                          <Tag color="red">Доступ ограничен</Tag>
-                        )}
-                      </Typography.Paragraph>
-                    }
-                  />
-                </List.Item>
-              )}
-            />
-            <List
-              size="small"
-              locale={{ emptyText: "Вложений в этом канале нет" }}
-              dataSource={(card.attachments as Row[]).filter((a) =>
-                a.bucket === channel
-              )}
-              renderItem={(a) => (
-                <List.Item>
-                  <Space>
-                    <Typography.Text>{String(a.filename)}</Typography.Text>
-                    {a.status === "complete"
-                      ? (
-                        <Button disabled={false}
-                          size="small"
-                          onClick={async () => {
-                            try {
-                              const r = await apiFetch<{ url: string }>(
-                                `/v1/files/${a.id}/url`,
-                              );
-                              window.open(
-                                r.url,
-                                "_blank",
-                                "noopener,noreferrer",
-                              );
-                            } catch (e) {
-                              setError(errorText(e));
-                            }
-                          }}
-                        >
-                          Скачать
-                        </Button>
-                      )
-                      : (
-                        <Space>
-                          <Tag color="orange">Не сохранено</Tag>
-                          <Upload
-                            beforeUpload={(file) => upload(file, String(a.id))}
-                            showUploadList={false}
-                            disabled={fileBusy || cardEditing}
-                          >
-                            <Button size="small">Загрузить повторно</Button>
-                          </Upload>
-                        </Space>
-                      )}
+              {!!card.confirmation && <List dataSource={((((card.confirmation as Row).payload as Row)?.task_results as Row[])??[])} renderItem={r=><List.Item><div>{String(r.task_number)} — отчёт, версия {String(r.report_version)}<p>{String(r.performed_work)}. {String(r.result)}</p>{!!r.limitations&&<p>Ограничения: {String(r.limitations)}</p>}</div></List.Item>}/>}
+                {manage && (
+                  <Space wrap>
+                    <Button
+                      onClick={() => {
+                        placeForm.resetFields();
+                        placeForm.setFieldsValue({
+                          ...card,
+                          reason: "",
+                          assigned_admin_person_id: card.assigned_admin_person_id ??
+                            identity?.me.person.id,
+                        });
+                        setPlaceEdit(true);
+                      }}
+                    >
+                      Исправить место
+                    </Button>
+                    <Select
+                      aria-label="Срочность обращения"
+                      value={String(card.urgency ?? "normal")}
+                      options={[
+                        { value: "low", label: "Низкая срочность" },
+                        { value: "normal", label: "Обычная срочность" },
+                        { value: "high", label: "Высокая срочность" },
+                        { value: "critical", label: "Критическая срочность" },
+                      ]}
+                      onChange={async (urgency) => {
+                        try {
+                          await apiFetch(`/v1/requests/${card.id}`, {
+                            method: "PATCH",
+                            body: { expected_version: card.version, urgency },
+                          });
+                          await refresh();
+                        } catch (e) {
+                          setError(errorText(e));
+                        }
+                      }}
+                    />
+                    <Select
+                      aria-label="Техническая категория"
+                      value={card.category_id as string | undefined}
+                      placeholder="Классифицировать"
+                      options={categories.filter((c) => c.active).map((c) => ({
+                        value: String(c.id),
+                        label: String(c.name_ru),
+                      }))}
+                      onChange={async (value) => {
+                        try {
+                          await apiFetch(`/v1/requests/${card.id}`, {
+                            method: "PATCH",
+                            body: {
+                              expected_version: card.version,
+                              category_id: value,
+                            },
+                          });
+                          await refresh();
+                        } catch (e) {
+                          setError(errorText(e));
+                        }
+                      }}
+                      style={{ minWidth: 250 }}
+                    />
+                    <Select
+                      aria-label="Вид обращения"
+                      value={String(card.kind)}
+                      options={Object.entries(KINDS).map(([value, label]) => ({
+                        value,
+                        label,
+                      }))}
+                      onChange={async (value) => {
+                        try {
+                          await apiFetch(`/v1/requests/${card.id}`, {
+                            method: "PATCH",
+                            body: { expected_version: card.version, kind: value },
+                          });
+                          await refresh();
+                        } catch (e) {
+                          setError(errorText(e));
+                        }
+                      }}
+                    />
                   </Space>
-                </List.Item>
+                )}
+                {own && card.can_share !== false && (
+                  <Space wrap>
+                    <Select
+                      aria-label="Предоставить совместный доступ"
+                      placeholder="Житель того же помещения"
+                      options={candidates.map((c) => ({
+                        value: String(c.person_id),
+                        label: String(c.full_name),
+                      }))}
+                      style={{ width: 260 }}
+                      onChange={async (person) => {
+                        try {
+                          await apiFetch(`/v1/requests/${card.id}/participants`, {
+                            method: "POST",
+                            body: { person_id: person },
+                          });
+                          await refresh();
+                        } catch (e) {
+                          setError(errorText(e));
+                        }
+                      }}
+                    />
+                    {(card.participants as Row[]).filter((p) =>
+                      p.role === "participant" && !p.revoked_at
+                    ).map((p) => (
+                      <Button
+                        key={String(p.person_id)}
+                        onClick={async () => {
+                          try {
+                            await apiFetch(
+                              `/v1/requests/${card.id}/participants/${p.person_id}`,
+                              { method: "DELETE" },
+                            );
+                            await refresh();
+                          } catch (e) {
+                            setError(errorText(e));
+                          }
+                        }}
+                      >
+                        Отозвать доступ{" "}
+                        {candidates.find((c) => c.person_id === p.person_id)
+                          ?.full_name as string ?? "участника"}
+                      </Button>
+                    ))}
+                  </Space>
+                )}
+            </DetailSection>
+            {manage && <DetailSection title="Связанные задания">
+              <List dataSource={(card.tasks as Row[] | undefined) ?? []}
+                locale={{ emptyText: "Связанных заданий пока нет" }}
+                renderItem={task => <List.Item key={String(task.id)}>
+                  <Space direction="vertical" size={4}>
+                    <Typography.Link href={`/tasks?task=${encodeURIComponent(String(task.id))}`}>{String(task.number)}</Typography.Link>
+                    <Typography.Text>{String(task.assignee_name ?? "Исполнитель не назначен")} · {TASK_STATE_TEXT[String(task.state)]?.ru ?? String(task.state)}</Typography.Text>
+                    <Typography.Text type="secondary">Срок: {new Date(String(task.due_at)).toLocaleString("ru-RU", { timeZone: "Asia/Almaty" })}</Typography.Text>
+                  </Space>
+                </List.Item>} />
+            </DetailSection>}
+
+            {(actions.length > 0 || card.kind === "request" || (own && stateName === "closed" && card.close_method === "author")) && (
+              <DetailSection title="Действия по процессу">
+                <Space wrap>
+                  {[...new Set(actions)].filter((a) =>
+                    a !== "submit_result" ||
+                    (card.kind !== "request" && !card.work_execution_required)
+                  ).map((a) => (
+                    <Button
+                      key={a}
+                      icon={REQUEST_ACTION_ICONS[a]}
+                      onClick={() => {
+                        actionForm.resetFields();
+                        if (a === "start_work") {
+                          startWorkKey.current = crypto.randomUUID();
+                          actionForm.setFieldsValue({ plan: card.kind === "request"
+                            ? String(card.description ?? "")
+                            : `Подготовить ответ по обращению ${card.number}` });
+                        }
+                        setAction(a);
+                      }}
+                    >
+                      {ACTIONS[a]}
+                    </Button>
+                  ))}
+                </Space>
+                {card.kind === "request" && <TaskVisits requestId={String(card.id)} canRespond={card.can_comment !== false && !manage} onChanged={refresh}/>}
+                {own && stateName === "closed" && card.close_method === "author" &&
+                  <RatingEditor id={String(card.id)} onError={setError} />}
+              </DetailSection>
+            )}
+            <DetailSection title="Переписка">
+              <Tabs
+                activeKey={channel}
+                onChange={(value) => {
+                  if (saving || fileBusy) return;
+                  if (attachments.length) {
+                    setError(
+                      "Сначала отправьте принятые вложения в выбранный канал",
+                    );
+                    return;
+                  }
+                  draftMessages.current[channel] = message;
+                  setMessage(draftMessages.current[value] ?? "");
+                  messageKey.current = crypto.randomUUID();
+                  setChannel(value);
+                }}
+                items={[
+                  { key: "resident", label: "Жителю" },
+                  ...(manage ? [{ key: "internal", label: "Внутреннее" }] : []),
+                ]}
+              />
+              {channel === "internal" && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="Внутреннее сообщение: житель его не увидит"
+                />
               )}
-            />
-            <Input.TextArea
-              disabled={card.can_comment === false || cardEditing}
-              aria-label="Текст сообщения"
-              value={message}
-              onChange={(e) => {
-                setMessage(e.target.value);
-                messageKey.current = crypto.randomUUID();
-              }}
-              maxLength={10000}
-              rows={3}
-              placeholder={channel === "internal"
-                ? "Служебное обсуждение"
-                : "Сообщение жителю"}
-            />
-            <Space wrap>
-              <Upload
-                beforeUpload={(file) => upload(file)}
-                showUploadList={false}
-                disabled={fileBusy || cardEditing || attachments.length >= 10}
-              >
-                <Button loading={fileBusy}>Добавить файл</Button>
-              </Upload>
-              <Typography.Text type="secondary">
-                До 10 файлов по 20 МиБ. Антивирусная проверка не выполняется.
-              </Typography.Text>
-              <Button
-                type="primary"
-                loading={saving}
-                disabled={card.can_comment === false || cardEditing || fileBusy ||
-                  (!message.trim() && !attachments.length)}
-                onClick={() => void send()}
-              >
-                Отправить в «{channel === "internal" ? "Внутреннее" : "Жителю"}»
-              </Button>
-            </Space>
-            {card.kind === "request" && <TaskVisits requestId={String(card.id)} canRespond={card.can_comment !== false && !manage} onChanged={refresh}/>}
-            {own && stateName === "closed" && card.close_method === "author" &&
-              <RatingEditor id={String(card.id)} onError={setError} />}
-            <details>
-              <summary>История состояний</summary>
               <List
-                dataSource={card.log as Row[]}
-                renderItem={(l) => (
-                  <List.Item>
-                    {(l.meta as Row)?.action === "classified"
-                      ? "Исправлено место или классификация"
-                      : REQUEST_STATES[String(l.to_state)]}
-                    {l.reason ? `: ${String(l.reason)}` : ""} ·{" "}
-                    {new Date(String(l.at)).toLocaleString("ru-RU")}
+                locale={{ emptyText: "В этом канале пока нет сообщений" }}
+                dataSource={(card.messages as Row[]).filter((m) =>
+                  m.channel === channel
+                )}
+                renderItem={(m) => (
+                  <List.Item
+                    actions={manage && !m.restricted_at
+                      ? [
+                        <Button
+                          key="restrict"
+                          size="small"
+                          onClick={() => { setError(null); setRestricting(m); }}
+                        >
+                          Ограничить
+                        </Button>,
+                      ]
+                      : []}
+                  >
+                    <List.Item.Meta
+                      title={`${m.channel === "internal" ? "Внутреннее · " : ""}${
+                        new Date(String(m.created_at)).toLocaleString("ru-RU")
+                      }`}
+                      description={
+                        <Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>
+                          <em>{String(m.author_name ?? "Автор не указан")}</em>{": "}
+                          <span>{String(m.text)}</span>
+                          {!!m.restricted_at && (
+                            <Tag color="red">Доступ ограничен</Tag>
+                          )}
+                        </Typography.Paragraph>
+                      }
+                    />
                   </List.Item>
                 )}
               />
-            </details>
+              <List
+                size="small"
+                locale={{ emptyText: "Вложений в этом канале нет" }}
+                dataSource={(card.attachments as Row[]).filter((a) =>
+                  a.bucket === channel
+                )}
+                renderItem={(a) => (
+                  <List.Item>
+                    <Space>
+                      <Typography.Text>{String(a.filename)}</Typography.Text>
+                      {a.status === "complete"
+                        ? (
+                          <Button disabled={false}
+                            size="small"
+                            onClick={async () => {
+                              try {
+                                const r = await apiFetch<{ url: string }>(
+                                  `/v1/files/${a.id}/url`,
+                                );
+                                window.open(
+                                  r.url,
+                                  "_blank",
+                                  "noopener,noreferrer",
+                                );
+                              } catch (e) {
+                                setError(errorText(e));
+                              }
+                            }}
+                          >
+                            Скачать
+                          </Button>
+                        )
+                        : (
+                          <Space>
+                            <Tag color="orange">Не сохранено</Tag>
+                            <Upload
+                              beforeUpload={(file) => upload(file, String(a.id))}
+                              showUploadList={false}
+                              disabled={fileBusy || cardEditing}
+                            >
+                              <Button size="small">Загрузить повторно</Button>
+                            </Upload>
+                          </Space>
+                        )}
+                    </Space>
+                  </List.Item>
+                )}
+              />
+              <Input.TextArea
+                disabled={card.can_comment === false || cardEditing}
+                aria-label="Текст сообщения"
+                value={message}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+                  messageKey.current = crypto.randomUUID();
+                }}
+                maxLength={10000}
+                rows={3}
+                placeholder={channel === "internal"
+                  ? "Служебное обсуждение"
+                  : "Сообщение жителю"}
+              />
+              <Space wrap>
+                <Button
+                  type="primary"
+                  loading={saving}
+                  disabled={card.can_comment === false || cardEditing || fileBusy ||
+                    (!message.trim() && !attachments.length)}
+                  onClick={() => void send()}
+                >
+                  Отправить
+                </Button>
+                <Upload
+                  beforeUpload={(file) => upload(file)}
+                  showUploadList={false}
+                  disabled={fileBusy || cardEditing || attachments.length >= 10}
+                >
+                  <Button loading={fileBusy}>Добавить файл</Button>
+                </Upload>
+                <Typography.Text type="secondary">
+                  До 10 файлов по 20 МиБ. Антивирусная проверка не выполняется.
+                </Typography.Text>
+              </Space>
+            </DetailSection>
+            <DetailSection title="История состояний">
+              <details>
+                <summary>Показать историю</summary>
+                <List
+                  dataSource={card.log as Row[]}
+                  renderItem={(l) => (
+                    <List.Item>
+                      {(l.meta as Row)?.action === "classified"
+                        ? "Исправлено место или классификация"
+                        : REQUEST_STATES[String(l.to_state)]}
+                      {l.reason ? `: ${String(l.reason)}` : ""} ·{" "}
+                      {new Date(String(l.at)).toLocaleString("ru-RU")}
+                    </List.Item>
+                  )}
+                />
+              </details>
+            </DetailSection>
+            {manage && ((card.delivery_failures as Row[] | undefined)?.length ?? 0) > 0 && (
+              <Button danger href="/notifications/failures">Открыть журнал доставки</Button>
+            )}
           </Space>
         )}
       <ActionPanel
@@ -956,6 +1020,15 @@ export function RequestsPage() {
         }}
       >
         <Form form={placeForm} name="request-location" layout="vertical">
+          <Form.Item name="building_id" label="Дом">
+            <Select
+              allowClear
+              options={context.buildings.map((b) => ({
+                value: String(b.id),
+                label: String(b.name ?? b.code),
+              }))}
+            />
+          </Form.Item>
           <Form.Item name="premises_id" label="Помещение">
             <Select
               allowClear
@@ -965,15 +1038,6 @@ export function RequestsPage() {
                   context.buildings.find((b) => b.id === p.building_id)?.name ??
                     "Дом"
                 }, ${p.number}`,
-              }))}
-            />
-          </Form.Item>
-          <Form.Item name="building_id" label="Дом">
-            <Select
-              allowClear
-              options={context.buildings.map((b) => ({
-                value: String(b.id),
-                label: String(b.name ?? b.code),
               }))}
             />
           </Form.Item>
@@ -1131,14 +1195,17 @@ export function RequestsPage() {
         onOk={() => void perform()}
         busy={saving}
         okText={action ? ACTIONS[action] : "Подтвердить"}
+        okIcon={action ? REQUEST_ACTION_ICONS[action] : undefined}
       >
         <Form form={actionForm} layout="vertical">
-          {!["confirm_result", "start_review", "submit"].includes(
+          {!["confirm_result", "start_review", "submit", "ask_clarification", "start_work", "submit_result"].includes(
             action ?? "",
           ) && (
             <Form.Item
               name="reason"
-              label="Причина / пояснение"
+              label={action === "reject" && card?.work_started_at
+                ? "Причина отклонения и урегулирование обязательств"
+                : "Причина / пояснение"}
               rules={[{ required: true, whitespace: true }]}
             >
               <Input.TextArea rows={3} />
@@ -1148,7 +1215,7 @@ export function RequestsPage() {
             <Form.Item
               name="question"
               label="Конкретный вопрос"
-              rules={[{ required: true }]}
+              rules={[{ required: true, whitespace: true }]}
             >
               <Input.TextArea />
             </Form.Item>
@@ -1158,10 +1225,23 @@ export function RequestsPage() {
               <Input.TextArea />
             </Form.Item>
           )}
+          {action === "start_work" && <>
+            <Form.Item name="assignee_person_id" label="Исполнитель" rules={[{ required: true, message: "Выберите исполнителя" }]}>
+              <Select loading={executorsLoading} showSearch optionFilterProp="label"
+                notFoundContent={executorsLoading ? "Загрузка исполнителей…" : "Нет действующих сотрудников ОСИ"}
+                options={taskAssigneeOptions(executors)} />
+            </Form.Item>
+            <Form.Item name="due_at" label="Срок выполнения" rules={[{ required: true, message: "Укажите срок" }, {
+              validator: (_, value) => !value || Date.parse(value) > Date.now()
+                ? Promise.resolve() : Promise.reject(new Error("Срок должен быть в будущем")),
+            }]}>
+              <Input type="datetime-local" />
+            </Form.Item>
+          </>}
           {["start_work", "plan_rework"].includes(action ?? "") && (
             <Form.Item
               name="plan"
-              label="План и ответственный"
+              label={action === "start_work" ? "Описание работы" : "План и ответственный"}
               rules={[{ required: true }]}
             >
               <Input.TextArea />
@@ -1217,7 +1297,7 @@ export function RequestsPage() {
               </Form.Item>
             </>
           )}
-          {["reject", "approve_cancel"].includes(action ?? "") && (
+          {action === "approve_cancel" && (
             <Form.Item
               name="stop_resolution"
               label="Остановка работ и обязательства"
@@ -1261,10 +1341,7 @@ export function RequestsPage() {
       </CardDrawer>
       {busy && card && <Spin />}
 
-
-
-
-    </Space>
+    </PageLayout>
   );
 }
 function RatingEditor(

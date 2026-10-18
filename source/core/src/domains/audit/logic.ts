@@ -19,7 +19,7 @@ export interface AuditVisibilityView {
  */
 export function auditVisibilityForActor(actor: Actor): AuditVisibility {
   const isChairman = actor.assignments.some((a) => a.role === "chairman");
-  if (isChairman) {
+  if (isChairman || (actor.globalStaff && actor.assignments.some(a=>a.role==="administrator"))) {
     return { allBuildings: true, technicalActions: false, scopeBuildingIds: [] };
   }
 

@@ -2,6 +2,7 @@
 // вход не выдаёт роль — профиль ищется строго по supabase_user_id, полномочия
 // собирает buildActor из действующих назначений (ROL-03/04 проверяются там).
 
+import { withRoleHierarchy } from "../../pdp/roles.ts";
 import { ApiError } from "../../errors/api.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import { buildActor } from "../../pdp/actor.ts";
@@ -37,10 +38,10 @@ export async function buildActorForProfile(
     throw new ApiError("NO_PROFILE", "Персона профиля не найдена");
   }
   const assignmentRows = await repo.listActiveAssignments(exec, profile.personId);
-  return buildActor(
+  return withRoleHierarchy(buildActor(
     { id: person.id, fullName: person.fullName, status: person.status, isTest: person.isTest },
     { id: profile.id, personId: profile.personId, language: profile.language, isTest: profile.isTest },
     assignmentRows,
     now,
-  );
+  ), await repo.listBuildingIds?.(exec));
 }

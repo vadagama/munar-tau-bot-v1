@@ -1,3 +1,4 @@
+import { StaffPage } from "./pages/staff";
 import { RequestSettingsPage } from "./pages/request-settings";
 import { TaskToolsPage } from "./pages/task-tools";
 import { TemplatesPage } from "./pages/templates";
@@ -56,7 +57,7 @@ export default function App() {
               <Route path="/notifications/failures" element={<NotificationsPage key="failures" section="failures" />} />
               <Route path="/settings/requests" element={<RequestSettingsPage />} />
               <Route path="/users/residents" element={<RegistryPage key="residents" users="residents" />} />
-              <Route path="/users/staff" element={<RegistryPage key="staff" users="staff" />} />
+              <Route path="/users/staff" element={<StaffPage />} />
               <Route path="/time-rules" element={<TimeRulesPage />} />
               <Route path="/invites" element={<InvitesPage />} />
               <Route path="/requests" element={<RequestsPage />} />

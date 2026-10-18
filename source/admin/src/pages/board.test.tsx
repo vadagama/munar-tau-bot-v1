@@ -122,3 +122,25 @@ it("открытая карточка выделена на доске, оста
 // Тип-проверка вида: useBoardView возвращает кортеж вида и сеттера.
 const _kindCheck: ListKind = "table";
 void _kindCheck;
+
+it("доска удерживает нижний край при изменении высоты окна", () => {
+  const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+    .mockReturnValue({ top: 200 } as DOMRect);
+  const originalHeight = window.innerHeight;
+  try {
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 900 });
+    const { container } = render(
+      <BoardView columns={[{ value: "a", label: "Новая" }]} rows={[{ id: 1 }]}
+        stateOf={() => "a"} renderCard={() => "Карточка"} />,
+    );
+    const board = container.firstElementChild as HTMLElement;
+    expect(board.style.height).toBe("676px");
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 700 });
+    fireEvent(window, new Event("resize"));
+    expect(board.style.height).toBe("476px");
+    expect(board.style.overflowX).toBe("auto");
+  } finally {
+    rect.mockRestore();
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: originalHeight });
+  }
+});

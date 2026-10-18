@@ -1,3 +1,5 @@
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -85,6 +87,7 @@ export function RegistrationsPage() {
       setBusy(false);
     }
   };
+  usePageRefresh(load, !busy && !saving);
   useEffect(() => {
     void load();
   }, []);
@@ -119,35 +122,9 @@ export function RegistrationsPage() {
     ));
   const visible = rows.filter((r) => !state || r.state === state);
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: 16,
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 320 }}>
-          <Typography.Title level={2}>Регистрации</Typography.Title>
-          <Typography.Paragraph type="secondary">
-            Проверьте анкету по реестру. Выбор роли пользователем не предоставляет
-            доступ. Спор остаётся открытым до явного решения.
-          </Typography.Paragraph>
-        </div>
-        <ViewToggle kind={view} onChange={setView} />
-      </div>
-      {error && (
-        <Alert
-          type="error"
-          showIcon
-          message={error}
-          closable
-          onClose={() => setError(null)}
-        />
-      )}
-      <Space>
+    <PageLayout title="Регистрации"
+      extra={<ViewToggle kind={view} onChange={setView} />}
+      filters={<Space>
         <Select
           aria-label="Состояние анкеты"
           allowClear
@@ -160,10 +137,21 @@ export function RegistrationsPage() {
             label,
           }))}
         />
-        <Button onClick={() => void load()} loading={busy}>
-          Обновить
-        </Button>
-      </Space>
+      </Space>}> <Typography.Paragraph type="secondary">
+            Проверьте анкету по реестру. Выбор роли пользователем не предоставляет
+            доступ. Спор остаётся открытым до явного решения.
+          </Typography.Paragraph>
+
+      {error && (
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          closable
+          onClose={() => setError(null)}
+        />
+      )}
+
       {!!failures.length && (
         <Alert
           type="warning"
@@ -344,6 +332,6 @@ export function RegistrationsPage() {
           )}
         </Form>
       </Modal>
-    </Space>
+    </PageLayout>
   );
 }

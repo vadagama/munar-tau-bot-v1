@@ -1,3 +1,5 @@
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
 import { ActionPanel } from "./action-panel";
 import { useEffect, useRef, useState } from "react";
@@ -51,6 +53,7 @@ const names: Record<string, string> = {
   warning: "Предупреждение о проверке",
 };
 export function IncidentsPage() {
+  const [activeTab, setActiveTab] = useState("incidents");
   const { roles } = useCabinetIdentity(),
     [view, setView] = useBoardView("view.incidents"),
     manager = roles.some((r) =>
@@ -93,6 +96,7 @@ export function IncidentsPage() {
       if (g === generation.current) setBusy(false);
     }
   }
+  usePageRefresh(refresh, !busy);
   useEffect(() => {
     void refresh();
     return () => {
@@ -221,14 +225,27 @@ export function IncidentsPage() {
       label: String(p.full_name ?? p.id),
     }));
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Typography.Title level={2}>Аварии и дежурство</Typography.Title>
+    <PageLayout title="Аварии и дежурство"
+      extra={activeTab === "incidents" ? <ViewToggle kind={view} onChange={setView} /> : null}
+      actions={manager ? (<><Button type="primary" onClick={() => void begin("create")}>Зарегистрировать сигнал</Button>{activeTab === "duty" && (<Space>
+                    <Button onClick={() => void begin("shift")}>
+                      Добавить смену
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        void apiFetch<{ items: Row[] }>("/v1/duty-shifts").then(
+                          (r) => setShifts(r.items),
+                        ).catch(fail)}
+                    >
+                      Показать смены
+                    </Button>
+                  </Space>)}</>) : null}>
+
       {error && !card && !action && (
         <Alert
           type="error"
           showIcon
           message={error}
-          action={<Button onClick={() => void refresh()}>Обновить</Button>}
         />
       )}
       <Alert
@@ -237,39 +254,15 @@ export function IncidentsPage() {
         message="Сигнал не означает подтверждения выезда. Частичное восстановление не завершает общую аварию."
       />
       <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={[
           {
             key: "incidents",
             label: "Инциденты",
             children: (
               <>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 16,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <Space wrap>
-                    <Button
-                      loading={busy}
-                      onClick={() => void refresh()}
-                    >
-                      Обновить
-                    </Button>
-                    {manager && (
-                      <Button
-                        type="primary"
-                        onClick={() => void begin("create")}
-                      >
-                        Зарегистрировать сигнал
-                      </Button>
-                    )}
-                  </Space>
-                  <ViewToggle kind={view} onChange={setView} />
-                </div>
+
                 {view === "board" ? (
                   <BoardView
                     columns={BOARD_COLUMNS}
@@ -378,19 +371,7 @@ export function IncidentsPage() {
               label: "Дежурство",
               children: (
                 <>
-                  <Space>
-                    <Button onClick={() => void begin("shift")}>
-                      Добавить смену
-                    </Button>
-                    <Button
-                      onClick={() =>
-                        void apiFetch<{ items: Row[] }>("/v1/duty-shifts").then(
-                          (r) => setShifts(r.items),
-                        ).catch(fail)}
-                    >
-                      Показать смены
-                    </Button>
-                  </Space>
+
                   <Table
                     rowKey="id"
                     dataSource={shifts}
@@ -829,6 +810,6 @@ export function IncidentsPage() {
       </ActionPanel>
       </CardDrawer>
 
-    </Space>
+    </PageLayout>
   );
 }

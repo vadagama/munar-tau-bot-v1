@@ -1,0 +1,41 @@
+import {
+  CheckCircleOutlined,
+  CheckOutlined,
+  CloseCircleOutlined,
+  CommentOutlined,
+  FileSearchOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
+  QuestionCircleOutlined,
+  RedoOutlined,
+  RollbackOutlined,
+  SafetyCertificateOutlined,
+  SendOutlined,
+  UndoOutlined,
+} from "@ant-design/icons";
+import type { ReactNode } from "react";
+
+/** Иконки дополняют подписи: доступное имя действия остаётся текстовым. */
+export const REQUEST_ACTION_ICONS: Record<string, ReactNode> = {
+  start_review: <FileSearchOutlined aria-hidden />,
+  ask_clarification: <QuestionCircleOutlined aria-hidden />,
+  answer_clarification: <CommentOutlined aria-hidden />,
+  resolve_clarification: <CheckOutlined aria-hidden />,
+  start_work: <PlayCircleOutlined aria-hidden />,
+  hold: <PauseCircleOutlined aria-hidden />,
+  resume: <PlayCircleOutlined aria-hidden />,
+  submit_result: <SendOutlined aria-hidden />,
+  confirm_result: <CheckCircleOutlined aria-hidden />,
+  return_result: <RollbackOutlined aria-hidden />,
+  admin_close: <SafetyCertificateOutlined aria-hidden />,
+  withdraw_report: <UndoOutlined aria-hidden />,
+  reopen: <RedoOutlined aria-hidden />,
+  plan_rework: <RedoOutlined aria-hidden />,
+  cancel_request: <CloseCircleOutlined aria-hidden />,
+  approve_cancel: <CheckOutlined aria-hidden />,
+  reject_cancel: <CloseCircleOutlined aria-hidden />,
+  reject: <CloseCircleOutlined aria-hidden />,
+  appeal_reject: <QuestionCircleOutlined aria-hidden />,
+  uphold_appeal: <CheckCircleOutlined aria-hidden />,
+  submit: <SendOutlined aria-hidden />,
+};

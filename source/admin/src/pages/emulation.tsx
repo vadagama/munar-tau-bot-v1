@@ -1,10 +1,11 @@
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { RegistrationSimulator } from "./registration-simulator";
 import { useCabinetIdentity } from "../lib/identity";
 import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Button,
-  Card,
   Form,
   Input,
   Modal,
@@ -55,6 +56,7 @@ export function EmulationPage() {
     }
   }, []);
 
+  usePageRefresh(load, !loading);
   useEffect(() => {
     void load();
   }, [load]);
@@ -124,9 +126,9 @@ export function EmulationPage() {
   ];
 
   return (
-    <Card
+    <PageLayout
       title="Эмуляция ролей (пилот)"
-      extra={
+      actions={
         <Button type="primary" onClick={() => setCreateOpen(true)}>
           Создать тестовую персону
         </Button>
@@ -168,6 +170,6 @@ export function EmulationPage() {
           </Typography.Text>
         </Form>
       </Modal>
-    </Card>
+    </PageLayout>
   );
 }

@@ -1,5 +1,6 @@
+import { startRequestWork } from "../../src/domains/tasks/start-request-work.ts";
 import { setupTasks as setup } from "./tasks-helpers.ts";
-import { transitionRequest } from "../../src/domains/requests/service.ts";
+import { getRequest, transitionRequest } from "../../src/domains/requests/service.ts";
 import { expect, it } from "vitest";
 import { describeWithDb } from "./with-db.ts";
 import { applyMigrations } from "./helpers.ts";
@@ -9,6 +10,35 @@ import {
   transitionTask,
 } from "../../src/domains/tasks/service.ts";
 describeWithDb("VS-4 задания: SQL/PDP/повторы", (getDb) => {
+  it("начало работы атомарно создаёт связанное назначенное задание, повтор не дублирует", async () => {
+    const { deps, admin, worker, request } = await setup(getDb());
+    const reviewed = await transitionRequest(deps, admin, String(request.id), {
+      action: "start_review", expected_version: request.version,
+    });
+    const input = { expected_version: reviewed.version, plan: "Проверить кран", assignee_person_id: worker.person.id, due_at: "2099-01-01T10:00:00Z" };
+    const [first, repeated] = await Promise.all([
+      startRequestWork(deps, admin, String(request.id), input, "start-request"),
+      startRequestWork(deps, admin, String(request.id), input, "start-request"),
+    ]);
+    expect(first).toEqual(repeated);
+    expect(first.request).toMatchObject({ state: "in_work", work_execution_required: true });
+    expect(first.task).toMatchObject({ request_id: request.id, assignee_person_id: worker.person.id, state: "awaiting_acceptance", is_required: true });
+    expect(await getDb().query("select id from task where request_id=$1", [request.id])).toHaveLength(1);
+    const detail = await getRequest(deps, admin, String(request.id));
+    expect(detail.tasks).toEqual(expect.arrayContaining([expect.objectContaining({ id: (first.task as { id: string }).id, assignee_name: expect.any(String) })]));
+    const task = await getTask(deps, admin, String((first.task as { id: string }).id));
+    expect(task.linked_request).toMatchObject({ id: request.id, number: request.number });
+  });
+  it("ошибка назначения не меняет обращение и не создаёт задание/ключ повтора", async () => {
+    const { deps, admin, request } = await setup(getDb());
+    const reviewed = await transitionRequest(deps, admin, String(request.id), { action: "start_review", expected_version: request.version });
+    await expect(startRequestWork(deps, admin, String(request.id), {
+      expected_version: reviewed.version, plan: "Работа", assignee_person_id: crypto.randomUUID(), due_at: "2099-01-01T10:00:00Z",
+    }, "bad-assignee")).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    expect(await getDb().query("select id from task where request_id=$1", [request.id])).toHaveLength(0);
+    expect(await getRequest(deps, admin, String(request.id))).toMatchObject({ state: "reviewing", version: reviewed.version });
+    expect(await getDb().query("select key from idempotency_key where key='bad-assignee'")).toHaveLength(0);
+  });
   it("повтор создания один; исполнитель принимает явно; конкурентная запись — 409", async () => {
     const { deps, admin, worker, input } = await setup(getDb());
     const [a, b] = await Promise.all([

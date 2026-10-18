@@ -1,3 +1,4 @@
+import { listTaskAssignees, requireTaskAssignee } from "./assignees.ts";
 import { templateNotice } from "../../templates/notice.ts";
 import { syncTaskTimers } from "./timing.ts";
 import {
@@ -13,7 +14,7 @@ import { ApiError } from "../../errors/api.ts";
 import { can } from "../../pdp/evaluate.ts";
 import { recordAudit, type RegistryDeps } from "../registry/service.ts";
 import { invalid, jsonValue, type Row } from "../registry/validation.ts";
-import { requireRequest } from "../requests/access.ts";
+import { isManager, requireRequest } from "../requests/access.ts";
 import { content, idempotent } from "../requests/service.ts";
 import { checkVersion, CLOSED_STATES } from "../requests/fsm.ts";
 import { notifyPerson } from "../registrations/notifications.ts";
@@ -66,16 +67,8 @@ export function evidenceInput(value: unknown): EvidenceRequirement[] {
   return result;
 }
 async function validateAssignee(exec: DbExecutor, row: TaskRow, id: string) {
-  const [person] = await exec.query(
-    `select p.id from person p where p.id=$1 and p.status='active' and p.is_test=$2
-    and exists(select 1 from staff_assignment a where a.person_id=p.id and a.role='executor' and a.status='active'
-      and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())
-      and not exists(select 1 from unnest($3::uuid[]) b(id) where not exists(select 1 from staff_scope s where s.assignment_id=a.id and s.building_id=b.id)))`,
-    [id, row.is_test, row.building_ids],
-  );
-  if (!person || !row.building_ids.length) {
-    invalid("Нужен действующий исполнитель в области задания");
-  }
+  if (!row.building_ids.length) invalid("Укажите область задания");
+  await requireTaskAssignee(exec, id, row.is_test);
 }
 export async function taskLog(
   deps: RegistryDeps,
@@ -165,6 +158,20 @@ export async function createTask(
 ): Promise<TaskRow> {
   return deps.db.transaction((exec) =>
     idempotent(exec, actor, "tasks:create", key, input, async () => {
+      return createTaskInTransaction(deps, exec, actor, input);
+    }, async (row) => {
+      await requireTask(exec, actor, row.id, "task.manage");
+    })
+  );
+}
+
+/** Создание с теми же проверками и уведомлениями внутри бизнес-транзакции. */
+export async function createTaskInTransaction(
+  deps: RegistryDeps,
+  exec: DbExecutor,
+  actor: Actor,
+  input: Row,
+): Promise<TaskRow> {
       if (!!input.request_id === !!input.common_work_id) {
         invalid("Укажите обращение или общую работу");
       }
@@ -305,10 +312,7 @@ export async function createTask(
       );
       if (work) await syncCommonWork(deps, exec, actor, work.id);
       return row;
-    }, async (row) => {
-      await requireTask(exec, actor, row.id, "task.manage");
-    })
-  );
+
 }
 
 export async function getTask(
@@ -318,12 +322,22 @@ export async function getTask(
 ): Promise<Row> {
   return deps.db.transaction(async (exec) => {
     const row = await requireTask(exec, actor, id);
+    let linkedRequest: Row | null = null;
+    if (row.request_id) {
+      try {
+        const request = await requireRequest(exec, actor, row.request_id);
+        if (await isManager(exec, actor, request)) linkedRequest = { id: request.id, number: request.number };
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.code !== "NOT_FOUND") throw error;
+      }
+    }
     const reports = await exec.query(
       "select * from task_report where task_id=$1 and ($2::boolean or created_by=$3) order by version",
       [id,can(actor,"task.manage",taskResource(row)).allow,actor.person.id],
     );
     return {
       ...row,
+      linked_request: linkedRequest,
       methodology: row.template_id
         ? (await exec.query(
           "select v.version,v.created_at,p.full_name as author_name from job_template_version v join person p on p.id=v.created_by where v.template_id=$1 and v.version=$2",
@@ -365,18 +379,12 @@ export async function listTasks(
       ).flatMap((a) => a.scopeBuildingIds ?? []),
     ),
   ];
-  const executorScope = [
-    ...new Set(
-      actor.assignments.filter((a) => a.role === "executor").flatMap((a) =>
-        a.scopeBuildingIds ?? []
-      ),
-    ),
-  ];
+  const staff = actor.assignments.length > 0;
   const chairman = actor.assignments.some((a) => a.role === "chairman");
   const rows = await deps.db.query<TaskRow>(
     `${TASK_SELECT} where t.is_test=$1 and ($2::uuid is null or t.request_id=$2)
     and ($3::boolean or r.building_id=any($4::uuid[]) or (cardinality(w.building_ids)>0 and w.building_ids <@ $4::uuid[])
-      or (t.assignee_person_id=$5 and (r.building_id=any($6::uuid[]) or (cardinality(w.building_ids)>0 and w.building_ids <@ $6::uuid[]))))
+      or (t.assignee_person_id=$5 and $6::boolean))
     order by t.created_at desc,t.id limit 100`,
     [
       actor.person.isTest,
@@ -384,7 +392,7 @@ export async function listTasks(
       chairman,
       scope,
       actor.person.id,
-      executorScope,
+      staff,
     ],
   );
   return rows.filter((row) => can(actor, "task.read", taskResource(row)).allow);
@@ -733,10 +741,5 @@ export async function taskAssignees(
   requestId: string,
 ) {
   const row = await requireRequest(deps.db, actor, requestId, "request.manage");
-  return deps.db.query(
-    `select distinct p.id,p.full_name from person p join staff_assignment a on a.person_id=p.id
-    join staff_scope s on s.assignment_id=a.id where p.status='active' and p.is_test=$1 and a.role='executor' and a.status='active'
-    and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now()) and s.building_id=$2 order by p.full_name`,
-    [row.is_test, row.building_id],
-  );
+  return listTaskAssignees(deps.db, row.is_test, row.building_id ? [row.building_id] : []);
 }

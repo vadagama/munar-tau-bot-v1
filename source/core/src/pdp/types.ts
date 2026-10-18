@@ -34,6 +34,7 @@ export interface SpecialRights {
 
 /** Действующее назначение: отзыв и окно (ROL-03) проверены при сборке Actor. */
 export interface ActorAssignment extends SpecialRights {
+  inherited?: boolean;
   id: string;
   role: StaffRole;
   /**
@@ -71,6 +72,8 @@ export interface ActorEmulation {
 
 /** Actor — вход PDP (LLD-01 §3.1). Связи и участие добавляются в VS-2/VS-3. */
 export interface Actor {
+  assignedRoles?: StaffRole[];
+  globalStaff?: boolean;
   profile: ActorProfile;
   person: ActorPerson;
   assignments: ActorAssignment[];

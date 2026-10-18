@@ -179,15 +179,10 @@ export async function informManagers(
 ): Promise<void> {
   const people = await exec.query<{ person_id: string }>(
     `select distinct a.person_id from staff_assignment a join person n on n.id=a.person_id
- where a.status='active' and n.status='active' and n.is_test=$2 and a.person_id is distinct from $3::uuid
+ where a.status='active' and n.status='active' and n.is_test=$1 and a.person_id is distinct from $2::uuid
  and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())
- and (a.role='chairman' or ($4<>'chairman' and a.role in ('administrator','deputy') and exists(select 1 from staff_scope s where s.assignment_id=a.id and s.building_id=$1)))`,
-    [
-      row.building_id,
-      row.is_test,
-      row.complaint_subject_person_id,
-      row.complaint_route ?? "administrator",
-    ],
+ and (a.role='chairman' or ($3<>'chairman' and a.role in ('administrator','deputy')))`,
+    [row.is_test,row.complaint_subject_person_id,row.complaint_route ?? "administrator"],
   );
   for (const p of people) {
     await notifyPerson(exec, p.person_id, text, `${key}:${p.person_id}`, {type:"request.staff",requestId:row.id,audience:"staff",isTest:row.is_test,bot:"worker"});
@@ -421,6 +416,7 @@ export async function listRequests(
  (r.state<>'draft' and exists(select 1 from request_participant p join connection c on c.person_id=p.person_id and c.premises_id=r.premises_id and c.status='active' where p.request_id=r.id and p.person_id=$2 and p.role='participant' and p.revoked_at is null)))
  and ($5::text is null or r.state=$5) and ($6::text is null or r.number ilike '%'||$6||'%' or r.description ilike '%'||$6||'%' or exists(select 1 from message m where m.request_id=r.id and m.channel='resident' and m.restricted_at is null and m.text ilike '%'||$6||'%'))
  and ($7::uuid is null or r.premises_id=$7) and ($8::timestamptz is null or r.created_at>=$8) and ($9::timestamptz is null or r.created_at<=$9)
+ and ($11::uuid is null or r.building_id=$11)
  order by case when r.state in ('need_clarification','awaiting_confirmation') then 0 else 1 end,r.created_at desc,r.id desc limit 100 offset $10`,
     [
       actor.person.isTest,
@@ -433,6 +429,7 @@ export async function listRequests(
       filter.from ?? null,
       filter.to ?? null,
       offset,
+      filter.building_id ?? null,
     ],
   );
   return Promise.all(rows.map((r) => publicRequest(deps.db, actor, r)));
@@ -466,13 +463,15 @@ export async function getRequest(
   return deps.db.transaction(async (exec) => {
     const row = await requireRequest(exec, actor, id);
     const [place] = await exec.query<
-      { label: string | null; active_author: boolean; is_apartment: boolean }
+      { label: string | null; active_author: boolean; is_apartment: boolean; author_name: string | null }
     >(
       `select
+      (select full_name from person where id=$3) author_name,
       (select concat_ws(', ',b.name,case p.kind when 'apartment' then 'квартира' when 'commercial' then 'коммерческое помещение' when 'parking_slot' then 'парковочное место' when 'storage' then 'кладовка' end,p.number) from building b left join premises p on p.id=$2 where b.id=$1) label,
       exists(select 1 from connection where person_id=$3 and status='active' and ($2::uuid is null or premises_id=$2)) active_author,exists(select 1 from premises where id=$2 and kind='apartment') is_apartment`,
       [row.building_id, row.premises_id, row.author_person_id],
     );
+    row.author_name = place?.author_name ?? null;
     row.place_label = place?.label || row.location_text || "Общая территория";
     row.can_act_as_author = row.author_person_id === actor.person.id &&
       !!place?.active_author;
@@ -483,11 +482,11 @@ export async function getRequest(
     row.can_comment = manager ||
       (!!place?.active_author && row.state !== "draft");
     const messages = await exec.query(
-      `select m.id,m.channel,m.author_person_id,m.text,m.reply_to,m.corrects_message_id,m.restricted_at,m.created_at,
+      `select m.id,m.channel,m.author_person_id,author.full_name as author_name,m.text,m.reply_to,m.corrects_message_id,m.restricted_at,m.created_at,
       case when m.author_person_id = r.author_person_id then 'author'
            when exists(select 1 from staff_assignment s where s.person_id = m.author_person_id and s.status = 'active') then 'staff'
            else 'participant' end as author_kind
-      from message m join request r on r.id = m.request_id
+      from message m join request r on r.id = m.request_id left join person author on author.id=m.author_person_id
       where m.request_id=$1 and ($2 or (m.channel='resident' and m.restricted_at is null)) order by m.created_at,m.id`,
       [id, manager],
     );
@@ -513,7 +512,11 @@ export async function getRequest(
     );
     return {
       ...await publicRequest(exec, actor, row),
-      ...(manager ? { delivery_failures: await exec.query(
+      ...(manager ? {
+        tasks: await exec.query(
+          `select t.id,t.number,t.state,t.due_at,a.full_name as assignee_name from task t left join person a on a.id=t.assignee_person_id where t.request_id=$1 order by t.created_at,t.id`, [id],
+        ),
+        delivery_failures: await exec.query(
         "select n.id,n.last_error,f.state as followup_state from notification n left join notification_followup f on f.notification_id=n.id where n.request_id=$1 and n.state='failed' and n.is_test=$2 order by n.created_at desc limit 50", [id,actor.person.isTest],
       ) } : {}),
       messages,
@@ -583,10 +586,9 @@ export async function editRequest(
       assigned = input.assigned_admin_person_id ?? assigned;
       if (assigned) {
         const eligible = await exec.query(
-          `select 1 from staff_assignment a join person n on n.id=a.person_id where a.person_id=$1 and n.is_test=$3 and n.status='active' and a.status='active' and a.person_id is distinct from $4::uuid and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now()) and (a.role='chairman' or ($5<>'chairman' and a.role in ('administrator','deputy') and exists(select 1 from staff_scope s where s.assignment_id=a.id and s.building_id=$2)))`,
+          `select 1 from staff_assignment a join person n on n.id=a.person_id where a.person_id=$1 and n.is_test=$2 and n.status='active' and a.status='active' and a.person_id is distinct from $3::uuid and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now()) and (a.role='chairman' or ($4<>'chairman' and a.role in ('administrator','deputy')))`,
           [
             assigned,
-            loc.buildingId,
             row.is_test,
             row.complaint_subject_person_id,
             row.complaint_route,
@@ -669,7 +671,18 @@ export async function transitionRequest(
   input: Row,
   key?: string,
 ): Promise<Row> {
-  return deps.db.transaction(async (exec) => {
+  return deps.db.transaction((exec) => transitionRequestInTransaction(deps, exec, actor, id, input, key));
+}
+
+/** Составные операции используют уже открытую транзакцию. */
+export async function transitionRequestInTransaction(
+  deps: RegistryDeps,
+  exec: DbExecutor,
+  actor: Actor,
+  id: string,
+  input: Row,
+  key?: string,
+): Promise<Row> {
     const operation = async () => {
       const action = content(input.action, "действие");
       const authorActions = [
@@ -849,8 +862,8 @@ export async function transitionRequest(
       if (action === "hold") {
         content(p.responsible_person_id, "ответственного");
         const eligible = await exec.query(
-          `select 1 from staff_assignment a join person n on n.id=a.person_id where a.person_id=$1 and n.is_test=$3 and n.status='active' and a.status='active' and a.role in ('chairman','administrator','deputy') and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now()) and (a.role='chairman' or exists(select 1 from staff_scope s where s.assignment_id=a.id and s.building_id=$2))`,
-          [p.responsible_person_id, row.building_id, row.is_test],
+          `select 1 from staff_assignment a join person n on n.id=a.person_id where a.person_id=$1 and n.is_test=$2 and n.status='active' and a.status='active' and a.role in ('chairman','administrator','deputy') and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())`,
+          [p.responsible_person_id, row.is_test],
         );
         if (
           !eligible.length ||
@@ -1018,5 +1031,4 @@ export async function transitionRequest(
         () => requireRequest(exec, actor, id, "request.author"),
       )
       : operation();
-  });
 }

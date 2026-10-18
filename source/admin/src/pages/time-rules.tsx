@@ -1,3 +1,5 @@
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -83,6 +85,7 @@ export function TimeRulesPage() {
       setBusy(false);
     }
   };
+  usePageRefresh(load, !busy);
   useEffect(() => {
     void load();
   }, []);
@@ -104,8 +107,7 @@ export function TimeRulesPage() {
     }
   };
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Typography.Title level={2}>Регламенты</Typography.Title>
+    <PageLayout title="Регламенты">
       <Alert
         type="info"
         showIcon
@@ -214,6 +216,6 @@ export function TimeRulesPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </Space>
+    </PageLayout>
   );
 }

@@ -1,0 +1,26 @@
+.detail-section {
+  width: 100%;
+  min-width: 0;
+}
+
+.detail-section .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-section .detail-section__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.detail-section .ant-typography,
+.detail-section .ant-descriptions-row:last-child > * {
+  margin-bottom: 0;
+}
+
+.detail-section .ant-space,
+.detail-section .ant-space-item,
+.detail-section .ant-select {
+  max-width: 100%;
+}

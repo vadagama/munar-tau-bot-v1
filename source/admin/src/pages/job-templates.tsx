@@ -1,3 +1,6 @@
+import type { ReactNode } from "react";
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
 import { ActionPanel } from "./action-panel";
 import { CardDrawer } from "./card-drawer";
@@ -22,7 +25,7 @@ import { OSI_PRESETS, type TemplatePreset } from "./job-template-presets";
 type Row = Record<string, unknown>;
 const required = [{ required: true, message: "Заполните поле" }];
 export function JobTemplates(
-  { onCreated }: { onCreated: (taskId: string) => void },
+  { onCreated, navigation }: { onCreated: (taskId: string) => void; navigation?: ReactNode },
 ) {
   const { token } = theme.useToken();
   const [rows, setRows] = useState<Row[]>([]),
@@ -57,6 +60,7 @@ export function JobTemplates(
       if (g === generation.current) setBusy(false);
     }
   }
+  usePageRefresh(refresh, !busy && !scheduleBusy);
   useEffect(() => {
     void refresh();
     return () => {
@@ -137,11 +141,10 @@ export function JobTemplates(
     }
   }
   return (
-    <Space direction="vertical" style={{ width: "100%" }}>
+    <PageLayout title="Шаблоны заданий"
+      actions={<><Button type="primary" disabled={busy} onClick={() => begin("create", null)}>Создать шаблон</Button>{navigation}</>}>
       {error && !action && <Alert type="error" message={error} />}
-      <Button disabled={busy} onClick={() => begin("create", null)}>
-        Создать шаблон
-      </Button>
+
       <Collapse
         ghost
         items={[{
@@ -340,6 +343,6 @@ export function JobTemplates(
         </Form>
       </ActionPanel>
       </CardDrawer>
-    </Space>
+    </PageLayout>
   );
 }

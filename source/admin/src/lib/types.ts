@@ -12,6 +12,8 @@ export interface MeAssignment {
 }
 
 export interface MeResponse {
+  effective_roles?: string[];
+  assigned_roles?: string[];
   profile: {
     id: string;
     person_id: string;

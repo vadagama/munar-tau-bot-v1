@@ -82,6 +82,25 @@ async function setup(db: DbClient) {
   };
 }
 describeWithDb("VS-3 REQ/SHR/MSG/RAT/FIL", (getDb) => {
+  it("REQ-08: фильтр здания включает помещения и общее имущество, сохраняя область доступа", async () => {
+    const { deps, author, admin, input } = await setup(getDb());
+    const room = await createRequest(deps, author, input, "filter-room");
+    const common = await createRequest(deps, author, {
+      text: "Общее имущество", kind: "question", source: "bot", building_id: SEED.building1,
+    }, "filter-common");
+    const other = await createRequest(deps, author, {
+      text: "Другой дом", kind: "question", source: "bot", building_id: SEED.building2,
+    }, "filter-other");
+    expect((await listRequests(deps, author, { building_id: SEED.building1 })).map(r => r.id))
+      .toEqual(expect.arrayContaining([room.id, common.id]));
+    expect((await listRequests(deps, author, { building_id: SEED.building1 })).map(r => r.id))
+      .not.toContain(other.id);
+    expect((await listRequests(deps, author, { building_id: SEED.building2 })).map(r => r.id))
+      .toEqual([other.id]);
+    expect(await listRequests(deps, admin, { building_id: SEED.building2 })).toEqual([]);
+    expect((await listRequests(deps, author)).map(r => r.id)).toEqual(expect.arrayContaining([room.id, common.id, other.id]));
+  });
+
   it("REQ-05: параллельная отправка одна; другой payload — 409; черновик приватен", async () => {
     const { deps, author, admin, participant, input } = await setup(getDb());
     const [a, b] = await Promise.all([
@@ -126,6 +145,12 @@ describeWithDb("VS-3 REQ/SHR/MSG/RAT/FIL", (getDb) => {
       size: 4,
       mime: "application/pdf",
     });
+    const detail = await getRequest(deps, admin, id);
+    expect(detail.author_name).toBe(author.person.fullName);
+    expect(detail.messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: "Служебный секрет", author_name: admin.person.fullName }),
+      expect.objectContaining({ text: input.text, author_name: author.person.fullName }),
+    ]));
     await shareRequest(deps, author, id, participant.person.id);
     const pending = await prepareFile(deps, admin, {
       owner_id: id,

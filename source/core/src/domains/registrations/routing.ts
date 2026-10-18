@@ -1,16 +1,17 @@
+import { rolesGranting } from "../../pdp/roles.ts";
+import type { StaffRole } from "../../pdp/types.ts";
 import type { DbExecutor } from "../../db/client.ts";
 
 export async function reviewers(
   exec: DbExecutor,
-  buildingId: string,
+  _buildingId: string,
   role: string,
   isTest = false,
 ): Promise<string[]> {
   const rows = await exec.query<{ person_id: string }>(
     `select distinct a.person_id from staff_assignment a join person n on n.id=a.person_id
-    where n.is_test=$3 and a.role::text=$2 and a.status='active' and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())
-    and ($2='chairman' or exists(select 1 from staff_scope s where s.assignment_id=a.id and s.building_id=$1))`,
-    [buildingId, role, isTest],
+    where n.status='active' and n.is_test=$2 and a.role::text=any($1::text[]) and a.status='active' and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())`,
+    [rolesGranting(role as StaffRole), isTest],
   );
   return rows.map((r) => r.person_id);
 }

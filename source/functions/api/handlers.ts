@@ -1,3 +1,5 @@
+import { canManageStaff, canManageRole } from "../../core/src/pdp/roles.ts";
+import { STAFF_ROUTES } from "./staff-handlers.ts";
 import { TEMPLATE_ROUTES } from "./template-handlers.ts";
 import { PUBLICATION_ROUTES } from "./publication-handlers.ts";
 import { INCIDENT_ROUTES } from "./incident-handlers.ts";
@@ -179,7 +181,9 @@ function handleMetaMe(ctx: RouteContext): RouteResult {
         is_test: actor.person.isTest,
       },
       // scope_building_ids: null — весь ОСИ (ROL-02a).
-      assignments: actor.assignments.map((assignment) => ({
+      effective_roles: [...new Set(actor.assignments.map(a=>a.role))],
+      assigned_roles: actor.assignedRoles ?? [...new Set(actor.assignments.map(a=>a.role))],
+      assignments: actor.assignments.filter(a=>!a.inherited).map((assignment) => ({
         id: assignment.id,
         role: assignment.role,
         financial_rights: assignment.financialRights,
@@ -287,8 +291,15 @@ function specialRightsIn(body: Record<string, unknown>): boolean {
   );
 }
 
+async function requireLegacyStaffTarget(ctx: RouteContext, personId: string, role?: StaffRole) {
+  const rows=await ctx.deps.admin.listAssignments(ctx.deps.db,{personId,activeOnly:true,limit:5000});
+  const person=await ctx.deps.admin.getPerson(ctx.deps.db,personId);
+  if (!person || person.isTest!==ctx.actor.person.isTest || !canManageStaff(ctx.actor,personId,rows.map(r=>r.role)) ||
+    (role && !canManageRole(ctx.actor.assignedRoles ?? ctx.actor.assignments.map(a=>a.role),role))) throw new ApiError("FORBIDDEN");
+}
 async function handleAssignmentCreate(ctx: RouteContext): Promise<RouteResult> {
   const { deps, actor, body } = ctx;
+  await requireLegacyStaffTarget(ctx, requireString(body,"person_id"), requireStaffRole(body));
   const financialRights = optionalBoolean(body, "financial_rights") ?? false;
   const registryExportRights = optionalBoolean(body, "registry_export_rights") ?? false;
   const regulationsRights = optionalBoolean(body, "regulations_rights") ?? false;
@@ -311,6 +322,8 @@ async function handleAssignmentCreate(ctx: RouteContext): Promise<RouteResult> {
 }
 
 async function handleAssignmentUpdate(ctx: RouteContext): Promise<RouteResult> {
+  const existing=await ctx.deps.admin.getAssignment(ctx.deps.db,ctx.params.id!);
+  if(existing) await requireLegacyStaffTarget(ctx,existing.personId,existing.role);
   const { deps, actor, body, params } = ctx;
   const assignmentId = params.id!;
   const updated = await updateAssignment(
@@ -382,6 +395,8 @@ async function sessionRevokeResource(ctx: RouteContext): Promise<ResourceRef> {
 }
 
 async function handleAssignmentRevoke(ctx: RouteContext): Promise<RouteResult> {
+  const existing=await ctx.deps.admin.getAssignment(ctx.deps.db,ctx.params.id!);
+  if(existing) await requireLegacyStaffTarget(ctx,existing.personId,existing.role);
   const { deps, actor, body, params } = ctx;
   const revoked = await revokeAssignment(
     { admin: deps.admin, audit: deps.audit, tx: deps.db },
@@ -502,6 +517,7 @@ async function handleEmulationSimulate(ctx: RouteContext): Promise<RouteResult> 
 // ── Таблица маршрутов VS-1 ─────────────────────────────────────────────────
 
 export const ROUTES: readonly Route[] = [
+  ...STAFF_ROUTES,
   ...NOTIFICATION_ROUTES,
   ...TEMPLATE_ROUTES,
   ...REGISTRY_ROUTES,

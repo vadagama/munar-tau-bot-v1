@@ -1,6 +1,7 @@
 // Хук идентичности: /v1/meta/me через authProvider.getIdentity (Refine),
 // с флагами ролей для меню и страниц.
 
+import { STAFF_ROLES } from "../../../core/src/pdp/types";
 import { useGetIdentity } from "@refinedev/core";
 
 import type { MeResponse } from "./types";
@@ -16,10 +17,11 @@ export function useCabinetIdentity(): {
   isLoading: boolean;
   roles: string[];
   isError: boolean;
+  refreshIdentity: () => Promise<unknown>;
 } {
-  const { data, isLoading, isError } = useGetIdentity<CabinetIdentity>();
-  const roles = data?.me.assignments.map((assignment) => assignment.role) ?? [];
-  return { identity: data, isLoading, roles: [...new Set(roles)], isError };
+  const { data, isLoading, isError, refetch } = useGetIdentity<CabinetIdentity>();
+  const roles = data?.me.effective_roles ?? data?.me.assignments.map((assignment) => assignment.role) ?? [];
+  return { identity: data, isLoading, roles: [...new Set(roles)], isError, refreshIdentity: refetch };
 }
 
 /** Доступные разделы по ролям (сервер всё равно проверяет PDP). */
@@ -32,3 +34,8 @@ export function canUseEmulation(roles: string[]): boolean {
 }
 
 export function canSeeTemplates(roles:string[]):boolean {return roles.some(role=>["chairman","administrator","tech_admin"].includes(role));}
+
+/** Задания доступны всем сотрудникам; сервер ограничивает конкретные карточки. */
+export function canSeeTasks(roles: string[]): boolean {
+  return roles.some(role => STAFF_ROLES.some(staffRole => staffRole === role));
+}

@@ -1,11 +1,14 @@
+import { act } from "@testing-library/react";
+import { PAGE_REFRESH_EVENT } from "../lib/use-page-refresh";
 import {cleanup,fireEvent,render,screen,waitFor,within} from "@testing-library/react";
 import {afterEach,beforeEach,expect,it,vi} from "vitest";
 import {TasksPage} from "./tasks";
 import {apiFetch} from "../lib/api";
 vi.mock("../lib/api",()=>({apiFetch:vi.fn()}));
-vi.mock("../lib/identity",()=>({useCabinetIdentity:()=>({identity:{me:{person:{id:"worker"}}},roles:["executor"]})}));
+const roleHarness = vi.hoisted(() => ({ roles: ["executor"] }));
+vi.mock("../lib/identity",()=>({useCabinetIdentity:()=>({identity:{me:{person:{id:"worker"}}},roles:roleHarness.roles})}));
 const computed=window.getComputedStyle.bind(window);
-beforeEach(()=>{localStorage.clear();vi.spyOn(window,"getComputedStyle").mockImplementation(el=>computed(el));});
+beforeEach(()=>{roleHarness.roles = ["executor"];localStorage.clear();vi.spyOn(window,"getComputedStyle").mockImplementation(el=>computed(el));});
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.clearAllMocks();});
 function enabledButton(container: HTMLElement, name: string) {
  // The label uniquely identifies a native button. Avoid a full accessible-tree
@@ -17,7 +20,8 @@ function enabledButton(container: HTMLElement, name: string) {
  return buttons[0]!;
 }
 const task={id:"t",number:"ЗД-1",title:"Замена крана",instruction:"Проверить герметичность",due_at:"2026-12-01T12:00:00Z",state:"awaiting_acceptance",version:1,can_execute:true,can_manage:false,log:[]};
-it("назначенный исполнитель принимает с версией и ключом; управление скрыто",async()=>{
+it.each(["executor", "duty", "finance", "doc_reviewer", "tech_admin"])("назначенный %s принимает с версией и ключом; управление скрыто",async(role)=>{
+  roleHarness.roles = [role];
   vi.mocked(apiFetch).mockImplementation(async (path,opts)=>{
     if(path==="/v1/tasks")return {items:[task]};
     if(path.endsWith("/transitions"))return {...task,state:"accepted",version:2};
@@ -238,4 +242,43 @@ it("отзыв доступа при обновлении после дейст�
  expect(reads).toBe(2); // Первое чтение карточки и ровно одно отказавшее обновление.
  expect(vi.mocked(apiFetch).mock.calls.filter(([path,options])=>path==="/v1/tasks/t/transitions" && options?.method==="POST")).toHaveLength(1);
  await waitFor(()=>expect(screen.queryByText("Проверить герметичность")).toBeNull());
+});
+
+it("обновление перечитывает список без закрытия карточки", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? { items: [task] } : task);
+  render(<TasksPage />);
+  fireEvent.click(await screen.findByText("ЗД-1", { selector: "button > span" }));
+  await screen.findByText("Проверить герметичность");
+  const before = vi.mocked(apiFetch).mock.calls.filter(([path]) => path === "/v1/tasks").length;
+  await act(async () => { window.dispatchEvent(new Event(PAGE_REFRESH_EVENT)); });
+  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path === "/v1/tasks")).toHaveLength(before + 1);
+  expect(screen.getByText("Проверить герметичность")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Обновить" })).toBeNull();
+});
+
+it("создание задания доступно до завершения загрузки списка", async () => {
+  roleHarness.roles = ["chairman"];
+  let resolveList!: (value: unknown) => void;
+  vi.mocked(apiFetch).mockImplementation(async path => {
+    if (path === "/v1/tasks") return new Promise(resolve => { resolveList = resolve; });
+    return { items: [] };
+  });
+  render(<TasksPage />);
+  const create = screen.getByRole("button", { name: "Создать задание" });
+  expect(create).toBeEnabled();
+  fireEvent.click(create);
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  await act(async () => { resolveList({ items: [task] }); });
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+});
+
+
+it("карточка задания содержит обратную ссылку на доступное обращение", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => {
+    if (path === "/v1/tasks") return { items: [task] };
+    return { ...task, linked_request: { id: "r", number: "З-42" } };
+  });
+  render(<TasksPage />);
+  fireEvent.click(await screen.findByText("ЗД-1", { selector: "button > span" }));
+  expect(await screen.findByRole("link", { name: "З-42" })).toHaveAttribute("href", "/requests?request=r");
 });
