@@ -38,11 +38,10 @@ it("восстановление Telegram — самостоятельная ф�
 
 it("помещения не содержат вкладку людей", () => {
   vi.mocked(apiFetch).mockResolvedValue({ items: [] });
-  // Ссылка импорта требует контекст маршрутизатора.
   render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><RegistryPage /></MemoryRouter>);
   expect(screen.queryByRole("tab", { name: "Лица" })).toBeNull();
   expect(screen.queryByRole("tab", { name: "Жители" })).toBeNull();
-  expect(screen.getByRole("link", { name: "Импорт и экспорт" })).toHaveAttribute("href", "/registry-import");
+  expect(screen.queryByRole("link", { name: "Импорт и экспорт" })).toBeNull();
 });
 
 it("жители не включают пользователей с действующими служебными назначениями", async () => {
