@@ -19,6 +19,7 @@ import {
 import { apiFetch } from "../lib/api";
 import { useCabinetIdentity } from "../lib/identity";
 import { BoardView, ViewToggle, useBoardView } from "./board";
+import { CardDrawer } from "./card-drawer";
 type Row = Record<string, unknown>;
 const required = [{ required: true, message: "Заполните поле" }];
 // Состояния инцидента — колонки доски (VS-7, docs/request-lifecycle.md §6).
@@ -263,6 +264,11 @@ export function IncidentsPage() {
                     rows={rows}
                     stateOf={(r) => String(r.state)}
                     onOpen={(r) => void open(String(r.id))}
+                    selectedId={
+                      card && typeof card.number === "string"
+                        ? String(card.id)
+                        : null
+                    }
                     loading={busy}
                     emptyText="Доступных инцидентов нет"
                     renderCard={(r) => (
@@ -391,13 +397,15 @@ export function IncidentsPage() {
             : []),
         ]}
       />
-      {card && typeof card.number === "string" && (
-        <Card
-          title={`${card.number}: ${card.title}`}
-          extra={
-            <Button onClick={() => setCard(null)}>Закрыть карточку</Button>
-          }
-        >
+      <CardDrawer
+        open={!!card && typeof card.number === "string"}
+        title={card && typeof card.number === "string"
+          ? `${card.number}: ${card.title}`
+          : ""}
+        onClose={() => setCard(null)}
+      >
+        {card && typeof card.number === "string" && (
+          <>
           <Typography.Paragraph>
             {String(
               card.public_text ?? "Публичное обновление пока не опубликовано",
@@ -460,8 +468,9 @@ export function IncidentsPage() {
               <List.Item>{String(h.at)} — {String(h.reason)}</List.Item>
             )}
           />
-        </Card>
-      )}
+          </>
+        )}
+      </CardDrawer>
       <Modal
         open={action !== null}
         title={action === "create"

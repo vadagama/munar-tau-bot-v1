@@ -4,11 +4,11 @@ import { CommonWorks } from "./common-works";
 import { TaskVisits } from "./task-visits";
 import { TaskReportForm } from "./task-report";
 import { BoardView, ViewToggle, useBoardView } from "./board";
+import { CardDrawer } from "./card-drawer";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
-  Card,
   Checkbox,
   Descriptions,
   Form,
@@ -387,6 +387,7 @@ export function TasksPage() {
           rows={rows}
           stateOf={(t) => t.state}
           onOpen={(t) => void open(t.id)}
+          selectedId={card ? card.id : null}
           loading={loading}
           emptyText="Доступных заданий нет"
           renderCard={(t) => (
@@ -446,8 +447,17 @@ export function TasksPage() {
           ]}
         />
       )}
-      {card && (
-        <Card title={`${card.number} — ${card.title}`}>
+      <CardDrawer
+        open={!!card}
+        title={card ? `${card.number} — ${card.title}` : ""}
+        onClose={() => {
+          // Отзыв закрывает карточку окончательно: незавершённый open() её не вернёт.
+          generation.current++;
+          setCard(null);
+        }}
+      >
+        {card && (
+          <>
           <Descriptions
             column={1}
             items={[{
@@ -568,8 +578,9 @@ export function TasksPage() {
               </List.Item>
             )}
           />
-        </Card>
-      )}
+          </>
+        )}
+      </CardDrawer>
       <Modal
         title={problemReporting ? "Найденная проблема" : "Отчёт исполнителя"}
         open={reporting}

@@ -1,5 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { Empty, Segmented, Space, Spin, Typography, theme } from "antd";
+import "./board.css";
 
 export type BoardColumn = { value: string; label: string };
 export type ListKind = "table" | "board";
@@ -51,6 +52,8 @@ export function BoardView<T>(props: {
   stateOf: (row: T) => string;
   renderCard: (row: T) => ReactNode;
   onOpen?: (row: T) => void;
+  /** Идентификатор уже открытой карточки — она выделяется на доске, пока открыта шторка. */
+  selectedId?: string | null;
   loading?: boolean;
   emptyText?: string;
 }) {
@@ -71,33 +74,58 @@ export function BoardView<T>(props: {
     borderRadius: token.borderRadiusLG,
     padding: token.paddingSM,
   };
-  const card = (row: T) => (
-    <div
-      key={String((row as { id?: unknown }).id)}
-      role={props.onOpen ? "button" : undefined}
-      tabIndex={props.onOpen ? 0 : undefined}
-      onClick={props.onOpen ? () => props.onOpen!(row) : undefined}
-      onKeyDown={
-        props.onOpen
-          ? (e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              props.onOpen!(row);
+  const card = (row: T) => {
+    const id = String((row as { id?: unknown }).id);
+    const openable = !!props.onOpen;
+    const selected = openable && props.selectedId != null &&
+      id === String(props.selectedId);
+    // Цвета состояний — из токенов темы; сами состояния (hover, нажатие,
+    // фокус с клавиатуры, выделение) описаны в board.css.
+    const vars = {
+      "--board-card-bg": selected
+        ? token.colorPrimaryBg
+        : token.colorBgContainer,
+      "--board-card-border": selected
+        ? token.colorPrimary
+        : token.colorBorderSecondary,
+      "--board-card-border-hover": token.colorPrimaryBorderHover,
+      "--board-card-focus": token.colorPrimary,
+      "--board-card-radius": token.borderRadiusLG,
+      "--board-card-shadow": selected
+        ? `0 1px 2px rgba(0, 0, 0, 0.08), 0 0 0 1px ${token.colorPrimaryBorder}`
+        : "0 2px 8px rgba(0, 0, 0, 0.12)",
+    } as CSSProperties;
+    return (
+      <div
+        key={id}
+        role={openable ? "button" : undefined}
+        tabIndex={openable ? 0 : undefined}
+        aria-pressed={selected ? true : undefined}
+        className={
+          openable
+            ? selected
+              ? "board-card board-card--clickable board-card--selected"
+              : "board-card board-card--clickable"
+            : "board-card"
+        }
+        onClick={openable ? () => props.onOpen!(row) : undefined}
+        onKeyDown={
+          openable
+            ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                props.onOpen!(row);
+              }
             }
-          }
-          : undefined
-      }
-      style={{
-        background: token.colorBgContainer,
-        border: `1px solid ${token.colorBorderSecondary}`,
-        borderRadius: token.borderRadius,
-        padding: token.paddingSM,
-        cursor: props.onOpen ? "pointer" : "default",
-      }}
-    >
-      {props.renderCard(row)}
-    </div>
-  );
+            : undefined
+        }
+        style={{ ...vars, padding: token.paddingSM }}
+      >
+        {props.renderCard(row)}
+        {openable && <span className="board-card__hint" aria-hidden>→</span>}
+      </div>
+    );
+  };
   const column = (value: string, label: string, items: T[]) => (
     <div key={value} style={columnStyle}>
       <div

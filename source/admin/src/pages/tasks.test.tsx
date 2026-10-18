@@ -18,7 +18,9 @@ it("назначенный исполнитель принимает с верс
   render(<TasksPage/>);
   fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
   fireEvent.click(await screen.findByText("Принять",{selector:"button > span"}));
-  const dialog=await screen.findByRole("dialog");
+  // Шторка карточки тоже role="dialog": диалог действия ищем внутри .ant-modal.
+  const modalTitle=await screen.findByText("Принять",{selector:".ant-modal-title"});
+  const dialog=modalTitle.closest(".ant-modal") as HTMLElement;
   fireEvent.click(within(dialog).getByRole("button",{name:"Принять"}));
   await waitFor(()=>expect(apiFetch).toHaveBeenCalledWith("/v1/tasks/t/transitions",expect.objectContaining({method:"POST",body:{action:"accept",version:1},idempotencyKey:expect.any(String)})));
   expect(screen.queryByText("Создать задание")).toBeNull();
@@ -48,7 +50,9 @@ it("приёмка требует явного решения по отсутс�
  render(<TasksPage/>);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  fireEvent.click(await screen.findByText("Принять результат",{selector:"button > span"}));
- const dialog=await screen.findByRole("dialog");
+ // Шторка карточки тоже role="dialog": диалог действия ищем внутри .ant-modal.
+ const modalTitle=await screen.findByText("Принять результат",{selector:".ant-modal-title"});
+ const dialog=modalTitle.closest(".ant-modal") as HTMLElement;
  const submit=within(dialog).getByRole("button",{name:"Принять результат"});
  fireEvent.click(submit);
  await within(dialog).findByText("Подтвердите проверку",{}, {timeout:3000});
