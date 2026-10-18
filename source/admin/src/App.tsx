@@ -1,3 +1,4 @@
+import { TaskToolsPage } from "./pages/task-tools";
 import { TemplatesPage } from "./pages/templates";
 import { IncidentsPage } from "./pages/incidents";
 import { PublicationsPage } from "./pages/publications";
@@ -54,6 +55,8 @@ export default function App() {
               <Route path="/invites" element={<InvitesPage />} />
               <Route path="/requests" element={<RequestsPage />} />
               <Route path="/tasks" element={<TasksPage />} />
+              <Route path="/common-works" element={<TaskToolsPage />} />
+              <Route path="/job-templates" element={<TaskToolsPage templates />} />
               <Route path="/registry" element={<RegistryPage />} />
               <Route path="/registrations" element={<RegistrationsPage />} />
               <Route path="/registry-import" element={<RegistryImportPage />} />

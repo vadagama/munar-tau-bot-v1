@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
@@ -8,27 +9,36 @@ import {
   Select,
   Space,
   Typography,
+  theme,
   Upload,
 } from "antd";
 import { apiFetch } from "../lib/api";
 type Row = Record<string, unknown>;
 const required = [{ required: true, message: "Заполните поле" }];
 export function TaskReportForm(
-  { task, onSaved, problem = false }: {
+  { task, onSaved, problem = false, onBusyChange, onDirtyChange, onConflict }: {
     task: Row;
     onSaved: () => Promise<void>;
     problem?: boolean;
+    onBusyChange?: (busy: boolean) => void;
+    onDirtyChange?: (dirty: boolean) => void;
+    onConflict?: () => Promise<void>;
   },
 ) {
+  const { token } = theme.useToken();
   const [files, setFiles] = useState<Row[]>(
     (task.pending_files as Row[]) ?? [],
   );
   const [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null);
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
   const key = useRef(crypto.randomUUID());
   const evidence =
     (task.required_evidence as { id: string; required: boolean }[]) ?? [];
   async function upload(file: File) {
+    onDirtyChange?.(true);
+    if (busy) return;
     setBusy(true);
     setError(null);
     let attachment = files.find((f) =>
@@ -91,6 +101,7 @@ export function TaskReportForm(
     }
   }
   async function submit(values: Row) {
+    if (busy) return;
     setBusy(true);
     setError(null);
     try {
@@ -118,6 +129,10 @@ export function TaskReportForm(
       await onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось отправить отчёт");
+      if (isVersionConflict(e) && onConflict) {
+        try { await onConflict(); setError(VERSION_CONFLICT_MESSAGE); }
+        catch (refreshError) { setError(refreshError instanceof Error ? refreshError.message : "Не удалось обновить карточку"); }
+      }
     } finally {
       setBusy(false);
     }
@@ -129,6 +144,7 @@ export function TaskReportForm(
         layout="vertical"
         onFinish={(v) => void submit(v)}
         onValuesChange={() => {
+          onDirtyChange?.(true);
           key.current = crypto.randomUUID();
         }}
         disabled={busy}
@@ -240,7 +256,7 @@ export function TaskReportForm(
             </Form.Item>
           </div>
         ))}
-        <Button type="primary" htmlType="submit" loading={busy}>
+        <Button style={{ position: "sticky", bottom: 0, zIndex: 1, marginBlock: token.marginSM }} type="primary" htmlType="submit" loading={busy}>
           {problem ? "Сообщить о проблеме" : "Отправить отчёт"}
         </Button>
       </Form>

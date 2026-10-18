@@ -21,6 +21,7 @@ vi.mock(
 );
 const computed = window.getComputedStyle.bind(window);
 beforeEach(() => {
+  localStorage.clear();
   vi.spyOn(window, "getComputedStyle").mockImplementation((element) =>
     computed(element)
   );
@@ -30,13 +31,16 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
-// A page-wide role/name query computes styles for every AntD button, including
-// force-rendered dialogs. Find the exact label first, then keep the role and
-// accessibility check scoped to that button's container.
-async function findButton(name: string) {
-  const label = await screen.findByText(name, { selector: "button > span" });
-  const container = label.closest("button")!.parentElement!;
-  return within(container).getByRole("button", { name });
+// Find labels without computing styles for every AntD button. A short action
+// keeps its disabled opener visible; submission must select the one enabled button.
+async function findButton(name: string, enabled = false) {
+  return waitFor(() => {
+    const buttons = screen.getAllByText(name, { selector: "button > span" })
+      .map(label => label.closest("button")!)
+      .filter(button => !enabled || !button.disabled);
+    expect(buttons).toHaveLength(1);
+    return buttons[0]!;
+  });
 }
 function setup(manager = false) {
   const row = {
@@ -91,12 +95,12 @@ it(
     expect(screen.queryByRole("tab", { name: "Внутреннее" })).not
       .toBeInTheDocument();
     fireEvent.click(
-      await findButton("Подтвердить результат"),
+      await findButton("Подтвердить результат", true),
     );
     expect(await screen.findByText(/Подтверждаете результат версии 2/))
       .toBeInTheDocument();
     fireEvent.click(
-      await findButton("Подтвердить действие"),
+      await findButton("Подтвердить результат", true),
     );
     await waitFor(() =>
       expect(apiFetch).toHaveBeenCalledWith(
@@ -172,3 +176,38 @@ it("доска обращений: статусы в колонках, карт�
   fireEvent.click(screen.getByText("З-26-00001"));
   expect(await screen.findByText("Публичный ответ")).toBeInTheDocument();
 }, 15000);
+
+it("подтверждение результата раскрывается в исходной карточке и отменяется без запроса", async () => {
+  setup();
+  render(<RequestsPage />);
+  fireEvent.click(await findButton("З-26-00001"));
+  await screen.findByText("Публичный ответ");
+  const drawer = screen.getByRole("dialog");
+  const callsBeforeAction = vi.mocked(apiFetch).mock.calls.length;
+  fireEvent.click(within(drawer).getByRole("button", { name: "Подтвердить результат" }));
+  await screen.findByText(/Подтверждаете результат версии 2/);
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  expect(within(drawer).getByText("Публичный ответ")).toBeInTheDocument();
+  expect(within(drawer).getByText(/Подтверждаете результат версии 2/)).toBeInTheDocument();
+  fireEvent.click(within(drawer).getByRole("button", { name: "Отмена" }));
+  expect(within(drawer).queryByText(/Подтверждаете результат версии 2/)).toBeNull();
+  expect(within(drawer).getByText("Публичный ответ")).toBeInTheDocument();
+  expect(vi.mocked(apiFetch).mock.calls.slice(callsBeforeAction).some(([,opts]) => opts?.method === "POST")).toBe(false);
+}, 15000);
+
+
+it("форма действия блокирует параллельную отправку сообщения и сохраняет его черновик", async () => {
+  setup();
+  render(<RequestsPage />);
+  fireEvent.click(await findButton("З-26-00001"));
+  const text = await screen.findByLabelText("Текст сообщения");
+  fireEvent.change(text, { target: { value: "Сохранить черновик сообщения" } });
+  const send = screen.getByRole("button", { name: "Отправить в «Жителю»" });
+  expect(send).toBeEnabled();
+  fireEvent.click(await findButton("Подтвердить результат"));
+  expect(text).toBeDisabled();
+  expect(send).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Отмена" }));
+  expect(text).toBeEnabled();
+  expect(text).toHaveValue("Сохранить черновик сообщения");
+});

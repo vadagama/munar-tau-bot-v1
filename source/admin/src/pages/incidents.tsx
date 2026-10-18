@@ -1,3 +1,5 @@
+import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
+import { ActionPanel } from "./action-panel";
 import { useEffect, useRef, useState } from "react";
 import dayjs from "dayjs";
 import {
@@ -9,7 +11,6 @@ import {
   Form,
   Input,
   List,
-  Modal,
   Select,
   Space,
   Table,
@@ -37,6 +38,7 @@ const BOARD_COLUMNS = Object.entries(INCIDENT_STATES).map(([value, label]) => ({
 }));
 const names: Record<string, string> = {
   ...INCIDENT_STATES,
+  assign: "Назначить ответственного",
   confirm: "Подтвердить",
   mark_unconfirmed: "Не подтверждена",
   recheck: "Повторная проверка",
@@ -109,6 +111,8 @@ export function IncidentsPage() {
     }
   }
   async function begin(next: string) {
+    setError(null);
+    setBusy(true);
     setAction(next);
     key.current = crypto.randomUUID();
     form.resetFields();
@@ -118,32 +122,34 @@ export function IncidentsPage() {
       scope: next === "create" ? [{}] : card?.scope,
       restrictions: card?.restrictions,
     });
-    if (["create", "shift", "assign", "update"].includes(next)) {
-      try {
-        const context = await apiFetch<
-          { persons: Row[]; buildings: Row[]; premises: Row[] }
-        >("/v1/incidents/context");
-        setBuildings(context.buildings ?? []);
-        setPeople(context.persons);
-        setPremises(context.premises ?? []);
-      } catch (e) {
-        fail(e);
+    try {
+      if (["create", "shift", "assign", "update"].includes(next)) {
+        try {
+          const context = await apiFetch<
+            { persons: Row[]; buildings: Row[]; premises: Row[] }
+          >("/v1/incidents/context");
+          setBuildings(context.buildings ?? []);
+          setPeople(context.persons);
+          setPremises(context.premises ?? []);
+        } catch (e) {
+          fail(e);
+        }
       }
-    }
-    if (next === "link") {
-      try {
-        const [r, w] = await Promise.all([
-          apiFetch<{ items: Row[] }>("/v1/requests"),
-          apiFetch<{ items: Row[] }>("/v1/common-works"),
-        ]);
-        setTargets([
-          ...r.items.map((v) => ({ ...v, kind: "request" })),
-          ...w.items.map((v) => ({ ...v, kind: "common_work" })),
-        ]);
-      } catch (e) {
-        fail(e);
+      if (next === "link") {
+        try {
+          const [r, w] = await Promise.all([
+            apiFetch<{ items: Row[] }>("/v1/requests"),
+            apiFetch<{ items: Row[] }>("/v1/common-works"),
+          ]);
+          setTargets([
+            ...r.items.map((v) => ({ ...v, kind: "request" })),
+            ...w.items.map((v) => ({ ...v, kind: "common_work" })),
+          ]);
+        } catch (e) {
+          fail(e);
+        }
       }
-    }
+    } finally { setBusy(false); }
   }
   async function submit() {
     try {
@@ -187,13 +193,19 @@ export function IncidentsPage() {
       if (action === "distribute") {
         setDistribution((result.items as Row[]) ?? []);
       }
-      setAction(null);
       await refresh();
       if (!["shift", "assign"].includes(action ?? "")) {
         await open(String(result.id ?? card?.id));
       }
+      setAction(null);
     } catch (e) {
       if (e instanceof Error) fail(e);
+      if (isVersionConflict(e) && card) {
+        try {
+          setCard(await apiFetch<Row>(`/v1/incidents/${card.id}`));
+          setError(VERSION_CONFLICT_MESSAGE);
+        } catch (refreshError) { fail(refreshError); }
+      }
     } finally {
       setBusy(false);
     }
@@ -211,7 +223,7 @@ export function IncidentsPage() {
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
       <Typography.Title level={2}>Аварии и дежурство</Typography.Title>
-      {error && (
+      {error && !card && !action && (
         <Alert
           type="error"
           showIcon
@@ -398,12 +410,14 @@ export function IncidentsPage() {
         ]}
       />
       <CardDrawer
-        open={!!card && typeof card.number === "string"}
+        open={!!action || (!!card && typeof card.number === "string")}
         title={card && typeof card.number === "string"
           ? `${card.number}: ${card.title}`
-          : ""}
+          : action === "create" ? "Новый инцидент" : action === "shift" ? "Смена дежурства" : "Срочный сигнал"}
+        closeDisabled={busy}
         onClose={() => setCard(null)}
       >
+        {error && card && !action && <Alert role="alert" type="error" showIcon message={error} />}
         {card && typeof card.number === "string" && (
           <>
           <Typography.Paragraph>
@@ -470,8 +484,10 @@ export function IncidentsPage() {
           />
           </>
         )}
-      </CardDrawer>
-      <Modal
+      <ActionPanel
+        form={form}
+        full
+        error={error}
         open={action !== null}
         title={action === "create"
           ? "Новый инцидент"
@@ -484,8 +500,7 @@ export function IncidentsPage() {
           : names[action ?? ""]}
         onCancel={() => setAction(null)}
         onOk={() => void submit()}
-        confirmLoading={busy}
-        width={680}
+        busy={busy}
       >
         <Form form={form} layout="vertical" disabled={busy}>
           {action === "update" && (
@@ -811,7 +826,9 @@ export function IncidentsPage() {
               </>
             )}
         </Form>
-      </Modal>
+      </ActionPanel>
+      </CardDrawer>
+
     </Space>
   );
 }
