@@ -55,6 +55,7 @@ export function AppLayout() {
 
   const manager = roles.some(role => ["chairman", "administrator", "deputy"].includes(role));
   const settings = [
+    ...(manager ? [{ key: "/registry-import", label: "Импорт и экспорт" }] : []),
     ...(manager && !identity?.me.emulation ? [{ key: "/settings/requests", label: "Настройки обращений" }] : []),
     ...(canSeeTemplates(roles) ? [
       { key: "/time-rules", label: "Регламенты" },
@@ -84,7 +85,7 @@ export function AppLayout() {
     ...(canSeeAudit(roles) ? [{ key: "/audit", label: "Журнал действий" }] : []),
     ...(settings.length ? [{ key: "settings", label: "Настройки", children: settings }] : []),
   ];
-  const selectedPath = location.pathname === "/registry-import" ? "/registry" : location.pathname;
+  const selectedPath = location.pathname;
   const activeGroup = items.find(item => item.children?.some(child => child.key === selectedPath))?.key;
 
   return (

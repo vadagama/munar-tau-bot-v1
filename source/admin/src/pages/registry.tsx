@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { ActionPanel } from "./action-panel";
 import { CardDrawer } from "./card-drawer";
 import { useEffect, useState } from "react";
@@ -259,7 +258,6 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
         {users !== "staff" && <Button type="primary" onClick={() => open(null)}>
           Добавить запись
         </Button>}
-        {!users && <Link to="/registry-import">Импорт и экспорт</Link>}
         <Button onClick={() => void load()} loading={busy}>
           Обновить
         </Button>

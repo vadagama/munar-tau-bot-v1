@@ -27,7 +27,7 @@ it("порядок главного меню и вложенные настро�
   ]);
   fireEvent.click(screen.getByText("Настройки", { exact: true }));
   expect(within(screen.getAllByRole("menu")[1]!).getAllByRole("menuitem").map(item => item.textContent)).toEqual([
-    "Настройки обращений", "Регламенты", "Шаблоны сообщений", "Эмуляция ролей (пилот)",
+    "Импорт и экспорт", "Настройки обращений", "Регламенты", "Шаблоны сообщений", "Эмуляция ролей (пилот)",
   ]);
 });
 it("прямая ссылка раскрывает пользователей и выделяет сотрудников", () => {
@@ -43,4 +43,12 @@ it("житель видит личные уведомления без служ�
   expect(screen.queryByText("Настройки", { exact: true })).toBeNull();
   expect(screen.queryByText("Ошибки доставки")).toBeNull();
   expect(screen.getByRole("menuitem", { name: "Мои настройки" })).toBeVisible();
+});
+
+it("импорт и экспорт раскрывает настройки и выделяет собственный пункт", () => {
+  state.roles = ["administrator"];
+  show("/registry-import");
+  expect(screen.getByRole("menuitem", { name: "Импорт и экспорт" })).toBeVisible();
+  expect(screen.getByRole("menuitem", { name: "Импорт и экспорт" })).toHaveClass("ant-menu-item-selected");
+  expect(screen.getByRole("menuitem", { name: "Помещения" })).not.toHaveClass("ant-menu-item-selected");
 });
