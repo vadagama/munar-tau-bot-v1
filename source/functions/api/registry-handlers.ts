@@ -73,10 +73,6 @@ function exportRegistry(ctx: RouteContext) {
       buildings: buildings.map((r) => ({
         ...r,
         key: r.id,
-        house_keys: (typeof r.house_ids === "string"
-          ? JSON.parse(r.house_ids)
-          : (r.house_ids as string[])
-        ).join(","),
       })),
       premises: premises.map((r) => ({
         ...r,
