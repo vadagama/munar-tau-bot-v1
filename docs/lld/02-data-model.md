@@ -39,11 +39,11 @@
 | is_test | boolean DEFAULT false | |
 | created_at, archived_at | timestamptz | |
 
-### 2.3. building / building_parking — дома и паркинги
+### 2.3. building — дома
 
-`building`: id PK, kind enum building_kind {house, parking}, code text NOT NULL (обозначение из реестра), name text, created_at. Уникальность `(kind, code)`.
+`building`: id PK, code text NOT NULL (обозначение из реестра), name text, created_at. Уникальность `code`.
 
-`building_parking`: parking_id FK building, house_id FK building, PRIMARY KEY (parking_id, house_id) — паркинг обслуживает несколько домов (REG-11).
+Здание = дом (решение пользователя от 19.10.2026): тип `kind` и таблица `building_parking` удалены. Отдельного сооружения-паркинга в реестре нет — все помещения, включая парковочные места, существуют в составе домов (REG-11).
 
 ### 2.4. premises — помещения
 
@@ -263,7 +263,7 @@ id PK, number UNIQUE, title, state enum cw_state {planned, in_progress, on_revie
 - `import_batch`: id PK, file_path text (Storage), state enum import_state {uploaded, validating, validation_failed, validated, committing, committed, failed}, stats jsonb (число строк по листам), errors jsonb `[согласовано 16.10.2026]` (список: sheet, row, field, code, message — IMP-02), created_by, created_at, committed_at.
 - `import_mapping`: batch_id FK, sheet text, external_ref text (ID строки шаблона), entity_type text, entity_id uuid, PK (batch_id, sheet, external_ref) — постоянные идентификаторы присваиваются при импорте и сохраняются в выгрузке (IMP-04, IMP-08).
 
-Шаблон IMP-06: листы «Здания и паркинги», «Помещения», «Лица», «Связи»; одна строка связи = один человек + одно помещение; стартовый импорт — собственники-физлица, поля ФИО + уникальный телефон, основание `initial_registry`; доступ не выдаётся автоматически (IMP-03, REG-01).
+Шаблон IMP-06: листы «Здания», «Помещения», «Лица», «Связи»; одна строка связи = один человек + одно помещение; стартовый импорт — собственники-физлица, поля ФИО + уникальный телефон, основание `initial_registry`; доступ не выдаётся автоматически (IMP-03, REG-01).
 
 ## 12. Бот
 
