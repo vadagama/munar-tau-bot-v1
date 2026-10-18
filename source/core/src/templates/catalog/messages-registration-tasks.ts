@@ -1,0 +1,710 @@
+import { premiseLabels, roleLabels } from "../../locales/registry.ts";
+import type {
+  MessageButton,
+  MessageExample,
+  TemplateDef,
+  TemplateVar,
+} from "./types.ts";
+import { registrationTemplates } from "./registration.ts";
+import { tasksTemplates } from "./tasks.ts";
+import { helpTemplates } from "./help.ts";
+import { TASK_STATE_TEXT } from "../../locales/tasks.ts";
+import { commonTemplates } from "./common.ts";
+const originals = [
+  ...registrationTemplates,
+  ...tasksTemplates,
+  ...commonTemplates,
+  ...helpTemplates,
+];
+const old = (key: string, lang: "ru" | "kk") =>
+  originals.find((d) => d.key === key)![lang];
+const consentButtons: MessageButton[] = [
+  { id: "confirm", ru: "Согласен (да)", kk: "Келісемін (иә)" },
+  { id: "cancel", ru: "Отмена", kk: "Болдырмау" },
+];
+const taskButtons: MessageButton[] = [
+  { id: "accept", ru: "Принять", kk: "Қабылдау" },
+  { id: "start", ru: "Начать работу", kk: "Жұмысты бастау" },
+  { id: "resume", ru: "Возобновить", kk: "Жалғастыру" },
+  { id: "continue", ru: "Продолжить", kk: "Жалғастыру" },
+  { id: "report", ru: "Заполнить отчёт", kk: "Есеп толтыру" },
+];
+const values: Record<string, [string, string]> = {
+  registrations: [
+    "Анкеты с состоянием, именем, помещением и причиной",
+    "1. Ожидает проверки: Алия, Квартира 1/4, Собственник",
+  ],
+  accesses: ["Список выданных доступов", "1. Алия: Квартира 4"],
+  premises: [
+    "Список помещений и связей жителя",
+    "1. Квартира 1/4 — Собственник",
+  ],
+  buildings: ["Список доступных зданий", "1. Дом 1 (жилой дом)"],
+  kinds: [
+    "Типы помещений",
+    "1. Квартира\n2. Коммерческое помещение\n3. Парковочное место\n4. Кладовка",
+  ],
+  roles: [
+    "Доступные роли",
+    "1. Собственник\n2. Арендатор\n3. Проживающий\n4. Другое",
+  ],
+  invite_command: ["Команда принятия приглашения", "/start invite_example"],
+  expires_at: ["Срок действия приглашения", "25.10.2026 12:00"],
+  reason: ["Вопрос администратора", "Уточните имя"],
+  full_name: ["Имя и фамилия", "Алия Омарова"],
+  phone: ["Телефон", "+77001234567"],
+  kind: ["Тип помещения", "Квартира"],
+  code: ["Код здания", "1"],
+  number: ["Номер помещения или задания", "4"],
+  role: ["Роль жителя", "Собственник"],
+  tasks: [
+    "Список заданий с состояниями",
+    "1. З-26-1 · Проверить освещение · В работе",
+  ],
+  title: ["Название задания", "Проверить освещение"],
+  state: ["Состояние задания", "В работе"],
+  instruction: ["Инструкция исполнителю", "Проверьте светильники в подъезде"],
+  methodology_version: ["Версия методички", "2"],
+  methodology_date: ["Дата методички", "18.10.2026"],
+  visits: [
+    "Согласованные визиты (пусто, если их нет)",
+    "Визит: 20.10.2026 10:00–12:00 — Согласован\n",
+  ],
+  due_at: ["Срок задания", "21.10.2026 12:00"],
+  actions: [
+    "Доступные действия по текущему состоянию задания",
+    "\n/reporttask — заполнить отчёт",
+  ],
+  files: ["Список файлов и состояния сохранения", "1. photo.jpg: сохранён"],
+  number_report_index_1: ["Номер доказательства", "1"],
+  requirements_length: ["Количество доказательств", "2"],
+};
+function variables(ru: string, kk: string): TemplateVar[] {
+  return [
+    ...new Set(
+      [
+        ...ru.matchAll(/\{([a-z][a-z0-9_]*)\}/g),
+        ...kk.matchAll(/\{([a-z][a-z0-9_]*)\}/g),
+      ].map((m) => m[1]!),
+    ),
+  ].map((name) => ({
+    name,
+    description: values[name]?.[0] ?? name,
+    example: values[name]?.[1] ?? "Пример",
+  }));
+}
+function scenarioFor(command: string): string {
+  const names: Record<string, string> = {
+    "/register": "Регистрация — новая анкета",
+    "/fix": "Регистрация — исправление анкеты",
+    "/add": "Добавление помещения",
+    "/status": "Статус анкет",
+    "/pending": "Подтверждение анкет собственником",
+    "/accesses": "Выданные доступы",
+    "/objects": "Мои помещения",
+    "/invite": "Приглашение жителя",
+    "/start invite_*": "Регистрация по приглашению",
+    "/delete": "Удаление данных",
+    "/tasks": "Список заданий",
+    "/task": "Карточка задания",
+    "/reporttask": "Заполнение отчёта",
+    "/submitreport": "Отправка отчёта",
+    "/taskfiles": "Файлы задания",
+    "/proposevisit": "Предложение визита",
+    "/noaccess": "Нет доступа на объект",
+    "/problem": "Найденная проблема",
+  };
+  return names[command] ?? "Изменение состояния задания";
+}
+function def(
+  key: string,
+  title: string,
+  command: string,
+  legacyKeys: string[],
+  make: (lang: "ru" | "kk") => string,
+  buttons?: MessageButton[],
+): TemplateDef {
+  const ru = make("ru"), kk = make("kk"), vars = variables(ru, kk);
+  const sample = Object.fromEntries(vars.map((v) => [v.name, v.example]));
+  if ("registrations" in sample) {
+    sample.registrations = key.endsWith("pending")
+      ? "1. <b>Алия Омарова</b>, +77001234567; Квартира 4"
+      : key.endsWith("fix_select")
+      ? "1. <b>Нужно уточнение</b> — Уточните имя"
+      : "1. <b>Ожидает проверки</b>: Алия Омарова, Квартира 1/4, Собственник";
+  }
+  if ("tasks" in sample) {
+    sample.tasks = "1. <b>З-26-1</b> · Проверить освещение · Выполняется";
+  }
+  if ("accesses" in sample) {
+    sample.accesses = "1. <b>Алия Омарова</b>: Квартира 4";
+  }
+  const blocks = ["registrations", "tasks", "accesses"].filter((name) =>
+    name in sample
+  );
+  const sampleKk = { ...sample };
+  if ("registrations" in sampleKk) {
+    sampleKk.registrations = key.endsWith("pending")
+      ? "1. <b>Алия Омарова</b>, +77001234567; Пәтер 4"
+      : key.endsWith("fix_select")
+      ? "1. <b>Нақтылау қажет</b> — Атыңызды нақтылаңыз"
+      : "1. <b>Тексерілуде</b>: Алия Омарова, Пәтер 1/4, Меншік иесі";
+  }
+  if ("tasks" in sampleKk) {
+    sampleKk.tasks = "1. <b>З-26-1</b> · Жарықты тексеру · Орындалуда";
+  }
+  if ("accesses" in sampleKk) {
+    sampleKk.accesses = "1. <b>Алия Омарова</b>: Пәтер 4";
+  }
+  let buttonRows: MessageExample["buttons"] = buttons?.length
+    ? [
+      buttons.map((b) => ({
+        id: b.id,
+        vars: Object.fromEntries(
+          (b.variables ?? []).map((v) => [v.name, v.example]),
+        ),
+      })),
+    ]
+    : [];
+  if (key === "message.registration.add_select") {
+    buttonRows = [[{ id: "premise", vars: { code: "1", number: "4" } }], [{
+      id: "manual",
+    }]];
+    sampleKk.premises = "1. Пәтер 1/4 — Меншік иесі";
+  }
+  const optionConfig = key === "message.registration.kind"
+    ? {
+      name: "kinds",
+      id: "kind",
+      options: ["apartment", "commercial", "parking_slot", "storage"],
+      labels: premiseLabels,
+    }
+    : key === "message.registration.role"
+    ? {
+      name: "roles",
+      id: "role",
+      options: ["owner", "tenant", "resident", "other"],
+      labels: roleLabels,
+    }
+    : undefined;
+  if (optionConfig) {
+    const { name, id, options, labels } = optionConfig;
+    sample[name] = options.map((option, i) => `${i + 1}. ${labels[option]!.ru}`)
+      .join("\n");
+    sampleKk[name] = options.map((option, i) =>
+      `${i + 1}. ${labels[option]!.kk}`
+    ).join("\n");
+    buttonRows = options.map(
+      (option) => [{
+        id,
+        vars_ru: { label: labels[option]!.ru },
+        vars_kk: { label: labels[option]!.kk },
+      }],
+    );
+  }
+  return {
+    key,
+    section: key.startsWith("message.tasks") ? "tasks" : "registration",
+    title,
+    command,
+    scenario: scenarioFor(command),
+    description: `Полное сообщение: ${title}`,
+    ru,
+    kk,
+    variables: vars,
+    legacyKeys,
+    buttons,
+    examples: [{
+      id: "default",
+      title: "Пример сообщения",
+      ru: sample,
+      kk: sampleKk,
+      blocks,
+      buttons: buttonRows,
+    }],
+  };
+}
+const R = "registration.";
+const defs: TemplateDef[] = [
+  def(
+    "message.registration.status",
+    "Статус анкет",
+    "/status",
+    [R + "ispravit_anketu_posle_utochneniya"],
+    (l) =>
+      "{registrations}\n/fix — " +
+      old(R + "ispravit_anketu_posle_utochneniya", l),
+    [{ id: "edit", ru: "Исправить", kk: "Түзету" }],
+  ),
+  def(
+    "message.registration.pending",
+    "Анкеты на подтверждение собственнику",
+    "/pending",
+    [R + "dlya_otkaza", R + "dlya_spora"],
+    (l) =>
+      "{registrations}\n" + old(R + "dlya_otkaza", l) +
+      ": /reject НОМЕР причина; " + old(R + "dlya_spora", l) +
+      ": /dispute НОМЕР причина",
+    [{
+      id: "approve",
+      ru: "Подтвердить {index}",
+      kk: "Растау {index}",
+      variables: [{
+        name: "index",
+        description: "Номер анкеты в списке",
+        example: "1",
+      }],
+    }],
+  ),
+  def(
+    "message.registration.accesses",
+    "Выданные доступы",
+    "/accesses",
+    [R + "prekratit_dostup", R + "spor_po_ankete"],
+    (l) =>
+      "{accesses}\n/revoke НОМЕР причина — " + old(R + "prekratit_dostup", l) +
+      "; /dispute НОМЕР причина — " + old(R + "spor_po_ankete", l),
+  ),
+  def(
+    "message.registration.objects",
+    "Мои помещения",
+    "/objects",
+    [R + "priglasit_zhiltsa_arendator_prozhivayuschiy_ili_drugoe"],
+    (l) =>
+      "{premises}\n/invite НОМЕР роль — " +
+      old(R + "priglasit_zhiltsa_arendator_prozhivayuschiy_ili_drugoe", l),
+  ),
+  def(
+    "message.registration.invite",
+    "Приглашение создано",
+    "/invite",
+    [R + "priglashenie", R + "deystvuet_do"],
+    (l) =>
+      old(R + "priglashenie", l) + ": {invite_command}\n" +
+      old(R + "deystvuet_do", l) + ": {expires_at}",
+  ),
+  def(
+    "message.registration.add_select",
+    "Добавление помещения — выбор из реестра",
+    "/add",
+    [R + "v_reestre_osi_naydeny_pomescheniya_svyazannye_s"],
+    (l) =>
+      old(R + "v_reestre_osi_naydeny_pomescheniya_svyazannye_s", l) +
+      "\n{premises}",
+    [{
+      id: "premise",
+      ru: "{code}/{number}",
+      kk: "{code}/{number}",
+      variables: variables("{code}/{number}", ""),
+    }, { id: "manual", ru: "Ввести вручную", kk: "Қолмен енгізу" }],
+  ),
+  ...["already_registered", "already_applied"].map((name) =>
+    def(
+      "message.registration." + name,
+      name === "already_registered"
+        ? "Повторная регистрация — доступ подтверждён"
+        : "Повторная регистрация — анкета в работе",
+      "/register",
+      [
+        R + name,
+        R + "status_anket",
+        R + "ispravit_anketu",
+        R + "dobavit_esche_obekt",
+      ],
+      (l) =>
+        old(R + name, l) + "\n{registrations}\n/status — " +
+        old(R + "status_anket", l) + "; /fix — " +
+        old(R + "ispravit_anketu", l) + "; /add — " +
+        old(R + "dobavit_esche_obekt", l),
+    )
+  ),
+  def(
+    "message.registration.fix_select",
+    "Исправление — выбор анкеты",
+    "/fix",
+    [R + "kakuyu_anketu_ispravit"],
+    (l) =>
+      "{registrations}\n/fix НОМЕР — " + old(R + "kakuyu_anketu_ispravit", l),
+  ),
+  def(
+    "message.registration.fix_name_reason",
+    "Исправление — вопрос администратора и имя",
+    "/fix",
+    [
+      R + "vopros_administratora",
+      R + "vvedite_imya_i_familiyu_ili_tochku_chtoby",
+    ],
+    (l) =>
+      old(R + "vopros_administratora", l) + ": {reason}\n" +
+      old(R + "vvedite_imya_i_familiyu_ili_tochku_chtoby", l),
+  ),
+  def(
+    "message.registration.building",
+    "Регистрация — выбор здания",
+    "/register",
+    [R + "vyberite_zdanie"],
+    (l) => old(R + "vyberite_zdanie", l) + "\n{buildings}",
+    [{
+      id: "building",
+      ru: "{code}",
+      kk: "{code}",
+      variables: variables("{code}", ""),
+    }],
+  ),
+  def(
+    "message.registration.kind",
+    "Регистрация — тип помещения",
+    "/register",
+    [R + "tip_pomescheniya"],
+    (l) => old(R + "tip_pomescheniya", l) + "\n{kinds}",
+    [{
+      id: "kind",
+      ru: "{label}",
+      kk: "{label}",
+      variables: [{
+        name: "label",
+        description: "Название типа помещения",
+        example: "Квартира",
+      }],
+    }],
+  ),
+  def(
+    "message.registration.role",
+    "Регистрация — роль жителя",
+    "/register",
+    [R + "vasha_rol"],
+    (l) => old(R + "vasha_rol", l) + "\n{roles}",
+    [{
+      id: "role",
+      ru: "{label}",
+      kk: "{label}",
+      variables: [{
+        name: "label",
+        description: "Название роли",
+        example: "Собственник",
+      }],
+    }],
+  ),
+  def(
+    "message.registration.invite_consent",
+    "Приглашение — согласие на обработку данных",
+    "/start invite_*",
+    [R + "podtverdite_soglasie_na_obrabotku_imeni_i_telefona"],
+    (l) =>
+      "<b>{full_name}</b>, {phone}\n" +
+      old(R + "podtverdite_soglasie_na_obrabotku_imeni_i_telefona", l),
+    consentButtons,
+  ),
+  ...["consent", "premises_consent", "fix_consent"].map((name) =>
+    def(
+      "message.registration." + name,
+      name === "consent"
+        ? "Регистрация — проверка данных и согласие"
+        : name === "premises_consent"
+        ? "Добавление помещения — проверка данных и согласие"
+        : "Исправление — проверка данных и согласие",
+      name === "premises_consent"
+        ? "/add"
+        : name === "fix_consent"
+        ? "/fix"
+        : "/register",
+      [
+        R + "proverte",
+        R + "soglasie_na_obrabotku_etih_dannyh_dlya_registratsii",
+        ...(name === "fix_consent" ? [R + "pomeschenie_i_rol_sohraneny"] : []),
+      ],
+      (l) =>
+        "<b>" + old(R + "proverte", l) + "</b>: {full_name}, {phone}" +
+        (name === "fix_consent"
+          ? ". " + old(R + "pomeschenie_i_rol_sohraneny", l)
+          : ", {kind}" +
+            (name === "premises_consent" ? " {code}/{number}" : "") +
+            ", {role}.") +
+        "\n" +
+        old(R + "soglasie_na_obrabotku_etih_dannyh_dlya_registratsii", l) +
+        " /cancel",
+      consentButtons,
+    )
+  ),
+  def(
+    "message.registration.consent_retry",
+    "Регистрация — повторный запрос согласия",
+    "/register",
+    [R + "dlya_prodolzheniya_podtverdite_soglasie_otmena"],
+    (l) =>
+      old(R + "dlya_prodolzheniya_podtverdite_soglasie_otmena", l) + " /cancel",
+    consentButtons,
+  ),
+  def(
+    "message.registration.submitted",
+    "Анкета отправлена",
+    "/register",
+    [
+      R + "anketa_prinyata_dostup_ozhidaet_podtverzhdeniya",
+      R + "status_ankety",
+    ],
+    (l) =>
+      old(R + "anketa_prinyata_dostup_ozhidaet_podtverzhdeniya", l) +
+      "\n/status — " + old(R + "status_ankety", l),
+  ),
+  def(
+    "message.tasks.list",
+    "Мои задания — список",
+    "/tasks",
+    [],
+    () => "{tasks}",
+    [{
+      id: "open",
+      ru: "{number} · {title}",
+      kk: "{number} · {title}",
+      variables: variables("{number}{title}", ""),
+    }],
+  ),
+  ...[false, true].map((method) =>
+    def(
+      "message.tasks.card" + (method ? "_methodology" : ""),
+      method ? "Карточка задания с методичкой" : "Карточка задания",
+      "/task",
+      [
+        "tasks.srok",
+        ...(method ? ["tasks.metodichka_versiya_deystvuet_s"] : []),
+      ],
+      (l) =>
+        "<b>{number}</b> — {title}\n{state}\n{instruction}\n" + (method
+          ? old("tasks.metodichka_versiya_deystvuet_s", l).replace(
+            "{value_1}",
+            "{methodology_version}",
+          ).replace(
+            "{fmtday_t_methodology_as_row_created_at}",
+            "{methodology_date}",
+          ) + "\n"
+          : "") +
+        "{visits}" + old("tasks.srok", l) + ": {due_at}{actions}",
+      taskButtons,
+    )
+  ),
+  def(
+    "message.tasks.changed",
+    "Состояние задания изменено",
+    "/accepttask, /declinetask, /starttask, /pausetask",
+    [],
+    () => "{number} — {state}{actions}",
+    taskButtons,
+  ),
+  def(
+    "message.tasks.report_submitted",
+    "Отчёт отправлен",
+    "/submitreport",
+    [],
+    () => "{number} — {state}",
+    taskButtons,
+  ),
+  def(
+    "message.tasks.files",
+    "Файлы задания",
+    "/taskfiles",
+    [],
+    () => "{files}",
+  ),
+  def(
+    "message.tasks.evidence_invalid",
+    "Отчёт — неверный выбор доказательства",
+    "/reporttask",
+    ["tasks.vyberite_nomera_sohranennyh_faylov_cherez_zapyatuyu_ili"],
+    (l) =>
+      old("tasks.vyberite_nomera_sohranennyh_faylov_cherez_zapyatuyu_ili", l) +
+      "{files}",
+  ),
+  def(
+    "message.tasks.evidence",
+    "Отчёт — выбор доказательства",
+    "/reporttask",
+    ["tasks.dokazatelstvo_iz_otpravte_fayl_dozhdites_sohraneniya_taskfiles"],
+    (l) =>
+      old(
+        "tasks.dokazatelstvo_iz_otpravte_fayl_dozhdites_sohraneniya_taskfiles",
+        l,
+      ) + "{files}",
+  ),
+];
+// Existing complete replies retain keys and history; only compositional fragments are hidden.
+const consumed = new Set(defs.flatMap((d) => d.legacyKeys ?? []));
+const internal = new Set([
+  "registration.reshenie_sobstvennika",
+  "tasks.vizit",
+  "tasks.sohranen",
+  "tasks.esche_v_ocheredi",
+  "tasks.faylov_poka_net",
+]);
+const promoted = originals.filter((d) =>
+  (d.key.startsWith("registration.") || d.key.startsWith("tasks.")) &&
+  !consumed.has(d.key) && !internal.has(d.key)
+).map((d) => ({
+  ...d,
+  scenario: d.key.startsWith("tasks.")
+    ? "Задания исполнителя"
+    : "Регистрация и доступ",
+  command: d.key.startsWith("tasks.") ? "/task" : "/register",
+  description: "Полное сообщение: " + d.title,
+  examples: [{
+    id: "default",
+    title: "Пример сообщения",
+    ru: Object.fromEntries(d.variables.map((v) => [v.name, v.example])),
+    kk: Object.fromEntries(d.variables.map((v) => [v.name, v.example])),
+  }],
+} satisfies TemplateDef));
+// The no-reason branch also remains a complete editable reply.
+const fixName = originals.find((d) =>
+  d.key === R + "vvedite_imya_i_familiyu_ili_tochku_chtoby"
+)!;
+promoted.push({
+  ...fixName,
+  scenario: "Регистрация и доступ",
+  command: "/fix",
+  description: "Исправление имени без вопроса администратора",
+  examples: [{ id: "default", title: "Без вопроса", ru: {}, kk: {} }],
+});
+const overrides: Record<string, MessageButton[]> = {
+  "registration.language_prompt": [{
+    id: "ru",
+    ru: "Русский (ru)",
+    kk: "Русский (ru)",
+  }, { id: "kk", ru: "Қазақша (kk)", kk: "Қазақша (kk)" }],
+  "registration.podat_zapros_na_udalenie_ankety_i_dannyh": [{
+    id: "confirm",
+    ru: "Подтвердить удаление",
+    kk: "Жоюды растау",
+  }, { id: "cancel", ru: "Отмена", kk: "Болдырмау" }],
+  "tasks.kogda_predlozhite_vizit_napishite_odnim_soobscheniem_naprimer": [{
+    id: "today",
+    ru: "Сегодня",
+    kk: "Бүгін",
+  }, { id: "tomorrow", ru: "Завтра", kk: "Ертең" }],
+  "tasks.otchet_podgotovlen_submitreport_otpravit_na_proverku": [{
+    id: "submit",
+    ru: "Отправить отчёт",
+    kk: "Есепті жіберу",
+  }],
+};
+const actionKeys: Record<string, string> = {
+  awaiting_acceptance:
+    "help.deystviya_accepttask_nomer_prinyat_declinetask_nomer_prichina",
+  accepted: "help.deystviya_starttask_nomer_nachat_rabotu",
+  in_progress:
+    "help.deystviya_reporttask_nomer_otchet_proposevisit_nomer_vizit",
+  suspended: "help.deystviya_starttask_nomer_vozobnovit",
+  rework: "help.deystviya_starttask_nomer_prodolzhit_posle_dorabotki",
+  on_review: "help.otchet_na_proverke_u_administratora",
+};
+const stateButton: Record<string, string> = {
+  awaiting_acceptance: "accept",
+  accepted: "start",
+  in_progress: "report",
+  suspended: "resume",
+  rework: "continue",
+};
+/** Each state has an editable complete body; action instructions are literal prose. */
+const completeDefs = defs.flatMap((d) => {
+  if (
+    ![
+      "message.tasks.card",
+      "message.tasks.card_methodology",
+      "message.tasks.changed",
+      "message.tasks.report_submitted",
+    ].includes(d.key)
+  ) return [d];
+  const states = d.key === "message.tasks.report_submitted"
+    ? ["on_review"]
+    : ["", ...Object.keys(actionKeys)];
+  return states.map((state) => {
+    const actionKey = actionKeys[state];
+    const ru = d.ru.replace(
+      "{actions}",
+      actionKey ? "\n" + old(actionKey, "ru") : "",
+    );
+    const kk = d.kk.replace(
+      "{actions}",
+      actionKey ? "\n" + old(actionKey, "kk") : "",
+    );
+    const buttons = d.buttons?.filter((b) => b.id === stateButton[state]) ?? [];
+    return {
+      ...d,
+      key: d.key + (state ? "." + state : ""),
+      title: d.title + (state ? " — " + TASK_STATE_TEXT[state]?.ru : ""),
+      ru,
+      kk,
+      variables: d.variables.filter((v) => v.name !== "actions"),
+      legacyKeys: [
+        ...(d.legacyKeys ?? []),
+        ...(actionKey && d.ru.includes("{actions}") ? [actionKey] : []),
+      ],
+      buttons,
+      examples: d.examples?.map((e) => ({
+        ...e,
+        ru: {
+          ...Object.fromEntries(
+            Object.entries(e.ru).filter(([name]) => name !== "actions"),
+          ),
+          state: TASK_STATE_TEXT[state]?.ru ?? e.ru.state ?? "",
+        },
+        kk: {
+          ...Object.fromEntries(
+            Object.entries(e.kk).filter(([name]) => name !== "actions"),
+          ),
+          state: TASK_STATE_TEXT[state]?.kk ?? e.kk.state ?? "",
+        },
+        buttons: buttons.length ? [buttons.map((b) => ({ id: b.id }))] : [],
+      })),
+    };
+  });
+});
+function promotedCommand(key: string): string {
+  if (key === "registration.anket_poka_net") return "/status";
+  if (key === "registration.anket_na_podtverzhdenie_net") return "/pending";
+  if (key === "registration.vydannyh_dostupov_net") return "/accesses";
+  if (key === "registration.podtverzhdennyh_obektov_net") return "/objects";
+  if (key.includes("udalenie_ankety")) return "/delete";
+  if (key.includes("iz_status") || key.includes("otkroyte_status")) {
+    return "/edit";
+  }
+  if (
+    key.includes("ispravleniya") || key.includes("prezhniy") ||
+    key.includes("ili_tochku")
+  ) return "/fix";
+  if (key.includes("_add") || key.includes("svyaz_uzhe")) return "/add";
+  if (key === "tasks.zadaniy_net") return "/tasks";
+  if (key.startsWith("tasks.")) {
+    if (/vizit|vremya_odnim|kogda_predlozhite/.test(key)) {
+      return "/proposevisit";
+    }
+    if (/otsutstvie_dostupa|snachala_otkroyte_task/.test(key)) {
+      return "/noaccess";
+    }
+    if (key.includes("naydennaya_problema")) return "/problem";
+    if (
+      /otchet|obem|vypolneniya|vvedite_vremya|opishite_rezultat|ogranicheniya/
+        .test(key)
+    ) return "/reporttask";
+    return "/task";
+  }
+  return "/register";
+}
+export const registrationTasksMessageTemplates: readonly TemplateDef[] = [
+  ...completeDefs,
+  ...promoted.map((d) => ({
+    ...d,
+    command: promotedCommand(d.key),
+    scenario: scenarioFor(promotedCommand(d.key)),
+  })).map((d) =>
+    overrides[d.key]
+      ? {
+        ...d,
+        buttons: overrides[d.key],
+        examples: d.examples.map((e) => ({
+          ...e,
+          buttons: [overrides[d.key]!.map((b) => ({ id: b.id }))],
+        })),
+      }
+      : d
+  ),
+];

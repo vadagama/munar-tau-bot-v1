@@ -1,3 +1,4 @@
+import { message, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
 import { t as templateText } from "../templates/store.ts";
 import type { Actor } from "../pdp/types.ts";
@@ -24,7 +25,11 @@ export async function notificationStep(
     const lang = p?.language === "kk" ? "kk" : "ru";
     throw new BotTemplateError(
       "FORBIDDEN",
-      templateText(deps.templates, lang, "notifications.snachala_podtverdite_registratsiyu_register"),
+      templateText(
+        deps.templates,
+        lang,
+        "notifications.snachala_podtverdite_registratsiyu_register",
+      ),
     );
   }
   const [, requestedType, requestedMode, language] = input.trim().toLowerCase()
@@ -72,10 +77,15 @@ export async function notificationStep(
       digest: "сводка",
       off: "выключено",
     };
-  const help = templateText(deps.templates, (kk ? "kk" : "ru"), "notifications.primer_izmeneniya_notifications_novosti_svodka_ru_vidy");
-  return `${
-    settings.items.map((i) => `${names[i.event_type]}: ${names[i.mode]}`).join(
-      "\n",
-    )
-  }\n\n${help}`;
+  return message(
+    deps.templates,
+    kk ? "kk" : "ru",
+    "messages.notifications.settings",
+    {
+      settings: safeBlock(
+        settings.items.map((i) => `${names[i.event_type]}: ${names[i.mode]}`)
+          .join("\n"),
+      ),
+    },
+  );
 }

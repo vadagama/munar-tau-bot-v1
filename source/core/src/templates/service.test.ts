@@ -26,7 +26,7 @@ it("предпросмотр проходит серверную проверк�
       text_ru: "Новый",
       text_kk: "Жаңа",
     }),
-  ).toEqual({ ru: "Новый", kk: "Жаңа" });
+  ).toMatchObject({ ru: "Новый", kk: "Жаңа" });
   expect(() =>
     previewTemplate(actor, {
       key: "errors.INTERNAL",

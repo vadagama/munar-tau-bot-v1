@@ -1,4 +1,7 @@
-import { renderNotice, type NoticeText } from "../../templates/notice.ts";
+import { messageButton } from "../../templates/message.ts";
+import { getTemplate } from "../../templates/catalog/index.ts";
+import { btn, inlineMarkup } from "../../bot/keyboard.ts";
+import { type NoticeText, renderNotice } from "../../templates/notice.ts";
 import { loadTemplateStore } from "../../templates/store.ts";
 import { requireIncident } from "../incidents/access.ts";
 import { audienceMember, type AudienceScope } from "../incidents/audience.ts";
@@ -32,19 +35,31 @@ export interface NoticeOptions {
   buildingIds?: string[];
   isTest?: boolean;
 }
-export type Notice = NoticeOptions & {
-  personId: string;
-  key: string;
-} & (
-  | {text: NoticeText; template?: never; vars?: never}
-  | {template: string; vars: Record<string, unknown>; text?: never}
-);
+export type Notice =
+  & NoticeOptions
+  & {
+    personId: string;
+    key: string;
+  }
+  & (
+    | { text: NoticeText; template?: never; vars?: never }
+    | { template: string; vars: Record<string, unknown>; text?: never }
+  );
 
 /** Вызывается в бизнес-транзакции; сеть выполняется только диспетчером. */
 export async function enqueueNotice(exec: DbExecutor, notice: Notice) {
   await exec.query(
     "insert into outbox(event_type,payload,dedup_key) values ('notification.requested',$1::text::jsonb || jsonb_build_object('isTest',coalesce(($1::text::jsonb->>'isTest')::boolean,(select is_test from person where id=$3))),$2) on conflict(dedup_key) where dedup_key is not null do nothing",
-    [JSON.stringify(notice.text && typeof notice.text === "object" && "template" in notice.text ? { ...notice, ...notice.text, text: undefined } : notice), notice.key, notice.personId],
+    [
+      JSON.stringify(
+        notice.text && typeof notice.text === "object" &&
+          "template" in notice.text
+          ? { ...notice, ...notice.text, text: undefined }
+          : notice,
+      ),
+      notice.key,
+      notice.personId,
+    ],
   );
 }
 export async function recipientActor(
@@ -286,7 +301,13 @@ export async function dispatchNotices(
         if (actor && await noticeAllowed(exec, actor, n)) {
           const type = n.type ?? "personal",
             mode = await preference(exec, n.personId, type);
-          const text = renderNotice(n.template ? {template: n.template, vars: n.vars ?? {}} : n.text ?? "", actor.profile.language, templates);
+          const text = renderNotice(
+            n.template
+              ? { template: n.template, vars: n.vars ?? {} }
+              : n.text ?? "",
+            actor.profile.language,
+            templates,
+          );
           if (mode === "digest") {
             await exec.query(
               "insert into notification_digest_item(recipient_person_id,event_type,dedup_key,text,building_ids,is_test,event_ref,bot) values ($1,$2,$3,$4,$5::uuid[],$6,$7::text::jsonb,coalesce($8,'resident')) on conflict(dedup_key) do nothing",
@@ -316,13 +337,47 @@ export async function dispatchNotices(
                 "select number from request where id=$1",
                 [n.requestId],
               );
-              if (r) markup = entryMarkup("request", r.number, actor.profile.language);
+              if (r) {
+                markup =
+                  n.template && getTemplate(n.template)?.buttons?.some((b) =>
+                      b.id === "request"
+                    )
+                    ? inlineMarkup([[
+                      btn(
+                        messageButton(
+                          templates,
+                          actor.profile.language,
+                          n.template,
+                          "request",
+                        ),
+                        `/request ${r.number}`,
+                      ),
+                    ]])
+                    : entryMarkup("request", r.number, actor.profile.language);
+              }
             } else if (n.taskId) {
               const [t] = await exec.query<{ number: string }>(
                 "select number from task where id=$1",
                 [n.taskId],
               );
-              if (t) markup = entryMarkup("task", t.number, actor.profile.language);
+              if (t) {
+                markup =
+                  n.template && getTemplate(n.template)?.buttons?.some((b) =>
+                      b.id === "task"
+                    )
+                    ? inlineMarkup([[
+                      btn(
+                        messageButton(
+                          templates,
+                          actor.profile.language,
+                          n.template,
+                          "task",
+                        ),
+                        `/task ${t.number}`,
+                      ),
+                    ]])
+                    : entryMarkup("task", t.number, actor.profile.language);
+              }
             }
             for (const [index, part] of parts.entries()) {
               await exec.query(

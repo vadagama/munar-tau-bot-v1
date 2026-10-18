@@ -1,3 +1,6 @@
+import { requestsMessageTemplates } from "./messages-requests.ts";
+import { registrationTasksMessageTemplates } from "./messages-registration-tasks.ts";
+import { otherMessageTemplates } from "./messages-other.ts";
 import { commonTemplates } from "./common.ts";
 import { noticesTemplates } from "./notices.ts";
 import { notificationsTemplates } from "./notifications.ts";
@@ -11,7 +14,7 @@ import { tasksTemplates } from "./tasks.ts";
 import { registrationTemplates } from "./registration.ts";
 import { errors } from "./errors.ts";
 import type { TemplateDef } from "./types.ts";
-export const TEMPLATE_CATALOG: readonly TemplateDef[] = [
+const legacyCatalog: readonly TemplateDef[] = [
   ...errors,
   ...commonTemplates,
   ...noticesTemplates,
@@ -33,6 +36,20 @@ export const TEMPLATE_CATALOG: readonly TemplateDef[] = [
     ru: "/help — все команды",
     kk: "/help — барлық командалар",
   },
+];
+const messages = [
+  ...requestsMessageTemplates,
+  ...registrationTasksMessageTemplates,
+  ...otherMessageTemplates,
+];
+const consumed = new Set(messages.flatMap((def) => def.legacyKeys ?? []));
+const replacements = new Map(messages.map((def) => [def.key, def]));
+export const TEMPLATE_CATALOG: readonly TemplateDef[] = [
+  ...messages,
+  ...legacyCatalog.filter((def) => !replacements.has(def.key)).map((def) => ({
+    ...def,
+    deprecated: def.section !== "notices" || consumed.has(def.key),
+  })),
 ];
 const byKey = new Map(TEMPLATE_CATALOG.map((def) => [def.key, def]));
 export function getTemplate(key: string): TemplateDef | undefined {

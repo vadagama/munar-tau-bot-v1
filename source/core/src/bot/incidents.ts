@@ -1,12 +1,7 @@
+import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
 import { t as templateText } from "../templates/store.ts";
-import {
-  esc,
-  fmtDate,
-  fmtDay,
-  fmtInterval,
-  pick,
-} from "./text.ts";
+import { esc, fmtDate, fmtDay, fmtInterval } from "./text.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { ApiError } from "../errors/api.ts";
@@ -24,7 +19,7 @@ import {
 } from "../domains/publications/service.ts";
 import { publicationProblem } from "../domains/publications/problems.ts";
 import { jsonValue, type Row } from "../domains/registry/validation.ts";
-import { btn, type BotReply } from "./keyboard.ts";
+import { type BotReply, btn } from "./keyboard.ts";
 export const INCIDENT_COMMANDS = [
   "/emergency",
   "/danger",
@@ -50,7 +45,11 @@ async function incidentPlainStep(
   // Кнопки вместо UUID в тексте: callback_data — точная команда (лимит 64 байта).
   if (command === "/emergency" && !args.length) {
     if (!id) {
-      return templateText(deps.templates, L, "incidents.opasnost_avariya_napishite_emergency_nomer_obrascheniya_chto");
+      return templateText(
+        deps.templates,
+        L,
+        "incidents.opasnost_avariya_napishite_emergency_nomer_obrascheniya_chto",
+      );
     }
     const [building] = await deps.db.query<{ id: string }>(
       "select id from building where code=$1",
@@ -62,9 +61,14 @@ async function incidentPlainStep(
       building.id,
       actor?.person.isTest ?? false,
     );
-    return `${
-      contact.phone ? esc(contact.phone) : templateText(deps.templates, L, "incidents.telefon_esche_ne_nastroen")
-    }\n${templateText(deps.templates, L, contact.on_duty ? "incidents.duty_notice" : "incidents.off_duty_notice")}`;
+    return message(
+      deps.templates,
+      L,
+      `messages.incidents.contact_${contact.on_duty ? "on" : "off"}_${
+        contact.phone ? "phone" : "no_phone"
+      }`,
+      { phone: contact.phone ?? "" },
+    );
   }
   if (!actor) {
     throw new BotTemplateError(
@@ -73,9 +77,14 @@ async function incidentPlainStep(
     );
   }
   if (command === "/incidents") {
-    return (await listIncidents(deps, actor)).map((r) =>
-      `${esc(r.number)}: ${esc(r.title)}`
-    ).join("\n") || templateText(deps.templates, L, "incidents.net_dostupnyh_avariy");
+    const items = await listIncidents(deps, actor);
+    return items.length
+      ? message(deps.templates, L, "messages.incidents.list", {
+        items: safeBlock(
+          items.map((r) => `${esc(r.number)}: ${esc(r.title)}`).join("\n"),
+        ),
+      })
+      : templateText(deps.templates, L, "incidents.net_dostupnyh_avariy");
   }
   if (command === "/incident") {
     const [r] = await deps.db.query<{ id: string }>(
@@ -84,16 +93,22 @@ async function incidentPlainStep(
     );
     if (!r) throw new ApiError("NOT_FOUND");
     const card = await getIncident(deps, actor, r.id);
-    return [
-      `${esc(card.number)}: ${esc(card.title)}`,
-      card.public_text != null ? esc(card.public_text) : templateText(deps.templates, L, "incidents.signal_proveryaetsya"),
-      card.forecast
-        ? `${templateText(deps.templates, L, "incidents.prognoz")}: ${esc(card.forecast)}`
-        : "",
-      card.next_update_at
-        ? `${templateText(deps.templates, L, "incidents.sleduyuschee_obnovlenie")}: ${fmtDate(card.next_update_at)}`
-        : "",
-    ].filter(Boolean).join("\n");
+    return message(
+      deps.templates,
+      L,
+      `messages.incidents.card_${
+        card.public_text != null ? "public" : "checking"
+      }_${card.forecast ? "forecast" : "no_forecast"}_${
+        card.next_update_at ? "update" : "no_update"
+      }`,
+      {
+        number: card.number,
+        title: card.title,
+        description: card.public_text ?? "",
+        forecast: card.forecast ?? "",
+        next_update: fmtDate(card.next_update_at),
+      },
+    );
   }
   if (command === "/signals") {
     const signals = await listSignals(deps, actor);
@@ -101,12 +116,20 @@ async function incidentPlainStep(
       return templateText(deps.templates, L, "incidents.net_signalov");
     }
     return {
-      text: signals.map((s) =>
-        `${fmtDate(s.created_at)} — ${esc(s.description)}`
-      ).join("\n\n"),
+      text: message(deps.templates, L, "messages.incidents.signals", {
+        items: safeBlock(
+          signals.map((s) => `${fmtDate(s.created_at)} — ${esc(s.description)}`)
+            .join("\n\n"),
+        ),
+      }),
       buttons: signals.map((s) => [
         btn(
-          pick(L, "Принять сигнал", "Сигналды қабылдау"),
+          messageButton(
+            deps.templates,
+            L,
+            "messages.incidents.signals",
+            "accept",
+          ),
           `/acceptsignal ${s.id} ${s.version}`,
         ),
       ]),
@@ -150,7 +173,11 @@ async function incidentPlainStep(
     if (!r.building_id) {
       throw new BotTemplateError(
         "VALIDATION_FAILED",
-        templateText(deps.templates, L, "incidents.danger_nomer_zadaniya_kod_doma_opisanie"),
+        templateText(
+          deps.templates,
+          L,
+          "incidents.danger_nomer_zadaniya_kod_doma_opisanie",
+        ),
       );
     }
     const signal = await signalEmergency(deps, actor, {
@@ -158,9 +185,14 @@ async function incidentPlainStep(
       building_id: r.building_id,
       description,
     }, key);
-    return `${templateText(deps.templates, L, "incidents.signal_otpravlen_dezhurnomu")}\n${
-      esc(signal.contact.phone ?? "")
-    }\n${templateText(deps.templates, L, signal.contact.on_duty ? "incidents.duty_notice" : "incidents.off_duty_notice")}`;
+    return message(
+      deps.templates,
+      L,
+      `messages.incidents.sent_${signal.contact.on_duty ? "on" : "off"}_${
+        signal.contact.phone ? "phone" : "no_phone"
+      }`,
+      { phone: signal.contact.phone ?? "" },
+    );
   }
   if (command === "/publications") {
     const items = (await listPublications(deps, actor)).filter((r) =>
@@ -170,33 +202,50 @@ async function incidentPlainStep(
       return templateText(deps.templates, L, "incidents.net_publikatsiy");
     }
     return {
-      text: items.map((r) =>
-        `${esc(r.title)}\n${fmtDay(r.published_at ?? r.created_at)}`
-      ).join("\n\n"),
+      text: message(deps.templates, L, "messages.incidents.publications", {
+        items: safeBlock(
+          items.map((r) =>
+            `${esc(r.title)}\n${fmtDay(r.published_at ?? r.created_at)}`
+          ).join("\n\n"),
+        ),
+      }),
       buttons: items.map((p) => [
-        btn(pick(L, "Открыть", "Ашу"), `/publication ${p.id}`),
+        btn(
+          messageButton(
+            deps.templates,
+            L,
+            "messages.incidents.publications",
+            "open",
+          ),
+          `/publication ${p.id}`,
+        ),
       ]),
     };
   }
   if (command === "/publication" && id) {
     const p = await getPublication(deps, actor, id);
-    const parts = [
-      esc(p.title),
-      esc(p.body),
-    ];
-    if (p.kind === "outage") {
-      parts.push(
-        `${templateText(deps.templates, L, "incidents.plan")}: ${fmtInterval(p.planned_start, p.planned_end)}`,
-        p.restored_at
-          ? `${templateText(deps.templates, L, "incidents.vosstanovlenie")}: ${fmtDate(p.restored_at)}`
-          : templateText(deps.templates, L, "incidents.vosstanovlenie_poka_ne_podtverzhdeno"),
-      );
-    }
-    const reply: BotReply = { text: parts.filter(Boolean).join("\n") };
+    const template = p.kind === "outage"
+      ? `messages.incidents.outage_${p.restored_at ? "restored" : "pending"}`
+      : p.kind === "work_report"
+      ? "messages.incidents.work_report"
+      : "messages.incidents.publication";
+    const reply: BotReply = {
+      text: message(deps.templates, L, template, {
+        title: p.title,
+        body: p.body,
+        interval: fmtInterval(p.planned_start, p.planned_end),
+        restored_at: fmtDate(p.restored_at),
+      }),
+    };
     if (p.kind === "work_report") {
       reply.buttons = [[
         btn(
-          pick(L, "Сообщить о проблеме", "Мәселе туралы хабарлау"),
+          messageButton(
+            deps.templates,
+            L,
+            "messages.incidents.work_report",
+            "problem",
+          ),
           `/workproblem ${id}`,
         ),
       ]];
@@ -215,7 +264,11 @@ async function incidentPlainStep(
         scenario: "incidents",
         workproblem_id: id,
       });
-      return templateText(deps.templates, L, "incidents.ukazhite_dom_i_opishite_problemu_odnim_soobscheniem");
+      return templateText(
+        deps.templates,
+        L,
+        "incidents.ukazhite_dom_i_opishite_problemu_odnim_soobscheniem",
+      );
     }
     const text = args.join(" ");
     const [code, ...rest] = text.includes("|")
@@ -237,9 +290,14 @@ async function incidentPlainStep(
     [telegramId],
   );
   const state = jsonValue<Row>(dialog?.state ?? {});
-  if (state.scenario === "incidents" && typeof state.workproblem_id === "string") {
+  if (
+    state.scenario === "incidents" && typeof state.workproblem_id === "string"
+  ) {
     // Кавычки из примера подсказки не должны ломать разбор кода дома.
-    const cleaned = input.trim().replace(/^[«„"']+/, "").replace(/[»“"']+$/, "");
+    const cleaned = input.trim().replace(/^[«„"']+/, "").replace(
+      /[»“"']+$/,
+      "",
+    );
     const [code, ...rest] = cleaned.split(/\s+/);
     return reportWorkProblem(
       deps,
@@ -251,7 +309,11 @@ async function incidentPlainStep(
       key,
     );
   }
-  return templateText(deps.templates, L, "incidents.incidents_avarii_publications_publikatsii_emergency_opasnost_signals");
+  return templateText(
+    deps.templates,
+    L,
+    "incidents.incidents_avarii_publications_publikatsii_emergency_opasnost_signals",
+  );
 }
 
 /** Сообщение о проблеме после работ: дом из области публикации + описание. */
@@ -270,14 +332,22 @@ async function reportWorkProblem(
     throw new ApiError("FORBIDDEN");
   }
   if (!code || !description) {
-    return templateText(deps.templates, L, "incidents.ukazhite_dom_i_opishite_problemu_odnim_soobscheniem");
+    return templateText(
+      deps.templates,
+      L,
+      "incidents.ukazhite_dom_i_opishite_problemu_odnim_soobscheniem",
+    );
   }
   const [b] = await deps.db.query<{ building_id: string }>(
     "select s.building_id from publication_scope s join building b on b.id=s.building_id where s.publication_id=$1 and b.code=$2",
     [id, code],
   );
   if (!b) {
-    return templateText(deps.templates, L, "incidents.dom_ne_vhodit_v_etu_publikatsiyu_ukazhite");
+    return templateText(
+      deps.templates,
+      L,
+      "incidents.dom_ne_vhodit_v_etu_publikatsiyu_ukazhite",
+    );
   }
   const r = await publicationProblem(deps, actor, id, {
     source: "bot",
@@ -285,7 +355,9 @@ async function reportWorkProblem(
     text: description,
   }, key);
   await saveIncidentState(deps, telegramId, actor, {});
-  return `${esc(r.number)}: ${templateText(deps.templates, L, "incidents.problema_peredana_administratoru")}`;
+  return message(deps.templates, L, "messages.incidents.problem_sent", {
+    number: r.number,
+  });
 }
 
 /** Сохраняет состояние диалога инцидентов (сценарий /workproblem). */

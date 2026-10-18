@@ -31,7 +31,7 @@ export function validateTemplate(
       errors.push("Некорректный HTML");
     }
     cursor = match.index! + match[0].length;
-    const tag = /^<(\/)?(b|i|u|s|code|pre|a|tg-spoiler|blockquote)([^>]*)>$/
+    const tag = /^<(\/)?(b|i|u|s|code|pre|a|tg-spoiler|blockquote)(?=\s|>)([^>]*)>$/
       .exec(match[0]);
     if (!tag) {
       errors.push("Запрещённый тег");

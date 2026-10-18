@@ -6,7 +6,10 @@ import { recordAudit, type RegistryDeps } from "../domains/registry/service.ts";
 import { content, idempotent } from "../domains/requests/service.ts";
 import type { Row } from "../domains/registry/validation.ts";
 import { getTemplate, TEMPLATE_CATALOG } from "./catalog/index.ts";
-import { renderTemplate, validateTemplate } from "./engine.ts";
+import { validateMenuLabels } from "../bot/help.ts";
+import { effectiveText, legacyProjection, loadTemplateStore } from "./store.ts";
+import { messagePreview } from "./message.ts";
+import { validateTemplate } from "./engine.ts";
 export interface TemplateVersion extends Row {
   version: number;
   text_ru: string | null;
@@ -15,6 +18,8 @@ export interface TemplateVersion extends Row {
   created_at: string;
   reason: string;
   created_by: string;
+  buttons_ru?: Record<string, string> | null;
+  buttons_kk?: Record<string, string> | null;
 }
 function requireAccess(actor: Actor, edit = false) {
   if (
@@ -41,7 +46,30 @@ function checkedTexts(key: string, input: Row) {
   if (Object.keys(issues).length) {
     throw new ApiError("VALIDATION_FAILED", "Проверьте тексты шаблона", issues);
   }
-  return { text_ru: input.text_ru as string, text_kk: input.text_kk as string };
+  const buttons: Record<string, Record<string, string>> = {};
+  for (const lang of ["ru", "kk"] as const) {
+    const value = input[`buttons_${lang}`] ?? {};
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new ApiError("VALIDATION_FAILED", "Некорректные подписи кнопок");
+    }
+    buttons[lang] = {};
+    for (const [id, label] of Object.entries(value)) {
+      const button = def.buttons?.find((b) => b.id === id);
+      if (
+        !button || typeof label !== "string" || label.length > 64 ||
+        /[<>]/.test(label) ||
+        validateTemplate(label, (button.variables ?? []).map((v) => v.name))
+          .length
+      ) throw new ApiError("VALIDATION_FAILED", "Проверьте подписи кнопок");
+      buttons[lang]![id] = label;
+    }
+  }
+  return {
+    text_ru: input.text_ru as string,
+    text_kk: input.text_kk as string,
+    buttons_ru: buttons.ru!,
+    buttons_kk: buttons.kk!,
+  };
 }
 export async function listTemplates(exec: DbExecutor, actor: Actor) {
   requireAccess(actor);
@@ -49,11 +77,38 @@ export async function listTemplates(exec: DbExecutor, actor: Actor) {
     `select t.key,v.* from message_template t join lateral (select * from message_template_version where template_id=t.id order by version desc limit 1) v on true`,
   );
   const active = new Map(rows.map((r) => [r.key, r]));
-  return TEMPLATE_CATALOG.map((def) => ({
+  const store = new Map(
+    rows.map(
+      (r) => [r.key, {
+        ru: r.text_ru ?? "",
+        kk: r.text_kk ?? "",
+        useDefault: r.use_default,
+        buttons: { ru: r.buttons_ru ?? {}, kk: r.buttons_kk ?? {} },
+      }],
+    ),
+  );
+  return TEMPLATE_CATALOG.filter((def) => !def.deprecated).map((def) => ({
     ...def,
     default_ru: def.ru,
     default_kk: def.kk,
-    overridden: active.has(def.key) && !active.get(def.key)!.use_default,
+    effective_ru: effectiveText(store, def, "ru"),
+    effective_kk: effectiveText(store, def, "kk"),
+    legacy: (def.legacyKeys ?? []).filter((key) =>
+      active.has(key) && !active.get(key)!.use_default
+    ).map((key) => ({
+      key,
+      title: getTemplate(key)?.title ?? key,
+      version: active.get(key)!.version,
+      unresolved: [
+        ...legacyProjection(store, def, "ru").unresolved,
+        ...legacyProjection(store, def, "kk").unresolved,
+      ].includes(key),
+    })),
+    overridden: active.has(def.key)
+      ? !active.get(def.key)!.use_default
+      : (def.legacyKeys ?? []).some((key) =>
+        active.has(key) && !active.get(key)!.use_default
+      ),
     active: active.get(def.key) ?? null,
   }));
 }
@@ -73,30 +128,32 @@ export function previewTemplate(actor: Actor, input: Row) {
   requireAccess(actor);
   const def = definition(input.key);
   const text = checkedTexts(def.key, {
+    ...input,
     text_ru: input.text_ru ?? def.ru,
     text_kk: input.text_kk ?? def.kk,
   });
-  const vars = input.vars === undefined
-    ? Object.fromEntries(def.variables.map((v) => [v.name, v.example]))
-    : input.vars;
-  if (!vars || typeof vars !== "object" || Array.isArray(vars)) {
-    throw new ApiError("VALIDATION_FAILED");
-  }
-  for (const [name, value] of Object.entries(vars)) {
-    if (
-      !def.variables.some((v) => v.name === name) ||
-      !["string", "number", "boolean"].includes(typeof value) ||
-      String(value).length > 4000
-    ) {
-      throw new ApiError(
-        "VALIDATION_FAILED",
-        "Некорректные примеры переменных",
-      );
-    }
-  }
+  if (
+    input.example !== undefined &&
+    !def.examples?.some((e) => e.id === input.example)
+  ) throw new ApiError("VALIDATION_FAILED", "Неизвестный пример");
+  const store = new Map([[def.key, {
+    ru: text.text_ru,
+    kk: text.text_kk,
+    buttons: { ru: text.buttons_ru, kk: text.buttons_kk },
+  }]]);
+  // Examples are declared by the server; client cannot inject trusted HTML blocks.
+  const preview = messagePreview(
+    store,
+    def,
+    input.example as string | undefined,
+  );
   return {
-    ru: renderTemplate(text.text_ru, vars as Row),
-    kk: renderTemplate(text.text_kk, vars as Row),
+    ru: preview.ru.text,
+    kk: preview.kk.text,
+    buttons_ru: preview.ru.buttons,
+    buttons_kk: preview.kk.buttons,
+    parts_ru: preview.ru.parts,
+    parts_kk: preview.kk.parts,
   };
 }
 export async function saveVersion(
@@ -148,10 +205,28 @@ export async function saveVersion(
         }
         const reset = source.use_default === true;
         const texts = reset
-          ? { text_ru: null, text_kk: null }
+          ? { text_ru: null, text_kk: null, buttons_ru: null, buttons_kk: null }
           : checkedTexts(key, source);
+        // Serialize global label validation across different message rows.
+        await exec.query("select pg_advisory_xact_lock(814733,4)");
+        const candidateStore = new Map(await loadTemplateStore(exec));
+        const def = definition(key);
+        candidateStore.set(key, {
+          historicalButtons: candidateStore.get(key)?.historicalButtons,
+          ru: texts.text_ru ?? def.ru,
+          kk: texts.text_kk ?? def.kk,
+          useDefault: reset,
+          buttons: { ru: texts.buttons_ru ?? {}, kk: texts.buttons_kk ?? {} },
+        });
+        const menuErrors = validateMenuLabels(candidateStore);
+        if (menuErrors.length) {
+          throw new ApiError(
+            "VALIDATION_FAILED",
+            menuErrors.join("; "),
+          );
+        }
         const [version] = await exec.query<TemplateVersion>(
-          "insert into message_template_version(template_id,version,text_ru,text_kk,use_default,reason,created_by) values($1,$2,$3,$4,$5,$6,$7) returning *",
+          "insert into message_template_version(template_id,version,text_ru,text_kk,use_default,reason,created_by,buttons_ru,buttons_kk) values($1,$2,$3,$4,$5,$6,$7,$8::text::jsonb,$9::text::jsonb) returning *",
           [
             template!.id,
             (old?.version ?? 0) + 1,
@@ -160,6 +235,8 @@ export async function saveVersion(
             reset,
             reason,
             actor.person.id,
+            texts.buttons_ru === null ? null : JSON.stringify(texts.buttons_ru),
+            texts.buttons_kk === null ? null : JSON.stringify(texts.buttons_kk),
           ],
         );
         await recordAudit(
