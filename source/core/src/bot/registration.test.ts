@@ -121,9 +121,9 @@ function harness(
       if (sql.startsWith("select id from privacy_request"))
         return Promise.resolve((opts.openPrivacyRequests ?? []) as T[]);
       // Мастер регистрации: список зданий для шага выбора.
-      if (sql.startsWith("select id,code,kind from building"))
+      if (sql.startsWith("select id,code from building"))
         return Promise.resolve([
-          { id: "b1", code: "Ж1", kind: "house" },
+          { id: "b1", code: "Ж1" },
         ] as T[]);
       // Шаг «номер помещения»: одно активное помещение.
       if (sql.startsWith("select id from premises"))

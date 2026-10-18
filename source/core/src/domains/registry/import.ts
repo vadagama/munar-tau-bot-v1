@@ -63,10 +63,6 @@ export async function validateImport(
   }>(
     "select c.person_id,p.building_id from connection c join premises p on p.id=c.premises_id",
   );
-  const parkingHouses = await exec.query<{
-    parking_id: string;
-    house_id: string;
-  }>("select parking_id,house_id from building_parking");
   for (const entity of Object.keys(SHEETS) as (keyof ImportPayload)[]) {
     const seen = new Set<string>();
     const current = await exec.query<Row>(`select * from ${TABLES[entity]}`);
@@ -93,18 +89,12 @@ export async function validateImport(
         let natural: Row | undefined;
         switch (entity) {
           case "buildings": {
-            field = "kind";
-            if (!["house", "parking"].includes(String(row.kind)))
-              throw new Error("Допустимы house/parking");
             field = "code";
             data = {
-              kind: row.kind,
               code: text(row, "code"),
               name: row.name || null,
             };
-            natural = current.find(
-              (r) => r.kind === data.kind && r.code === data.code,
-            );
+            natural = current.find((r) => r.code === data.code);
             if (!explicit && !natural && actor.person.isTest)
               throw new Error(
                 "Общая структура зданий не изменяется в эмуляции",
@@ -117,35 +107,6 @@ export async function validateImport(
               throw new Error(
                 "Новые здания добавляет председатель; используйте существующий ID",
               );
-            if ((explicit || natural) && row.kind === "parking") {
-              const linked = parkingHouses.filter(
-                (r) => r.parking_id === (explicit ?? natural)!.id,
-              );
-              const requested = String(row.house_keys ?? "")
-                .split(",")
-                .map((v) => v.trim())
-                .filter(Boolean);
-              const sourceIds = requested
-                .map((key) => {
-                  const source = payload.buildings.find((b) => b.key === key);
-                  return (
-                    source?.id ||
-                    current.find(
-                      (b) => b.kind === source?.kind && b.code === source?.code,
-                    )?.id
-                  );
-                })
-                .filter(Boolean)
-                .map(String)
-                .sort();
-              if (
-                JSON.stringify(linked.map((r) => r.house_id).sort()) !==
-                JSON.stringify(sourceIds)
-              )
-                throw new Error(
-                  "Расхождение связей паркинга; существующие связи меняются отдельно в кабинете",
-                );
-            }
             if (explicit || natural)
               requireBuilding(actor, String((explicit ?? natural)!.id));
             break;
@@ -165,11 +126,6 @@ export async function validateImport(
             };
             field = "number";
             validatePremises(data);
-            if (
-              (data.kind === "apartment" && building.data.kind !== "house") ||
-              (data.kind === "parking_slot" && building.data.kind !== "parking")
-            )
-              throw new Error("Тип помещения не соответствует зданию");
             natural = current.find(
               (r) =>
                 r.building_id === data.building_id &&
@@ -238,7 +194,7 @@ export async function validateImport(
           entity === "persons"
             ? String(data.phone_e164)
             : entity === "buildings"
-              ? JSON.stringify([data.kind, data.code])
+              ? JSON.stringify([data.code])
               : entity === "premises"
                 ? JSON.stringify([data.building_id, data.kind, data.number])
                 : JSON.stringify([data.person_id, data.premises_id]);
@@ -279,39 +235,6 @@ export async function validateImport(
           hint: "Исправьте строку в шаблоне; существующие сведения меняются через кабинет",
         });
       }
-    }
-  }
-  // Паркинг ссылается только на дома; ключи проверяются после всех зданий.
-  for (const [index, row] of payload.buildings.entries()) {
-    const houseKeys = String(row.house_keys ?? "")
-      .split(",")
-      .map((v) => v.trim())
-      .filter(Boolean);
-    if (new Set(houseKeys).size !== houseKeys.length)
-      report.errors.push({
-        sheet: SHEETS.buildings.name,
-        row: Number(row._row ?? index + 2),
-        field: "house_keys",
-        value: row.house_keys,
-        reason: "Дом повторяется в связях паркинга",
-        hint: "Оставьте каждую ссылку на дом один раз",
-      });
-    for (const key of String(row.house_keys ?? "")
-      .split(",")
-      .map((v) => v.trim())
-      .filter(Boolean)) {
-      if (
-        row.kind !== "parking" ||
-        maps.buildings.get(key)?.data.kind !== "house"
-      )
-        report.errors.push({
-          sheet: SHEETS.buildings.name,
-          row: Number(row._row ?? index + 2),
-          field: "house_keys",
-          value: key,
-          reason: "Паркинг должен ссылаться на дом из листа зданий",
-          hint: "Укажите ключи домов через запятую",
-        });
     }
   }
   return report;
@@ -406,7 +329,7 @@ export async function commitImport(
         report.errors,
       );
     const definitions = {
-      buildings: "id uuid,kind building_kind,code text,name text",
+      buildings: "id uuid,code text,name text",
       premises:
         "id uuid,building_id uuid,kind text,number text,entrance integer,floor integer,is_test boolean",
       persons:
@@ -451,24 +374,6 @@ export async function commitImport(
           [id, entity, JSON.stringify(mappings)],
         );
     }
-    const links: { parking_id: string; house_id: string }[] = [];
-    for (const row of jsonValue<ImportPayload>(batch.payload).buildings) {
-      const parking = report.plan.buildings.find((p) => p.key === row.key);
-      if (parking?.exists) continue;
-      for (const key of String(row.house_keys ?? "")
-        .split(",")
-        .map((v) => v.trim())
-        .filter(Boolean))
-        links.push({
-          parking_id: parking!.id,
-          house_id: report.plan.buildings.find((p) => p.key === key)!.id,
-        });
-    }
-    if (links.length)
-      await exec.query(
-        "insert into building_parking(parking_id,house_id) select parking_id,house_id from jsonb_to_recordset($1::text::jsonb) as x(parking_id uuid,house_id uuid)",
-        [JSON.stringify(links)],
-      );
     await exec.query(
       "update import_batch set state='committed',committed_at=now() where id=$1",
       [id],

@@ -30,7 +30,7 @@ const chairman: Actor = {
   emulation: null,
 };
 describeWithDb("VS-2 реестр", (getDb) => {
-  it("поддерживает четыре типа и связь паркинга с домом, блокирует дубль внутри типа", async () => {
+  it("поддерживает четыре типа помещений в доме, блокирует дубль внутри типа", async () => {
     const [profile] = await getDb().query<{ id: string }>(
       "select id from profile where person_id=$1",
       [SEED.chairmanPersonId],
@@ -44,8 +44,10 @@ describeWithDb("VS-2 реестр", (getDb) => {
       kind: "storage",
     });
     await mutateRegistry(deps,chairman,"premises",{...row,kind:"commercial"});
-    const parking=await mutateRegistry(deps,chairman,"buildings",{kind:"parking",code:"TEST-P",name:"Тестовый паркинг",house_ids:[SEED.building1]});
-    await mutateRegistry(deps,chairman,"premises",{building_id:parking.id,kind:"parking_slot",number:"1"});
+    await mutateRegistry(deps,chairman,"premises",{
+      ...row,
+      kind: "parking_slot",
+    });
     await expect(
       mutateRegistry(deps, chairman, "premises", row),
     ).rejects.toThrow();

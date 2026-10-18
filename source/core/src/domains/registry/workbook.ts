@@ -9,8 +9,8 @@ import type { Row } from "./validation.ts";
 const ExcelJS = { Workbook, ValueType: Enums.ValueType };
 export const SHEETS = {
   buildings: {
-    name: "Здания и паркинги",
-    columns: ["key", "id", "kind", "code", "name", "house_keys"],
+    name: "Здания",
+    columns: ["key", "id", "code", "name"],
   },
   premises: {
     name: "Помещения",
@@ -173,9 +173,7 @@ export async function encodeWorkbook(
           ? "owner"
           : column === "basis"
             ? "initial_registry"
-            : key === "buildings"
-              ? "house,parking"
-              : "apartment,commercial,parking_slot,storage";
+            : "apartment,commercial,parking_slot,storage";
       for (let row = 2; row <= 1000; row++)
         sheet.getRow(row).getCell(index + 1).dataValidation = {
           type: "list",

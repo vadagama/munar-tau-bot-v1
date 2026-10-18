@@ -79,7 +79,7 @@ export async function listRegistry(
   switch (entity) {
     case "buildings":
       return deps.db.query<Row>(
-        `select b.*, coalesce((select jsonb_agg(house_id) from building_parking where parking_id=b.id),'[]') as house_ids from building b where ${filter} order by b.code`,
+        `select b.* from building b where ${filter} order by b.code`,
         params,
       );
     case "premises":
@@ -155,10 +155,8 @@ export async function mutateRegistry(
             "FORBIDDEN",
             "Структуру зданий задаёт председатель",
           );
-        if (!["house", "parking"].includes(String(data.kind)))
-          invalid("Тип здания: house или parking");
         data.code = text(data, "code");
-        columns = ["kind", "code", "name"];
+        columns = ["code", "name"];
         buildings = id ? [id] : [];
         break;
       }
@@ -174,10 +172,6 @@ export async function mutateRegistry(
           [data.building_id],
         );
         if (!building) invalid("Здание не найдено");
-        if (data.kind === "apartment" && building.kind !== "house")
-          invalid("Квартира должна относиться к дому");
-        if (data.kind === "parking_slot" && building.kind !== "parking")
-          invalid("Парковочное место должно относиться к паркингу");
         if (
           data.status &&
           !["active", "archived"].includes(String(data.status))
@@ -339,24 +333,6 @@ export async function mutateRegistry(
       : `insert into ${table} (${columns.join(",")}) values (${marks.join(",")}) returning *`;
     const [after] = await exec.query<Row>(query, id ? [...values, id] : values);
     if (!after) throw new ApiError("INTERNAL");
-    if (entity === "buildings" && input.house_ids !== undefined) {
-      if (!Array.isArray(input.house_ids) || data.kind !== "parking")
-        invalid("Связанные дома допустимы у паркинга");
-      await exec.query("delete from building_parking where parking_id=$1", [
-        after.id,
-      ]);
-      for (const house of input.house_ids) {
-        const [parent] = await exec.query<Row>(
-          "select id from building where id=$1 and kind='house'",
-          [house],
-        );
-        if (!parent) invalid("Связь паркинга должна указывать на дом");
-        await exec.query(
-          "insert into building_parking(parking_id,house_id) values ($1,$2)",
-          [after.id, house],
-        );
-      }
-    }
     // Предварительный профиль без Telegram; связь не выдаёт доступ (REG-09).
     if (entity === "persons" && !id) {
       const premises = await getPremises(exec, String(data.premises_id));

@@ -1220,15 +1220,13 @@ async function askBuilding(
   store?: TemplateStore,
 ): Promise<BotReply> {
   const buildings = await exec.query<Row>(
-    "select id,code,kind from building order by code",
+    "select id,code from building order by code",
   );
   state.step = "building";
   state.buildings = buildings;
   return {
     text: message(store, L, "message.registration.building", {
-      buildings: safeBlock(
-        numbered(buildings.map((b) => `${esc(b.code)} (${esc(b.kind)})`)),
-      ),
+      buildings: safeBlock(numbered(buildings.map((b) => esc(b.code)))),
     }),
     buttons: buildings.map((b, i) => [
       btn(
