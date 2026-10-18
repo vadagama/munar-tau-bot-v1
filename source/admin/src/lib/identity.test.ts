@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { canSeeAudit, canUseEmulation } from "./identity";
+import { canSeeAudit, canSeeTasks, canUseEmulation } from "./identity";
 
 describe("canSeeAudit (AUD-02)", () => {
   it.each<[string[], boolean]>([
@@ -26,5 +26,14 @@ describe("canUseEmulation (раздел 10.8 HLD)", () => {
     [[], false],
   ])("%j → %p", (roles, expected) => {
     expect(canUseEmulation(roles)).toBe(expected);
+  });
+});
+
+describe("canSeeTasks (ROL-02e)", () => {
+  it.each(["chairman", "administrator", "deputy", "executor", "duty", "doc_reviewer", "finance", "tech_admin"])("%s видит задания", role => {
+    expect(canSeeTasks([role])).toBe(true);
+  });
+  it("житель не видит раздел заданий", () => {
+    expect(canSeeTasks([])).toBe(false);
   });
 });

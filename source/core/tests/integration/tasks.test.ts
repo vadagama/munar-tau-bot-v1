@@ -33,7 +33,7 @@ describeWithDb("VS-4 задания: SQL/PDP/повторы", (getDb) => {
     const { deps, admin, request } = await setup(getDb());
     const reviewed = await transitionRequest(deps, admin, String(request.id), { action: "start_review", expected_version: request.version });
     await expect(startRequestWork(deps, admin, String(request.id), {
-      expected_version: reviewed.version, plan: "Работа", assignee_person_id: admin.person.id, due_at: "2099-01-01T10:00:00Z",
+      expected_version: reviewed.version, plan: "Работа", assignee_person_id: crypto.randomUUID(), due_at: "2099-01-01T10:00:00Z",
     }, "bad-assignee")).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     expect(await getDb().query("select id from task where request_id=$1", [request.id])).toHaveLength(0);
     expect(await getRequest(deps, admin, String(request.id))).toMatchObject({ state: "reviewing", version: reviewed.version });

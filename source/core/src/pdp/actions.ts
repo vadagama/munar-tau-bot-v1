@@ -2,7 +2,7 @@
 // Новая операция добавляется сюда; privileged-действия (AUTH-03) доступны
 // только через кабинет и запрещены в эмуляции.
 
-import type { SpecialRights, StaffRole } from "./types.ts";
+import { STAFF_ROLES, type SpecialRights, type StaffRole } from "./types.ts";
 
 export type ActionKey =
   | "settings.templates.read" | "settings.templates.edit"
@@ -68,7 +68,7 @@ export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
   "publication.approve": { privileged: false },
   "notification.preferences": { privileged: false },
   "notification.failures": { privileged: false, roles: ["chairman", "administrator", "deputy"] },
-  "task.use": { privileged: false, roles: ["chairman", "administrator", "deputy", "executor"] },
+  "task.use": { privileged: false, roles: STAFF_ROLES },
   "task.read": { privileged: false },
   "task.manage": { privileged: false },
   "task.execute": { privileged: false },
