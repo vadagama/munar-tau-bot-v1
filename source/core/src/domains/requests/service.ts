@@ -179,15 +179,10 @@ export async function informManagers(
 ): Promise<void> {
   const people = await exec.query<{ person_id: string }>(
     `select distinct a.person_id from staff_assignment a join person n on n.id=a.person_id
- where a.status='active' and n.status='active' and n.is_test=$2 and a.person_id is distinct from $3::uuid
+ where a.status='active' and n.status='active' and n.is_test=$1 and a.person_id is distinct from $2::uuid
  and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())
- and (a.role='chairman' or ($4<>'chairman' and a.role in ('administrator','deputy') and exists(select 1 from staff_scope s where s.assignment_id=a.id and s.building_id=$1)))`,
-    [
-      row.building_id,
-      row.is_test,
-      row.complaint_subject_person_id,
-      row.complaint_route ?? "administrator",
-    ],
+ and (a.role='chairman' or ($3<>'chairman' and a.role in ('administrator','deputy')))`,
+    [row.is_test,row.complaint_subject_person_id,row.complaint_route ?? "administrator"],
   );
   for (const p of people) {
     await notifyPerson(exec, p.person_id, text, `${key}:${p.person_id}`, {type:"request.staff",requestId:row.id,audience:"staff",isTest:row.is_test,bot:"worker"});
@@ -591,10 +586,9 @@ export async function editRequest(
       assigned = input.assigned_admin_person_id ?? assigned;
       if (assigned) {
         const eligible = await exec.query(
-          `select 1 from staff_assignment a join person n on n.id=a.person_id where a.person_id=$1 and n.is_test=$3 and n.status='active' and a.status='active' and a.person_id is distinct from $4::uuid and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now()) and (a.role='chairman' or ($5<>'chairman' and a.role in ('administrator','deputy') and exists(select 1 from staff_scope s where s.assignment_id=a.id and s.building_id=$2)))`,
+          `select 1 from staff_assignment a join person n on n.id=a.person_id where a.person_id=$1 and n.is_test=$2 and n.status='active' and a.status='active' and a.person_id is distinct from $3::uuid and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now()) and (a.role='chairman' or ($4<>'chairman' and a.role in ('administrator','deputy')))`,
           [
             assigned,
-            loc.buildingId,
             row.is_test,
             row.complaint_subject_person_id,
             row.complaint_route,
@@ -868,8 +862,8 @@ export async function transitionRequestInTransaction(
       if (action === "hold") {
         content(p.responsible_person_id, "ответственного");
         const eligible = await exec.query(
-          `select 1 from staff_assignment a join person n on n.id=a.person_id where a.person_id=$1 and n.is_test=$3 and n.status='active' and a.status='active' and a.role in ('chairman','administrator','deputy') and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now()) and (a.role='chairman' or exists(select 1 from staff_scope s where s.assignment_id=a.id and s.building_id=$2))`,
-          [p.responsible_person_id, row.building_id, row.is_test],
+          `select 1 from staff_assignment a join person n on n.id=a.person_id where a.person_id=$1 and n.is_test=$2 and n.status='active' and a.status='active' and a.role in ('chairman','administrator','deputy') and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())`,
+          [p.responsible_person_id, row.is_test],
         );
         if (
           !eligible.length ||

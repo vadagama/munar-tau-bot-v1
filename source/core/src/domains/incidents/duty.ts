@@ -225,8 +225,8 @@ export async function signalEmergency(
         await notifySignal(exec, s!, responsible, `signal:${s!.id}:primary`);
       }
       const managers = await exec.query<{ person_id: string }>(
-        `select distinct a.person_id from staff_assignment a join person p on p.id=a.person_id where p.is_test=$1 and p.status='active' and a.status='active' and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now()) and (a.role='chairman' or (a.role in ('administrator','deputy') and exists(select 1 from staff_scope s where s.assignment_id=a.id and s.building_id=$2)))`,
-        [actor.person.isTest, building],
+        `select distinct a.person_id from staff_assignment a join person p on p.id=a.person_id where p.is_test=$1 and p.status='active' and a.status='active' and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now()) and a.role in ('chairman','administrator','deputy')`,
+        [actor.person.isTest],
       );
       for (const m of managers) {
         if (m.person_id !== responsible) {
@@ -412,7 +412,7 @@ export async function assignSignal(
   );
 }
 export async function incidentContext(deps: RegistryDeps, actor: Actor) {
-  const scope = actor.assignments.some((a) => a.role === "chairman") ? null : [
+  const scope = actor.globalStaff || actor.assignments.some((a) => a.role === "chairman") ? null : [
     ...new Set(
       actor.assignments.filter((a) =>
         ["administrator", "deputy", "duty"].includes(a.role)
@@ -421,8 +421,8 @@ export async function incidentContext(deps: RegistryDeps, actor: Actor) {
   ];
   if (scope?.length === 0) throw new ApiError("FORBIDDEN");
   const persons = await deps.db.query<{ id: string; full_name: string }>(
-    `select distinct p.id,p.full_name from person p join staff_assignment a on a.person_id=p.id where p.is_test=$1 and p.status='active' and a.status='active' and a.role in ('chairman','administrator','deputy','duty') and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now()) and ($2::uuid[] is null or exists(select 1 from staff_scope s where s.assignment_id=a.id and s.building_id=any($2::uuid[]))) order by p.full_name`,
-    [actor.person.isTest, scope],
+    `select distinct p.id,p.full_name from person p join staff_assignment a on a.person_id=p.id where p.is_test=$1 and p.status='active' and a.status='active' and a.role in ('chairman','administrator','deputy','duty') and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now()) order by p.full_name`,
+    [actor.person.isTest],
   );
   const buildings = await deps.db.query(
     "select id,code from building where $1::uuid[] is null or id=any($1::uuid[]) order by code",

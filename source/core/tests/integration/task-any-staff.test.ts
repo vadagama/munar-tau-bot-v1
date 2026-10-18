@@ -27,7 +27,7 @@ describeWithDb("ROL-02e: любой сотрудник выполняет наз
       expect(await listTasks(deps, actor)).toContainEqual(expect.objectContaining({ id: task.id }));
       const detail = await getTask(deps, actor, task.id);
       expect(detail).toMatchObject({ can_execute: true });
-      if (role !== "chairman") expect(detail.linked_request).toBeNull();
+      if (!["chairman","administrator","deputy"].includes(role)) expect(detail.linked_request).toBeNull();
       expect(await transitionTask(deps, actor, task.id, { action: "accept", version: task.version }, `accept:${role}`))
         .toMatchObject({ state: "accepted" });
     }
