@@ -22,7 +22,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "name": "premises",
         "description": "Список доступных помещений",
         "example":
-          "1. Дом 1, Квартира 4\n2. Паркинг дома 1, Парковочное место 25",
+          "1. Дом 1, Квартира 4\n2. Дом 1, Парковочное место 25",
       },
     ],
     "buttons": [
@@ -50,10 +50,10 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "title": "Несколько помещений",
         "ru": {
           "premises":
-            "1. Дом 1, Квартира 4\n2. Паркинг дома 1, Парковочное место 25",
+            "1. Дом 1, Квартира 4\n2. Дом 1, Парковочное место 25",
         },
         "kk": {
-          "premises": "1. Дом 1, Пәтер 4\n2. Паркинг дома 1, Тұрақ орны 25",
+          "premises": "1. Дом 1, Пәтер 4\n2. Дом 1, Тұрақ орны 25",
         },
         "buttons": [
           [
@@ -69,7 +69,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
             {
               "id": "place",
               "vars": {
-                "building": "Паркинг дома 1",
+                "building": "Дом 1",
                 "number": "25",
               },
             },

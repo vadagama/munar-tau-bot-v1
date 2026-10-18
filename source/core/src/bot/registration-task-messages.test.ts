@@ -38,8 +38,8 @@ function harness(
       state = JSON.parse(String(params?.[1]));
       return [];
     }
-    if (sql.startsWith("select id,code,kind from building")) {
-      return [{ id: "b", code: "Дом <1>", kind: "house" }] as T[];
+    if (sql.startsWith("select id,code from building")) {
+      return [{ id: "b", code: "Дом <1>" }] as T[];
     }
     if (sql.startsWith("select id from premises")) return [{ id: "p" }] as T[];
     if (sql.startsWith("select phone_e164 from person")) {
@@ -114,7 +114,7 @@ describe("Полные сообщения регистрации и задани
     );
     const result = await registrationStep(h.deps, "1", "+77001234567", actor);
     expect(replyText(result)).toBe(
-      "<b>Выберите дом</b>\n1. Дом &lt;1&gt; (house)\n/cancel — отмена",
+      "<b>Выберите дом</b>\n1. Дом &lt;1&gt;\n/cancel — отмена",
     );
     expect(result).toMatchObject({
       buttons: [[{ text: "Здание Дом <1>", data: "1" }]],

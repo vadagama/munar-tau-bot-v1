@@ -25,9 +25,9 @@ function deps(count: number, templates?: TemplateStore) {
     number: "4",
   }, {
     id: "b",
-    building_id: "parking",
-    name: "Паркинг дома 1",
-    code: "P1",
+    building_id: "house",
+    name: "Дом 1",
+    code: "1",
     kind: "parking_slot",
     number: "25",
   }].slice(0, count);
