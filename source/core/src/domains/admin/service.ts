@@ -1,3 +1,5 @@
+import { notifyRoleChange } from "./staff-notice.ts";
+import { isAssignmentEffective } from "../../pdp/actor.ts";
 // Операции администрирования VS-1 (ROL-02, ROL-04, AUTH-06): назначения и
 // отзыв сеансов. Каждая операция — одна транзакция и записи журнала (AUD-01);
 // под эмуляцией они недоступны — PDP блокирует admin.* до сервиса.
@@ -63,6 +65,11 @@ async function requireActiveAssignment(
   return record;
 }
 
+async function notifyAssignmentChange(deps: AdminServiceDeps,exec: DbExecutor,actor:Actor,id:string,before: import("../../pdp/types.ts").StaffRole[],reason:string,key:string) {
+  const person=await deps.admin.getPerson(exec,id);
+  const after=(await deps.admin.listActiveAssignments(exec,id)).filter(r=>isAssignmentEffective(r,new Date())).map(r=>r.role);
+  await notifyRoleChange(exec,actor,id,before,after,reason,key,person?.isTest ?? actor.person.isTest);
+}
 /**
  * Создание назначения (ROL-02). Проверку полномочий (кто какую роль назначает,
  * ROL-02a/b/c и область) выполняет PDP; здесь — существование персоны и окно.
@@ -78,6 +85,7 @@ export async function createAssignment(
     if (!person || person.status !== "active") {
       throw new ApiError("VALIDATION_FAILED", "Персона не найдена или архивна");
     }
+    const previous=(await deps.admin.listActiveAssignments(exec,input.personId)).filter(r=>isAssignmentEffective(r,new Date())).map(r=>r.role);
     const assignmentId = await deps.admin.insertAssignment(exec, input);
     if (input.scopeBuildingIds.length > 0) {
       await deps.admin.replaceAssignmentScope(exec, assignmentId, input.scopeBuildingIds);
@@ -93,6 +101,7 @@ export async function createAssignment(
       after: assignmentSnapshot(created),
       buildingIds: created.scopeBuildingIds,
     }));
+    await notifyAssignmentChange(deps,exec,actor,input.personId,previous,"Назначение служебной роли",`staff:assignment:${created.id}:created`);
     return created;
   });
 }
@@ -119,6 +128,7 @@ export async function updateAssignment(
 
   return deps.tx.transaction(async (exec) => {
     const before = await requireActiveAssignment(deps.admin, exec, assignmentId);
+    const previous=(await deps.admin.listActiveAssignments(exec,before.personId)).filter(r=>isAssignmentEffective(r,new Date())).map(r=>r.role);
     if (patch.validUntil !== undefined && patch.validUntil !== null) {
       assertWindow({ validFrom: before.validFrom, validUntil: patch.validUntil });
     }
@@ -148,6 +158,7 @@ export async function updateAssignment(
       after: assignmentSnapshot(after),
       buildingIds: after.scopeBuildingIds,
     }));
+    if(JSON.stringify(assignmentSnapshot(before))!==JSON.stringify(assignmentSnapshot(after))) await notifyAssignmentChange(deps,exec,actor,before.personId,previous,"Изменение служебных полномочий",`staff:assignment:${assignmentId}:${crypto.randomUUID()}`);
     return after;
   });
 }
@@ -166,6 +177,7 @@ export async function revokeAssignment(
 ): Promise<AssignmentListRecord> {
   return deps.tx.transaction(async (exec) => {
     const target = await requireActiveAssignment(deps.admin, exec, assignmentId);
+    const previous=(await deps.admin.listActiveAssignments(exec,target.personId)).filter(r=>isAssignmentEffective(r,new Date())).map(r=>r.role);
 
     const revoked = await deps.admin.revokeAssignment(exec, assignmentId, actor.person.id);
     if (!revoked) {
@@ -200,6 +212,7 @@ export async function revokeAssignment(
         meta: { count: sessionsRevoked, person_id: target.personId },
       }));
     }
+    await notifyAssignmentChange(deps,exec,actor,target.personId,previous,reason,`staff:assignment:${assignmentId}:revoked`);
     return after;
   });
 }

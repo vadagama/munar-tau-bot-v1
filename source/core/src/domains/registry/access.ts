@@ -9,7 +9,7 @@ export function registryScope(
   const action = exporting ? "registry.export" : "registry.read";
   const decision = can(actor, action);
   if (!decision.allow) throw new ApiError("FORBIDDEN", decision.reason);
-  if (actor.assignments.some((a) => a.role === "chairman")) return null;
+  if (actor.globalStaff || actor.assignments.some((a) => a.role === "chairman")) return null;
   return [
     ...new Set(
       actor.assignments

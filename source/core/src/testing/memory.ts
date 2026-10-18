@@ -36,7 +36,9 @@ import {
 
 /** Пустой исполнитель: тесты работают на фейках, SQL-запросы не выполняются. */
 export class MemoryDb implements DbClient {
-  public async query<T>(): Promise<T[]> {
+  public readonly outbox: unknown[] = [];
+  public async query<T>(sql: string, params?: readonly unknown[]): Promise<T[]> {
+    if(sql.startsWith("insert into outbox(")){this.outbox.push(params);return [];}
     throw new Error("MemoryDb не исполняет SQL — используйте фейки репозиториев");
   }
 
@@ -53,6 +55,11 @@ function iso(value: Date): string {
 
 /** Фейк домена администрирования. Состояние открыто тестам для подготовки. */
 export class MemoryAdminRepo implements AdminRepo {
+  async lockPerson(exec: DbExecutor, personId: string): Promise<PersonRecord | null> { return this.getPerson(exec,personId); }
+  async hasActiveProfile(_exec: DbExecutor, personId: string): Promise<boolean> {
+    return [...this.profiles.values()].some(p=>p.personId===personId && p.archivedAt===null);
+  }
+
   public readonly persons = new Map<string, PersonRecord>();
   public readonly profiles = new Map<string, ProfileRecord>();
   public readonly assignments = new Map<string, AssignmentListRecord>();
@@ -129,7 +136,7 @@ export class MemoryAdminRepo implements AdminRepo {
     filter: AssignmentListFilter,
   ): Promise<AssignmentListRecord[]> {
     const rows = [...this.assignments.values()]
-      .filter((a) => (filter.activeOnly ? a.status === "active" : true))
+      .filter((a) => (!filter.personId || a.personId===filter.personId) && (filter.activeOnly ? a.status === "active" : true))
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
       .slice(0, filter.limit);
     return rows.map((a) => ({ ...a, scopeBuildingIds: [...(this.scopes.get(a.id) ?? [])] }));

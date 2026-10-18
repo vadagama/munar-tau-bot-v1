@@ -642,9 +642,9 @@ Deno.test("VS-0: запрос без токена и без env — 401 (env ч�
   assertEquals((await response.json()).error.code, "UNAUTHENTICATED");
 });
 
-Deno.test("VS-2: экспорт без IMP-05 блокируется PDP и журналируется", async () => {
+Deno.test("VS-2: заместитель без права экспорта блокируется PDP и журналируется", async () => {
   const {deps,admin,audit}=makeDeps();
-  const actor=makeTestActor("administrator",[B1],{personId:"p-registry"});
+  const actor=makeTestActor("deputy",[B1],{personId:"p-registry"});
   seedIdentity(admin,{sub:"sub-registry",sessionId:"s-registry",personId:actor.person.id,profileId:actor.profile.id,actor});
   const jwt=await token({sub:"sub-registry",sessionId:"s-registry"});
   const response=await call(deps,"/v1/registry/export",{token:jwt,method:"POST",body:{}});
@@ -703,4 +703,17 @@ Deno.test("VS-5 TIM-02: API раскрывает исходные условия
  const invalid=await call(deps,"/v1/registry/time-rules/author_reminder",{token:jwt,method:"POST",body:{params:{hours:48,clock:"calendar",action:"request.close"},reason:"Подмена"}});
  assertEquals(invalid.status,400);
  assertEquals((await invalid.json()).error.code,"VALIDATION_FAILED");
+});
+
+Deno.test("ROL-02f: профиль разделяет назначенную роль и унаследованные возможности", async()=>{
+  const {deps,admin}=makeDeps();
+  const actor=makeTestActor("administrator",[B1],{personId:"p-hierarchy"});
+  seedIdentity(admin,{sub:"sub-hierarchy",sessionId:"s-hierarchy",personId:actor.person.id,profileId:actor.profile.id,actor});
+  const response=await call(deps,"/v1/meta/me",{token:await token({sub:"sub-hierarchy",sessionId:"s-hierarchy"})});
+  assertEquals(response.status,200);
+  const body=await response.json();
+  assertEquals(body.assigned_roles,["administrator"]);
+  assertEquals(body.effective_roles.includes("finance"),true);
+  assertEquals(body.effective_roles.includes("tech_admin"),false);
+  assertEquals(body.assignments.map((a:{role:string})=>a.role),["administrator"]);
 });

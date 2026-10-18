@@ -20,7 +20,7 @@ export function useCabinetIdentity(): {
   refreshIdentity: () => Promise<unknown>;
 } {
   const { data, isLoading, isError, refetch } = useGetIdentity<CabinetIdentity>();
-  const roles = data?.me.assignments.map((assignment) => assignment.role) ?? [];
+  const roles = data?.me.effective_roles ?? data?.me.assignments.map((assignment) => assignment.role) ?? [];
   return { identity: data, isLoading, roles: [...new Set(roles)], isError, refreshIdentity: refetch };
 }
 

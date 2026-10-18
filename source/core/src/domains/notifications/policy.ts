@@ -1,6 +1,7 @@
 import type { RuleParams } from "../registry/time.ts";
 export type PreferenceMode = "immediate" | "digest" | "off";
 export type EventType =
+  | "staff.roles"
   | "personal"
   | "request.required"
   | "request.status"

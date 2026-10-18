@@ -170,6 +170,17 @@ const ASSIGNMENT_SELECT = `
   left join staff_scope ss on ss.assignment_id = sa.id`;
 
 export class SqlAdminRepo implements AdminRepo {
+  async listBuildingIds(exec: DbExecutor): Promise<string[]> {
+    return (await exec.query<{id:string}>("select id from building order by id")).map(row=>row.id);
+  }
+  async lockPerson(exec: DbExecutor, personId: string): Promise<PersonRecord | null> {
+    await exec.query("select id from person where id=$1 for update", [personId]);
+    return this.getPerson(exec, personId);
+  }
+  async hasActiveProfile(exec: DbExecutor, personId: string): Promise<boolean> {
+    return (await exec.query("select id from profile where person_id=$1 and archived_at is null", [personId])).length > 0;
+  }
+
   /** Только provider_id из закрытой auth.identities; metadata пользователя не используется. */
   public async linkProfileFromVerifiedIdentity(exec:DbExecutor,supabaseUserId:string):Promise<ProfileRecord|null> {
     const rows=await exec.query<ProfileRow>(`
@@ -264,6 +275,7 @@ export class SqlAdminRepo implements AdminRepo {
     if (filter.activeOnly) {
       where.push("sa.status = 'active'");
     }
+    if (filter.personId) { params.push(filter.personId); where.push(`sa.person_id=$${params.length}`); }
     params.push(filter.limit);
     const limitParam = params.length;
     const rows = await exec.query<AssignmentFullRow>(

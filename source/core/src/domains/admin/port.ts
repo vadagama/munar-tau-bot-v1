@@ -69,6 +69,7 @@ export interface AssignmentFieldPatch {
 
 export interface AssignmentListFilter {
   activeOnly: boolean;
+  personId?: string;
   limit: number;
 }
 
@@ -93,6 +94,9 @@ export interface PersonLookupRecord {
 }
 
 export interface AdminRepo {
+  listBuildingIds?(exec: DbExecutor): Promise<string[]>;
+  lockPerson(exec: DbExecutor, personId: string): Promise<PersonRecord | null>;
+  hasActiveProfile(exec: DbExecutor, personId: string): Promise<boolean>;
   // Профили и персоны
   linkProfileFromVerifiedIdentity?(exec: DbExecutor, supabaseUserId: string): Promise<ProfileRecord | null>;
   findProfileBySupabaseUserId(exec: DbExecutor, supabaseUserId: string): Promise<ProfileRecord | null>;

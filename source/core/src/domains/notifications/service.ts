@@ -225,7 +225,7 @@ export async function getPreferences(exec: DbExecutor, actor: Actor) {
           "immediate",
       }),
     ),
-    mandatory: ["request.required", "incident"],
+    mandatory: ["request.required", "incident", "staff.roles"],
   };
 }
 export async function setPreference(
@@ -396,7 +396,7 @@ export async function dispatchNotices(
                     signalId: n.signalId,
                     publicationId: n.publicationId,
                   }),
-                  n.important ?? type === "request.required",
+                  type === "staff.roles" || (n.important ?? type === "request.required"),
                   type === "incident" ? 0 : 1,
                   n.requestId ?? null,
                   n.audience ?? "personal",
@@ -436,7 +436,7 @@ export async function dispatchNotices(
                 buildingIds: n.buildingIds ?? [],
                 registrationAccess: n.registrationAccess,
               }),
-              n.important ?? n.type === "request.required",
+              n.type === "staff.roles" || (n.important ?? n.type === "request.required"),
               n.requestId ?? null,
               n.audience ?? "personal",
               n.taskId ?? null,

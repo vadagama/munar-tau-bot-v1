@@ -328,7 +328,7 @@ describeWithDb("VS-5 регрессии проверки", (getDb) => {
       ),
     ).toHaveLength(0);
   });
-  it("Анкеты: отзыв области перед dispatch и собственности перед send исключает доставку", async () => {
+  it("Анкеты: отзыв служебной роли перед dispatch и собственности перед send исключает доставку", async () => {
     const db = getDb(),
       deps = { db, audit: new SqlAuditRepo() },
       premisesId = await premises(db);
@@ -343,7 +343,7 @@ describeWithDb("VS-5 регрессии проверки", (getDb) => {
       registrationAccess: { premisesId, role: "administrator" },
     });
     await db.query(
-      "delete from staff_scope where assignment_id in (select id from staff_assignment where person_id=$1)",
+      "update staff_assignment set status='revoked' where person_id=$1",
       [SEED.testAdminPersonId],
     );
     await dispatchNotices(deps);
