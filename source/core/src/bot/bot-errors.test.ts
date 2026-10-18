@@ -4,10 +4,10 @@ import { ApiError } from "../errors/api.ts";
 import { botErrorText } from "./bot-errors.ts";
 
 describe("botErrorText", () => {
-  it("дефолтное сообщение кода заменяется дружелюбным текстом с подсказкой", () => {
+  it("дефолтное сообщение кода заменяется дружелюбным текстом без подсказки", () => {
     const text = botErrorText(new ApiError("VALIDATION_FAILED"));
     expect(text).toContain("Не удалось разобрать данные");
-    expect(text).toContain("/help");
+    expect(text).not.toContain("/help");
     expect(text).not.toContain("Валидация");
   });
 
@@ -16,7 +16,7 @@ describe("botErrorText", () => {
       new ApiError("VALIDATION_FAILED", "Укажите ID анкеты"),
     );
     expect(text).toContain("Укажите ID анкеты");
-    expect(text).toContain("/help");
+    expect(text).not.toContain("/help");
   });
 
   it("пользовательский текст экранируется", () => {
