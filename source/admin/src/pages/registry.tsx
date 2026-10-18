@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Alert,
   Button,
+  Drawer,
   Form,
   Input,
   InputNumber,
@@ -14,6 +15,7 @@ import {
   Typography,
 } from "antd";
 import { apiFetch } from "../lib/api";
+import { CARD_DRAWER_WIDTH } from "./card-drawer";
 
 type Row = Record<string, unknown>;
 type Entity = "buildings" | "premises" | "persons" | "connections";
@@ -261,15 +263,20 @@ export function RegistryPage() {
         pagination={{ pageSize: 20, showSizeChanger: true }}
         locale={{ emptyText: "Записей пока нет" }}
       />
-      <Modal
+      <Drawer
         open={editing !== undefined}
         title={`${editing ? "Изменить" : "Добавить"}: ${LABELS[entity]}`}
-        onCancel={() => setEditing(undefined)}
-        onOk={() => void save()}
-        confirmLoading={saving}
-        okText="Сохранить"
-        cancelText="Отмена"
-        destroyOnClose
+        width={CARD_DRAWER_WIDTH}
+        onClose={() => setEditing(undefined)}
+        destroyOnHidden
+        footer={
+          <Space style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button onClick={() => setEditing(undefined)}>Отмена</Button>
+            <Button type="primary" loading={saving} onClick={() => void save()}>
+              Сохранить
+            </Button>
+          </Space>
+        }
       >
         <Form name="registry-record" form={form} layout="vertical">
           {entity === "buildings" && (
@@ -426,7 +433,7 @@ export function RegistryPage() {
             </>
           )}
         </Form>
-      </Modal>
+      </Drawer>
       <Modal
         title={`Восстановление Telegram: ${recovery?.full_name ?? ""}`}
         open={!!recovery}

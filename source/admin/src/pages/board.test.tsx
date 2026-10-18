@@ -95,6 +95,30 @@ it("счётчик колонки показывает число карточе
   expect(screen.getByTestId("board-count-a")).toHaveTextContent("2");
 });
 
+it("открытая карточка выделена на доске, остальные — нет", () => {
+  render(
+    <BoardView
+      columns={[{ value: "a", label: "Первая" }]}
+      rows={[
+        { id: 1, state: "a" },
+        { id: 2, state: "a" },
+      ]}
+      stateOf={(r) => String((r as { state: string }).state)}
+      onOpen={() => {}}
+      selectedId="2"
+      renderCard={(r) => <span>к-{String(r.id)}</span>}
+    />,
+  );
+  expect(screen.getByText("к-2").closest(".board-card"))
+    .toHaveClass("board-card--selected");
+  expect(screen.getByText("к-2").closest(".board-card"))
+    .toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByText("к-1").closest(".board-card"))
+    .not.toHaveClass("board-card--selected");
+  expect(screen.getByText("к-1").closest(".board-card"))
+    .not.toHaveAttribute("aria-pressed");
+});
+
 // Тип-проверка вида: useBoardView возвращает кортеж вида и сеттера.
 const _kindCheck: ListKind = "table";
 void _kindCheck;

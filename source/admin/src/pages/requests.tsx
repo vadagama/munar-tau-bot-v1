@@ -1,6 +1,7 @@
 import { TaskVisits } from "./task-visits";
 import { RequestSettings } from "./request-settings";
 import { BoardView, ViewToggle, useBoardView } from "./board";
+import { CardDrawer } from "./card-drawer";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -455,6 +456,7 @@ export function RequestsPage() {
           rows={rows}
           stateOf={(r) => String(r.state)}
           onOpen={(r) => void open(String(r.id))}
+          selectedId={card ? String(card.id) : null}
           loading={busy}
           emptyText="Обращений пока нет"
           renderCard={(r) => (
@@ -530,21 +532,18 @@ export function RequestsPage() {
           Следующие 100 обращений
         </Button>
       )}
-      {card && (
-        <Card
-          title={`${card.number ?? "Черновик"} · ${REQUEST_STATES[stateName]}`}
-          extra={
-            <Button
-              disabled={saving || fileBusy}
-              onClick={() => {
-                openEpoch.current++;
-                setCard(null);
-              }}
-            >
-              Закрыть карточку
-            </Button>
-          }
-        >
+      <CardDrawer
+        open={!!card}
+        title={card
+          ? `${card.number ?? "Черновик"} · ${REQUEST_STATES[stateName]}`
+          : ""}
+        closeDisabled={saving || fileBusy}
+        onClose={() => {
+          openEpoch.current++;
+          setCard(null);
+        }}
+      >
+        {card && (
           <Space direction="vertical" size="large" style={{ width: "100%" }}>
             <Descriptions
               column={{ xs: 1, sm: 2 }}
@@ -938,8 +937,8 @@ export function RequestsPage() {
               />
             </details>
           </Space>
-        </Card>
-      )}
+        )}
+      </CardDrawer>
       {busy && card && <Spin />}
       <RequestSettings
         open={settings}

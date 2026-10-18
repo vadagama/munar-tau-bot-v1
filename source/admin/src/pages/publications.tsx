@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
-  Card,
   Checkbox,
   DatePicker,
   Form,
@@ -17,6 +16,7 @@ import {
 } from "antd";
 import { apiFetch } from "../lib/api";
 import { useCabinetIdentity } from "../lib/identity";
+import { CardDrawer } from "./card-drawer";
 type Row = Record<string, unknown>;
 const required = [{ required: true, message: "Заполните поле" }];
 const kinds: Record<string, string> = {
@@ -188,11 +188,13 @@ export function PublicationsPage() {
           ),
         }]}
       />
-      {card && (
-        <Card
-          title={String(card.title)}
-          extra={<Button onClick={() => setCard(null)}>Закрыть</Button>}
-        >
+      <CardDrawer
+        open={!!card}
+        title={card ? String(card.title) : ""}
+        onClose={() => setCard(null)}
+      >
+        {card && (
+          <>
           <Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>
             {String(card.body)}
           </Typography.Paragraph>
@@ -295,8 +297,9 @@ export function PublicationsPage() {
               <List.Item>{String(h.at)} — версия {String(h.version)}</List.Item>
             )}
           />
-        </Card>
-      )}
+          </>
+        )}
+      </CardDrawer>
       <Modal
         open={!!action}
         title={action === "create"
