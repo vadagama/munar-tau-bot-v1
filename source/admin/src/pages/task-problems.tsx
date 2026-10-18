@@ -1,14 +1,16 @@
-import { useRef, useState } from "react";
+import { DrawerActionContext } from "./card-drawer";
+import { ActionPanel } from "./action-panel";
+import { useContext, useRef, useState } from "react";
 import {
   Alert,
   Button,
   Form,
   Input,
   List,
-  Modal,
   Select,
   Space,
   Typography,
+  theme,
 } from "antd";
 import { apiFetch } from "../lib/api";
 type Row = Record<string, unknown>;
@@ -17,6 +19,8 @@ export function TaskProblems(
 ) {
   const logs = (task.log as Row[]) ?? [],
     problems = logs.filter((l) => (l.meta as Row)?.action === "found_problem");
+  const editing = !!useContext(DrawerActionContext)?.editor;
+  const { token } = theme.useToken();
   const [selected, setSelected] = useState<Row | null>(null),
     [choices, setChoices] = useState<Row[]>([]),
     [busy, setBusy] = useState(false),
@@ -26,6 +30,10 @@ export function TaskProblems(
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : "Ошибка запроса");
   async function begin(p: Row) {
+    form.resetFields();
+    key.current = crypto.randomUUID();
+    setChoices([]);
+    setSelected(p);
     setBusy(true);
     setError(null);
     try {
@@ -33,9 +41,6 @@ export function TaskProblems(
       setChoices(
         r.items.filter((t) => t.id !== task.id && t.state !== "canceled"),
       );
-      form.resetFields();
-      key.current = crypto.randomUUID();
-      setSelected(p);
     } catch (e) {
       fail(e);
     } finally {
@@ -101,7 +106,7 @@ export function TaskProblems(
                   )
                   : !!task.can_manage && (
                     <Button
-                      disabled={busy}
+                      disabled={busy || editing}
                       onClick={() => void begin(p)}
                     >
                       Связать с заданием
@@ -112,12 +117,13 @@ export function TaskProblems(
           );
         }}
       />
-      <Modal
+      <ActionPanel
+        form={form}
+        error={error}
+        busy={busy}
         title="Задание по найденной проблеме"
         open={!!selected}
         onCancel={() => !busy && setSelected(null)}
-        footer={null}
-        destroyOnHidden
       >
         <Form
           form={form}
@@ -147,11 +153,11 @@ export function TaskProblems(
           >
             <Input.TextArea />
           </Form.Item>
-          <Button type="primary" htmlType="submit" loading={busy}>
+          <Button style={{ position: "sticky", bottom: 0, zIndex: 1, marginBlock: token.marginSM }} type="primary" htmlType="submit" loading={busy}>
             Связать
           </Button>
         </Form>
-      </Modal>
+      </ActionPanel>
     </>
   );
 }

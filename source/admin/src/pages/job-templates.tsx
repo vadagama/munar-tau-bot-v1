@@ -1,3 +1,6 @@
+import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
+import { ActionPanel } from "./action-panel";
+import { CardDrawer } from "./card-drawer";
 import { JobSchedule } from "./job-schedule";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -8,11 +11,11 @@ import {
   Form,
   Input,
   List,
-  Modal,
   Select,
   Space,
   Table,
   Typography,
+  theme,
 } from "antd";
 import { apiFetch } from "../lib/api";
 import { OSI_PRESETS, type TemplatePreset } from "./job-template-presets";
@@ -21,6 +24,7 @@ const required = [{ required: true, message: "Заполните поле" }];
 export function JobTemplates(
   { onCreated }: { onCreated: (taskId: string) => void },
 ) {
+  const { token } = theme.useToken();
   const [rows, setRows] = useState<Row[]>([]),
     [buildings, setBuildings] = useState<Row[]>([]),
     [versions, setVersions] = useState<Row[]>([]),
@@ -28,6 +32,8 @@ export function JobTemplates(
   const [error, setError] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
     [action, setAction] = useState<string | null>(null);
+  const [scheduleBusy, setScheduleBusy] = useState(false);
+  const [scheduleDirty, setScheduleDirty] = useState(false);
   const [schedule,setSchedule]=useState<Row|null>(null);
   const [form] = Form.useForm();
   const key = useRef(crypto.randomUUID()), generation = useRef(0);
@@ -117,13 +123,22 @@ export function JobTemplates(
       else await refresh();
     } catch (e) {
       fail(e);
+      if (isVersionConflict(e) && selected) {
+        try {
+          const fresh = (await apiFetch<{ items: Row[] }>("/v1/job-templates")).items;
+          setRows(fresh);
+          const current = fresh.find(row => row.id === selected.id);
+          if (current) setSelected(current);
+          setError(current ? VERSION_CONFLICT_MESSAGE : "Шаблон больше недоступен. Вернитесь к списку.");
+        } catch (refreshError) { fail(refreshError); }
+      }
     } finally {
       setBusy(false);
     }
   }
   return (
     <Space direction="vertical" style={{ width: "100%" }}>
-      {error && <Alert type="error" message={error} />}
+      {error && !action && <Alert type="error" message={error} />}
       <Button disabled={busy} onClick={() => begin("create", null)}>
         Создать шаблон
       </Button>
@@ -170,7 +185,7 @@ export function JobTemplates(
           title: "Действия",
           render: (_, r) => (
             <Space wrap>
-              <Button onClick={()=>setSchedule(r)}>Расписание и запуски</Button>
+              <Button onClick={() => { setScheduleDirty(false); setSchedule(r); }}>Расписание и запуски</Button>
               <Button onClick={() => begin("edit", r)}>Новая версия</Button>
               <Button onClick={() => void history(r)}>История версий</Button>
               <Button disabled={!r.active} onClick={() => begin("run", r)}>
@@ -200,13 +215,22 @@ export function JobTemplates(
           />
         </>
       )}
-      <Modal open={!!schedule} title="Регулярные задания" width={900} footer={null} onCancel={()=>setSchedule(null)} destroyOnClose>{schedule&&<JobSchedule id={String(schedule.id)} onCreated={id=>{setSchedule(null);onCreated(id);}}/>}</Modal>
-      <Modal
+      <CardDrawer open={!!action || !!schedule} title={String(schedule?.name ?? selected?.name ?? "Шаблоны заданий")}
+        closeDisabled={busy || scheduleBusy} onClose={() => { setAction(null); setSchedule(null); }}>
+        <ActionPanel open={!!schedule} full title="Регулярные задания" busy={scheduleBusy}
+          hasUnsavedChanges={() => scheduleDirty} onCancel={() => setSchedule(null)}>
+          {schedule && <JobSchedule id={String(schedule.id)} onBusyChange={setScheduleBusy}
+            onDirtyChange={setScheduleDirty} onCreated={id => { setSchedule(null); onCreated(id); }} />}
+        </ActionPanel>
+
+      <ActionPanel
         title={action === "run" ? "Ручной запуск задания" : "Версия шаблона"}
         open={!!action}
+        full
+        form={form}
+        busy={busy}
+        error={error}
         onCancel={() => !busy && setAction(null)}
-        footer={null}
-        destroyOnHidden
       >
         <Form
           form={form}
@@ -310,11 +334,12 @@ export function JobTemplates(
                 )}
               </>
             )}
-          <Button type="primary" htmlType="submit" loading={busy}>
+          <Button style={{ position: "sticky", bottom: 0, zIndex: 1, marginBlock: token.marginSM }} type="primary" htmlType="submit" loading={busy}>
             Сохранить
           </Button>
         </Form>
-      </Modal>
+      </ActionPanel>
+      </CardDrawer>
     </Space>
   );
 }

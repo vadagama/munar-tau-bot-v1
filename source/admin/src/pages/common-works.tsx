@@ -1,17 +1,19 @@
+import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
+import { ActionPanel } from "./action-panel";
+import { CardDrawer } from "./card-drawer";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
-  Card,
   Checkbox,
   Form,
   Input,
   List,
-  Modal,
   Select,
   Space,
   Table,
   Typography,
+  theme,
 } from "antd";
 import { apiFetch } from "../lib/api";
 type Row = Record<string, unknown>;
@@ -24,6 +26,7 @@ const labels: Record<string, string> = {
   canceled: "Отменена",
 };
 export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
+  const { token } = theme.useToken();
   const [rows, setRows] = useState<Row[]>([]),
     [card, setCard] = useState<Row | null>(null),
     [buildings, setBuildings] = useState<Row[]>([]),
@@ -40,14 +43,14 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
     );
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : "Ошибка запроса");
-  async function refresh() {
+  async function refresh(preserveCard = false) {
     const g = ++generation.current;
     setBusy(true);
     try {
       const r = await apiFetch<{ items: Row[] }>("/v1/common-works");
       if (g === generation.current) {
         setRows(r.items);
-        setCard(null);
+        if (!preserveCard) setCard(null);
       }
     } catch (e) {
       if (g === generation.current) fail(e);
@@ -61,16 +64,16 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
       generation.current++;
     };
   }, []);
-  async function open(id: unknown) {
+  async function open(id: unknown, preserveCard = false) {
     const g = ++generation.current;
-    setCard(null);
+    if (!preserveCard) setCard(null);
     setBusy(true);
     setError(null);
     try {
       const r = await apiFetch<Row>(`/v1/common-works/${id}`);
       if (g === generation.current) setCard(r);
     } catch (e) {
-      if (g === generation.current) fail(e);
+      if (g === generation.current) { setCard(null); fail(e); }
     } finally {
       if (g === generation.current) setBusy(false);
     }
@@ -126,18 +129,22 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
         body,
         idempotencyKey: key.current,
       });
+      await refresh(true);
+      await open(result.id, true);
       setAction(null);
-      await refresh();
-      await open(result.id);
     } catch (e) {
       fail(e);
+      if (isVersionConflict(e) && card) {
+        try { setCard(await apiFetch<Row>("/v1/common-works/" + card.id)); setError(VERSION_CONFLICT_MESSAGE); }
+        catch (refreshError) { fail(refreshError); }
+      }
     } finally {
       setBusy(false);
     }
   }
   return (
     <Space direction="vertical" style={{ width: "100%" }}>
-      {error && <Alert type="error" message={error} />}
+      {error && !card && !action && <Alert type="error" message={error} />}
       <Space>
         <Button onClick={() => void refresh()} disabled={busy}>
           Обновить работы
@@ -167,8 +174,10 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
           { title: "Состояние", render: (_, r) => labels[String(r.state)] },
         ]}
       />
+      <CardDrawer open={!!card || !!action} closeDisabled={busy} onClose={() => { generation.current++; setCard(null); }} title={card ? String(card.number) + " — " + String(card.title) : "Новая общая работа"}>
+      {error && card && !action && <Alert type="error" message={error} />}
       {card && (
-        <Card title={`${card.number} — ${card.title}`}>
+        <section aria-label={`${card.number} — ${card.title}`}>
           <p>{String(card.plan)}</p>
           <p>Срок: {new Date(String(card.due_at)).toLocaleString()}</p>
           <p>{labels[String(card.state)]}</p>
@@ -228,16 +237,18 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
               </List.Item>
             )}
           />
-        </Card>
+        </section>
       )}
-      <Modal
+      <ActionPanel
         open={!!action}
+        full={action === "create" || action === "cancel"}
+        busy={busy}
+        error={error}
+        form={form}
         title={action === "create"
           ? "Новая общая работа"
           : "Решение по общей работе"}
-        footer={null}
         onCancel={() => !busy && setAction(null)}
-        destroyOnHidden
       >
         <Form
           form={form}
@@ -339,11 +350,13 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
                 </Form.Item>
               </div>
             ))}
-          <Button htmlType="submit" type="primary" loading={busy}>
+          <Button style={{ position: "sticky", bottom: 0, zIndex: 1, marginBlock: token.marginSM }} htmlType="submit" type="primary" loading={busy}>
             Сохранить
           </Button>
         </Form>
-      </Modal>
+      </ActionPanel>
+      </CardDrawer>
+
     </Space>
   );
 }

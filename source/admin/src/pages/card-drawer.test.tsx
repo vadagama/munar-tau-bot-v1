@@ -31,3 +31,38 @@ it("карточка-шторка: закрыта — содержимого н�
   expect(screen.getByRole("button", { name: "Закрыть карточку" }))
     .toBeDisabled();
 });
+
+it("сохранение защищает все способы закрытия карточки", () => {
+  const onClose = vi.fn();
+  const { baseElement } = render(
+    <CardDrawer open title="Сохранение" onClose={onClose} closeDisabled>
+      <span>Форма с несохранёнными данными</span>
+    </CardDrawer>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Закрыть карточку" }));
+  const cross = screen.queryByRole("button", { name: /close/i });
+  if (cross) fireEvent.click(cross);
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape", keyCode: 27 });
+  const mask = baseElement.querySelector(".ant-drawer-mask");
+  if (mask) fireEvent.click(mask);
+  expect(onClose).not.toHaveBeenCalled();
+  expect(screen.getByText("Форма с несохранёнными данными")).toBeInTheDocument();
+});
+
+it("подтверждение выхода не закрывает карточку, если после предупреждения началось сохранение", () => {
+  const onClose = vi.fn();
+  const { rerender } = render(
+    <CardDrawer open title="Объект" onClose={onClose} hasUnsavedChanges={() => true}>
+      <span>Изменённые данные</span>
+    </CardDrawer>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Закрыть карточку" }));
+  expect(screen.getByRole("button", { name: "Выйти без сохранения" })).toBeVisible();
+  rerender(
+    <CardDrawer open title="Объект" onClose={onClose} hasUnsavedChanges={() => true} closeDisabled>
+      <span>Изменённые данные</span>
+    </CardDrawer>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Выйти без сохранения" }));
+  expect(onClose).not.toHaveBeenCalled();
+});

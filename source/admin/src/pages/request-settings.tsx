@@ -1,3 +1,4 @@
+import { CardDrawer } from "./card-drawer";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -5,7 +6,6 @@ import {
   Form,
   Input,
   InputNumber,
-  Modal,
   Select,
   Space,
   Switch,
@@ -40,6 +40,7 @@ export function RequestSettings(
       ]);
       setCategories(c.items);
       fileForm.setFieldsValue(p);
+      fileForm.setFields(Object.keys(p).map(name => ({ name, touched: false })));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка настроек");
     }
@@ -56,6 +57,8 @@ export function RequestSettings(
     setError(null);
     try {
       await apiFetch(path, { method, body });
+      if (path === "/v1/file-policy") fileForm.resetFields();
+      else categoryForm.resetFields();
       await load();
       onSaved();
     } catch (e) {
@@ -65,11 +68,12 @@ export function RequestSettings(
     }
   };
   return (
-    <Modal
+    <CardDrawer
       title="Настройки обращений"
       open={open}
-      onCancel={onClose}
-      footer={<Button onClick={onClose}>Закрыть</Button>}
+      onClose={() => { categoryForm.resetFields(); fileForm.resetFields(); setSelected(undefined); onClose(); }}
+      closeDisabled={busy}
+      hasUnsavedChanges={() => categoryForm.isFieldsTouched() || fileForm.isFieldsTouched()}
     >
       {error && <Alert type="error" message={error} />}
       <Tabs
@@ -200,6 +204,6 @@ export function RequestSettings(
           ),
         }]}
       />
-    </Modal>
+    </CardDrawer>
   );
 }

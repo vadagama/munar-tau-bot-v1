@@ -1,3 +1,5 @@
+import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
+import { ActionPanel } from "./action-panel";
 import dayjs from "dayjs";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -8,7 +10,6 @@ import {
   Form,
   Input,
   List,
-  Modal,
   Select,
   Space,
   Table,
@@ -24,6 +25,14 @@ const kinds: Record<string, string> = {
   outage: "Плановое отключение",
   work_report: "Отчёт о работе",
   financial_report: "Финансовый отчёт",
+};
+const actionNames: Record<string, string> = {
+  create: "Новая публикация", edit: "Редактирование публикации",
+  media: "Выбрать фото и видео", problem: "Сообщить о проблеме",
+  submit_approval: "На согласование председателю", publish: "Опубликовать",
+  schedule: "Запланировать публикацию", approve: "Разрешить публикацию",
+  update_outage: "Обновить план отключения", restore: "Подтвердить восстановление",
+  archive: "В архив",
 };
 const states: Record<string, string> = {
   draft: "Черновик",
@@ -78,40 +87,44 @@ export function PublicationsPage() {
     }
   }
   async function begin(a: string) {
+    setError(null);
+    setBusy(true);
     setAction(a);
     key.current = crypto.randomUUID();
     form.resetFields();
     form.setFieldsValue({ kind: "announcement", requires_document: false });
-    if (a === "edit" && card) {
-      form.setFieldsValue({
-        ...card,
-        planned_start: card.planned_start
-          ? dayjs(String(card.planned_start))
-          : undefined,
-        planned_end: card.planned_end
-          ? dayjs(String(card.planned_end))
-          : undefined,
-      });
-    }
-    if (a === "media") {
-      form.setFieldsValue({
-        attachment_ids: ((card?.files as Row[]) ?? []).map((f) => f.id),
-      });
-    }
-    if (a === "create" || a === "edit") {
-      try {
-        const [b, w, p] = await Promise.all([
-          apiFetch<{ items: Row[] }>("/v1/registry/buildings"),
-          apiFetch<{ items: Row[] }>("/v1/common-works"),
-          apiFetch<{ persons: Row[] }>("/v1/incidents/context"),
-        ]);
-        setBuildings(b.items);
-        setWorks(w.items.filter((x) => x.state === "completed"));
-        setPeople(p.persons);
-      } catch (e) {
-        fail(e);
+    try {
+      if (a === "edit" && card) {
+        form.setFieldsValue({
+          ...card,
+          planned_start: card.planned_start
+            ? dayjs(String(card.planned_start))
+            : undefined,
+          planned_end: card.planned_end
+            ? dayjs(String(card.planned_end))
+            : undefined,
+        });
       }
-    }
+      if (a === "media") {
+        form.setFieldsValue({
+          attachment_ids: ((card?.files as Row[]) ?? []).map((f) => f.id),
+        });
+      }
+      if (a === "create" || a === "edit") {
+        try {
+          const [b, w, p] = await Promise.all([
+            apiFetch<{ items: Row[] }>("/v1/registry/buildings"),
+            apiFetch<{ items: Row[] }>("/v1/common-works"),
+            apiFetch<{ persons: Row[] }>("/v1/incidents/context"),
+          ]);
+          setBuildings(b.items);
+          setWorks(w.items.filter((x) => x.state === "completed"));
+          setPeople(p.persons);
+        } catch (e) {
+          fail(e);
+        }
+      }
+    } finally { setBusy(false); }
   }
   async function submit() {
     try {
@@ -146,11 +159,17 @@ export function PublicationsPage() {
           idempotencyKey: key.current,
         },
       );
-      setAction(null);
       await refresh();
       if (action !== "problem") await open(String(result.id));
+      setAction(null);
     } catch (e) {
       if (e instanceof Error) fail(e);
+      if (isVersionConflict(e) && card) {
+        try {
+          setCard(await apiFetch<Row>(`/v1/publications/${card.id}`));
+          setError(VERSION_CONFLICT_MESSAGE);
+        } catch (refreshError) { fail(refreshError); }
+      }
     } finally {
       setBusy(false);
     }
@@ -158,7 +177,7 @@ export function PublicationsPage() {
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
       <Typography.Title level={2}>Публикации и отключения</Typography.Title>
-      {error && <Alert type="error" message={error} showIcon />}
+      {error && !card && !action && <Alert type="error" message={error} showIcon />}
       <Space wrap>
         <Button loading={busy} onClick={() => void refresh()}>Обновить</Button>
         {manager && (
@@ -189,10 +208,12 @@ export function PublicationsPage() {
         }]}
       />
       <CardDrawer
-        open={!!card}
-        title={card ? String(card.title) : ""}
+        open={!!card || !!action}
+        title={card ? String(card.title) : "Новая публикация"}
+        closeDisabled={busy}
         onClose={() => setCard(null)}
       >
+        {error && card && !action && <Alert role="alert" type="error" showIcon message={error} />}
         {card && (
           <>
           <Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>
@@ -299,16 +320,16 @@ export function PublicationsPage() {
           />
           </>
         )}
-      </CardDrawer>
-      <Modal
+      <ActionPanel
+        form={form}
+        error={error}
+        full={action === "create" || action === "edit"}
         open={!!action}
-        title={action === "create"
-          ? "Новая публикация"
-          : "Действие с публикацией"}
+        title={actionNames[action ?? ""] ?? "Действие с публикацией"}
+        okText={action === "edit" ? "Сохранить изменения" : action === "create" ? "Создать публикацию" : action === "media" ? "Сохранить материалы" : action === "problem" ? "Отправить сообщение" : actionNames[action ?? ""] ?? "Сохранить"}
         onCancel={() => setAction(null)}
         onOk={() => void submit()}
-        confirmLoading={busy}
-        width={650}
+        busy={busy}
       >
         <Form form={form} layout="vertical" disabled={busy}>
           {["create", "edit"].includes(action ?? "") && (
@@ -500,7 +521,9 @@ export function PublicationsPage() {
             />
           )}
         </Form>
-      </Modal>
+      </ActionPanel>
+      </CardDrawer>
+
     </Space>
   );
 }

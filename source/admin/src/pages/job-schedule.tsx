@@ -1,3 +1,4 @@
+import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -20,7 +21,11 @@ function localInput(value: unknown) {
     .slice(0, 16);
 }
 export function JobSchedule(
-  { id, onCreated }: { id: string; onCreated: (id: string) => void },
+  { id, onCreated, onBusyChange, onDirtyChange }: {
+    id: string; onCreated: (id: string) => void;
+    onBusyChange?: (busy: boolean) => void;
+    onDirtyChange?: (dirty: boolean) => void;
+  },
 ) {
   const [data, setData] = useState<
       { schedule: Row | null; runs: Row[]; assignees: Row[] }
@@ -28,6 +33,8 @@ export function JobSchedule(
     [error, setError] = useState<string>(),
     [busy, setBusy] = useState(false);
   const [form] = Form.useForm();
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
   useEffect(() => {
     let live = true;
     setData(undefined);
@@ -71,8 +78,13 @@ export function JobSchedule(
         },
       });
       await refresh();
+      onDirtyChange?.(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось сохранить");
+      if (isVersionConflict(e)) {
+        try { await refresh(); setError(VERSION_CONFLICT_MESSAGE); }
+        catch (refreshError) { setError(refreshError instanceof Error ? refreshError.message : "Не удалось обновить расписание"); }
+      }
     } finally {
       setBusy(false);
     }
@@ -100,6 +112,7 @@ export function JobSchedule(
       <Form
         form={form}
         layout="vertical"
+        onValuesChange={() => onDirtyChange?.(true)}
         onFinish={(v) => void save(v)}
         disabled={busy || !data}
       >

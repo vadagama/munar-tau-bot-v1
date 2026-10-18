@@ -1,6 +1,6 @@
+import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
+import { ActionPanel } from "./action-panel";
 import { TaskProblems } from "./task-problems";
-import { JobTemplates } from "./job-templates";
-import { CommonWorks } from "./common-works";
 import { TaskVisits } from "./task-visits";
 import { TaskReportForm } from "./task-report";
 import { BoardView, ViewToggle, useBoardView } from "./board";
@@ -14,12 +14,12 @@ import {
   Form,
   Input,
   List,
-  Modal,
   Select,
   Space,
   Table,
   Tag,
   Typography,
+  theme,
 } from "antd";
 import { apiFetch } from "../lib/api";
 import { useCabinetIdentity } from "../lib/identity";
@@ -58,6 +58,7 @@ const overdue = (t: Task) =>
   !TASK_DONE_STATES.includes(t.state);
 export function TasksPage() {
   const { identity, roles } = useCabinetIdentity();
+  const { token } = theme.useToken();
   const [view, setView] = useBoardView("view.tasks");
   const manager = roles.some((r) =>
     ["chairman", "administrator", "deputy"].includes(r)
@@ -74,19 +75,20 @@ export function TasksPage() {
     [reporting, setReporting] = useState(false);
   const [replacements, setReplacements] = useState<Row[]>([]);
   const [templateOptions, setTemplateOptions] = useState<Row[]>([]);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportDirty, setReportDirty] = useState(false);
   const [problemReporting, setProblemReporting] = useState(false);
-  const [templatesOpen, setTemplatesOpen] = useState(false);
-  const [commonOpen, setCommonOpen] = useState(false),
-    [works, setWorks] = useState<Row[]>([]);
+  const [works, setWorks] = useState<Row[]>([]);
   const [createForm] = Form.useForm(), [actionForm] = Form.useForm();
   const generation = useRef(0), key = useRef(crypto.randomUUID());
   const requestId = Form.useWatch("request_id", createForm);
   const commonId = Form.useWatch("common_work_id", createForm);
-  async function refresh() {
+  async function refresh(preserveCard = false) {
     const current = ++generation.current;
     setLoading(true);
     setError(null);
-    setCard(null);
+    if (!preserveCard) setCard(null);
     try {
       const result = await apiFetch<{ items: Task[] }>("/v1/tasks");
       if (current === generation.current) setRows(result.items);
@@ -101,14 +103,25 @@ export function TasksPage() {
   }
   useEffect(() => {
     setCreating(false);
-    setCommonOpen(false);
-    setTemplatesOpen(false);
     setAction(null);
     setReporting(false);
     setRequests([]);
     setPeople([]);
-    void refresh();
+    let active = true;
+    void refresh().then(() => {
+      if (!active || !identity?.me.person.id) return;
+      const query = new URLSearchParams(window.location.search);
+      const taskId = query.get("task"), workId = query.get("common_work");
+      if (!taskId && !workId) return;
+      if (workId && !manager) return;
+      const url = new URL(window.location.href);
+      url.searchParams.delete("task"); url.searchParams.delete("common_work");
+      window.history.replaceState(null, "", url);
+      if (taskId) void open(taskId);
+      else if (workId) void newTask(workId);
+    });
     return () => {
+      active = false;
       generation.current++;
     };
   }, [identity?.me.person.id]);
@@ -131,16 +144,16 @@ export function TasksPage() {
       active = false;
     };
   }, [requestId, commonId, createForm]);
-  async function open(id: string) {
+  async function open(id: string, preserveCard = false) {
     const current = ++generation.current;
-    setCard(null);
+    if (!preserveCard) setCard(null);
     setError(null);
     setLoading(true);
     try {
       const result = await apiFetch<Task>(`/v1/tasks/${id}`);
       if (current === generation.current) setCard(result);
     } catch (e) {
-      if (current === generation.current) setError(message(e));
+      if (current === generation.current) { setCard(null); setError(message(e)); }
     } finally {
       if (current === generation.current) setLoading(false);
     }
@@ -169,7 +182,6 @@ export function TasksPage() {
       if (commonWorkId) {
         createForm.setFieldValue("common_work_id", commonWorkId);
       }
-      setCommonOpen(false);
       key.current = crypto.randomUUID();
       setCreating(true);
     } catch (e) {
@@ -183,45 +195,50 @@ export function TasksPage() {
     actionForm.resetFields();
     key.current = crypto.randomUUID();
     setAction(value);
-    if (value === "revise_template") {
-      try {
-        setTemplateOptions(
-          (await apiFetch<{ items: Row[] }>("/v1/job-templates")).items.filter(
-            (t) => t.active,
-          ),
-        );
-      } catch (e) {
-        setError(message(e));
+    setActionLoading(true);
+    setReplacements([]);
+    setTemplateOptions([]);
+    try {
+      if (value === "revise_template") {
+        try {
+          setTemplateOptions(
+            (await apiFetch<{ items: Row[] }>("/v1/job-templates")).items.filter(
+              (t) => t.active,
+            ),
+          );
+        } catch (e) {
+          setError(message(e));
+        }
       }
-    }
-    if (["cancel", "replace_canceled"].includes(value) && card) {
-      try {
-        const r = await apiFetch<{ items: Row[] }>("/v1/tasks");
-        setReplacements(
-          r.items.filter((t) =>
-            t.id !== card.id && t.request_id === card.request_id &&
-            t.common_work_id === card.common_work_id && t.is_required &&
-            t.state !== "canceled"
-          ),
-        );
-      } catch (e) {
-        setError(message(e));
+      if (["cancel", "replace_canceled"].includes(value) && card) {
+        try {
+          const r = await apiFetch<{ items: Row[] }>("/v1/tasks");
+          setReplacements(
+            r.items.filter((t) =>
+              t.id !== card.id && t.request_id === card.request_id &&
+              t.common_work_id === card.common_work_id && t.is_required &&
+              t.state !== "canceled"
+            ),
+          );
+        } catch (e) {
+          setError(message(e));
+        }
       }
-    }
-    if (value === "assign" && card) {
-      setPeople([]);
-      try {
-        setPeople(
-          (await apiFetch<{ items: Row[] }>(
-            card.common_work_id
-              ? `/v1/common-works/${card.common_work_id}/task-assignees`
-              : `/v1/requests/${card.request_id}/task-assignees`,
-          )).items,
-        );
-      } catch (e) {
-        setError(message(e));
+      if (value === "assign" && card) {
+        setPeople([]);
+        try {
+          setPeople(
+            (await apiFetch<{ items: Row[] }>(
+              card.common_work_id
+                ? `/v1/common-works/${card.common_work_id}/task-assignees`
+                : `/v1/requests/${card.request_id}/task-assignees`,
+            )).items,
+          );
+        } catch (e) {
+          setError(message(e));
+        }
       }
-    }
+    } finally { setActionLoading(false); }
   }
   async function save(values: Row) {
     if (saving) return;
@@ -255,16 +272,23 @@ export function TasksPage() {
           },
           idempotencyKey: key.current,
         });
+      await refresh(true);
+      await open(result.id, true);
       setCreating(false);
       setAction(null);
-      await refresh();
-      await open(result.id);
     } catch (e) {
       setError(message(e));
+      if (isVersionConflict(e) && card) {
+        try {
+          setCard(await apiFetch<Task>(`/v1/tasks/${card.id}`));
+          setError(VERSION_CONFLICT_MESSAGE);
+        } catch (refreshError) { setError(message(refreshError)); }
+      }
     } finally {
       setSaving(false);
     }
   }
+
   const workerActions = card?.can_execute
     ? ({
       awaiting_acceptance: ["accept", "decline"],
@@ -333,40 +357,13 @@ export function TasksPage() {
       </div>
       {manager && (
         <Space>
-          <Button onClick={() => setCommonOpen(true)}>Общие работы</Button>
-          <Button onClick={() => setTemplatesOpen(true)}>
+          <Button href="/common-works">Общие работы</Button>
+          <Button href="/job-templates">
             Шаблоны заданий
           </Button>
         </Space>
       )}
-      <Modal
-        title="Шаблоны заданий"
-        open={templatesOpen}
-        onCancel={() => setTemplatesOpen(false)}
-        footer={null}
-        width={1000}
-        destroyOnHidden
-      >
-        {templatesOpen && (
-          <JobTemplates
-            onCreated={(id) => {
-              setTemplatesOpen(false);
-              void refresh().then(() => open(id));
-            }}
-          />
-        )}
-      </Modal>
-      <Modal
-        title="Общие работы"
-        open={commonOpen}
-        onCancel={() => setCommonOpen(false)}
-        footer={null}
-        width={1000}
-        destroyOnHidden
-      >
-        {commonOpen && <CommonWorks onTask={(id) => void newTask(id)} />}
-      </Modal>
-      {error && <Alert type="error" showIcon message={error} />}
+      {error && !card && !creating && <Alert type="error" showIcon message={error} />}
       <Space wrap>
         <Button onClick={() => void refresh()} loading={loading}>
           Обновить
@@ -448,14 +445,17 @@ export function TasksPage() {
         />
       )}
       <CardDrawer
-        open={!!card}
-        title={card ? `${card.number} — ${card.title}` : ""}
+        open={!!card || creating || !!action || reporting}
+        title={card ? `${card.number} — ${card.title}` : "Новое задание"}
+        closeDisabled={saving || reportBusy || actionLoading}
         onClose={() => {
           // Отзыв закрывает карточку окончательно: незавершённый open() её не вернёт.
           generation.current++;
           setCard(null);
+          setCreating(false);
         }}
       >
+        {error && card && !action && !creating && !reporting && <Alert role="alert" type="error" showIcon message={error} />}
         {card && (
           <>
           <Descriptions
@@ -490,11 +490,12 @@ export function TasksPage() {
           {!!card.overdue_at && <Alert type="warning" showIcon message={`Срок нарушен с ${new Date(String(card.overdue_at)).toLocaleString("ru-RU")}`} />}
           {!!card.acceptance_due_at && card.state === "awaiting_acceptance" && <p>Ожидаем принятия до {new Date(String(card.acceptance_due_at)).toLocaleString("ru-RU")}</p>}
           {card.delivery_failures?.map(f => <Alert key={f.id} type="error" showIcon message={f.last_error === "BLOCKED_BY_USER" ? "Бот заблокирован получателем" : f.last_error === "DISPATCH_FAILED" ? "Не удалось подготовить уведомление" : "Доставка не удалась"} description={`Связь: ${f.followup_state === "done" ? "результат записан" : "требуется связаться"}. Подробности — в разделе «Уведомления».`} />)}
-          <TaskProblems task={card} onSaved={() => open(card.id)} />
+          <TaskProblems task={card} onSaved={() => open(card.id, true)} />
           <Space wrap>
             {card.can_execute && card.state === "in_progress" && (
               <Button
                 onClick={() => {
+                  setReportDirty(false);
                   setProblemReporting(true);
                   setReporting(true);
                 }}
@@ -505,6 +506,7 @@ export function TasksPage() {
             {card.can_execute && card.state === "in_progress" && (
               <Button
                 onClick={() => {
+                  setReportDirty(false);
                   setProblemReporting(false);
                   setReporting(true);
                 }}
@@ -521,7 +523,7 @@ export function TasksPage() {
               </Button>
             ))}
           </Space>
-          <TaskVisits task={card} onChanged={() => open(card.id)} />
+          <TaskVisits task={card} onChanged={() => open(card.id, true)} />
           <Typography.Title level={3}>Отчёты</Typography.Title>
           <List
             dataSource={reports}
@@ -542,6 +544,7 @@ export function TasksPage() {
                       {((e.attachmentIds as string[]) ?? []).map((id) => (
                         <Button
                           key={id}
+                          disabled={false}
                           onClick={async () => {
                             try {
                               const f = await apiFetch<{ url: string }>(
@@ -580,34 +583,40 @@ export function TasksPage() {
           />
           </>
         )}
-      </CardDrawer>
-      <Modal
+      <ActionPanel
+        hasUnsavedChanges={() => reportDirty}
+        busy={reportBusy}
+        full
+        error={error}
         title={problemReporting ? "Найденная проблема" : "Отчёт исполнителя"}
         open={reporting}
         onCancel={() => setReporting(false)}
-        footer={null}
-        destroyOnHidden
       >
         {card && (
           <TaskReportForm
+            onConflict={async () => { setCard(await apiFetch<Task>("/v1/tasks/" + card.id)); }}
+            onBusyChange={setReportBusy}
+            onDirtyChange={setReportDirty}
             problem={problemReporting}
-            key={`${card.id}:${card.version}`}
+            key={card.id + ":" + problemReporting}
             task={card}
             onSaved={async () => {
+              await open(card.id, true);
               setReporting(false);
-              await open(card.id);
             }}
           />
         )}
-      </Modal>
-      <Modal
+      </ActionPanel>
+      <ActionPanel
+        form={createForm}
+        full
+        error={error}
+        busy={saving}
         title="Новое задание"
         open={creating}
         onCancel={() => {
           if (!saving) setCreating(false);
         }}
-        footer={null}
-        destroyOnHidden
       >
         <Form
           form={createForm}
@@ -719,19 +728,21 @@ export function TasksPage() {
           <Form.Item name="is_required" valuePropName="checked">
             <Checkbox>Обязательно для результата обращения</Checkbox>
           </Form.Item>
-          <Button htmlType="submit" type="primary" loading={saving}>
+          <Button style={{ position: "sticky", bottom: 0, zIndex: 1, marginBlock: token.marginSM }} htmlType="submit" type="primary" loading={saving}>
             Создать
           </Button>
         </Form>
-      </Modal>
-      <Modal
+      </ActionPanel>
+      <ActionPanel
+        form={actionForm}
+        error={error}
+        busy={saving || actionLoading}
+        full={!!action && ["cancel", "replace_canceled", "revise_template"].includes(action)}
         title={action ? TASK_ACTION_TEXT[action] : "Действие"}
         open={!!action}
         onCancel={() => {
           if (!saving) setAction(null);
         }}
-        footer={null}
-        destroyOnHidden
       >
         <Form
           form={actionForm}
@@ -904,11 +915,15 @@ export function TasksPage() {
               </Form.Item>
             </>
           )}
-          <Button htmlType="submit" type="primary" loading={saving}>
+          <Button style={{ position: "sticky", bottom: 0, zIndex: 1, marginBlock: token.marginSM }} htmlType="submit" type="primary" loading={saving}>
             {action ? TASK_ACTION_TEXT[action] : "Подтвердить"}
           </Button>
         </Form>
-      </Modal>
+      </ActionPanel>
+      </CardDrawer>
+
+
+
     </Space>
   );
 }

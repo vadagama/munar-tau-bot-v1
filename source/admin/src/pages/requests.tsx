@@ -1,3 +1,5 @@
+import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
+import { ActionPanel } from "./action-panel";
 import { TaskVisits } from "./task-visits";
 import { RequestSettings } from "./request-settings";
 import { BoardView, ViewToggle, useBoardView } from "./board";
@@ -13,7 +15,6 @@ import {
   Input,
   InputNumber,
   List,
-  Modal,
   Select,
   Space,
   Spin,
@@ -117,7 +118,9 @@ export function RequestsPage() {
     [state, setState] = useState<string>(),
     [channel, setChannel] = useState("resident"),
     [message, setMessage] = useState("");
+  const [cardEditing, setCardEditing] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [restricting, setRestricting] = useState<Row | null>(null);
   const [placeEdit, setPlaceEdit] = useState(false);
   const [placeForm] = Form.useForm();
   const [create, setCreate] = useState(false),
@@ -251,13 +254,18 @@ export function RequestsPage() {
       await refresh();
     } catch (e) {
       setError(errorText(e));
-      if (errorText(e).includes("изменён")) await refresh();
+      if (isVersionConflict(e)) {
+        try {
+          setCard(await apiFetch<Row>(`/v1/requests/${card.id}`));
+          setError(VERSION_CONFLICT_MESSAGE);
+        } catch (refreshError) { setError(errorText(refreshError)); }
+      }
     } finally {
       setSaving(false);
     }
   };
   const send = async () => {
-    if (!card) return;
+    if (!card || saving || fileBusy || cardEditing) return;
     setSaving(true);
     setError(null);
     try {
@@ -278,7 +286,7 @@ export function RequestsPage() {
     }
   };
   const upload = async (file: File, retryId?: string) => {
-    if (!card) return false;
+    if (!card || fileBusy || cardEditing) return false;
     setFileBusy(true);
     setError(null);
     try {
@@ -379,7 +387,7 @@ export function RequestsPage() {
         </Typography.Title>
         <ViewToggle kind={view} onChange={setView} />
       </div>
-      {error && (
+      {error && !card && !create && (
         <Alert
           type="error"
           showIcon
@@ -443,7 +451,7 @@ export function RequestsPage() {
           style={{ width: 155 }}
         />
         <Button onClick={() => void load()}>Применить</Button>
-        <Button type="primary" onClick={() => setCreate(true)}>
+        <Button type="primary" onClick={() => { form.resetFields(); createKey.current = crypto.randomUUID(); setCreate(true); }}>
           Новое обращение
         </Button>
         {staff && !identity?.me.emulation && (
@@ -533,16 +541,20 @@ export function RequestsPage() {
         </Button>
       )}
       <CardDrawer
-        open={!!card}
+        open={!!card || create}
         title={card
           ? `${card.number ?? "Черновик"} · ${REQUEST_STATES[stateName]}`
-          : ""}
+          : "Новое обращение"}
+        onEditingChange={setCardEditing}
         closeDisabled={saving || fileBusy}
+        hasUnsavedChanges={() => !!message.trim() || attachments.length > 0}
         onClose={() => {
           openEpoch.current++;
           setCard(null);
+          setCreate(false);
         }}
       >
+        {error && card && !action && !placeEdit && !create && !restricting && <Alert role="alert" type="error" showIcon message={error} />}
         {card && (
           <Space direction="vertical" size="large" style={{ width: "100%" }}>
             <Descriptions
@@ -586,6 +598,7 @@ export function RequestsPage() {
               <Space wrap>
                 <Button
                   onClick={() => {
+                    placeForm.resetFields();
                     placeForm.setFieldsValue({
                       ...card,
                       reason: "",
@@ -787,32 +800,7 @@ export function RequestsPage() {
                       <Button
                         key="restrict"
                         size="small"
-                        onClick={() =>
-                          Modal.confirm({
-                            title: "Ограничить ошибочно раскрытое сообщение",
-                            content: (
-                              <Typography.Text>
-                                Уже доставленные копии отозвать нельзя.
-                              </Typography.Text>
-                            ),
-                            onOk: async () => {
-                              try {
-                                await apiFetch(
-                                  `/v1/requests/${card.id}/messages/${m.id}/restrict`,
-                                  {
-                                    method: "POST",
-                                    body: {
-                                      reason:
-                                        "Ограничение ошибочно раскрытого сообщения администратором",
-                                    },
-                                  },
-                                );
-                                await refresh();
-                              } catch (e) {
-                                setError(errorText(e));
-                              }
-                            },
-                          })}
+                        onClick={() => { setError(null); setRestricting(m); }}
                       >
                         Ограничить
                       </Button>,
@@ -847,7 +835,7 @@ export function RequestsPage() {
                     <Typography.Text>{String(a.filename)}</Typography.Text>
                     {a.status === "complete"
                       ? (
-                        <Button
+                        <Button disabled={false}
                           size="small"
                           onClick={async () => {
                             try {
@@ -873,7 +861,7 @@ export function RequestsPage() {
                           <Upload
                             beforeUpload={(file) => upload(file, String(a.id))}
                             showUploadList={false}
-                            disabled={fileBusy}
+                            disabled={fileBusy || cardEditing}
                           >
                             <Button size="small">Загрузить повторно</Button>
                           </Upload>
@@ -884,7 +872,7 @@ export function RequestsPage() {
               )}
             />
             <Input.TextArea
-              disabled={card.can_comment === false}
+              disabled={card.can_comment === false || cardEditing}
               aria-label="Текст сообщения"
               value={message}
               onChange={(e) => {
@@ -901,7 +889,7 @@ export function RequestsPage() {
               <Upload
                 beforeUpload={(file) => upload(file)}
                 showUploadList={false}
-                disabled={fileBusy || attachments.length >= 10}
+                disabled={fileBusy || cardEditing || attachments.length >= 10}
               >
                 <Button loading={fileBusy}>Добавить файл</Button>
               </Upload>
@@ -911,7 +899,7 @@ export function RequestsPage() {
               <Button
                 type="primary"
                 loading={saving}
-                disabled={card.can_comment === false || fileBusy ||
+                disabled={card.can_comment === false || cardEditing || fileBusy ||
                   (!message.trim() && !attachments.length)}
                 onClick={() => void send()}
               >
@@ -938,23 +926,15 @@ export function RequestsPage() {
             </details>
           </Space>
         )}
-      </CardDrawer>
-      {busy && card && <Spin />}
-      <RequestSettings
-        open={settings}
-        onClose={() => setSettings(false)}
-        onSaved={() => {
-          void apiFetch<{ items: Row[] }>("/v1/request-categories").then((r) =>
-            setCategories(r.items)
-          );
-        }}
-      />
-      <Modal
-        forceRender
+      <ActionPanel
+        form={placeForm}
+        full
+        error={error}
+
         title="Исправить место обращения"
         open={placeEdit}
         onCancel={() => setPlaceEdit(false)}
-        confirmLoading={saving}
+        busy={saving}
         okText="Сохранить с историей"
         onOk={async () => {
           if (!card) return;
@@ -1027,13 +1007,16 @@ export function RequestsPage() {
             должен иметь полномочия для нового места.
           </Typography.Paragraph>
         </Form>
-      </Modal>
-      <Modal
+      </ActionPanel>
+      <ActionPanel
+        form={form}
+        full
+        error={error}
         title="Новое обращение"
         open={create}
         onCancel={() => setCreate(false)}
         onOk={() => void submitNew()}
-        confirmLoading={saving}
+        busy={saving}
         okText="Зарегистрировать"
       >
         <Form
@@ -1141,15 +1124,17 @@ export function RequestsPage() {
             материалы в переписку.
           </Typography.Paragraph>
         </Form>
-      </Modal>
-      <Modal
-        forceRender
+      </ActionPanel>
+      <ActionPanel
+        form={actionForm}
+        error={error}
+
         title={action ? ACTIONS[action] : "Действие"}
         open={!!action}
         onCancel={() => setAction(null)}
         onOk={() => void perform()}
-        confirmLoading={saving}
-        okText="Подтвердить действие"
+        busy={saving}
+        okText={action ? ACTIONS[action] : "Подтвердить"}
       >
         <Form form={actionForm} layout="vertical">
           {!["confirm_result", "start_review", "submit"].includes(
@@ -1261,7 +1246,36 @@ export function RequestsPage() {
             </Typography.Paragraph>
           )}
         </Form>
-      </Modal>
+      </ActionPanel>
+        <ActionPanel open={!!restricting} title="Ограничить ошибочно раскрытое сообщение"
+          busy={saving} error={error} onCancel={() => setRestricting(null)}
+          okText="Ограничить доступ" onOk={async () => {
+            if (!card || !restricting || saving) return;
+            setSaving(true); setError(null);
+            try {
+              await apiFetch(`/v1/requests/${card.id}/messages/${restricting.id}/restrict`, {
+                method: "POST", body: { reason: "Ограничение ошибочно раскрытого сообщения администратором" },
+              });
+              setRestricting(null); await refresh();
+            } catch (e) { setError(errorText(e)); } finally { setSaving(false); }
+          }}>
+          <Typography.Paragraph>{String(restricting?.text ?? "")}</Typography.Paragraph>
+          <Alert type="warning" showIcon message="Уже доставленные копии отозвать нельзя." />
+        </ActionPanel>
+      </CardDrawer>
+      {busy && card && <Spin />}
+      <RequestSettings
+        open={settings}
+        onClose={() => setSettings(false)}
+        onSaved={() => {
+          void apiFetch<{ items: Row[] }>("/v1/request-categories").then((r) =>
+            setCategories(r.items)
+          );
+        }}
+      />
+
+
+
     </Space>
   );
 }

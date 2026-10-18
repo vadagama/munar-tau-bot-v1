@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { IncidentsPage } from "./incidents";
@@ -16,6 +17,7 @@ vi.mock(
 );
 const computed = window.getComputedStyle.bind(window);
 beforeEach(() => {
+  localStorage.clear();
   vi.spyOn(window, "getComputedStyle").mockImplementation((element) =>
     computed(element)
   );
@@ -61,9 +63,14 @@ it("инцидент показывает незавершённое восст�
   expect(await screen.findByText(/восстановление не подтверждено/))
     .toBeInTheDocument();
   expect(screen.getByText(/Второй стояк ещё проверяется/)).toBeInTheDocument();
+  const drawer = screen.getByRole("dialog");
   fireEvent.click(screen.getByText("Завершить"));
   expect(await screen.findByText("Проверенные зоны")).toBeInTheDocument();
-  expect(screen.getByText(/Проверено: опасности нет/)).toBeInTheDocument();
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  expect(within(drawer).getByText(/Проверено: опасности нет/)).toBeInTheDocument();
+  fireEvent.click(within(drawer).getByRole("button", { name: "Отмена" }));
+  expect(within(drawer).getByText(/Второй стояк ещё проверяется/)).toBeInTheDocument();
+  expect(vi.mocked(apiFetch).mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(false);
 }, 15000);
 it("сбой списка виден пользователю; повтор не выполняет бизнес-действий", async () => {
   vi.mocked(apiFetch).mockRejectedValue(new Error("Нет связи"));
@@ -136,4 +143,24 @@ it("доска инцидентов: состояния в колонках, к�
   fireEvent.click(screen.getByText("АВ-1"));
   expect(await screen.findByText(/восстановление не подтверждено/))
     .toBeInTheDocument();
+}, 15000);
+
+it("редактирование публикации использует ту же шторку и возвращает к карточке", async () => {
+  const row = { id: "p", title: "Промывка", kind: "announcement", state: "draft", body: "Сообщение жителям", files: [] };
+  vi.mocked(apiFetch).mockImplementation(async path =>
+    path === "/v1/incidents/context" ? { persons: [] } :
+    path === "/v1/publications" || path.startsWith("/v1/registry/") || path === "/v1/common-works"
+      ? { items: path === "/v1/publications" ? [row] : [] } : row
+  );
+  render(<PublicationsPage />);
+  fireEvent.click(await screen.findByText("Открыть"));
+  await screen.findByText("Сообщение жителям");
+  const drawer = screen.getByRole("dialog");
+  fireEvent.click(within(drawer).getByRole("button", { name: "Редактировать" }));
+  await screen.findByLabelText("Текст для жителей");
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  expect(within(drawer).getByLabelText("Текст для жителей")).toHaveValue("Сообщение жителям");
+  fireEvent.click(within(drawer).getByRole("button", { name: "Отмена" }));
+  expect(within(drawer).getByText("Сообщение жителям")).toBeInTheDocument();
+  expect(vi.mocked(apiFetch).mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(false);
 }, 15000);

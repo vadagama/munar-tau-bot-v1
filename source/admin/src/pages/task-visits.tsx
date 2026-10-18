@@ -1,3 +1,5 @@
+import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
+import { ActionPanel } from "./action-panel";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -6,9 +8,9 @@ import {
   Form,
   Input,
   List,
-  Modal,
   Space,
   Typography,
+  theme,
 } from "antd";
 import { apiFetch } from "../lib/api";
 type Row = Record<string, unknown>;
@@ -34,6 +36,7 @@ export function TaskVisits(
     onChanged?: () => Promise<void>;
   },
 ) {
+  const { token } = theme.useToken();
   const [rows, setRows] = useState<Row[]>((task?.visits as Row[]) ?? []),
     [error, setError] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
@@ -68,6 +71,7 @@ export function TaskVisits(
     setAction(name);
   }
   async function save(values: Row) {
+    if (busy) return;
     setBusy(true);
     setError(null);
     setSuccess(null);
@@ -105,6 +109,17 @@ export function TaskVisits(
       await onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка визита");
+      if (isVersionConflict(e)) {
+        try {
+          const fresh = requestId
+            ? (await apiFetch<{ items: Row[] }>("/v1/requests/" + requestId + "/visits")).items
+            : ((await apiFetch<Row>("/v1/tasks/" + task!.id)).visits as Row[]) ?? [];
+          setRows(fresh);
+          const next = fresh.find(row => row.id === selected?.id);
+          if (next) setSelected(next);
+          setError(next ? VERSION_CONFLICT_MESSAGE : "Визит больше недоступен. Вернитесь к карточке и обновите данные.");
+        } catch (refreshError) { setError(refreshError instanceof Error ? refreshError.message : "Не удалось обновить визиты"); }
+      }
     } finally {
       setBusy(false);
     }
@@ -156,14 +171,15 @@ export function TaskVisits(
           </List.Item>
         )}
       />
-      <Modal
+      <ActionPanel
+        form={form}
+        error={error}
+        busy={busy}
         title={actions[action ?? ""]}
         open={!!action}
         onCancel={() => {
           if (!busy) setAction(null);
         }}
-        footer={null}
-        destroyOnHidden
       >
         <Form
           form={form}
@@ -223,11 +239,11 @@ export function TaskVisits(
               </Form.Item>
             </>
           )}
-          <Button type="primary" htmlType="submit" loading={busy}>
+          <Button style={{ position: "sticky", bottom: 0, zIndex: 1, marginBlock: token.marginSM }} type="primary" htmlType="submit" loading={busy}>
             {actions[action ?? ""]}
           </Button>
         </Form>
-      </Modal>
+      </ActionPanel>
     </Space>
   );
 }

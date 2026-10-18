@@ -1,12 +1,12 @@
+import { ActionPanel } from "./action-panel";
+import { CardDrawer } from "./card-drawer";
 import { useEffect, useState } from "react";
 import {
   Alert,
   Button,
-  Drawer,
   Form,
   Input,
   InputNumber,
-  Modal,
   Select,
   Space,
   Table,
@@ -15,7 +15,6 @@ import {
   Typography,
 } from "antd";
 import { apiFetch } from "../lib/api";
-import { CARD_DRAWER_WIDTH } from "./card-drawer";
 
 type Row = Record<string, unknown>;
 type Entity = "buildings" | "premises" | "persons" | "connections";
@@ -84,6 +83,7 @@ export function RegistryPage() {
             ["pending_review", "need_clarification"].includes(String(r.state)),
         ),
       );
+      setEditing(undefined);
       recoveryForm.resetFields();
       setRecovery(row);
     } catch (e) {
@@ -149,6 +149,7 @@ export function RegistryPage() {
         role: "owner",
       },
     );
+    form.setFields(Object.keys(form.getFieldsValue(true)).map(name => ({ name, touched: false })));
     setEditing(row);
   };
   const options = (data: Row[], label: (r: Row) => string) =>
@@ -228,7 +229,7 @@ export function RegistryPage() {
           журнале. Совпадение телефона не объединяет карточки.
         </Typography.Paragraph>
       </div>
-      {error && (
+      {error && editing === undefined && !recovery && (
         <Alert
           type="error"
           showIcon
@@ -263,22 +264,23 @@ export function RegistryPage() {
         pagination={{ pageSize: 20, showSizeChanger: true }}
         locale={{ emptyText: "Записей пока нет" }}
       />
-      <Drawer
-        open={editing !== undefined}
-        title={`${editing ? "Изменить" : "Добавить"}: ${LABELS[entity]}`}
-        width={CARD_DRAWER_WIDTH}
-        onClose={() => setEditing(undefined)}
-        destroyOnHidden
-        footer={
+      <CardDrawer
+        open={editing !== undefined || !!recovery}
+        title={recovery ? "Восстановление Telegram" : `${editing ? "Изменить" : "Добавить"}: ${LABELS[entity]}`}
+        closeDisabled={saving}
+        hasUnsavedChanges={() => form.isFieldsTouched()}
+        onClose={() => { setEditing(undefined); setRecovery(null); }}
+        footer={editing !== undefined ? ((close: () => void) => (
           <Space style={{ display: "flex", justifyContent: "flex-end" }}>
-            <Button onClick={() => setEditing(undefined)}>Отмена</Button>
+            <Button disabled={saving} onClick={close}>Отмена</Button>
             <Button type="primary" loading={saving} onClick={() => void save()}>
               Сохранить
             </Button>
           </Space>
-        }
+        )) : undefined}
       >
-        <Form name="registry-record" form={form} layout="vertical">
+        {error && editing !== undefined && !recovery && <Alert type="error" showIcon message={error} />}
+        {editing !== undefined && <Form name="registry-record" form={form} layout="vertical">
           {entity === "buildings" && (
             <>
               <Form.Item
@@ -432,16 +434,17 @@ export function RegistryPage() {
               </Form.Item>
             </>
           )}
-        </Form>
-      </Drawer>
-      <Modal
+        </Form>}
+      <ActionPanel
+        full
+        form={recoveryForm}
+        error={error}
         title={`Восстановление Telegram: ${recovery?.full_name ?? ""}`}
         open={!!recovery}
         onCancel={() => setRecovery(null)}
         onOk={() => void recover()}
-        confirmLoading={saving}
+        busy={saving}
         okText="Перенести привязку"
-        cancelText="Отмена"
       >
         <Alert
           type="warning"
@@ -475,7 +478,9 @@ export function RegistryPage() {
             <Input.TextArea maxLength={300} />
           </Form.Item>
         </Form>
-      </Modal>
+      </ActionPanel>
+      </CardDrawer>
+
     </Space>
   );
 }

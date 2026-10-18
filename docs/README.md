@@ -61,3 +61,6 @@ ADR фиксируют решения об аутентификации и ра�
 
 - [ADR-011: целые сообщения и кнопки по сценариям](decisions/011-bot-message-scenarios.md).
 - [Приёмка каталога целых сообщений](bot-message-scenarios-acceptance.md).
+
+- [ADR-012: действия внутри единственной шторки карточки](decisions/012-card-drawer-actions.md).
+- [Приёмка действий в шторках](card-drawer-actions-acceptance.md).
