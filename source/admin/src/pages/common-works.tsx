@@ -1,3 +1,6 @@
+import type { ReactNode } from "react";
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
 import { ActionPanel } from "./action-panel";
 import { CardDrawer } from "./card-drawer";
@@ -25,7 +28,7 @@ const labels: Record<string, string> = {
   completed: "Завершена",
   canceled: "Отменена",
 };
-export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
+export function CommonWorks({ onTask, navigation }: { onTask: (id: string) => void; navigation?: ReactNode }) {
   const { token } = theme.useToken();
   const [rows, setRows] = useState<Row[]>([]),
     [card, setCard] = useState<Row | null>(null),
@@ -58,6 +61,7 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
       if (g === generation.current) setBusy(false);
     }
   }
+  usePageRefresh(() => refresh(true), !busy);
   useEffect(() => {
     void refresh();
     return () => {
@@ -143,16 +147,10 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
     }
   }
   return (
-    <Space direction="vertical" style={{ width: "100%" }}>
+    <PageLayout title="Общие работы"
+      actions={<><Button type="primary" onClick={() => void begin("create")} disabled={busy}>Создать общую работу</Button>{navigation}</>}>
       {error && !card && !action && <Alert type="error" message={error} />}
-      <Space>
-        <Button onClick={() => void refresh()} disabled={busy}>
-          Обновить работы
-        </Button>
-        <Button onClick={() => void begin("create")} disabled={busy}>
-          Создать общую работу
-        </Button>
-      </Space>
+
       <Table
         rowKey="id"
         dataSource={rows}
@@ -357,6 +355,6 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
       </ActionPanel>
       </CardDrawer>
 
-    </Space>
+    </PageLayout>
   );
 }

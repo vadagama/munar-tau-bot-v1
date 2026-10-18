@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Empty, Segmented, Space, Spin, Typography, theme } from "antd";
 import "./board.css";
 
@@ -58,6 +58,27 @@ export function BoardView<T>(props: {
   emptyText?: string;
 }) {
   const { token } = theme.useToken();
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number>();
+  const hasRows = props.rows.length > 0;
+  useLayoutEffect(() => {
+    const board = boardRef.current;
+    if (!board) return;
+    const resize = () => {
+      setHeight(Math.max(0, window.innerHeight - board.getBoundingClientRect().top - token.marginLG));
+    };
+    // Следим и за переносом фильтров/баннера, меняющим верхнюю границу доски.
+    const observer = new ResizeObserver(resize);
+    const page = board.closest("main");
+    if (page) observer.observe(page);
+    if (board.parentElement?.parentElement) observer.observe(board.parentElement.parentElement);
+    window.addEventListener("resize", resize);
+    resize();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", resize);
+    };
+  }, [hasRows, token.marginLG]);
   const grouped = new Map<string, T[]>(
     props.columns.map((c) => [c.value, [] as T[]]),
   );
@@ -164,11 +185,15 @@ export function BoardView<T>(props: {
   }
   return (
     <div
+      ref={boardRef}
       style={{
         display: "flex",
         gap: token.marginSM,
         alignItems: "flex-start",
         overflowX: "auto",
+        overflowY: "auto",
+        height,
+        boxSizing: "border-box",
         paddingBottom: token.paddingXS,
       }}
     >

@@ -1,5 +1,7 @@
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect, useState } from "react";
-import { Alert, Button, Space, Table, Typography } from "antd";
+import { Alert, Table, Typography } from "antd";
 import { apiFetch } from "../lib/api";
 import { displayKind, displayRole } from "./registry";
 type Row = Record<string, unknown>;
@@ -20,21 +22,18 @@ export function InvitesPage() {
       setBusy(false);
     }
   };
+  usePageRefresh(load, !busy);
   useEffect(() => {
     void load();
   }, []);
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Typography.Title level={2}>Приглашения</Typography.Title>
+    <PageLayout title="Приглашения">
       <Typography.Paragraph type="secondary">
         Подтверждённый собственник создаёт приглашение в боте. Оно действует 72
         календарных часа по текущему регламенту. Приглашение не выдаёт статус
         собственника.
       </Typography.Paragraph>
       {error && <Alert showIcon type="error" message={error} />}
-      <Button loading={busy} onClick={() => void load()}>
-        Обновить
-      </Button>
       <Table
         rowKey="id"
         loading={busy}
@@ -66,6 +65,6 @@ export function InvitesPage() {
           },
         ]}
       />
-    </Space>
+    </PageLayout>
   );
 }

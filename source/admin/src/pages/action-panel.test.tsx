@@ -79,3 +79,16 @@ it("короткая форма отключает исходные бизнес
   expect(screen.getByRole("textbox", { name: "Комментарий проверки" })).toBeVisible();
   expect(screen.queryByRole("textbox", { name: "Новое назначение" })).toBeNull();
 });
+
+it.each([false, true])("форма full=%s открывается с прокруткой до самого верха", async full => {
+  render(<Editor full={full} />);
+  const opener = screen.getByRole("button", { name: "Начать действие" });
+  const body = opener.closest(".ant-drawer-body")!;
+  body.scrollTop = 240;
+  opener.focus();
+  fireEvent.click(opener);
+  await waitFor(() => expect(body.scrollTop).toBe(0));
+  expect(screen.getByRole("region", { name: "Действие" })).toHaveFocus();
+  fireEvent.click(screen.getByRole("button", { name: "Отмена" }));
+  await waitFor(() => expect(body.scrollTop).toBe(240));
+});

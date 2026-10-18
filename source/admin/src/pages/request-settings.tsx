@@ -1,3 +1,5 @@
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -35,12 +37,15 @@ export function RequestSettingsPage() {
         apiFetch<Record<string, unknown>>("/v1/file-policy"),
       ]);
       setCategories(c.items);
-      fileForm.setFieldsValue(p);
-      fileForm.setFields(Object.keys(p).map(name => ({ name, touched: false })));
+      if (!fileForm.isFieldsTouched()) {
+        fileForm.setFieldsValue(p);
+        fileForm.setFields(Object.keys(p).map(name => ({ name, touched: false })));
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка настроек");
     }
   };
+  usePageRefresh(load, () => allowed && !busy && !fileForm.isFieldsTouched());
   useEffect(() => {
     if (allowed) void load();
   }, [allowed]);
@@ -64,8 +69,7 @@ export function RequestSettingsPage() {
   };
   if (!allowed) return <Alert type="warning" showIcon message="Настройки обращений доступны сотрудникам с правом редактирования вне эмуляции" />;
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Typography.Title level={2}>Настройки обращений</Typography.Title>
+    <PageLayout title="Настройки обращений">
       {error && <Alert type="error" message={error} />}
       <Tabs
         items={[{
@@ -195,6 +199,6 @@ export function RequestSettingsPage() {
           ),
         }]}
       />
-    </Space>
+    </PageLayout>
   );
 }

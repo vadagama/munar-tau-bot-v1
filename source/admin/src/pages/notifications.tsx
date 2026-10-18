@@ -1,3 +1,5 @@
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
@@ -82,6 +84,7 @@ export function NotificationsPage({ section = "preferences" }: { section?: "pref
       setBusy(false);
     }
   }, [manager, section]);
+  usePageRefresh(load, !busy);
   useEffect(() => {
     void load();
   }, [load]);
@@ -125,8 +128,7 @@ export function NotificationsPage({ section = "preferences" }: { section?: "pref
     }
   };
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Typography.Title level={2}>{section === "preferences" ? "Мои настройки" : "Ошибки доставки"}</Typography.Title>
+    <PageLayout title={section === "preferences" ? "Мои настройки" : "Ошибки доставки"}>
       {section === "failures" && !manager && <Alert type="warning" message="Нет доступа к ошибкам доставки" />}
       {error && (
         <Alert
@@ -191,14 +193,6 @@ export function NotificationsPage({ section = "preferences" }: { section?: "pref
       {section === "failures" && manager && (
         <Card
           title="Ошибки доставки"
-          extra={
-            <Button
-              loading={busy}
-              onClick={() => void load()}
-            >
-              Обновить
-            </Button>
-          }
         >
           <Typography.Paragraph>
             После окончательной ошибки важной доставки создаётся задача
@@ -283,6 +277,6 @@ export function NotificationsPage({ section = "preferences" }: { section?: "pref
           </Form.Item>
         </Form>
       </Modal>
-    </Space>
+    </PageLayout>
   );
 }

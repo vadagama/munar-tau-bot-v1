@@ -1,7 +1,8 @@
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Button,
-  Card,
   DatePicker,
   Input,
   Select,
@@ -73,6 +74,7 @@ export function AuditPage() {
     }
   }, [query, cursor]);
 
+  usePageRefresh(() => cursor === null ? load() : setCursor(null), !loading);
   useEffect(() => {
     void load();
     // Перезагрузка — на смену фильтра или курсора.
@@ -139,9 +141,7 @@ export function AuditPage() {
   ];
 
   return (
-    <Card title="Журнал действий (AUD-01/02)">
-      {error !== null && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
-      <Space wrap style={{ marginBottom: 16 }}>
+    <PageLayout title="Журнал действий" filters={<Space wrap>
         <Select
           allowClear
           placeholder="Тип сущности"
@@ -164,7 +164,9 @@ export function AuditPage() {
             })
           }
         />
-      </Space>
+      </Space>}>
+      {error !== null && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
+
       <Table
         rowKey="id"
         size="small"
@@ -189,6 +191,6 @@ export function AuditPage() {
           Загрузить ещё
         </Button>
       )}
-    </Card>
+    </PageLayout>
   );
 }

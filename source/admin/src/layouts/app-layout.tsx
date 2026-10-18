@@ -1,3 +1,4 @@
+import { PAGE_REFRESH_EVENT, usePageRefresh } from "../lib/use-page-refresh";
 import { useState } from "react";
 import { Alert, Button, Layout, Menu, Space, Typography } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -50,7 +51,8 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { identity, roles } = useCabinetIdentity();
+  const { identity, roles, refreshIdentity } = useCabinetIdentity();
+  usePageRefresh(refreshIdentity);
   const { mutate: logout } = useLogout();
 
   const manager = roles.some(role => ["chairman", "administrator", "deputy"].includes(role));
@@ -104,14 +106,15 @@ export function AppLayout() {
           key={activeGroup}
           defaultOpenKeys={activeGroup ? [activeGroup] : []}
           items={items}
-          onClick={({ key }) => { navigate(key); if (narrow) setCollapsed(true); }}
+          onClick={({ key }) => { if (key === location.pathname) window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
+            else navigate(key); if (narrow) setCollapsed(true); }}
         />
         </div>
       </Sider>
       <Layout style={{ minWidth: 0 }}>
         <Header style={{ background: "#fff", paddingInline: 16, minHeight: 64, height: "auto", gap: 12, flexWrap: "wrap", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Typography.Title level={4} style={{ margin: 0, lineHeight: "32px", fontSize: 18 }}>
-            Кабинет администратора ОСИ
+            Кабинет администратора
           </Typography.Title>
           <Space>
             <Typography.Text type="secondary">

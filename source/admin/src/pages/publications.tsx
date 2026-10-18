@@ -1,3 +1,5 @@
+import { PageLayout } from "../components/page-layout";
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
 import { ActionPanel } from "./action-panel";
 import dayjs from "dayjs";
@@ -72,6 +74,7 @@ export function PublicationsPage() {
       if (g === generation.current) setBusy(false);
     }
   }
+  usePageRefresh(refresh, !busy);
   useEffect(() => {
     void refresh();
     return () => {
@@ -175,17 +178,17 @@ export function PublicationsPage() {
     }
   }
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Typography.Title level={2}>Публикации и отключения</Typography.Title>
-      {error && !card && !action && <Alert type="error" message={error} showIcon />}
-      <Space wrap>
-        <Button loading={busy} onClick={() => void refresh()}>Обновить</Button>
+    <PageLayout title="Публикации и отключения"
+      actions={manager ? (<Space wrap>
         {manager && (
           <Button type="primary" onClick={() => void begin("create")}>
             Создать публикацию
           </Button>
         )}
-      </Space>
+      </Space>) : null}>
+
+      {error && !card && !action && <Alert type="error" message={error} showIcon />}
+
       <Table
         rowKey="id"
         dataSource={rows}
@@ -524,6 +527,6 @@ export function PublicationsPage() {
       </ActionPanel>
       </CardDrawer>
 
-    </Space>
+    </PageLayout>
   );
 }
