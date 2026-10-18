@@ -52,7 +52,7 @@ const names: Record<string, string> = {
   "work.report": "Опубликованные отчёты",
   "request.status": "Изменения статуса обращений",
 };
-export function NotificationsPage() {
+export function NotificationsPage({ section = "preferences" }: { section?: "preferences" | "failures" }) {
   const { roles } = useCabinetIdentity();
   const manager = roles.some((r) =>
     ["chairman", "administrator", "deputy"].includes(r)
@@ -67,8 +67,8 @@ export function NotificationsPage() {
     setBusy(true);
     setError(undefined);
     try {
-      setSettings(await apiFetch<Settings>("/v1/notifications/preferences"));
-      if (manager) {
+      if (section === "preferences") setSettings(await apiFetch<Settings>("/v1/notifications/preferences"));
+      if (section === "failures" && manager) {
         setFailures(
           (await apiFetch<{ items: Failure[] }>("/v1/notifications/failures"))
             .items,
@@ -81,7 +81,7 @@ export function NotificationsPage() {
     } finally {
       setBusy(false);
     }
-  }, [manager]);
+  }, [manager, section]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -126,7 +126,8 @@ export function NotificationsPage() {
   };
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Typography.Title level={2}>Уведомления</Typography.Title>
+      <Typography.Title level={2}>{section === "preferences" ? "Мои настройки" : "Ошибки доставки"}</Typography.Title>
+      {section === "failures" && !manager && <Alert type="warning" message="Нет доступа к ошибкам доставки" />}
       {error && (
         <Alert
           type="error"
@@ -140,7 +141,7 @@ export function NotificationsPage() {
         showIcon
         message="Запросы уточнений и согласований, результат работ, отказ, отмена и финансовые события обязательны. Аварии отправляются сразу. Доставка не означает прочтения или согласия."
       />
-      <Card title="Мои настройки" loading={!settings && busy}>
+      {section === "preferences" && <Card title="Мои настройки" loading={!settings && busy}>
         {settings && (
           <Space direction="vertical" size="middle" style={{ width: "100%" }}>
             <Space wrap>
@@ -186,8 +187,8 @@ export function NotificationsPage() {
             </Typography.Text>
           </Space>
         )}
-      </Card>
-      {manager && (
+      </Card>}
+      {section === "failures" && manager && (
         <Card
           title="Ошибки доставки"
           extra={

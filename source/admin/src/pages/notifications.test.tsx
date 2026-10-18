@@ -48,8 +48,9 @@ it(
           }],
         }
     );
-    render(<NotificationsPage />);
+    render(<NotificationsPage section="failures" />);
     expect(await screen.findByText("Тестовый житель")).toBeInTheDocument();
+    expect(vi.mocked(apiFetch).mock.calls.some(([path]) => path.includes("preferences"))).toBe(false);
     fireEvent.click(await screen.findByText("Записать результат связи"));
     fireEvent.change(screen.getByLabelText("Что удалось выяснить"), {
       target: { value: "Не ответил; повторить звонок завтра" },
@@ -72,4 +73,13 @@ it("ошибка загрузки показана с повтором", async (
   render(<NotificationsPage />);
   expect(await screen.findByText("Нет соединения")).toBeInTheDocument();
   expect(screen.getByText("Повторить")).toBeInTheDocument();
+});
+
+
+it("мои настройки не запрашивают ошибки доставки", async () => {
+  vi.mocked(apiFetch).mockResolvedValue({ language: "ru", items: [] });
+  render(<NotificationsPage section="preferences" />);
+  expect(await screen.findByText("Язык уведомлений")).toBeInTheDocument();
+  expect(vi.mocked(apiFetch).mock.calls.map(([path]) => path)).toEqual(["/v1/notifications/preferences"]);
+  expect(screen.queryByText("Ошибки доставки")).toBeNull();
 });

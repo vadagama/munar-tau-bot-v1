@@ -1,7 +1,6 @@
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
 import { ActionPanel } from "./action-panel";
 import { TaskVisits } from "./task-visits";
-import { RequestSettings } from "./request-settings";
 import { BoardView, ViewToggle, useBoardView } from "./board";
 import { CardDrawer } from "./card-drawer";
 import { useEffect, useRef, useState } from "react";
@@ -119,7 +118,6 @@ export function RequestsPage() {
     [channel, setChannel] = useState("resident"),
     [message, setMessage] = useState("");
   const [cardEditing, setCardEditing] = useState(false);
-  const [settings, setSettings] = useState(false);
   const [restricting, setRestricting] = useState<Row | null>(null);
   const [placeEdit, setPlaceEdit] = useState(false);
   const [placeForm] = Form.useForm();
@@ -454,9 +452,7 @@ export function RequestsPage() {
         <Button type="primary" onClick={() => { form.resetFields(); createKey.current = crypto.randomUUID(); setCreate(true); }}>
           Новое обращение
         </Button>
-        {staff && !identity?.me.emulation && (
-          <Button onClick={() => setSettings(true)}>Категории и файлы</Button>
-        )}
+
       </Space>
       {view === "board" ? (
         <BoardView
@@ -1264,15 +1260,7 @@ export function RequestsPage() {
         </ActionPanel>
       </CardDrawer>
       {busy && card && <Spin />}
-      <RequestSettings
-        open={settings}
-        onClose={() => setSettings(false)}
-        onSaved={() => {
-          void apiFetch<{ items: Row[] }>("/v1/request-categories").then((r) =>
-            setCategories(r.items)
-          );
-        }}
-      />
+
 
 
 

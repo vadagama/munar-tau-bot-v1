@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { ActionPanel } from "./action-panel";
 import { CardDrawer } from "./card-drawer";
 import { useEffect, useState } from "react";
@@ -33,8 +34,8 @@ const ROLES = [
 const LABELS: Record<string, string> = {
   buildings: "Здания и паркинги",
   premises: "Помещения",
-  persons: "Лица",
-  connections: "Связи",
+  persons: "Жители",
+  connections: "Привязки помещений",
   full_name: "ФИО",
   phone_e164: "Телефон",
   code: "Обозначение",
@@ -55,14 +56,19 @@ export const displayKind = (value: unknown) =>
   KINDS.find((x) => x.value === value)?.label ?? String(value ?? "");
 export const displayRole = (value: unknown) =>
   ROLES.find((x) => x.value === value)?.label ?? String(value ?? "");
+const ROLE_LABELS: Record<string, string> = {
+  chairman: "Председатель", administrator: "Администратор", deputy: "Заместитель",
+  executor: "Исполнитель", tech_admin: "Технический администратор", duty: "Дежурный",
+  finance: "Финансы", doc_reviewer: "Проверяющий документов",
+};
 const STATUS: Record<string, string> = {
   active: "Действует",
   pending: "Не подтверждена",
   revoked: "Прекращена",
   archived: "Архив",
 };
-export function RegistryPage() {
-  const [entity, setEntity] = useState<Entity>("premises"),
+export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
+  const [entity, setEntity] = useState<Entity>(users ? "persons" : "premises"),
     [rows, setRows] = useState<Row[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null);
@@ -112,12 +118,12 @@ export function RegistryPage() {
     setError(null);
     try {
       const [data, b, p, n] = await Promise.all([
-        apiFetch<{ items: Row[] }>(`/v1/registry/${entity}`),
+        apiFetch<{ items: Row[] }>(`/v1/registry/${users === "staff" ? "staff" : entity}`),
         apiFetch<{ items: Row[] }>("/v1/registry/buildings"),
         apiFetch<{ items: Row[] }>("/v1/registry/premises"),
         apiFetch<{ items: Row[] }>("/v1/registry/persons"),
       ]);
-      setRows(data.items);
+      setRows(users === "residents" ? data.items.filter(row => !(row.staff_roles as string[] | undefined)?.length) : data.items);
       setBuildings(b.items);
       setPremises(p.items);
       setPersons(n.items);
@@ -180,6 +186,7 @@ export function RegistryPage() {
           ? ["full_name", "phone_e164", "comment"]
           : ["full_name", "kind", "number", "role", "basis", "status"];
   const columns = [
+    ...(users === "staff" ? [{ title: "Роли", dataIndex: "staff_roles", render: (roles: string[]) => roles.map(role => ROLE_LABELS[role] ?? role).join(", ") }] : []),
     ...keys.map((key) => ({
       title: LABELS[key],
       dataIndex: key,
@@ -223,10 +230,11 @@ export function RegistryPage() {
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
       <div>
-        <Typography.Title level={2}>Реестр ОСИ</Typography.Title>
+        <Typography.Title level={2}>{users === "staff" ? "Сотрудники" : users ? "Жители" : "Помещения"}</Typography.Title>
         <Typography.Paragraph type="secondary">
-          Помещения, люди и подтверждённые связи. Изменения сохраняются в
-          журнале. Совпадение телефона не объединяет карточки.
+          {users === "staff" ? "Пользователи с действующими служебными полномочиями в доступной области." : users
+            ? "Жители без действующих служебных назначений. Совпадение телефона не объединяет карточки."
+            : "Здания, помещения и привязки помещений к пользователям. Изменения сохраняются в журнале."}
         </Typography.Paragraph>
       </div>
       {error && editing === undefined && !recovery && (
@@ -238,19 +246,20 @@ export function RegistryPage() {
           onClose={() => setError(null)}
         />
       )}
-      <Tabs
+      {!users && <Tabs
         activeKey={entity}
         onChange={switchEntity}
         items={Object.keys(LABELS)
           .filter((k) =>
-            ["buildings", "premises", "persons", "connections"].includes(k),
+            ["buildings", "premises", "connections"].includes(k),
           )
           .map((key) => ({ key, label: LABELS[key] }))}
-      />
+      />}
       <Space>
-        <Button type="primary" onClick={() => open(null)}>
+        {users !== "staff" && <Button type="primary" onClick={() => open(null)}>
           Добавить запись
-        </Button>
+        </Button>}
+        {!users && <Link to="/registry-import">Импорт и экспорт</Link>}
         <Button onClick={() => void load()} loading={busy}>
           Обновить
         </Button>
@@ -266,7 +275,7 @@ export function RegistryPage() {
       />
       <CardDrawer
         open={editing !== undefined || !!recovery}
-        title={recovery ? "Восстановление Telegram" : `${editing ? "Изменить" : "Добавить"}: ${LABELS[entity]}`}
+        title={recovery ? "Восстановление Telegram" : `${editing ? "Изменить" : "Добавить"}: ${users === "staff" ? "Сотрудники" : LABELS[entity]}`}
         closeDisabled={saving}
         hasUnsavedChanges={() => form.isFieldsTouched()}
         onClose={() => { setEditing(undefined); setRecovery(null); }}

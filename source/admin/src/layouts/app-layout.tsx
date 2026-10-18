@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Alert, Button, Layout, Menu, Space, Typography } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useLogout } from "@refinedev/core";
@@ -45,39 +46,68 @@ function EmulationBanner() {
 
 // Layout кабинета (VS-1): меню по ролям, баннер эмуляции, выход.
 export function AppLayout() {
+  const [narrow, setNarrow] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { identity, roles } = useCabinetIdentity();
   const { mutate: logout } = useLogout();
 
+  const manager = roles.some(role => ["chairman", "administrator", "deputy"].includes(role));
+  const settings = [
+    ...(manager && !identity?.me.emulation ? [{ key: "/settings/requests", label: "Настройки обращений" }] : []),
+    ...(canSeeTemplates(roles) ? [
+      { key: "/time-rules", label: "Регламенты" },
+      { key: "/templates", label: "Шаблоны сообщений" },
+    ] : []),
+    ...(canUseEmulation(roles) || identity?.me.emulation ? [{ key: "/emulation", label: "Эмуляция ролей (пилот)" }] : []),
+  ];
   const items = [
     { key: "/", label: "Главная" },
     { key: "/requests", label: "Обращения" },
+    ...(roles.some(role => ["chairman", "administrator", "deputy", "executor"].includes(role)) ? [{ key: "/tasks", label: "Задания" }] : []),
     { key: "/incidents", label: "Аварии" },
     { key: "/publications", label: "Публикации" },
-    { key: "/notifications", label: "Уведомления" },
-    ...(canSeeTemplates(roles)?[{key:"/templates",label:"Шаблоны"}]:[]),
-    ...(roles.some(role=>["chairman","administrator","deputy","executor"].includes(role)) ? [{key:"/tasks",label:"Задания"}] : []),
+    ...(manager ? [
+      { key: "users", label: "Пользователи", children: [
+        { key: "/users/residents", label: "Жители" },
+        { key: "/users/staff", label: "Сотрудники" },
+        { key: "/registrations", label: "Регистрации" },
+        { key: "/invites", label: "Приглашения" },
+      ] },
+      { key: "/registry", label: "Помещения" },
+    ] : []),
+    { key: "notifications", label: "Уведомления", children: [
+      ...(manager ? [{ key: "/notifications/failures", label: "Ошибки доставки" }] : []),
+      { key: "/notifications/preferences", label: "Мои настройки" },
+    ] },
     ...(canSeeAudit(roles) ? [{ key: "/audit", label: "Журнал действий" }] : []),
-    ...(roles.some(role=>["chairman","administrator","tech_admin"].includes(role)) ? [{key:"/time-rules",label:"Регламенты"}] : []),
-    ...(canUseEmulation(roles) || identity?.me.emulation ? [{ key: "/emulation", label: "Эмуляция" }] : []),
-    ...(["chairman","administrator","deputy"].some(role=>roles.includes(role as typeof roles[number])) ? [{key:"/registry",label:"Реестр"},{key:"/registrations",label:"Регистрация и споры"},{key:"/invites",label:"Приглашения"},{key:"/registry-import",label:"Импорт и экспорт"}] : []),
+    ...(settings.length ? [{ key: "settings", label: "Настройки", children: settings }] : []),
   ];
+  const selectedPath = location.pathname === "/registry-import" ? "/registry" : location.pathname;
+  const activeGroup = items.find(item => item.children?.some(child => child.key === selectedPath))?.key;
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider theme="dark" width={240} breakpoint="lg" collapsedWidth={0}>
+      <Sider theme="dark" width={240} breakpoint="lg" collapsedWidth={0}
+        collapsed={collapsed} onCollapse={setCollapsed} onBreakpoint={setNarrow}
+        style={narrow ? { position: "fixed", zIndex: 1000, height: "100dvh" } : undefined}>
         <div style={{ color: "#fff", padding: "16px", fontWeight: 600 }}>
           ОСИ ЖК «Мунар Тау»
         </div>
+        <div style={narrow ? { maxHeight: "calc(100dvh - 56px)", overflowY: "auto" } : undefined}>
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
-          items={items.map((item) => ({ ...item, onClick: () => navigate(item.key) }))}
+          selectedKeys={[selectedPath]}
+          key={activeGroup}
+          defaultOpenKeys={activeGroup ? [activeGroup] : []}
+          items={items}
+          onClick={({ key }) => { navigate(key); if (narrow) setCollapsed(true); }}
         />
+        </div>
       </Sider>
-      <Layout>
+      <Layout style={{ minWidth: 0 }}>
         <Header style={{ background: "#fff", paddingInline: 16, minHeight: 64, height: "auto", gap: 12, flexWrap: "wrap", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Typography.Title level={4} style={{ margin: 0, lineHeight: "32px", fontSize: 18 }}>
             Кабинет администратора ОСИ

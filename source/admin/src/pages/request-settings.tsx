@@ -1,4 +1,3 @@
-import { CardDrawer } from "./card-drawer";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -12,6 +11,7 @@ import {
   Tabs,
   Typography,
 } from "antd";
+import { useCabinetIdentity } from "../lib/identity";
 import { apiFetch } from "../lib/api";
 type Category = {
   id: string;
@@ -20,13 +20,9 @@ type Category = {
   sort: number;
   active: boolean;
 };
-export function RequestSettings(
-  { open, onClose, onSaved }: {
-    open: boolean;
-    onClose: () => void;
-    onSaved: () => void;
-  },
-) {
+export function RequestSettingsPage() {
+  const { identity, roles } = useCabinetIdentity();
+  const allowed = !identity?.me.emulation && roles.some(role => ["chairman", "administrator", "deputy"].includes(role));
   const [categories, setCategories] = useState<Category[]>([]),
     [error, setError] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
@@ -46,8 +42,8 @@ export function RequestSettings(
     }
   };
   useEffect(() => {
-    if (open) void load();
-  }, [open]);
+    if (allowed) void load();
+  }, [allowed]);
   const save = async (
     path: string,
     body: unknown,
@@ -60,21 +56,16 @@ export function RequestSettings(
       if (path === "/v1/file-policy") fileForm.resetFields();
       else categoryForm.resetFields();
       await load();
-      onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка сохранения");
     } finally {
       setBusy(false);
     }
   };
+  if (!allowed) return <Alert type="warning" showIcon message="Настройки обращений доступны сотрудникам с правом редактирования вне эмуляции" />;
   return (
-    <CardDrawer
-      title="Настройки обращений"
-      open={open}
-      onClose={() => { categoryForm.resetFields(); fileForm.resetFields(); setSelected(undefined); onClose(); }}
-      closeDisabled={busy}
-      hasUnsavedChanges={() => categoryForm.isFieldsTouched() || fileForm.isFieldsTouched()}
-    >
+    <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      <Typography.Title level={2}>Настройки обращений</Typography.Title>
       {error && <Alert type="error" message={error} />}
       <Tabs
         items={[{
@@ -204,6 +195,6 @@ export function RequestSettings(
           ),
         }]}
       />
-    </CardDrawer>
+    </Space>
   );
 }

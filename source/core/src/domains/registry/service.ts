@@ -94,10 +94,35 @@ export async function listRegistry(
       );
     case "persons":
       return deps.db.query<Row>(
-        `select distinct n.* from person n left join connection c on c.person_id=n.id left join premises p on p.id=c.premises_id left join building b on b.id=p.building_id where ${filter} and n.is_test=$2 order by n.full_name`,
+        `select distinct n.*, array(select distinct a.role::text from staff_assignment a where a.person_id=n.id and a.status='active' and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())) as staff_roles from person n left join connection c on c.person_id=n.id left join premises p on p.id=c.premises_id left join building b on b.id=p.building_id where ${filter} and n.is_test=$2 order by n.full_name`,
         [...params, actor.person.isTest],
       );
   }
+}
+
+/** Служебный каталог: та же область registry.read, без зависимости от квартиры. */
+export async function listStaff(deps: RegistryDeps, actor: Actor): Promise<Row[]> {
+  const scope = registryScope(actor);
+  return deps.db.query<Row>(
+    `select n.id,n.full_name,n.phone_e164,n.comment,
+      array_agg(distinct a.role::text order by a.role::text) as staff_roles
+     from person n join staff_assignment a on a.person_id=n.id
+     where n.is_test=$2 and a.status='active'
+       and (a.valid_from is null or a.valid_from<=now())
+       and (a.valid_until is null or a.valid_until>now())
+       and ($1::uuid[] is null or exists (
+         select 1 from staff_scope s join staff_assignment scoped on scoped.id=s.assignment_id
+         where scoped.person_id=n.id and scoped.status='active'
+           and (scoped.valid_from is null or scoped.valid_from<=now())
+           and (scoped.valid_until is null or scoped.valid_until>now())
+           and s.building_id=any($1::uuid[])
+       ) or exists (
+         select 1 from connection c join premises p on p.id=c.premises_id
+         where c.person_id=n.id and p.building_id=any($1::uuid[])
+       ))
+     group by n.id,n.full_name,n.phone_e164,n.comment order by n.full_name`,
+    [scope, actor.person.isTest],
+  );
 }
 
 export async function mutateRegistry(
