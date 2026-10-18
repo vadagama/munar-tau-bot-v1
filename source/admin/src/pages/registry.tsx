@@ -33,7 +33,7 @@ const ROLES = [
   { value: "other", label: "Уполномоченный пользователь" },
 ];
 const LABELS: Record<string, string> = {
-  buildings: "Здания и паркинги",
+  buildings: "Здания",
   premises: "Помещения",
   persons: "Жители",
   connections: "Привязки помещений",
@@ -141,7 +141,7 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
   const switchEntity = (key: string) => {
     // Старые строки другой сущности не показываем: при переключении таба
     // колонки меняются сразу, и до загрузки таблица выглядела как «квартиры
-    // в табе Здания и паркинги».
+    // в табе Здания».
     if (key !== entity) {
       setRows([]);
       setEntity(key as Entity);
@@ -153,7 +153,7 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
       row ?? {
         status: "pending",
         basis: "ownership",
-        kind: entity === "buildings" ? "house" : "apartment",
+        kind: "apartment",
         role: "owner",
       },
     );
@@ -181,7 +181,7 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
   };
   const keys =
     entity === "buildings"
-      ? ["kind", "code", "name"]
+      ? ["code", "name"]
       : entity === "premises"
         ? ["building_code", "kind", "number", "entrance", "floor", "status"]
         : entity === "persons"
@@ -284,29 +284,8 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
         {editing !== undefined && <Form name="registry-record" form={form} layout="vertical">
           {entity === "buildings" && (
             <>
-              <Form.Item
-                name="kind"
-                label="Тип здания"
-                rules={[{ required: true }]}
-              >
-                <Select
-                  options={[
-                    { value: "house", label: "Дом" },
-                    { value: "parking", label: "Паркинг" },
-                  ]}
-                />
-              </Form.Item>
               {field("code")}
               {field("name", false)}
-              <Form.Item name="house_ids" label="Дома, обслуживаемые паркингом">
-                <Select
-                  mode="multiple"
-                  options={options(
-                    buildings.filter((r) => r.kind === "house"),
-                    (r) => String(r.code),
-                  )}
-                />
-              </Form.Item>
             </>
           )}
           {entity === "premises" && (
