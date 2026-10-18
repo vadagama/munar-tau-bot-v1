@@ -68,3 +68,13 @@ it("сотрудник с совмещёнными ролями не видит 
  expect(screen.queryByRole("button",{name:"Принять результат"})).toBeNull();
  expect(screen.getByRole("button",{name:"Вернуть на доработку"})).toBeInTheDocument();
 });
+
+it("доска заданий: состояния в колонках, карточка открывает задание",async()=>{
+  vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/tasks"?{items:[task]}:task);
+  render(<TasksPage/>);
+  fireEvent.click(await screen.findByRole("radio",{name:"Доска"}));
+  expect(await screen.findByText("Ожидает принятия")).toBeInTheDocument();
+  expect(screen.getByText("Замена крана")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("ЗД-1"));
+  expect(await screen.findByText("Проверить герметичность")).toBeInTheDocument();
+});

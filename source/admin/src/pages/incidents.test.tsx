@@ -100,3 +100,40 @@ it(
   },
   15000,
 );
+it("доска инцидентов: состояния в колонках, карточка открывает инцидент", async () => {
+  vi.mocked(apiFetch).mockImplementation(async (path) =>
+    path === "/v1/incidents"
+      ? {
+        items: [{
+          id: "i",
+          number: "АВ-1",
+          title: "Вода",
+          state: "recovery_check",
+        }],
+      }
+      : path === "/v1/emergency-signals"
+      ? { items: [] }
+      : {
+        id: "i",
+        number: "АВ-1",
+        title: "Вода",
+        state: "recovery_check",
+        forecast: "Уточняется",
+        actions: [],
+        scope: [{
+          id: "s",
+          zone: "Первый дом",
+          service: "Вода",
+          recovered_at: null,
+        }],
+        history: [],
+      }
+  );
+  render(<IncidentsPage />);
+  fireEvent.click(await screen.findByRole("radio", { name: "Доска" }));
+  expect(await screen.findByText("Проверка восстановления")).toBeInTheDocument();
+  expect(screen.getByText("Вода")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("АВ-1"));
+  expect(await screen.findByText(/восстановление не подтверждено/))
+    .toBeInTheDocument();
+}, 15000);

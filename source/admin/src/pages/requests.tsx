@@ -1,5 +1,6 @@
 import { TaskVisits } from "./task-visits";
 import { RequestSettings } from "./request-settings";
+import { BoardView, ViewToggle, useBoardView } from "./board";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -83,8 +84,19 @@ const STAFF: Record<string, string[]> = {
 };
 const errorText = (e: unknown) =>
   e instanceof Error ? e.message : "Ошибка запроса";
+// Колонки доски — все статусы в порядке жизненного цикла (docs/request-lifecycle.md §3).
+const BOARD_COLUMNS = Object.entries(REQUEST_STATES).map(([value, label]) => ({
+  value,
+  label,
+}));
+const TERMINAL_STATES = ["closed", "canceled", "rejected"];
+const overdue = (r: Row) =>
+  !!r.first_response_due_at &&
+  new Date(String(r.first_response_due_at)).getTime() < Date.now() &&
+  !TERMINAL_STATES.includes(String(r.state));
 export function RequestsPage() {
   const { identity, roles } = useCabinetIdentity();
+  const [view, setView] = useBoardView("view.requests");
   const staff = roles.some((r) =>
     ["chairman", "administrator", "deputy"].includes(r)
   );
@@ -352,7 +364,20 @@ export function RequestsPage() {
   ];
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      <Typography.Title level={2}>Обращения</Typography.Title>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 16,
+          flexWrap: "wrap",
+        }}
+      >
+        <Typography.Title level={2} style={{ margin: 0 }}>
+          Обращения
+        </Typography.Title>
+        <ViewToggle kind={view} onChange={setView} />
+      </div>
       {error && (
         <Alert
           type="error"
@@ -424,41 +449,79 @@ export function RequestsPage() {
           <Button onClick={() => setSettings(true)}>Категории и файлы</Button>
         )}
       </Space>
-      <Table<Row>
-        rowKey="id"
-        loading={busy}
-        dataSource={rows}
-        locale={{ emptyText: <Empty description="Обращений пока нет" /> }}
-        scroll={{ x: 650 }}
-        columns={[
-          {
-            title: "Номер",
-            dataIndex: "number",
-            render: (v, r) => (
-              <Button
-                type="link"
-                disabled={saving || fileBusy}
-                onClick={() => void open(String(r.id))}
+      {view === "board" ? (
+        <BoardView
+          columns={BOARD_COLUMNS}
+          rows={rows}
+          stateOf={(r) => String(r.state)}
+          onOpen={(r) => void open(String(r.id))}
+          loading={busy}
+          emptyText="Обращений пока нет"
+          renderCard={(r) => (
+            <>
+              <Typography.Text strong>
+                {String(r.number ?? "Черновик")}
+              </Typography.Text>
+              <Typography.Paragraph
+                ellipsis={{ rows: 2 }}
+                style={{ marginBottom: 4 }}
               >
-                {String(v ?? "Черновик")}
-              </Button>
-            ),
-          },
-          { title: "Описание", dataIndex: "description", ellipsis: true },
-          { title: "Вид", dataIndex: "kind", render: (v) => KINDS[String(v)] },
-          {
-            title: "Статус",
-            dataIndex: "state",
-            render: (v) => <Tag>{REQUEST_STATES[String(v)]}</Tag>,
-          },
-          {
-            title: "Первый ответ до",
-            dataIndex: "first_response_due_at",
-            render: (v) =>
-              v ? new Date(String(v)).toLocaleString("ru-RU") : "—",
-          },
-        ]}
-      />
+                {String(r.description ?? "")}
+              </Typography.Paragraph>
+              <Typography.Text type="secondary">
+                {KINDS[String(r.kind)]}
+              </Typography.Text>
+              {!!r.first_response_due_at && (
+                <Typography.Text
+                  type={overdue(r) ? "danger" : "secondary"}
+                  style={{ display: "block" }}
+                >
+                  {`Первый ответ до ${
+                    new Date(String(r.first_response_due_at))
+                      .toLocaleString("ru-RU")
+                  }`}
+                </Typography.Text>
+              )}
+            </>
+          )}
+        />
+      ) : (
+        <Table<Row>
+          rowKey="id"
+          loading={busy}
+          dataSource={rows}
+          locale={{ emptyText: <Empty description="Обращений пока нет" /> }}
+          scroll={{ x: 650 }}
+          columns={[
+            {
+              title: "Номер",
+              dataIndex: "number",
+              render: (v, r) => (
+                <Button
+                  type="link"
+                  disabled={saving || fileBusy}
+                  onClick={() => void open(String(r.id))}
+                >
+                  {String(v ?? "Черновик")}
+                </Button>
+              ),
+            },
+            { title: "Описание", dataIndex: "description", ellipsis: true },
+            { title: "Вид", dataIndex: "kind", render: (v) => KINDS[String(v)] },
+            {
+              title: "Статус",
+              dataIndex: "state",
+              render: (v) => <Tag>{REQUEST_STATES[String(v)]}</Tag>,
+            },
+            {
+              title: "Первый ответ до",
+              dataIndex: "first_response_due_at",
+              render: (v) =>
+                v ? new Date(String(v)).toLocaleString("ru-RU") : "—",
+            },
+          ]}
+        />
+      )}
       {nextCursor && (
         <Button
           loading={busy}

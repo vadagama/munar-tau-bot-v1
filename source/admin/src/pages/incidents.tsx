@@ -18,15 +18,24 @@ import {
 } from "antd";
 import { apiFetch } from "../lib/api";
 import { useCabinetIdentity } from "../lib/identity";
+import { BoardView, ViewToggle, useBoardView } from "./board";
 type Row = Record<string, unknown>;
 const required = [{ required: true, message: "Заполните поле" }];
-const names: Record<string, string> = {
+// Состояния инцидента — колонки доски (VS-7, docs/request-lifecycle.md §6).
+const INCIDENT_STATES: Record<string, string> = {
   signal_check: "Проверка сигнала",
   confirmed: "Подтверждена",
   not_confirmed: "Не подтверждена",
   mitigation: "Устранение",
   recovery_check: "Проверка восстановления",
   completed: "Завершена",
+};
+const BOARD_COLUMNS = Object.entries(INCIDENT_STATES).map(([value, label]) => ({
+  value,
+  label,
+}));
+const names: Record<string, string> = {
+  ...INCIDENT_STATES,
   confirm: "Подтвердить",
   mark_unconfirmed: "Не подтверждена",
   recheck: "Повторная проверка",
@@ -40,6 +49,7 @@ const names: Record<string, string> = {
 };
 export function IncidentsPage() {
   const { roles } = useCabinetIdentity(),
+    [view, setView] = useBoardView("view.incidents"),
     manager = roles.some((r) =>
       ["chairman", "administrator", "deputy"].includes(r)
     );
@@ -220,44 +230,79 @@ export function IncidentsPage() {
             label: "Инциденты",
             children: (
               <>
-                <Space wrap>
-                  <Button
-                    loading={busy}
-                    onClick={() => void refresh()}
-                  >
-                    Обновить
-                  </Button>
-                  {manager && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 16,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Space wrap>
                     <Button
-                      type="primary"
-                      onClick={() => void begin("create")}
+                      loading={busy}
+                      onClick={() => void refresh()}
                     >
-                      Зарегистрировать сигнал
+                      Обновить
                     </Button>
-                  )}
-                </Space>
-                <Table
-                  rowKey="id"
-                  dataSource={rows}
-                  loading={busy}
-                  scroll={{ x: 650 }}
-                  locale={{ emptyText: "Доступных инцидентов нет" }}
-                  columns={[{ title: "Номер", dataIndex: "number" }, {
-                    title: "Проблема",
-                    dataIndex: "title",
-                  }, {
-                    title: "Состояние",
-                    dataIndex: "state",
-                    render: (s) => names[String(s)] ?? s,
-                  }, {
-                    title: "",
-                    render: (_, r) => (
-                      <Button onClick={() => void open(String(r.id))}>
-                        Открыть
+                    {manager && (
+                      <Button
+                        type="primary"
+                        onClick={() => void begin("create")}
+                      >
+                        Зарегистрировать сигнал
                       </Button>
-                    ),
-                  }]}
-                />
+                    )}
+                  </Space>
+                  <ViewToggle kind={view} onChange={setView} />
+                </div>
+                {view === "board" ? (
+                  <BoardView
+                    columns={BOARD_COLUMNS}
+                    rows={rows}
+                    stateOf={(r) => String(r.state)}
+                    onOpen={(r) => void open(String(r.id))}
+                    loading={busy}
+                    emptyText="Доступных инцидентов нет"
+                    renderCard={(r) => (
+                      <>
+                        <Typography.Text strong>
+                          {String(r.number)}
+                        </Typography.Text>
+                        <Typography.Paragraph
+                          ellipsis={{ rows: 2 }}
+                          style={{ margin: 0 }}
+                        >
+                          {String(r.title)}
+                        </Typography.Paragraph>
+                      </>
+                    )}
+                  />
+                ) : (
+                  <Table
+                    rowKey="id"
+                    dataSource={rows}
+                    loading={busy}
+                    scroll={{ x: 650 }}
+                    locale={{ emptyText: "Доступных инцидентов нет" }}
+                    columns={[{ title: "Номер", dataIndex: "number" }, {
+                      title: "Проблема",
+                      dataIndex: "title",
+                    }, {
+                      title: "Состояние",
+                      dataIndex: "state",
+                      render: (s) => names[String(s)] ?? s,
+                    }, {
+                      title: "",
+                      render: (_, r) => (
+                        <Button onClick={() => void open(String(r.id))}>
+                          Открыть
+                        </Button>
+                      ),
+                    }]}
+                  />
+                )}
               </>
             ),
           },

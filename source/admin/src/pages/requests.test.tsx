@@ -162,3 +162,13 @@ it("ошибка доступа не показывает старую карт�
   expect(await screen.findByText("Объект не найден")).toBeInTheDocument();
   expect(screen.queryByText("Вопрос жителя")).not.toBeInTheDocument();
 });
+it("доска обращений: статусы в колонках, карточка открывает обращение", async () => {
+  setup();
+  render(<RequestsPage />);
+  fireEvent.click(await screen.findByRole("radio", { name: "Доска" }));
+  // Колонка по статусу строки и карточка с номером на доске.
+  expect(await screen.findByText("Ожидает подтверждения")).toBeInTheDocument();
+  expect(screen.getByText("Вопрос жителя")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("З-26-00001"));
+  expect(await screen.findByText("Публичный ответ")).toBeInTheDocument();
+}, 15000);

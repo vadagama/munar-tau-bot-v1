@@ -3,6 +3,7 @@ import { JobTemplates } from "./job-templates";
 import { CommonWorks } from "./common-works";
 import { TaskVisits } from "./task-visits";
 import { TaskReportForm } from "./task-report";
+import { BoardView, ViewToggle, useBoardView } from "./board";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -39,14 +40,25 @@ interface Task extends Row {
   can_manage?: boolean;
   can_approve?: boolean;
   can_execute?: boolean;
+  assignee_name?: string | null;
   log?: Row[];
   delivery_failures?: {id:string;last_error:string;followup_state:string}[];
 }
 const message = (e: unknown) =>
   e instanceof Error ? e.message : "Ошибка запроса";
 const required = [{ required: true, message: "Заполните поле" }];
+// Колонки доски — состояния задания в порядке жизненного цикла (docs/request-lifecycle.md §5).
+const BOARD_COLUMNS = Object.entries(TASK_STATE_TEXT).map(([value, label]) => ({
+  value,
+  label: label.ru,
+}));
+const TASK_DONE_STATES = ["accepted_admin", "canceled"];
+const overdue = (t: Task) =>
+  new Date(t.due_at).getTime() < Date.now() &&
+  !TASK_DONE_STATES.includes(t.state);
 export function TasksPage() {
   const { identity, roles } = useCabinetIdentity();
+  const [view, setView] = useBoardView("view.tasks");
   const manager = roles.some((r) =>
     ["chairman", "administrator", "deputy"].includes(r)
   );
@@ -305,7 +317,20 @@ export function TasksPage() {
   }
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-      <Typography.Title level={2}>Задания</Typography.Title>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 16,
+          flexWrap: "wrap",
+        }}
+      >
+        <Typography.Title level={2} style={{ margin: 0 }}>
+          Задания
+        </Typography.Title>
+        <ViewToggle kind={view} onChange={setView} />
+      </div>
       {manager && (
         <Space>
           <Button onClick={() => setCommonOpen(true)}>Общие работы</Button>
@@ -356,38 +381,71 @@ export function TasksPage() {
           </Button>
         )}
       </Space>
-      <Table<Task>
-        loading={loading}
-        rowKey="id"
-        dataSource={rows}
-        locale={{ emptyText: "Доступных заданий нет" }}
-        scroll={{ x: 650 }}
-        columns={[
-          {
-            title: "Номер",
-            dataIndex: "number",
-            render: (n: string, r: Task) => (
-              <Button
-                type="link"
-                onClick={() => void open(r.id)}
+      {view === "board" ? (
+        <BoardView
+          columns={BOARD_COLUMNS}
+          rows={rows}
+          stateOf={(t) => t.state}
+          onOpen={(t) => void open(t.id)}
+          loading={loading}
+          emptyText="Доступных заданий нет"
+          renderCard={(t) => (
+            <>
+              <Typography.Text strong>{t.number}</Typography.Text>
+              <Typography.Paragraph
+                ellipsis={{ rows: 2 }}
+                style={{ marginBottom: 4 }}
               >
-                {n}
-              </Button>
-            ),
-          },
-          { title: "Работа", dataIndex: "title" },
-          {
-            title: "Состояние",
-            dataIndex: "state",
-            render: (s: string) => <Tag>{TASK_STATE_TEXT[s]?.ru ?? s}</Tag>,
-          },
-          {
-            title: "Срок",
-            dataIndex: "due_at",
-            render: (v: string) => new Date(v).toLocaleString("ru-RU"),
-          },
-        ]}
-      />
+                {t.title}
+              </Typography.Paragraph>
+              {!!t.assignee_name && (
+                <Typography.Text type="secondary">
+                  {t.assignee_name}
+                </Typography.Text>
+              )}
+              <Typography.Text
+                type={overdue(t) ? "danger" : "secondary"}
+                style={{ display: "block" }}
+              >
+                {`Срок: ${new Date(t.due_at).toLocaleString("ru-RU")}`}
+              </Typography.Text>
+            </>
+          )}
+        />
+      ) : (
+        <Table<Task>
+          loading={loading}
+          rowKey="id"
+          dataSource={rows}
+          locale={{ emptyText: "Доступных заданий нет" }}
+          scroll={{ x: 650 }}
+          columns={[
+            {
+              title: "Номер",
+              dataIndex: "number",
+              render: (n: string, r: Task) => (
+                <Button
+                  type="link"
+                  onClick={() => void open(r.id)}
+                >
+                  {n}
+                </Button>
+              ),
+            },
+            { title: "Работа", dataIndex: "title" },
+            {
+              title: "Состояние",
+              dataIndex: "state",
+              render: (s: string) => <Tag>{TASK_STATE_TEXT[s]?.ru ?? s}</Tag>,
+            },
+            {
+              title: "Срок",
+              dataIndex: "due_at",
+              render: (v: string) => new Date(v).toLocaleString("ru-RU"),
+            },
+          ]}
+        />
+      )}
       {card && (
         <Card title={`${card.number} — ${card.title}`}>
           <Descriptions
