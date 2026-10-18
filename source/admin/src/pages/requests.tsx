@@ -789,10 +789,7 @@ export function RequestsPage() {
             {(actions.length > 0 || card.kind === "request" || (own && stateName === "closed" && card.close_method === "author")) && (
               <DetailSection title="Действия по процессу">
                 <Space wrap>
-                  {[...new Set(actions)].filter((a) =>
-                    a !== "submit_result" ||
-                    (card.kind !== "request" && !card.work_execution_required)
-                  ).map((a) => (
+                  {[...new Set(actions)].map((a) => (
                     <Button
                       key={a}
                       icon={REQUEST_ACTION_ICONS[a]}
