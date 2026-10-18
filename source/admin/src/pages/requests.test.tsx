@@ -363,6 +363,27 @@ it.each([
   ));
 });
 
+it("итоговый ответ доступен и для заявки с работами в состоянии В работе", async () => {
+  const row = setup(true);
+  Object.assign(row, { kind: "request", work_execution_required: true });
+  row.state = "in_work";
+  render(<RequestsPage />);
+  fireEvent.click(await findButton("З-26-00001"));
+  fireEvent.click(await findButton("Итоговый ответ", true));
+  fireEvent.change(screen.getByLabelText("Итоговый ответ жителю"), {
+    target: { value: "Работы выполнены" },
+  });
+  fireEvent.click(await findButton("Итоговый ответ", true));
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(
+    "/v1/requests/r/transitions", expect.objectContaining({ body: expect.objectContaining({
+      action: "submit_result",
+      payload: expect.objectContaining({
+        confirmation_payload: expect.objectContaining({ summary: "Работы выполнены" }),
+      }),
+    }) }),
+  ));
+});
+
 it("Отклонить сохраняет причину и маршрут без отдельного поля остановки работ", async () => {
   const row = setup(true);
   row.state = "reviewing";
