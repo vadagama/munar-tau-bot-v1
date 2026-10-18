@@ -130,7 +130,7 @@ export function RegistrationsPage() {
         }}
       >
         <div style={{ flex: 1, minWidth: 320 }}>
-          <Typography.Title level={2}>Регистрация и споры</Typography.Title>
+          <Typography.Title level={2}>Регистрации</Typography.Title>
           <Typography.Paragraph type="secondary">
             Проверьте анкету по реестру. Выбор роли пользователем не предоставляет
             доступ. Спор остаётся открытым до явного решения.

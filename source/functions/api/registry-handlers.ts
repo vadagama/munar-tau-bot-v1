@@ -2,6 +2,7 @@ import {ruleContract} from "../../core/src/domains/timing/contracts.ts";
 import type { Route, RouteContext } from "./handlers.ts";
 import {
   listRegistry,
+  listStaff,
   mutateRegistry,
   recordAudit,
   type RegistryEntity,
@@ -105,7 +106,13 @@ function exportRegistry(ctx: RouteContext) {
     return file(bytes, "registry.xlsx");
   });
 }
-const routes: Route[] = [];
+const routes: Route[] = [{
+  method: "GET",
+  path: "/v1/registry/staff",
+  action: "registry.read",
+  evaluateAs: "effective",
+  handler: async (ctx) => ({ body: { items: await listStaff(deps(ctx), ctx.actor) } }),
+}];
 for (const entity of [
   "buildings",
   "persons",
