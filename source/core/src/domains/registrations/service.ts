@@ -1,3 +1,4 @@
+import { templateNotice } from "../../templates/notice.ts";
 import { notifyPerson, notifyTelegram } from "./notifications.ts";
 import { label, premiseLabels, stateLabels } from "../../locales/registry.ts";
 import { jsonValue } from "../registry/validation.ts";
@@ -174,10 +175,7 @@ export async function submitRegistration(
         await notifyPerson(
           exec,
           String(owner.person_id),
-          {
-            ru: `Новая анкета арендатора: ${fullName}, ${premiseText}. Рассмотрите её в кабинете или боте (/pending).`,
-            kk: `Жалға алушының өтінімі: ${fullName}, ${premiseTextKk}. Кабинетте немесе ботыпта қарастырыңыз (/pending).`,
-          },
+          templateNotice("notices.registrations_service_submit_registration_1", {fullname: fullName, premisetext: premiseText, premisetextkk: premiseTextKk}),
           `${row!.id}:owner:${owner.person_id}`,
           { registrationAccess: { premisesId: String(premises.id), role: "owner" }, buildingIds: [String(premises.building_id)] },
         );
@@ -191,10 +189,7 @@ export async function submitRegistration(
         await notifyPerson(
           exec,
           reviewer,
-          {
-            ru: `Новая анкета: ${fullName}, ${premiseText}`,
-            kk: `Жаңа өтінім: ${fullName}, ${premiseTextKk}`,
-          },
+          templateNotice("notices.registrations_service_submit_registration_2", {fullname: fullName, premisetext: premiseText, premisetextkk: premiseTextKk}),
           `${row!.id}:review:${reviewer}`,
           { bot: "worker", registrationAccess: { premisesId: String(premises.id), role: stage }, buildingIds: [String(premises.building_id)] },
         );
@@ -541,14 +536,7 @@ export async function reviewRegistration(
     await notifyTelegram(
       exec,
       row.telegram_user_id,
-      {
-        ru: `Состояние регистрации: ${label(stateLabels, state, "ru")}.${reason ? ` ${reason}` : ""}${
-          decision === "clarify" ? " Исправьте анкету: отправьте боту /fix." : ""
-        }`,
-        kk: `Тіркелу күйі: ${label(stateLabels, state, "kk")}.${reason ? ` ${reason}` : ""}${
-          decision === "clarify" ? " Түзету үшін ботыға /fix жіберіңіз." : ""
-        }`,
-      },
+      templateNotice(decision === "clarify" ? "notices.registrations_service_review_registration_3_clarify" : "notices.registrations_service_review_registration_3", {state_ru:label(stateLabels,state,"ru"),state_kk:label(stateLabels,state,"kk"),reason:reason ? " "+reason : ""}),
       `${id}:${state}:${row.updated_at}`,
     );
     await recordAudit(
@@ -698,17 +686,14 @@ export async function acceptInvite(
       await notifyPerson(
         exec,
         reviewer,
-        {
-          ru: `Принято приглашение собственника: ${actor.person.fullName}, ${label(premiseLabels, premises.kind, "ru")} ${premises.number}`,
-          kk: `Меншік иесінің шақырысы қабылданды: ${actor.person.fullName}, ${label(premiseLabels, premises.kind, "kk")} ${premises.number}`,
-        },
+        templateNotice("notices.registrations_service_accept_invite_4", {actor_person_fullname: actor.person.fullName, detail_b: label(premiseLabels, premises.kind, "ru"), premises_number: premises.number, detail_d: label(premiseLabels, premises.kind, "kk")}),
         `${invite.id}:admin:${reviewer}`,
         { bot: "worker", registrationAccess: { premisesId: String(premises.id), role: "administrator" }, buildingIds: [String(premises.building_id)] },
       );
     await notifyPerson(
       exec,
       String(invite.created_by),
-      { ru: "Приглашение принято", kk: "Шақыру қабылданды" },
+      templateNotice("notices.registrations_service_accept_invite_5", {}),
       `${invite.id}:accepted`,
       { registrationAccess: { premisesId: String(premises.id), role: "owner" }, buildingIds: [String(premises.building_id)] },
     );
@@ -814,7 +799,7 @@ export async function revokeOwnConnection(
     await notifyPerson(
       exec,
       String(row.person_id),
-      { ru: `Связь прекращена: ${reason}`, kk: `Байланыс тоқтатылды: ${reason}` },
+      templateNotice("notices.registrations_service_revoke_own_connection_6", {reason: reason}),
       `${id}:revoked`,
     );
     await recordAudit(

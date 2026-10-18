@@ -127,12 +127,12 @@ describe("processInbound: callback_query (срез UX B)", () => {
     expect(parsed.keyboard.flat().map((b) => b.text)).toContain("🆕 Новое обращение");
   });
 
-  it("кнопка reply-меню исполняется как её команда («Мои объекты» → /objects)", async () => {
+  it("кнопка reply-меню исполняется как её команда («Мои помещения» → /objects)", async () => {
     const h = harness();
     const update: Row = {
       update_id: 5,
       message: {
-        text: "🏠 Мои объекты",
+        text: "🏠 Мои помещения",
         from: { id: 100 },
         chat: { id: 100, type: "private" },
       },

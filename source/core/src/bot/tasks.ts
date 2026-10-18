@@ -1,7 +1,9 @@
+import { BotTemplateError } from "./bot-errors.ts";
+import { t as templateText } from "../templates/store.ts";
 import { reportProblem } from "../domains/tasks/problems.ts";
 import { proposeVisit, updateVisit } from "../domains/tasks/visits.ts";
 import { taskActions, workerHelp } from "./help.ts";
-import { cmd, esc, fmtDate, fmtDay, fmtInterval, numbered, pick, type Lang } from "./text.ts";
+import { esc, fmtDate, fmtDay, fmtInterval, numbered, pick, type Lang } from "./text.ts";
 import { visitStateText } from "../locales/tasks.ts";
 import {
   almatyDay,
@@ -103,9 +105,9 @@ export async function taskStep(
       // Без номера postgres.js отклоняет undefined (UNDEFINED_VALUE) — апдейт
       // уходит в 500 и зацикливает повторную доставку (как в requests.ts).
       if (!number) {
-        throw new ApiError(
+        throw new BotTemplateError(
           "VALIDATION_FAILED",
-          pick(L, "Укажите номер задания", "Тапсырма нөмірін көрсетіңіз"),
+          templateText(deps.templates, L, "tasks.ukazhite_nomer_zadaniya"),
         );
       }
       // Полный UUID принимается наравне с номером: глубокие ссылки
@@ -138,7 +140,7 @@ export async function taskStep(
       return save({
         text: lines.length
           ? numbered(lines)
-          : pick(L, "Заданий нет", "Тапсырма жоқ"),
+          : templateText(deps.templates, L, "tasks.zadaniy_net"),
         // Кнопка в строке списка открывает карточку тем же кодом, что /task НОМЕР.
         buttons: visible.map((t) => [
           btn(
@@ -154,23 +156,19 @@ export async function taskStep(
       delete state.report;
       delete state.visit_when;
       const visits = ((t.visits as Row[]) ?? []).map((v) =>
-        `${pick(L, "Визит", "Сапар")}: ${fmtInterval(v.interval_start, v.interval_end)} — ${esc(visitStateText(v.status, L))}`
+        `${templateText(deps.templates, L, "tasks.vizit")}: ${fmtInterval(v.interval_start, v.interval_end)} — ${esc(visitStateText(v.status, L))}`
       );
-      const actions = taskActions(t.state, L);
+      const actions = taskActions(t.state, L, deps.templates);
       return save({
         text: [
           `<b>${esc(t.number)}</b> — ${esc(t.title)}`,
           esc(stateLabel(t.state, L)),
           esc(t.instruction),
           t.methodology
-            ? pick(
-              L,
-              `Методичка: версия ${(t.methodology as Row).version}, действует с ${fmtDay((t.methodology as Row).created_at)}`,
-              `Әдістеме: нұсқа ${(t.methodology as Row).version}, ${fmtDay((t.methodology as Row).created_at)} бастап қолданылады`,
-            )
+            ? templateText(deps.templates, L, "tasks.metodichka_versiya_deystvuet_s", { value_1: (t.methodology as Row).version, fmtday_t_methodology_as_row_created_at: fmtDay((t.methodology as Row).created_at) })
             : "",
           visits.join("\n"),
-          `${pick(L, "Срок", "Мерзім")}: ${fmtDate(t.due_at)}`,
+          `${templateText(deps.templates, L, "tasks.srok")}: ${fmtDate(t.due_at)}`,
           actions,
         ].filter(Boolean).join("\n"),
         buttons: taskButtons(t, L),
@@ -193,7 +191,7 @@ export async function taskStep(
       }, key);
       state.task_id = t.id;
       delete state.report;
-      const actions = taskActions(changed.state, L);
+      const actions = taskActions(changed.state, L, deps.templates);
       return save({
         text: `${esc(changed.number)} — ${esc(stateLabel(changed.state, L))}${
           actions ? `\n${actions}` : ""
@@ -213,11 +211,7 @@ export async function taskStep(
         step: "performed_work",
       };
       return save(
-        pick(
-          L,
-          "Опишите выполненный объём.",
-          "Орындалған жұмыстың көлемін сипаттаңыз.",
-        ),
+        templateText(deps.templates, L, "tasks.opishite_vypolnennyy_obem"),
       );
     }
     if (command === "/problem") {
@@ -237,11 +231,7 @@ export async function taskStep(
       state.task_id = t.id;
       delete state.report;
       return save(
-        pick(
-          L,
-          "Найденная проблема передана администратору для создания или связывания задания.",
-          "Табылған мәселе әкімшіге жаңа тапсырма жасау немесе байланыстыру үшін берілді.",
-        ),
+        templateText(deps.templates, L, "tasks.naydennaya_problema_peredana_administratoru_dlya_sozdaniya_ili"),
       );
     }
     if (command === "/proposevisit") {
@@ -249,11 +239,7 @@ export async function taskStep(
       if (!args.length) {
         // Диалог (срез UX C): день — кнопкой, время — следующим сообщением.
         return save({
-          text: pick(
-            L,
-            "Когда предложите визит? Напишите одним сообщением, например: завтра 10:00-12:00",
-            "Сапарды қашан ұсынасыз? Бір хабарламада жазыңыз, мысалы: ертең 10:00-12:00",
-          ),
+          text: templateText(deps.templates, L, "tasks.kogda_predlozhite_vizit_napishite_odnim_soobscheniem_naprimer"),
           buttons: [[
             btn(pick(L, "Сегодня", "Бүгін"), `/proposevisit ${t.number} сегодня`),
             btn(pick(L, "Завтра", "Ертең"), `/proposevisit ${t.number} завтра`),
@@ -279,24 +265,16 @@ export async function taskStep(
           day: almatyDay(bareDayOffset(parts[0])!, new Date()),
         };
         return save(
-          pick(
-            L,
-            "Теперь укажите время одним сообщением, например 10:00-12:00",
-            "Енді уақытты бір хабарламада жазыңыз, мысалы 10:00-12:00",
-          ),
+          templateText(deps.templates, L, "tasks.teper_ukazhite_vremya_odnim_soobscheniem_naprimer_10"),
         );
       } else if (parts[0]) {
         interval = parseVisitWhen(parts[0], new Date()) ?? undefined;
         note = parts[1] || undefined;
       }
       if (!interval) {
-        throw new ApiError(
+        throw new BotTemplateError(
           "VALIDATION_FAILED",
-          pick(
-            L,
-            "Не понял, когда визит. Примеры: завтра 10:00-12:00, сегодня 18:00, 20.10 09:00-11:00",
-            "Сапар уақытын түсінбедім. Мысалдар: ертең 10:00-12:00, бүгін 18:00, 20.10 09:00-11:00",
-          ),
+          templateText(deps.templates, L, "tasks.ne_ponyal_kogda_vizit_primery_zavtra_10"),
         );
       }
       await proposeVisit(d, actor, {
@@ -306,26 +284,22 @@ export async function taskStep(
         note,
       }, key);
       return save(
-        pick(
-          L,
-          `Интервал предложен: ${fmtInterval(interval.start, interval.end)}. Визит состоится только после согласования.`,
-          `Аралық ұсынылды: ${fmtInterval(interval.start, interval.end)}. Сапар тек келісілгеннен кейін өтеді.`,
-        ),
+        templateText(deps.templates, L, "tasks.interval_predlozhen_vizit_sostoitsya_tolko_posle_soglasovaniya", { fmtinterval_interval_start_interval_end: fmtInterval(interval.start, interval.end) }),
       );
     }
     if (command === "/noaccess") {
       if (typeof state.task_id !== "string") {
-        throw new ApiError(
+        throw new BotTemplateError(
           "VALIDATION_FAILED",
-          pick(L, "Сначала откройте /task НОМЕР", "Алдымен /task НОМІР ашыңыз"),
+          templateText(deps.templates, L, "tasks.snachala_otkroyte_task_nomer"),
         );
       }
       const t = await getTask(d, actor, state.task_id);
       const visit = ((t.visits as Row[]) ?? [])[Number(number) - 1];
       if (!visit) {
-        throw new ApiError(
+        throw new BotTemplateError(
           "VALIDATION_FAILED",
-          pick(L, "Визит не найден", "Сапар табылмады"),
+          templateText(deps.templates, L, "tasks.vizit_ne_nayden"),
         );
       }
       const [reason, attempts] = args.join(" ").split("|").map((s) => s.trim());
@@ -337,11 +311,7 @@ export async function taskStep(
         occurred_at: new Date().toISOString(),
       }, key);
       return save(
-        pick(
-          L,
-          "Отсутствие доступа зафиксировано. Администратор и житель уведомлены.",
-          "Қолжетімділік жоқ екені тіркелді. Әкімші мен тұрғын хабарланды.",
-        ),
+        templateText(deps.templates, L, "tasks.otsutstvie_dostupa_zafiksirovano_administrator_i_zhitel_uvedomleny"),
       );
     }
     // Шаг диалога визита (срез UX C): после кнопки «сегодня/завтра» жду
@@ -351,11 +321,7 @@ export async function taskStep(
       const interval = visitFromDayTime(String(visitWhen.day), input);
       if (!interval) {
         return save(
-          pick(
-            L,
-            "Не понял время. Напишите одним сообщением, например 10:00-12:00",
-            "Уақытты түсінбедім. Бір хабарламада жазыңыз, мысалы 10:00-12:00",
-          ),
+          templateText(deps.templates, L, "tasks.ne_ponyal_vremya_napishite_odnim_soobscheniem_naprimer"),
         );
       }
       await proposeVisit(d, actor, {
@@ -365,19 +331,15 @@ export async function taskStep(
       }, key);
       delete state.visit_when;
       return save(
-        pick(
-          L,
-          `Интервал предложен: ${fmtInterval(interval.start, interval.end)}. Визит состоится только после согласования.`,
-          `Аралық ұсынылды: ${fmtInterval(interval.start, interval.end)}. Сапар тек келісілгеннен кейін өтеді.`,
-        ),
+        templateText(deps.templates, L, "tasks.interval_predlozhen_vizit_sostoitsya_tolko_posle_soglasovaniya", { fmtinterval_interval_start_interval_end: fmtInterval(interval.start, interval.end) }),
       );
     }
     const report = state.report as Row | undefined;
     const current = async () => {
       if (typeof state.task_id !== "string") {
-        throw new ApiError(
+        throw new BotTemplateError(
           "VALIDATION_FAILED",
-          pick(L, "Сначала откройте задание", "Алдымен тапсырманы ашыңыз"),
+          templateText(deps.templates, L, "tasks.snachala_otkroyte_zadanie"),
         );
       }
       return getTask(d, actor, state.task_id);
@@ -386,20 +348,16 @@ export async function taskStep(
       numbered(((t.pending_files as Row[]) ?? []).map((f) =>
         `${esc(f.filename)}: ${
           f.status === "complete"
-            ? pick(L, "сохранён", "сақталды")
-            : pick(L, "ещё в очереди", "кезекте")
+            ? templateText(deps.templates, L, "tasks.sohranen")
+            : templateText(deps.templates, L, "tasks.esche_v_ocheredi")
         }`
-      )) || pick(L, "Файлов пока нет", "Файл әзірше жоқ");
+      )) || templateText(deps.templates, L, "tasks.faylov_poka_net");
     if (command === "/taskfiles") return save(filesText(await current()));
     if (command === "/submitreport") {
       if (!report || report.step !== "ready") {
-        throw new ApiError(
+        throw new BotTemplateError(
           "VALIDATION_FAILED",
-          pick(
-            L,
-            "Заполните отчёт: /reporttask НОМЕР",
-            "Есепті толтырыңыз: /reporttask НОМІР",
-          ),
+          templateText(deps.templates, L, "tasks.zapolnite_otchet_reporttask_nomer"),
         );
       }
       const t = await current();
@@ -430,36 +388,24 @@ export async function taskStep(
         report.performed_work = input;
         report.step = "performed_at";
         return save(
-          pick(
-            L,
-            "Время выполнения: ГГГГ-ММ-ДД ЧЧ:ММ (Алматы). Например 2026-10-17 15:30.",
-            "Орындалу уақыты: ЖЖЖЖ-АА-КК СС:ММ (Алматы). Мысалы 2026-10-17 15:30.",
-          ),
+          templateText(deps.templates, L, "tasks.vremya_vypolneniya_gggg_mm_dd_chch_mm"),
         );
       }
       if (report.step === "performed_at") {
         if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(input)) {
           return save(
-            pick(
-              L,
-              "Введите время в формате ГГГГ-ММ-ДД ЧЧ:ММ",
-              "Уақытты ЖЖЖЖ-АА-КК СС:ММ форматында енгізіңіз",
-            ),
+            templateText(deps.templates, L, "tasks.vvedite_vremya_v_formate_gggg_mm_dd"),
           );
         }
         report.performed_at = input.replace(" ", "T") + ":00+05:00";
         report.step = "result";
-        return save(pick(L, "Опишите результат.", "Нәтижені сипаттаңыз."));
+        return save(templateText(deps.templates, L, "tasks.opishite_rezultat"));
       }
       if (report.step === "result") {
         report.result = input;
         report.step = "limitations";
         return save(
-          pick(
-            L,
-            "Оставшиеся ограничения? Напишите «нет», если их нет.",
-            "Қалған шектеулер бар ма? Жоқ болса «жоқ» деп жазыңыз.",
-          ),
+          templateText(deps.templates, L, "tasks.ostavshiesya_ogranicheniya_napishite_net_esli_ih_net"),
         );
       }
       if (report.step === "limitations") {
@@ -483,11 +429,7 @@ export async function taskStep(
             )
           ) {
             return save(
-              pick(
-                L,
-                "Выберите номера сохранённых файлов через запятую или напишите «нет причина».\n",
-                "Сақталған файлдардың нөмірлерін үтірмен таңдаңыз немесе «жоқ себеп» деп жазыңыз.\n",
-              ) + filesText(t),
+              templateText(deps.templates, L, "tasks.vyberite_nomera_sohranennyh_faylov_cherez_zapyatuyu_ili") + filesText(t),
             );
           }
           entry.attachment_ids = ids.map((i) => files[i]!.id);
@@ -498,22 +440,14 @@ export async function taskStep(
       }
       if (report.step === "evidence") {
         return save(
-          pick(
-            L,
-            `Доказательство ${Number(report.index) + 1} из ${requirements.length}. Отправьте файл, дождитесь сохранения (${cmd("/taskfiles")}), затем введите его номер. Если доказательства нет — ${cmd("нет причина")}.\n`,
-            `Дәлел ${Number(report.index) + 1} / ${requirements.length}. Файл жіберіп, сақталуын күтіңіз (${cmd("/taskfiles")}), содан кейін нөмірін жазыңыз. Дәлел жоқ болса — ${cmd("жоқ себеп")}.\n`,
-          ) + filesText(t),
+          templateText(deps.templates, L, "tasks.dokazatelstvo_iz_otpravte_fayl_dozhdites_sohraneniya_taskfiles", { number_report_index_1: Number(report.index) + 1, requirements_length: requirements.length }) + filesText(t),
         );
       }
       return save({
-        text: pick(
-          L,
-          `Отчёт подготовлен. ${cmd("/submitreport")} — отправить на проверку.`,
-          `Есеп дайын. ${cmd("/submitreport")} — тексеруге жіберу.`,
-        ),
+        text: templateText(deps.templates, L, "tasks.otchet_podgotovlen_submitreport_otpravit_na_proverku"),
         buttons: [[btn(pick(L, "Отправить отчёт", "Есепті жіберу"), "/submitreport")]],
       });
     }
-    return save(workerHelp(L));
+    return save(workerHelp(L, deps.templates));
   });
 }

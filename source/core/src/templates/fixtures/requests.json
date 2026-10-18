@@ -1,0 +1,278 @@
+[
+  {
+    "key": "requests.ukazhite_nomer_obrascheniya",
+    "source": "requests",
+    "ru": "Укажите номер обращения",
+    "kk": "Өтініш нөмірін көрсетіңіз"
+  },
+  {
+    "key": "requests.ukazhite_nomer_otcheta",
+    "source": "requests",
+    "ru": "Укажите номер отчёта",
+    "kk": "Есеп нөмірін көрсетіңіз"
+  },
+  {
+    "key": "requests.rezultat_esche_ne_peredan",
+    "source": "requests",
+    "ru": "Результат ещё не передан",
+    "kk": "Нәтиже әлі берілмеген"
+  },
+  {
+    "key": "requests.otchet",
+    "source": "requests",
+    "ru": "Отчёт",
+    "kk": "Есеп"
+  },
+  {
+    "key": "requests.iz",
+    "source": "requests",
+    "ru": "из",
+    "kk": "із ішінен"
+  },
+  {
+    "key": "requests.zadanie",
+    "source": "requests",
+    "ru": "задание",
+    "kk": "тапсырма"
+  },
+  {
+    "key": "requests.ogranicheniya",
+    "source": "requests",
+    "ru": "Ограничения",
+    "kk": "Шектеулер"
+  },
+  {
+    "key": "requests.net",
+    "source": "requests",
+    "ru": "нет",
+    "kk": "жоқ"
+  },
+  {
+    "key": "requests.sleduyuschiy_otchet",
+    "source": "requests",
+    "ru": "следующий отчёт",
+    "kk": "келесі есеп"
+  },
+  {
+    "key": "requests.vizitov_net",
+    "source": "requests",
+    "ru": "Визитов нет",
+    "kk": "Сапарлар жоқ"
+  },
+  {
+    "key": "requests.ispolnitel_ne_prishel",
+    "source": "requests",
+    "ru": "исполнитель не пришёл",
+    "kk": "орындаушы келмеді"
+  },
+  {
+    "key": "requests.snachala_otkroyte_visits_nomer_obrascheniya",
+    "source": "requests",
+    "ru": "Сначала откройте /visits НОМЕР_ОБРАЩЕНИЯ",
+    "kk": "Алдымен /visits НОМІР ашыңыз"
+  },
+  {
+    "key": "requests.vizit_soglasovan",
+    "source": "requests",
+    "ru": "Визит согласован",
+    "kk": "Сапар келісілді"
+  },
+  {
+    "key": "requests.soobschenie_o_neyavke_peredano_administratoru_dlya_proverki",
+    "source": "requests",
+    "ru": "Сообщение о неявке передано администратору для проверки",
+    "kk": "Жоқтық туралы хабарлама әкімшіге берілді"
+  },
+  {
+    "key": "requests.podtverzhdennyh_pomescheniy_net",
+    "source": "requests",
+    "ru": "Подтверждённых помещений нет",
+    "kk": "Расталған үй-жай жоқ"
+  },
+  {
+    "key": "requests.nazhmite_nomer_pomescheniya_ili",
+    "source": "requests",
+    "ru": "Нажмите номер помещения или",
+    "kk": "Түртіңіз нөмірі немесе"
+  },
+  {
+    "key": "requests.lichnyy_chernovik_udalen_newrequest",
+    "source": "requests",
+    "ru": "Личный черновик удалён. /newrequest",
+    "kk": "Жеке жоба жойылды. /newrequest"
+  },
+  {
+    "key": "requests.vvedite_novyy_tekst_chernovika",
+    "source": "requests",
+    "ru": "Введите новый текст черновика",
+    "kk": "Жобаның жаңа мәтінін енгізіңіз"
+  },
+  {
+    "key": "requests.sohranennyy_chernovik",
+    "source": "requests",
+    "ru": "Сохранённый черновик",
+    "kk": "Сақталған жоба"
+  },
+  {
+    "key": "requests.otpravit",
+    "source": "requests",
+    "ru": "отправить",
+    "kk": "жіберу"
+  },
+  {
+    "key": "requests.izmenit_tekst",
+    "source": "requests",
+    "ru": "изменить текст",
+    "kk": "мәтінді өзгерту"
+  },
+  {
+    "key": "requests.udalit",
+    "source": "requests",
+    "ru": "удалить",
+    "kk": "жою"
+  },
+  {
+    "key": "requests.fayly_prosto_prikrepite_k_sleduyuschemu_soobscheniyu",
+    "source": "requests",
+    "ru": "Файлы — просто прикрепите к следующему сообщению.",
+    "kk": "Файлдарды келесі хабарламаға жабыстырыңыз."
+  },
+  {
+    "key": "requests.vyberite_nomer_svoego_pomescheniya",
+    "source": "requests",
+    "ru": "Выберите номер своего помещения:",
+    "kk": "Үй-жайыңыздың нөмірін таңдаңыз:"
+  },
+  {
+    "key": "requests.obschee_imuschestvo_dom_kod_opisanie_mesta_territoriya",
+    "source": "requests",
+    "ru": "Общее имущество: дом КОД описание места; территория: территория описание места.",
+    "kk": "Ортақ мүлік: үй КОД орын сипаттамасы; аумақ: аумақ орын сипаттамасы."
+  },
+  {
+    "key": "requests.chernovik_sohranyaetsya_do_otpravki",
+    "source": "requests",
+    "ru": "Черновик сохраняется до отправки.",
+    "kk": "Жоба жіберілгенше сақталады."
+  },
+  {
+    "key": "requests.nazad",
+    "source": "requests",
+    "ru": "назад",
+    "kk": "артқа"
+  },
+  {
+    "key": "requests.dialog_priostanovlen_chernovik_sohranen_register_requests",
+    "source": "requests",
+    "ru": "Диалог приостановлен, черновик сохранён. /register /requests",
+    "kk": "Диалог тоқтатылды, жоба сақталды. /register /requests"
+  },
+  {
+    "key": "requests.nekorrektnaya_stranitsa",
+    "source": "requests",
+    "ru": "Некорректная страница",
+    "kk": "Бұрыс бет"
+  },
+  {
+    "key": "requests.soobschenie_sohraneno",
+    "source": "requests",
+    "ru": "Сообщение сохранено",
+    "kk": "Хабарлама сақталды"
+  },
+  {
+    "key": "requests.dostup_izmenen",
+    "source": "requests",
+    "ru": "Доступ изменён",
+    "kk": "Қолжетімділік өзгертілді"
+  },
+  {
+    "key": "requests.otsenka_sohranena",
+    "source": "requests",
+    "ru": "Оценка сохранена",
+    "kk": "Баға сақталды"
+  },
+  {
+    "key": "requests.reshenie_sohraneno",
+    "source": "requests",
+    "ru": "Решение сохранено",
+    "kk": "Шешім сақталды"
+  },
+  {
+    "key": "requests.zaregistrirovano",
+    "source": "requests",
+    "ru": "зарегистрировано",
+    "kk": "тіркелді"
+  },
+  {
+    "key": "requests.pervyy_otvet",
+    "source": "requests",
+    "ru": "Первый ответ",
+    "kk": "Алғашқы жауап"
+  },
+  {
+    "key": "requests.ekstrennye_sluzhby_bot_ne_zamenyaet_pri_neposredstvennoy",
+    "source": "requests",
+    "ru": "Экстренные службы бот не заменяет: при непосредственной угрозе жизни звоните 112.",
+    "kk": "Төтенше қызметтерді бот алмастырмайды: өмірге тікелей қауіп төнгенде 112 нөміріне қоңырау шалыңыз."
+  },
+  {
+    "key": "requests.ukazhite_kod_doma_i_mesto_dom_1",
+    "source": "requests",
+    "ru": "Укажите код дома и место: дом 1 подъезд 2",
+    "kk": "Үй коды мен орнын көрсетіңіз: үй 1 кіреберіс 2"
+  },
+  {
+    "key": "requests.dom_ne_nayden",
+    "source": "requests",
+    "ru": "Дом не найден",
+    "kk": "Үй табылмады"
+  },
+  {
+    "key": "requests.opishite_mesto_na_territorii",
+    "source": "requests",
+    "ru": "Опишите место на территории",
+    "kk": "Аумақтағы орынды сипаттаңыз"
+  },
+  {
+    "key": "requests.vyberite_nomer_iz_spiska_objects",
+    "source": "requests",
+    "ru": "Выберите номер из списка. /objects",
+    "kk": "Тізімнен нөмір таңдаңыз. /objects"
+  },
+  {
+    "key": "requests.opishite_problemu_svoimi_slovami_kategoriya_ne_nuzhna",
+    "source": "requests",
+    "ru": "Опишите проблему своими словами. Категория не нужна — достаточно текста и фото.",
+    "kk": "Мәселені сипаттаңыз. Санат қажет емес — мәтін мен фото жеткілікті."
+  },
+  {
+    "key": "requests.proverte",
+    "source": "requests",
+    "ru": "Проверьте",
+    "kk": "Тексеріңіз"
+  },
+  {
+    "key": "requests.polnyy_tekst_sohranen",
+    "source": "requests",
+    "ru": "Полный текст сохранён.",
+    "kk": "Толық мәтін сақталды."
+  },
+  {
+    "key": "requests.dobavte_fayly_neobyazatelno_zatem_sendrequest_pri_sboe",
+    "source": "requests",
+    "ru": "Добавьте файлы (необязательно), затем /sendrequest. При сбое файла обращение можно отправить.",
+    "kk": "Файл қосыңыз (міндетті емес), содан кейін /sendrequest. Файл сәтсіз болса, өтінішті жібере аласыз."
+  },
+  {
+    "key": "requests.sohranit_chernovik",
+    "source": "requests",
+    "ru": "сохранить черновик",
+    "kk": "жобаны сақтау"
+  },
+  {
+    "key": "requests.chernovik_sohranen_dobavte_fayly_ili_sendrequest_requestcancel",
+    "source": "requests",
+    "ru": "Черновик сохранён. Добавьте файлы или /sendrequest. /requestcancel — выйти без удаления.",
+    "kk": "Жоба сақталды. Файл қосыңыз немесе /sendrequest. /requestcancel — жобаны сақтап шығу."
+  }
+]

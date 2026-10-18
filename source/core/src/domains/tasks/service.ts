@@ -1,3 +1,4 @@
+import { templateNotice } from "../../templates/notice.ts";
 import { syncTaskTimers } from "./timing.ts";
 import {
   lockCommonParents,
@@ -140,7 +141,7 @@ export async function taskLog(
       // Личный факт снятия назначения доступен прежнему исполнителю после отзыва task.read.
       // Никаких текущих сведений или ссылки на закрытую карточку в этом сообщении нет.
       if (personId === meta.previous_assignee_id && personId !== row.assignee_person_id) {
-        await notifyPerson(exec, personId, {ru:`Ваше назначение на задание ${row.number} снято.`,kk:`${row.number} тапсырмасына тағайындауыңыз алынып тасталды.`},
+        await notifyPerson(exec, personId, templateNotice("notices.tasks_service_task_log_1", {row_number: row.number}),
           `task:${row.id}:${row.version}:unassigned:${personId}`,
           { audience: "personal", isTest: row.is_test, bot: "worker" });
         continue;
@@ -148,22 +149,7 @@ export async function taskLog(
       await notifyPerson(
         exec,
         personId,
-        {
-          ru: `Задание ${row.number}: ${
-            action === "request_pause"
-              ? "исполнитель запросил остановку: " + reason
-              : action === "found_problem"
-              ? "исполнитель сообщил о найденной проблеме"
-              : TASK_STATE_TEXT[row.state]?.ru
-          }. Откройте карточку задания.`,
-          kk: `${row.number} тапсырма: ${
-            action === "request_pause"
-              ? "орындаушы тоқтату сұрады: " + reason
-              : action === "found_problem"
-              ? "орындаушы табылған мәселе туралы хабарлады"
-              : TASK_STATE_TEXT[row.state]?.kk
-          }. Тапсырма картасын ашыңыз.`,
-        },
+        templateNotice(action === "request_pause" ? "notices.tasks_service_task_log_2_pause" : action === "found_problem" ? "notices.tasks_service_task_log_2_problem" : "notices.tasks_service_task_log_2", {row_number:row.number,state_ru:TASK_STATE_TEXT[row.state]?.ru,state_kk:TASK_STATE_TEXT[row.state]?.kk,reason}),
         `task:${row.id}:${row.version}:${action}:${personId}`,
         {taskId:row.id,buildingIds:row.building_ids,isTest:row.is_test,audience:personId===row.assignee_person_id ? "personal" : "staff",type:row.state==="awaiting_acceptance" ? "task.assignment" : "personal",important:row.state==="awaiting_acceptance",bot:"worker"},
       );

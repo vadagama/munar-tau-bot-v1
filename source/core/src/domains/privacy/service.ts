@@ -1,3 +1,4 @@
+import { templateNotice } from "../../templates/notice.ts";
 /**
  * Приватность (PRV-02): запрос на удаление профиля/отзыв согласия подаётся
  * жителем, решение принимает администратор самостоятельно (позже — кабинет).
@@ -77,10 +78,7 @@ export async function submitPrivacyRequest(
         await notifyPerson(
           exec,
           person,
-          {
-            ru: `Запрос (${KIND_TEXT[kind].ru}): ${actor.person.fullName}. Рассмотрите его в кабинете ОСИ.`,
-            kk: `Сұрау (${KIND_TEXT[kind].kk}): ${actor.person.fullName}. ОСИ кабинетінде қарастырыңыз.`,
-          },
+          templateNotice("notices.privacy_service_submit_privacy_request_1", {detail_a: KIND_TEXT[kind].ru, actor_person_fullname: actor.person.fullName, detail_c: KIND_TEXT[kind].kk}),
           `${row!.id}:${person}`,
           { bot: "worker", buildingIds: building ? [building] : [], isTest: actor.person.isTest },
         );

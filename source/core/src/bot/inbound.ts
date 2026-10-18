@@ -1,3 +1,5 @@
+import { t as templateText } from "../templates/store.ts";
+import { loadTemplateStore } from "../templates/store.ts";
 import { TASK_COMMANDS, taskStep } from "./tasks.ts";
 import { queueRequestFile } from "./request-files.ts";
 import { REQUEST_COMMANDS, requestStep } from "./requests.ts";
@@ -13,7 +15,7 @@ import type { BotKind } from "./bots.ts";
 import type { Row } from "../domains/registry/validation.ts";
 import { type BotReply, replyText } from "./keyboard.ts";
 import { botErrorText } from "./bot-errors.ts";
-import { langOf, pick, type Lang } from "./text.ts";
+import { langOf, type Lang } from "./text.ts";
 
 /**
  * Маршрутизация шага внутри бота (ADR-009): файлы — в очередь загрузок,
@@ -61,11 +63,11 @@ async function routeStep(
         "update bot_dialog set state='{}'::text::jsonb,updated_at=now() where telegram_user_id=$1",
         [telegramId],
       );
-      return workerHelp(await profileLang(deps.db, telegramId));
+      return workerHelp(await profileLang(deps.db, telegramId), deps.templates);
     }
     // Справка и старт доступны из любого сценария — глобальные выходы.
     if (command === "/help" || command === "/start") {
-      return workerHelp(await profileLang(deps.db, telegramId));
+      return workerHelp(await profileLang(deps.db, telegramId), deps.templates);
     }
     // workerHelp() в fallback: язык профиля, а не всегда русский.
     if (TASK_COMMANDS.includes(command) || (state.scenario === "tasks" && !isCommand)) {
@@ -75,7 +77,7 @@ async function routeStep(
     if ((state.scenario === "incidents" && !isCommand) || INCIDENT_COMMANDS.includes(command)) {
       return incidentStep(deps, telegramId, text, undefined, operationId);
     }
-    return workerHelp(await profileLang(deps.db, telegramId));
+    return workerHelp(await profileLang(deps.db, telegramId), deps.templates);
   }
   if (isCommand) {
     if (command === "/notifications") {
@@ -150,6 +152,7 @@ export async function processInbound(
         menuCommand(callbackData ?? String(message.text ?? "")) ??
         callbackData ?? String(message.text ?? "");
       const command = text.split(/\s+/)[0] ?? "";
+      const templates=await loadTemplateStore(exec);
       await exec.query("savepoint bot_scenario");
       let reply: BotReply = "";
       try {
@@ -164,7 +167,7 @@ export async function processInbound(
         );
         const state = dialog ? jsonValue<Row>(dialog.state) : {};
         reply = await routeStep(
-          { ...deps, db },
+          { ...deps, db, templates },
           bot,
           String(from.id),
           { ...message, text },
@@ -179,13 +182,10 @@ export async function processInbound(
           reply = botErrorText(
             error,
             await profileLang(exec, String(from.id)),
+            templates,
           );
         } else if ((error as { code?: string }).code === "23505") {
-          reply = pick(
-            await profileLang(exec, String(from.id)),
-            "Телефон или привязка уже существует. Требуется проверка администратора.",
-            "Телефон немесе тіркелгі бар. Әкімшінің тексеруі қажет.",
-          );
+          reply = templateText(templates, await profileLang(exec, String(from.id)), "common.telefon_ili_privyazka_uzhe_suschestvuet_trebuetsya_proverka");
         } else throw error;
       }
       // Reply-меню прикрепляется к справке: постоянная клавиатура ставится

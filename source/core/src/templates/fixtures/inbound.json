@@ -1,0 +1,8 @@
+[
+  {
+    "key": "common.telefon_ili_privyazka_uzhe_suschestvuet_trebuetsya_proverka",
+    "source": "inbound",
+    "ru": "Телефон или привязка уже существует. Требуется проверка администратора.",
+    "kk": "Телефон немесе тіркелгі бар. Әкімшінің тексеруі қажет."
+  }
+]

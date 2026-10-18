@@ -1,3 +1,5 @@
+import {loadTemplateStore} from "../../templates/store.ts";
+import { templateNotice } from "../../templates/notice.ts";
 import {checkTimerContract,ruleContract} from "../timing/contracts.ts";
 import { jsonValue } from "../registry/validation.ts";
 import type { RegistryDeps } from "../registry/service.ts";
@@ -25,6 +27,7 @@ export async function sweepRegistrations(
       where t.state='pending' and t.due_at<=$1 and (t.stage in ('invite','owner','administrator','deputy','chairman','dispute:total','dispute:administrator','dispute:deputy','dispute:chairman')) order by t.due_at for update of t skip locked limit 10`,
       [now.toISOString()],
     );
+    const templates = timers.length ? await loadTemplateStore(exec) : undefined;
     let processed = 0;
     for (const timer of timers) {
       if (Date.now() >= deadline) break;
@@ -69,10 +72,7 @@ export async function sweepRegistrations(
           await notifyPerson(
             exec,
             person,
-            {
-              ru: `Спор просрочен: ${registrationSubject(row)}. Рассмотрите в кабинете.`,
-              kk: `Дау мерзімі өтті: ${registrationSubject(row)}. Кабинетте қарастырыңыз.`,
-            },
+            templateNotice("notices.registrations_jobs_sweep_registrations_1", {detail_a: registrationSubject(row)}),
             `${timer.id}:${person}`,
             { bot: "worker" },
           );
@@ -133,21 +133,18 @@ export async function sweepRegistrations(
           await notifyPerson(
             exec,
             person,
-            {
-              ru: `Требуется решение по анкете: ${registrationSubject(row)}. Рассмотрите в кабинете.`,
-              kk: `Өтінім бойынша шешім қажет: ${registrationSubject(row)}. Кабинетте қарастырыңыз.`,
-            },
+            templateNotice("notices.registrations_jobs_sweep_registrations_2", {detail_a: registrationSubject(row)}),
             `${timer.id}:${person}`,
             { bot: "worker" },
           );
         await notifyTelegram(
           exec,
           row.telegram_user_id,
-          {
-            ru: "Анкета передана следующему ответственному",
-            kk: "Өтінім келесі жауапты қызметкерге берілді",
-          },
+          templateNotice("notices.registrations_jobs_sweep_registrations_3", {}),
           `${timer.id}:applicant`,
+          "resident",
+          undefined,
+          templates,
         );
       }
       await deps.audit.append(exec, {

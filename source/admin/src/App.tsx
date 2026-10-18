@@ -1,3 +1,4 @@
+import { TemplatesPage } from "./pages/templates";
 import { IncidentsPage } from "./pages/incidents";
 import { PublicationsPage } from "./pages/publications";
 import { NotificationsPage } from "./pages/notifications";
@@ -47,6 +48,7 @@ export default function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/incidents" element={<IncidentsPage />} />
               <Route path="/publications" element={<PublicationsPage />} />
+              <Route path="/templates" element={<TemplatesPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/time-rules" element={<TimeRulesPage />} />
               <Route path="/invites" element={<InvitesPage />} />
