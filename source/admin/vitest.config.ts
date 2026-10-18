@@ -9,5 +9,9 @@ export default defineConfig({
     environment: "jsdom",
     include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["src/test/setup.ts"],
+    // Тяжёлые тесты рендера страниц AntD на двухъядерных CI-раннерах идут
+    // по 3–5+ секунд; дефолт Vitest 5000ms даёт случайные таймауты
+    // (в time-rules.test.tsx для того же уже стоял локальный 15000).
+    testTimeout: 15000,
   },
 });
