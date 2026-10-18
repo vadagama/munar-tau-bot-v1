@@ -17,7 +17,6 @@ const REQUIRED_TABLES = [
   "access_session",
   "emulation_session",
   "audit_log",
-  "building_parking",
   "premises",
   "connection",
   "invite",
