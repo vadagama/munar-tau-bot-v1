@@ -8,8 +8,11 @@ const computed=window.getComputedStyle.bind(window);
 beforeEach(()=>{localStorage.clear();vi.spyOn(window,"getComputedStyle").mockImplementation(el=>computed(el));});
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.clearAllMocks();});
 function enabledButton(container: HTMLElement, name: string) {
- const buttons = within(container).getAllByRole("button", {name})
-   .filter(button => !(button as HTMLButtonElement).disabled);
+ // The label uniquely identifies a native button. Avoid a full accessible-tree
+ // scan and computed styles for every repeated click in the large AntD drawer.
+ const buttons = within(container).getAllByText(name, {selector:"button > span"})
+   .map(label => label.closest("button")!)
+   .filter(button => !button.disabled);
  expect(buttons).toHaveLength(1);
  return buttons[0]!;
 }
@@ -93,10 +96,10 @@ it("короткое действие задания остаётся в кар�
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  await screen.findByText("Проверить герметичность");
  const drawer=screen.getByRole("dialog");
- fireEvent.click(within(drawer).getByRole("button",{name:"Принять"}));
+ fireEvent.click(within(drawer).getByText("Принять",{selector:"button > span"}));
  expect(screen.getAllByRole("dialog")).toHaveLength(1);
  expect(within(drawer).getByText("Проверить герметичность")).toBeInTheDocument();
- fireEvent.click(within(drawer).getByRole("button",{name:"Отмена"}));
+ fireEvent.click(within(drawer).getByText("Отмена",{selector:"button > span"}));
  expect(within(drawer).getByRole("button",{name:"Принять"})).toBeInTheDocument();
  expect(vi.mocked(apiFetch).mock.calls.some(([,opts])=>opts?.method==="POST")).toBe(false);
 });
@@ -108,11 +111,11 @@ it("длинный отчёт открывается в той же шторке
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  await screen.findByText("Проверить герметичность");
  const drawer=screen.getByRole("dialog");
- fireEvent.click(within(drawer).getByRole("button",{name:"Отправить отчёт"}));
+ fireEvent.click(within(drawer).getByText("Отправить отчёт",{selector:"button > span"}));
  await screen.findByLabelText("Выполненный объём");
  expect(screen.getAllByRole("dialog")).toHaveLength(1);
  expect(within(drawer).getByLabelText("Выполненный объём")).toBeInTheDocument();
- fireEvent.click(within(drawer).getByRole("button",{name:"Отмена"}));
+ fireEvent.click(within(drawer).getByText("Отмена",{selector:"button > span"}));
  expect(within(drawer).queryByLabelText("Выполненный объём")).toBeNull();
  expect(within(drawer).getByText("Проверить герметичность")).toBeInTheDocument();
  expect(vi.mocked(apiFetch).mock.calls.some(([,opts])=>opts?.method==="POST")).toBe(false);
@@ -145,7 +148,7 @@ it("409 обновляет версию задания, сохраняет вв�
  });
  render(<TasksPage />);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
- fireEvent.click(await screen.findByRole("button",{name:"Не могу выполнить"}));
+ fireEvent.click(await screen.findByText("Не могу выполнить",{selector:"button > span"}));
  fireEvent.change(screen.getByLabelText("Причина / основание"),{target:{value:"Нет нужного оборудования"}});
  fireEvent.click(enabledButton(screen.getByRole("dialog"),"Не могу выполнить"));
  await within(screen.getByRole("dialog")).findByText(/Данные обновлены, ваш ввод сохранён/);
@@ -163,16 +166,16 @@ it("вложенная форма визита использует карточ
  vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/tasks"?{items:[row]}:row);
  render(<TasksPage />);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
- fireEvent.click(await screen.findByRole("button",{name:"Предложить визит"}));
+ fireEvent.click(await screen.findByText("Предложить визит",{selector:"button > span"}));
  const drawer=screen.getByRole("dialog");
  expect(screen.getAllByRole("dialog")).toHaveLength(1);
  fireEvent.change(within(drawer).getByLabelText("Описание визита"),{target:{value:"Проверить кран"}});
- fireEvent.click(within(drawer).getByRole("button",{name:"Отмена"}));
+ fireEvent.click(within(drawer).getByText("Отмена",{selector:"button > span"}));
  expect(within(drawer).getByText("Выйти без сохранения введённых данных?")).toBeVisible();
- fireEvent.click(within(drawer).getByRole("button",{name:"Продолжить редактирование"}));
+ fireEvent.click(within(drawer).getByText("Продолжить редактирование",{selector:"button > span"}));
  expect(within(drawer).getByLabelText("Описание визита")).toHaveValue("Проверить кран");
- fireEvent.click(within(drawer).getByRole("button",{name:"Отмена"}));
- fireEvent.click(within(drawer).getByRole("button",{name:"Выйти без сохранения"}));
+ fireEvent.click(within(drawer).getByText("Отмена",{selector:"button > span"}));
+ fireEvent.click(within(drawer).getByText("Выйти без сохранения",{selector:"button > span"}));
  expect(within(drawer).queryByLabelText("Описание визита")).toBeNull();
  expect(within(drawer).getByText("Проверить герметичность")).toBeVisible();
 });
@@ -182,16 +185,16 @@ it("вложенная форма связи найденной проблемы
  vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/tasks"?{items:[row]}:row);
  render(<TasksPage />);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
- fireEvent.click(await screen.findByRole("button",{name:"Связать с заданием"}));
+ fireEvent.click(await screen.findByText("Связать с заданием",{selector:"button > span"}));
  const field=await screen.findByLabelText("Решение администратора");
  expect(screen.getAllByRole("dialog")).toHaveLength(1);
  fireEvent.change(field,{target:{value:"Поручить сантехнику"}});
- fireEvent.click(screen.getByRole("button",{name:"Отмена"}));
+ fireEvent.click(screen.getByText("Отмена",{selector:"button > span"}));
  expect(screen.getByText("Выйти без сохранения введённых данных?")).toBeVisible();
- fireEvent.click(screen.getByRole("button",{name:"Продолжить редактирование"}));
+ fireEvent.click(screen.getByText("Продолжить редактирование",{selector:"button > span"}));
  expect(field).toHaveValue("Поручить сантехнику");
- fireEvent.click(screen.getByRole("button",{name:"Отмена"}));
- fireEvent.click(screen.getByRole("button",{name:"Выйти без сохранения"}));
+ fireEvent.click(screen.getByText("Отмена",{selector:"button > span"}));
+ fireEvent.click(screen.getByText("Выйти без сохранения",{selector:"button > span"}));
  expect(screen.queryByLabelText("Решение администратора")).toBeNull();
  expect(screen.getByText("Найдена течь")).toBeVisible();
 });
@@ -207,7 +210,7 @@ it("загрузка вариантов найденной проблемы бл
  });
  render(<TasksPage />);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
- fireEvent.click(await screen.findByRole("button",{name:"Связать с заданием"}));
+ fireEvent.click(await screen.findByText("Связать с заданием",{selector:"button > span"}));
  try {
    expect(screen.getByRole("button",{name:"Не могу выполнить"})).toBeDisabled();
    expect(screen.getAllByRole("dialog")).toHaveLength(1);

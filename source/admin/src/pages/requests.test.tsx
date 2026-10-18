@@ -202,12 +202,12 @@ it("форма действия блокирует параллельную от
   fireEvent.click(await findButton("З-26-00001"));
   const text = await screen.findByLabelText("Текст сообщения");
   fireEvent.change(text, { target: { value: "Сохранить черновик сообщения" } });
-  const send = screen.getByRole("button", { name: "Отправить в «Жителю»" });
+  const send = await findButton("Отправить в «Жителю»");
   expect(send).toBeEnabled();
   fireEvent.click(await findButton("Подтвердить результат"));
   expect(text).toBeDisabled();
   expect(send).toBeDisabled();
-  fireEvent.click(screen.getByRole("button", { name: "Отмена" }));
+  fireEvent.click(screen.getByText("Отмена", { selector: "button > span" }));
   expect(text).toBeEnabled();
   expect(text).toHaveValue("Сохранить черновик сообщения");
 });
