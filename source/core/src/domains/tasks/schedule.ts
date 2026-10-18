@@ -1,3 +1,4 @@
+import { listTaskAssignees, requireTaskAssignee } from "./assignees.ts";
 import { templateNotice } from "../../templates/notice.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { ApiError } from "../../errors/api.ts";
@@ -78,10 +79,7 @@ export async function scheduleView(
         : [];
     },
   );
-  const assignees = await deps.db.query<Row>(
-    `select distinct p.id,p.full_name from person p join staff_assignment a on a.person_id=p.id where p.status='active' and p.is_test=$1 and a.role='executor' and a.status='active' and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now()) and not exists(select 1 from unnest($2::uuid[]) b(id) where not exists(select 1 from staff_scope s where s.assignment_id=a.id and s.building_id=b.id)) order by p.full_name`,
-    [template.is_test, template.buildings],
-  );
+  const assignees = await listTaskAssignees(deps.db, Boolean(template.is_test), template.buildings as string[]);
   return { schedule: schedule ?? null, runs, assignees };
 }
 export async function saveSchedule(
@@ -103,16 +101,7 @@ export async function saveSchedule(
       invalid("Включите шаблон перед настройкой расписания");
     }
     if (p.enabled && p.assignee) {
-      const assignee = await recipientActor(exec, String(p.assignee));
-      if (
-        !assignee || assignee.person.isTest !== actor.person.isTest ||
-        !assignee.assignments.some((a) =>
-          a.role === "executor" &&
-          (t.buildings as string[]).every((b) =>
-            a.scopeBuildingIds?.includes(b)
-          )
-        )
-      ) invalid("Исполнитель недоступен для области шаблона");
+      await requireTaskAssignee(exec, String(p.assignee), Boolean(t.is_test));
       const [{ n } = { n: 0 }] = await exec.query<{ n: number }>(
         "select count(distinct r.key)::int n from time_rule r join time_rule_version v on v.rule_id=r.id where r.key in ('task_accept','task_escalation')",
       );

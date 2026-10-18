@@ -1,3 +1,4 @@
+import { taskAssigneeOptions } from "./task-assignees";
 import { REQUEST_ACTION_ICONS } from "./request-action-icons";
 import { TASK_STATE_TEXT } from "../../../core/src/locales/tasks";
 import { DetailSection } from "../components/detail-section";
@@ -1227,8 +1228,8 @@ export function RequestsPage() {
           {action === "start_work" && <>
             <Form.Item name="assignee_person_id" label="Исполнитель" rules={[{ required: true, message: "Выберите исполнителя" }]}>
               <Select loading={executorsLoading} showSearch optionFilterProp="label"
-                notFoundContent={executorsLoading ? "Загрузка исполнителей…" : "Нет доступных исполнителей для этого дома"}
-                options={executors.map(person => ({ value: String(person.id), label: String(person.full_name) }))} />
+                notFoundContent={executorsLoading ? "Загрузка исполнителей…" : "Нет действующих сотрудников ОСИ"}
+                options={taskAssigneeOptions(executors)} />
             </Form.Item>
             <Form.Item name="due_at" label="Срок выполнения" rules={[{ required: true, message: "Укажите срок" }, {
               validator: (_, value) => !value || Date.parse(value) > Date.now()

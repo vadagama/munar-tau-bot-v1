@@ -1,3 +1,4 @@
+import { listTaskAssignees } from "./assignees.ts";
 import { templateNotice } from "../../templates/notice.ts";
 import { cancelParentTasks } from "./cancellation.ts";
 import type { Actor } from "../../pdp/types.ts";
@@ -506,11 +507,5 @@ export async function commonAssignees(
   id: string,
 ) {
   const work = await requireCommon(deps.db, actor, id);
-  return deps.db.query(
-    `select distinct p.id,p.full_name from person p join staff_assignment a on a.person_id=p.id
- where p.status='active' and p.is_test=$1 and a.role='executor' and a.status='active'
- and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())
- and not exists(select 1 from unnest($2::uuid[]) b(id) where not exists(select 1 from staff_scope s where s.assignment_id=a.id and s.building_id=b.id)) order by p.full_name`,
-    [work.is_test, work.building_ids],
-  );
+  return listTaskAssignees(deps.db, work.is_test, work.building_ids);
 }

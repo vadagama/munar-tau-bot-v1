@@ -1,3 +1,4 @@
+import { taskAssigneeOptions } from "./task-assignees";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
 import { useEffect, useState } from "react";
@@ -151,10 +152,10 @@ export function JobSchedule(
           <Select
             allowClear
             placeholder="Администратор назначит после создания"
-            options={data?.assignees.map((p) => ({
-              value: p.id,
-              label: String(p.full_name),
-            }))}
+            showSearch
+            optionFilterProp="label"
+            notFoundContent="Нет действующих сотрудников ОСИ"
+            options={taskAssigneeOptions(data?.assignees ?? [])}
           />
         </Form.Item>
         <Button htmlType="submit" type="primary" loading={busy}>

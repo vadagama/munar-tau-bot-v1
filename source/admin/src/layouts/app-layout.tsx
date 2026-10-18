@@ -6,6 +6,7 @@ import { useLogout } from "@refinedev/core";
 
 import {
   canSeeAudit,
+  canSeeTasks,
   canSeeTemplates,
   canUseEmulation,
   useCabinetIdentity,
@@ -68,7 +69,7 @@ export function AppLayout() {
   const items = [
     { key: "/", label: "Главная" },
     { key: "/requests", label: "Обращения" },
-    ...(roles.some(role => ["chairman", "administrator", "deputy", "executor"].includes(role)) ? [{ key: "/tasks", label: "Задания" }] : []),
+    ...(canSeeTasks(roles) ? [{ key: "/tasks", label: "Задания" }] : []),
     { key: "/incidents", label: "Аварии" },
     { key: "/publications", label: "Публикации" },
     ...(manager ? [

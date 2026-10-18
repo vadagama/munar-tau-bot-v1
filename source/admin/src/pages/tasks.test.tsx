@@ -20,7 +20,8 @@ function enabledButton(container: HTMLElement, name: string) {
  return buttons[0]!;
 }
 const task={id:"t",number:"ЗД-1",title:"Замена крана",instruction:"Проверить герметичность",due_at:"2026-12-01T12:00:00Z",state:"awaiting_acceptance",version:1,can_execute:true,can_manage:false,log:[]};
-it("назначенный исполнитель принимает с версией и ключом; управление скрыто",async()=>{
+it.each(["executor", "duty", "finance", "doc_reviewer", "tech_admin"])("назначенный %s принимает с версией и ключом; управление скрыто",async(role)=>{
+  roleHarness.roles = [role];
   vi.mocked(apiFetch).mockImplementation(async (path,opts)=>{
     if(path==="/v1/tasks")return {items:[task]};
     if(path.endsWith("/transitions"))return {...task,state:"accepted",version:2};

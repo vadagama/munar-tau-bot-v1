@@ -1,3 +1,4 @@
+import { taskAssigneeOptions } from "./task-assignees";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
@@ -656,10 +657,10 @@ export function TasksPage() {
           <Form.Item name="assignee_person_id" label="Исполнитель">
             <Select
               allowClear
-              options={people.map((p) => ({
-                value: p.id,
-                label: String(p.full_name),
-              }))}
+              showSearch
+              optionFilterProp="label"
+              notFoundContent="Нет действующих сотрудников ОСИ"
+              options={taskAssigneeOptions(people)}
             />
           </Form.Item>
           <Form.List name="required_evidence">
@@ -741,10 +742,10 @@ export function TasksPage() {
               rules={required}
             >
               <Select
-                options={people.map((p) => ({
-                  value: p.id,
-                  label: String(p.full_name),
-                }))}
+                showSearch
+                optionFilterProp="label"
+                notFoundContent="Нет действующих сотрудников ОСИ"
+                options={taskAssigneeOptions(people)}
               />
             </Form.Item>
           )}
