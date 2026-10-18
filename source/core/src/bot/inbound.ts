@@ -9,13 +9,13 @@ import { ApiError } from "../errors/api.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { registrationStep } from "./registration.ts";
 import { notificationStep } from "./notifications.ts";
-import { residentMenu, workerHelp, workerMenu, menuCommand } from "./help.ts";
+import { menuCommand, residentMenu, workerHelp, workerMenu } from "./help.ts";
 import { notifyTelegram } from "../domains/registrations/notifications.ts";
 import type { BotKind } from "./bots.ts";
 import type { Row } from "../domains/registry/validation.ts";
 import { type BotReply, replyText } from "./keyboard.ts";
 import { botErrorText } from "./bot-errors.ts";
-import { langOf, type Lang } from "./text.ts";
+import { type Lang, langOf } from "./text.ts";
 
 /**
  * Маршрутизация шага внутри бота (ADR-009): файлы — в очередь загрузок,
@@ -49,12 +49,26 @@ async function routeStep(
   // латиницу/цифры/_/-, поэтому ссылки строятся на UUID: req_<uuid> — обращение
   // в боте жителей, wrk_<uuid> — задание в боте сотрудников. Иной бот или
   // неизвестный payload — обычное поведение /start (справка/меню).
-  const startPayload = command === "/start" ? text.trim().split(/\s+/)[1] : undefined;
+  const startPayload = command === "/start"
+    ? text.trim().split(/\s+/)[1]
+    : undefined;
   if (startPayload?.startsWith("req_") && bot === "resident") {
-    return requestStep(deps, telegramId, `/request ${startPayload.slice(4)}`, undefined, operationId);
+    return requestStep(
+      deps,
+      telegramId,
+      `/request ${startPayload.slice(4)}`,
+      undefined,
+      operationId,
+    );
   }
   if (startPayload?.startsWith("wrk_") && bot === "worker") {
-    return taskStep(deps, telegramId, `/task ${startPayload.slice(4)}`, undefined, operationId);
+    return taskStep(
+      deps,
+      telegramId,
+      `/task ${startPayload.slice(4)}`,
+      undefined,
+      operationId,
+    );
   }
   if (bot === "worker") {
     if (command === "/cancel") {
@@ -70,11 +84,17 @@ async function routeStep(
       return workerHelp(await profileLang(deps.db, telegramId), deps.templates);
     }
     // workerHelp() в fallback: язык профиля, а не всегда русский.
-    if (TASK_COMMANDS.includes(command) || (state.scenario === "tasks" && !isCommand)) {
+    if (
+      TASK_COMMANDS.includes(command) ||
+      (state.scenario === "tasks" && !isCommand)
+    ) {
       return taskStep(deps, telegramId, text, undefined, operationId);
     }
     // Продолжение диалога о проблеме после работ (кнопка публикации).
-    if ((state.scenario === "incidents" && !isCommand) || INCIDENT_COMMANDS.includes(command)) {
+    if (
+      (state.scenario === "incidents" && !isCommand) ||
+      INCIDENT_COMMANDS.includes(command)
+    ) {
       return incidentStep(deps, telegramId, text, undefined, operationId);
     }
     return workerHelp(await profileLang(deps.db, telegramId), deps.templates);
@@ -148,11 +168,11 @@ export async function processInbound(
     ) {
       // Текст кнопки reply-меню исполняется как её команда: кнопка отправляет
       // подпись, а не текстовую команду (map в help.ts).
+      const templates = await loadTemplateStore(exec);
       const text =
-        menuCommand(callbackData ?? String(message.text ?? "")) ??
-        callbackData ?? String(message.text ?? "");
+        menuCommand(callbackData ?? String(message.text ?? ""), templates) ??
+          callbackData ?? String(message.text ?? "");
       const command = text.split(/\s+/)[0] ?? "";
-      const templates=await loadTemplateStore(exec);
       await exec.query("savepoint bot_scenario");
       let reply: BotReply = "";
       try {
@@ -185,7 +205,11 @@ export async function processInbound(
             templates,
           );
         } else if ((error as { code?: string }).code === "23505") {
-          reply = templateText(templates, await profileLang(exec, String(from.id)), "common.telefon_ili_privyazka_uzhe_suschestvuet_trebuetsya_proverka");
+          reply = templateText(
+            templates,
+            await profileLang(exec, String(from.id)),
+            "common.telefon_ili_privyazka_uzhe_suschestvuet_trebuetsya_proverka",
+          );
         } else throw error;
       }
       // Reply-меню прикрепляется к справке: постоянная клавиатура ставится
@@ -193,7 +217,13 @@ export async function processInbound(
       // на языке профиля; их тексты резолвятся в команды в processInbound.
       const menu = command === "/start" || command === "/help"
         ? await profileLang(exec, String(from.id)).then((lang) =>
-          bot === "worker" ? workerMenu(lang) : residentMenu(lang)
+          bot === "worker" ? workerMenu(lang, templates) : residentMenu(
+            lang,
+            templates,
+            command === "/help"
+              ? "help.registration_help"
+              : "help.welcome_text",
+          )
         )
         : undefined;
       // Ответ уходит тем же ботом, который принял обновление.

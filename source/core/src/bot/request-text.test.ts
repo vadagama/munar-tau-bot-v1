@@ -121,7 +121,12 @@ it("закрытая карточка предлагает оценку кноп
 
 it("черновик открывается кнопкой возобновления отправки", () => {
   const reply = requestListText(
-    [{ number: null, state: "draft", author_person_id: "author", description: "d" }],
+    [{
+      number: null,
+      state: "draft",
+      author_person_id: "author",
+      description: "d",
+    }],
     "author",
     1,
   );
@@ -132,4 +137,84 @@ it("черновик открывается кнопкой возобновле�
   expect(
     typeof reply === "object" && reply.buttons?.[0]?.[0]?.data,
   ).toBe("/newrequest");
+});
+
+it("целая карточка и подпись кнопки меняются одним шаблоном, данные экранируются", () => {
+  const store = new Map([["message.requests.card.confirmation", {
+    ru:
+      "<b>Результат {number}</b>\n{description}\nПроверьте выполненные работы.",
+    kk: "<b>Нәтиже {number}</b>\n{description}",
+    buttons: {
+      ru: { confirm: "Работы выполнены" },
+      kk: { confirm: "Орындалды" },
+    },
+  }]]);
+  const result = requestCardText(
+    {
+      number: "З-26-1",
+      state: "awaiting_confirmation",
+      description: "<script>&",
+      messages: [],
+      confirmation_version: 7,
+    },
+    "ru",
+    store,
+  );
+  expect(replyText(result)).toBe(
+    "<b>Результат З-26-1</b>\n&lt;script&gt;&amp;\nПроверьте выполненные работы.",
+  );
+  expect(typeof result === "object" && result.buttons?.[0]?.[0]).toEqual({
+    text: "Работы выполнены",
+    data: "/confirm З-26-1 7",
+  });
+});
+
+it("шаблон списка окружает серверные строки и сохраняет команды кнопок", () => {
+  const store = new Map([["message.requests.list", {
+    ru: "Ваши обращения:\n{requests}\nВыберите нужное.",
+    kk: "{requests}",
+  }]]);
+  const result = requestListText(
+    [{
+      number: "З-26-1",
+      state: "in_work",
+      description: "<img>",
+      author_person_id: "author",
+    }],
+    "author",
+    1,
+    "ru",
+    store,
+  );
+  expect(replyText(result)).toContain("Ваши обращения:\n");
+  expect(replyText(result)).toContain("&lt;img&gt;");
+  expect(replyText(result)).not.toContain("&amp;lt;");
+  expect(replyText(result)).toMatch(/Выберите нужное\.$/);
+  expect(typeof result === "object" && result.buttons?.[0]?.[0]?.data).toBe(
+    "/request З-26-1",
+  );
+});
+
+it("заголовки истории и отчётов принадлежат полному шаблону карточки", () => {
+  const store = new Map([["message.requests.card.active", {
+    ru:
+      "Переписка жителей:\n{messages}\nВыполненные работы ({report_count}): {report_command}",
+    kk: "{messages}",
+  }]]);
+  const card = requestCardText(
+    {
+      number: "З-26-1",
+      state: "in_work",
+      description: "d",
+      messages: [],
+      confirmation: { payload: { task_results: [{}] } },
+    },
+    "ru",
+    store,
+  );
+  expect(replyText(card)).toBe(
+    "Переписка жителей:\n—\nВыполненные работы (1): /result З-26-1",
+  );
+  expect(replyText(card)).not.toContain("Сообщения:");
+  expect(replyText(card)).not.toContain("Отчёты:");
 });

@@ -7,6 +7,7 @@ import type { AuditEntryInput } from "../domains/audit/port.ts";
 import type { Row } from "../domains/registry/validation.ts";
 function fixture() {
   let versions: Row[] = [];
+  let templateKey = "";
   let idem = new Map<string, Row>();
   const entries: AuditEntryInput[] = [];
   const db: DbClient = {
@@ -24,13 +25,27 @@ function fixture() {
     },
     query: async <T>(sql: string, p: readonly unknown[] = []) => {
       let result: unknown[] = [];
-      if (sql.startsWith("select id from message_template")) {
+      if (sql.startsWith("insert into message_template(key)")) {
+        templateKey = String(p[0]);
+      } else if (sql.startsWith("select t.key,v.text_ru")) {
+        result = versions.slice(-1).map((v) => ({
+          ...v,
+          key: templateKey,
+          historical_buttons: versions.filter((h) => !h.use_default).map(
+            (h) => ({ ru: h.buttons_ru ?? {}, kk: h.buttons_kk ?? {} }),
+          ),
+        }));
+      } else if (sql.startsWith("select id from message_template")) {
         result = [{ id: "template" }];
       } else if (sql.startsWith("select * from message_template_version")) {
         result = sql.includes("and version=")
           ? versions.filter((v) => v.version === p[1])
           : versions.slice(-1);
       } else if (sql.startsWith("insert into message_template_version")) {
+        if (p[4]) {
+          expect(p[7]).toBeNull();
+          expect(p[8]).toBeNull();
+        }
         const row = {
           id: crypto.randomUUID(),
           version: p[1],
@@ -39,6 +54,8 @@ function fixture() {
           use_default: p[4],
           reason: p[5],
           created_by: p[6],
+          buttons_ru: JSON.parse(String(p[7])),
+          buttons_kk: JSON.parse(String(p[8])),
         };
         versions.push(row);
         result = [row];
@@ -131,4 +148,79 @@ it("повтор идемпотентен; другое тело не созда
     saveVersion(f.deps, actor, key, { ...body, base_version: 1 }, "audit"),
   ).rejects.toThrow("audit unavailable");
   expect(f.versions()).toHaveLength(1);
+});
+
+it("подписи кнопок сохраняются/откатываются атомарно с текстом", async () => {
+  const f = fixture(), key = "message.requests.choose_place";
+  await saveVersion(f.deps, actor, key, {
+    text_ru: "Выберите: {premises}",
+    text_kk: "{premises}",
+    buttons_ru: { place: "Место {number}" },
+    buttons_kk: { place: "{number}" },
+    reason: "Подписи",
+    base_version: 0,
+  }, "buttons1");
+  await saveVersion(f.deps, actor, key, {
+    text_ru: "Новый {premises}",
+    text_kk: "{premises}",
+    buttons_ru: { place: "Другое {number}" },
+    reason: "Другие",
+    base_version: 1,
+  }, "buttons2");
+  const restored = await saveVersion(f.deps, actor, key, {
+    rollback_to: 1,
+    reason: "Вернуть",
+    base_version: 2,
+  }, "buttons3");
+  expect(restored.version.buttons_ru).toEqual({ place: "Место {number}" });
+  expect(restored.version.text_ru).toBe("Выберите: {premises}");
+  const reset = await saveVersion(f.deps, actor, key, {
+    use_default: true,
+    reason: "Дефолт",
+    base_version: 3,
+  }, "buttons4");
+  expect(reset.version.buttons_ru).toBeNull();
+});
+
+it("новая версия меню не может переиспользовать старую подпись для другого действия", async () => {
+  const f = fixture(), key = "help.welcome_text";
+  await saveVersion(f.deps, actor, key, {
+    text_ru: "Первый",
+    text_kk: "Бір",
+    buttons_ru: { newrequest: "Подать заявку" },
+    reason: "Начальная подпись",
+    base_version: 0,
+  }, "menu1");
+  await saveVersion(f.deps, actor, key, {
+    text_ru: "Второй",
+    text_kk: "Екі",
+    buttons_ru: { newrequest: "Создать обращение" },
+    reason: "Новая подпись",
+    base_version: 1,
+  }, "menu2");
+  await expect(
+    saveVersion(f.deps, actor, key, {
+      text_ru: "Третий",
+      text_kk: "Үш",
+      buttons_ru: { requests: "Подать заявку" },
+      reason: "Попытка другого действия",
+      base_version: 2,
+    }, "menu3"),
+  ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+  expect(f.versions()).toHaveLength(2);
+  await saveVersion(f.deps, actor, key, {
+    use_default: true,
+    reason: "Сброс",
+    base_version: 2,
+  }, "menu-reset");
+  await expect(
+    saveVersion(f.deps, actor, key, {
+      text_ru: "Снова",
+      text_kk: "Қайта",
+      buttons_ru: { requests: "Подать заявку" },
+      reason: "После сброса",
+      base_version: 3,
+    }, "menu4"),
+  ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+  expect(f.versions()).toHaveLength(3);
 });

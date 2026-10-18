@@ -4,43 +4,96 @@
  * Telegram отклонит разметку части. Нумерованные части сохраняют весь
  * текст, даже если доставка повторяется или меняет порядок.
  */
-import { pick, type Lang } from "../../bot/text.ts";
+import { type Lang, pick } from "../../bot/text.ts";
 import { btn, inlineMarkup } from "../../bot/keyboard.ts";
 
 const HARD_LIMIT = 4096;
 const PART_LIMIT = 4000;
-/** Теги нашей разметки короткие; мнемоники — не длиннее нескольких символов. */
-const LOOKBACK = 512;
+interface HtmlToken {
+  text: string;
+  name?: string;
+  closing?: boolean;
+}
+interface OpenTag {
+  name: string;
+  text: string;
+}
+const ENTITY = /^&(?:amp|lt|gt|quot|#\d{1,8}|#x[0-9a-fA-F]{1,6});$/;
+const HTML_TAG =
+  /^<(\/)?(b|i|u|s|code|pre|a|tg-spoiler|blockquote)(?=\s|>)([^>]*)>$/;
+const closingTags = (tags: readonly OpenTag[]) =>
+  [...tags].reverse().map((t) => `</${t.name}>`).join("");
+const openingTags = (tags: readonly OpenTag[]) =>
+  tags.map((t) => t.text).join("");
 
-/** Сдвигает границу назад, если она попала внутрь тега, мнемоники или суррогатной пары. */
-function safeBoundary(message: string, start: number, end: number): number {
-  const from = Math.max(start, end - LOOKBACK);
-  const window = message.slice(from, end);
-  const lt = window.lastIndexOf("<");
-  const gt = window.lastIndexOf(">");
-  if (lt > gt) return from + lt;
-  const amp = window.lastIndexOf("&");
-  if (amp > gt && amp !== -1) {
-    const semi = window.indexOf(";", amp);
-    if (semi === -1) return from + amp;
+/** Token boundaries are complete tags/entities or Unicode code points. */
+function tokensOf(message: string): HtmlToken[] {
+  const tokens: HtmlToken[] = [];
+  for (
+    const match of message.matchAll(
+      /<[^<>]*>|&(?:amp|lt|gt|quot|#\d{1,8}|#x[0-9a-fA-F]{1,6});|./gsu,
+    )
+  ) {
+    const text = match[0];
+    const tag = HTML_TAG.exec(text);
+    if (tag) tokens.push({ text, name: tag[2]!, closing: !!tag[1] });
+    else if (ENTITY.test(text)) tokens.push({ text });
+    else {for (const char of text) {
+        tokens.push({
+          text: char === "&"
+            ? "&amp;"
+            : char === "<"
+            ? "&lt;"
+            : char === ">"
+            ? "&gt;"
+            : char,
+        });
+      }}
   }
-  // Не разрываем UTF-16 суррогатную пару (emoji и другие символы за пределами BMP).
-  const code = window.charCodeAt(window.length - 1);
-  if (code >= 0xd800 && code <= 0xdbff) return end - 1;
-  return end;
+  return tokens;
 }
 
 export function notificationParts(message: string): string[] {
   if (message.length <= HARD_LIMIT) return [message];
-  const raw: string[] = [];
-  let start = 0;
-  while (start < message.length) {
-    let end = Math.min(start + PART_LIMIT, message.length);
-    if (end < message.length) end = safeBoundary(message, start, end);
-    raw.push(message.slice(start, end));
-    start = end;
+  let tokens = tokensOf(message);
+  // A huge URL or extreme nesting cannot be reopened inside a bounded part.
+  // In that exceptional case keep all visible text and omit formatting tags.
+  const check: OpenTag[] = [];
+  let preserveMarkup = true;
+  for (const token of tokens) {
+    if (!token.name) continue;
+    if (token.closing) {
+      if (check.pop()?.name !== token.name) preserveMarkup = false;
+    } else check.push({ name: token.name, text: token.text });
+    if (
+      openingTags(check).length + closingTags(check).length > PART_LIMIT / 2
+    ) preserveMarkup = false;
   }
-  return raw.map((text, index) => `[${index + 1}/${raw.length}]\n${text}`);
+  if (check.length) preserveMarkup = false;
+  if (!preserveMarkup) tokens = tokens.filter((token) => !token.name);
+
+  const parts: string[] = [];
+  const stack: OpenTag[] = [];
+  let body = "";
+  for (const token of tokens) {
+    const next = [...stack];
+    if (token.name) {
+      if (token.closing) next.pop();
+      else next.push({ name: token.name, text: token.text });
+    }
+    if (
+      body.length + token.text.length + closingTags(next).length > PART_LIMIT
+    ) {
+      parts.push(body + closingTags(stack));
+      body = openingTags(stack);
+    }
+    body += token.text;
+    stack.splice(0, stack.length, ...next);
+  }
+  if (body || !parts.length) parts.push(body + closingTags(stack));
+  return parts.length === 1
+    ? parts
+    : parts.map((text, index) => `[${index + 1}/${parts.length}]\n${text}`);
 }
 
 /**
@@ -59,5 +112,7 @@ export function entryMarkup(
   const label = kind === "request"
     ? pick(lang, "Открыть обращение", "Өтінішті ашу")
     : pick(lang, "Открыть задание", "Тапсырманы ашу");
-  return inlineMarkup([[btn(label, `${kind === "request" ? "/request" : "/task"} ${number}`)]]);
+  return inlineMarkup([[
+    btn(label, `${kind === "request" ? "/request" : "/task"} ${number}`),
+  ]]);
 }

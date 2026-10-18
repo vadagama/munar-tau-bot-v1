@@ -26,3 +26,26 @@ it("сброс использует кодовый дефолт, удалённ�
   expect(t(store, "kk", "errors.FORBIDDEN")).toBe(FRIENDLY.FORBIDDEN!.kk);
   expect(store.has("removed")).toBe(false);
 });
+it("загружает прежние подписи меню одним запросом даже после сброса", async () => {
+  let queries = 0;
+  const store = await loadTemplateStore({
+    query: async <T>(sql: string) => {
+      queries++;
+      expect(sql).toContain("historical_buttons");
+      expect(sql).toContain(
+        "'help.welcome_text','help.registration_help','help.worker_help'",
+      );
+      return [{
+        key: "help.welcome_text",
+        use_default: true,
+        historical_buttons: [{
+          ru: { newrequest: "Подать заявку" },
+          kk: { newrequest: "Өтініш беру" },
+        }],
+      }] as T[];
+    },
+  });
+  expect(queries).toBe(1);
+  expect(store.get("help.welcome_text")?.historicalButtons?.[0]?.ru.newrequest)
+    .toBe("Подать заявку");
+});

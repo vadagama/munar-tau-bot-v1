@@ -212,3 +212,92 @@ it("вставляет переменную в выбранное место а�
   expect(kk.value).toBe("{number}Қате");
   expect(screen.getByLabelText("Русский")).toHaveValue("Сбой");
 });
+
+it("показывает цельный шаг сценария, пример и редактируемые кнопки в preview и сохранении", async () => {
+  const full = {
+    ...row,
+    key: "message.requests.choose_place",
+    section: "requests",
+    scenario: "Новое обращение",
+    command: "/newrequest",
+    title: "Выбор помещения",
+    default_ru: "Выберите помещение:\n{premises}\n/requestcancel — назад.",
+    default_kk: "{premises}",
+    variables: [{
+      name: "premises",
+      description: "Список помещений",
+      example: "1. Дом 1, Квартира 4",
+    }],
+    buttons: [{
+      id: "place",
+      ru: "{number}",
+      kk: "{number}",
+      variables: [{ name: "number", description: "Номер", example: "4" }],
+    }],
+    examples: [{ id: "one", title: "Одно помещение" }, {
+      id: "none",
+      title: "Нет помещений",
+    }],
+  };
+  vi.mocked(apiFetch).mockImplementation(async (path, options) =>
+    path.endsWith("/versions") ? { items: [] } : path.endsWith("/preview")
+      ? {
+        ru:
+          "Выберите помещение:\n1. Дом 1, Квартира 4\n/requestcancel — назад.",
+        kk: "Таңдаңыз",
+        buttons_ru: [[
+          (options?.body as { buttons_ru?: Record<string, string> })?.buttons_ru
+            ?.place ?? "4",
+        ]],
+        buttons_kk: [["4"]],
+      }
+      : { items: [full] }
+  );
+  render(<TemplatesPage />);
+  fireEvent.click(await screen.findByText("Выбор помещения"));
+  expect(screen.getByLabelText("Русский")).toHaveValue(full.default_ru);
+  expect(screen.getByText("Полное сообщение")).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Подпись — русский"), {
+    target: { value: "Помещение {number}" },
+  });
+  fireEvent.click(screen.getByText("Предпросмотр"));
+  expect(await screen.findByText("Помещение {number}")).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Пример данных" }))
+    .toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Причина изменения"), {
+    target: { value: "Целая инструкция" },
+  });
+  fireEvent.click(screen.getByText("Сохранить версию"));
+  await waitFor(() =>
+    expect(
+      vi.mocked(apiFetch).mock.calls.some(([path, options]) =>
+        path === "/v1/templates/message.requests.choose_place" &&
+        (options?.body as { buttons_ru?: Record<string, string> })?.buttons_ru
+            ?.place === "Помещение {number}"
+      ),
+    ).toBe(true)
+  );
+});
+it("старое переопределение видно в целом тексте и доступно для сброса", async () => {
+  const migrated = {
+    ...row,
+    overridden: true,
+    effective_ru: "Перенесённый текст",
+    legacy: [{
+      key: "old",
+      title: "Старое приглашение",
+      version: 2,
+      unresolved: false,
+    }],
+  };
+  vi.mocked(apiFetch).mockImplementation(async (path) =>
+    path.endsWith("/versions") ? { items: [] } : { items: [migrated] }
+  );
+  render(<TemplatesPage />);
+  fireEvent.click(await screen.findByText("Техническая ошибка"));
+  expect(screen.getByLabelText("Русский")).toHaveValue("Перенесённый текст");
+  expect(screen.getByText("Сбросить к дефолту").closest("button")).not
+    .toBeDisabled();
+  expect(screen.getByText("Есть настройки предыдущего каталога"))
+    .toBeInTheDocument();
+});

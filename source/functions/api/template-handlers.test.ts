@@ -26,6 +26,10 @@ Deno.test("шаблоны: маршруты защищены PDP, preview тре
   assertEquals((await route.handler(context)).body, {
     ru: "<b>Сбой</b>",
     kk: "Қате",
+    buttons_ru: [],
+    buttons_kk: [],
+    parts_ru: ["<b>Сбой</b>"],
+    parts_kk: ["Қате"],
   });
   context.body.text_ru = "<script>alert(1)</script>";
   await assertRejects(async () => await route.handler(context));

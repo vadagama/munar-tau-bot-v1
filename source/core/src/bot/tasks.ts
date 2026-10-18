@@ -1,9 +1,17 @@
 import { BotTemplateError } from "./bot-errors.ts";
-import { t as templateText } from "../templates/store.ts";
+import { message, messageButton, safeBlock } from "../templates/message.ts";
+import type { TemplateStore } from "../templates/store.ts";
 import { reportProblem } from "../domains/tasks/problems.ts";
 import { proposeVisit, updateVisit } from "../domains/tasks/visits.ts";
-import { taskActions, workerHelp } from "./help.ts";
-import { esc, fmtDate, fmtDay, fmtInterval, numbered, pick, type Lang } from "./text.ts";
+import { workerHelp } from "./help.ts";
+import {
+  esc,
+  fmtDate,
+  fmtDay,
+  fmtInterval,
+  type Lang,
+  numbered,
+} from "./text.ts";
 import { visitStateText } from "../locales/tasks.ts";
 import {
   almatyDay,
@@ -23,7 +31,7 @@ import {
 } from "../domains/tasks/service.ts";
 import { submitTaskReport } from "../domains/tasks/reports.ts";
 import { TASK_STATE_TEXT } from "../locales/tasks.ts";
-import { btn, type BotReply, type InlineButton } from "./keyboard.ts";
+import { type BotReply, btn, type InlineButton } from "./keyboard.ts";
 export const TASK_COMMANDS = [
   "/pausetask",
   "/problem",
@@ -40,24 +48,51 @@ export const TASK_COMMANDS = [
 ];
 
 /** Подпись состояния задания на языке профиля. */
+const taskMessageKey = (base: string, state: unknown) =>
+  [
+      "awaiting_acceptance",
+      "accepted",
+      "in_progress",
+      "suspended",
+      "rework",
+      "on_review",
+    ].includes(String(state))
+    ? `${base}.${state}`
+    : base;
+
 const stateLabel = (state: unknown, lang: Lang): string =>
   TASK_STATE_TEXT[String(state)]?.[lang] ?? String(state);
 
 /** Кнопки карточки задания: ровно те же команды, что в подсказке «Действия». */
-function taskButtons(t: Row, lang: Lang): InlineButton[][] {
+function taskButtons(
+  t: Row,
+  lang: Lang,
+  store?: TemplateStore,
+  key = "message.tasks.card",
+): InlineButton[][] {
   if (!t.number) return [];
   const n = String(t.number);
   switch (String(t.state)) {
     case "awaiting_acceptance":
-      return [[btn(pick(lang, "Принять", "Қабылдау"), `/accepttask ${n}`)]];
+      return [[
+        btn(messageButton(store, lang, key, "accept"), `/accepttask ${n}`),
+      ]];
     case "accepted":
-      return [[btn(pick(lang, "Начать работу", "Жұмысты бастау"), `/starttask ${n}`)]];
+      return [[
+        btn(messageButton(store, lang, key, "start"), `/starttask ${n}`),
+      ]];
     case "suspended":
-      return [[btn(pick(lang, "Возобновить", "Жалғастыру"), `/starttask ${n}`)]];
+      return [[
+        btn(messageButton(store, lang, key, "resume"), `/starttask ${n}`),
+      ]];
     case "rework":
-      return [[btn(pick(lang, "Продолжить", "Жалғастыру"), `/starttask ${n}`)]];
+      return [[
+        btn(messageButton(store, lang, key, "continue"), `/starttask ${n}`),
+      ]];
     case "in_progress":
-      return [[btn(pick(lang, "Заполнить отчёт", "Есеп толтыру"), `/reporttask ${n}`)]];
+      return [[
+        btn(messageButton(store, lang, key, "report"), `/reporttask ${n}`),
+      ]];
     default:
       return [];
   }
@@ -107,7 +142,7 @@ export async function taskStep(
       if (!number) {
         throw new BotTemplateError(
           "VALIDATION_FAILED",
-          templateText(deps.templates, L, "tasks.ukazhite_nomer_zadaniya"),
+          message(deps.templates, L, "tasks.ukazhite_nomer_zadaniya"),
         );
       }
       // Полный UUID принимается наравне с номером: глубокие ссылки
@@ -138,13 +173,19 @@ export async function taskStep(
         }`
       );
       return save({
-        text: lines.length
-          ? numbered(lines)
-          : templateText(deps.templates, L, "tasks.zadaniy_net"),
+        text: message(
+          deps.templates,
+          L,
+          lines.length ? "message.tasks.list" : "tasks.zadaniy_net",
+          { tasks: safeBlock(numbered(lines)) },
+        ),
         // Кнопка в строке списка открывает карточку тем же кодом, что /task НОМЕР.
         buttons: visible.map((t) => [
           btn(
-            `${t.number} · ${String(t.title).slice(0, 24)}`,
+            messageButton(deps.templates, L, "message.tasks.list", "open", {
+              number: t.number,
+              title: String(t.title).slice(0, 24),
+            }),
             `/task ${t.number}`,
           ),
         ]),
@@ -156,22 +197,28 @@ export async function taskStep(
       delete state.report;
       delete state.visit_when;
       const visits = ((t.visits as Row[]) ?? []).map((v) =>
-        `${templateText(deps.templates, L, "tasks.vizit")}: ${fmtInterval(v.interval_start, v.interval_end)} — ${esc(visitStateText(v.status, L))}`
+        `${message(deps.templates, L, "tasks.vizit")}: ${
+          fmtInterval(v.interval_start, v.interval_end)
+        } — ${esc(visitStateText(v.status, L))}`
       );
-      const actions = taskActions(t.state, L, deps.templates);
+      const cardKey = taskMessageKey(
+        t.methodology ? "message.tasks.card_methodology" : "message.tasks.card",
+        t.state,
+      );
       return save({
-        text: [
-          `<b>${esc(t.number)}</b> — ${esc(t.title)}`,
-          esc(stateLabel(t.state, L)),
-          esc(t.instruction),
-          t.methodology
-            ? templateText(deps.templates, L, "tasks.metodichka_versiya_deystvuet_s", { value_1: (t.methodology as Row).version, fmtday_t_methodology_as_row_created_at: fmtDay((t.methodology as Row).created_at) })
-            : "",
-          visits.join("\n"),
-          `${templateText(deps.templates, L, "tasks.srok")}: ${fmtDate(t.due_at)}`,
-          actions,
-        ].filter(Boolean).join("\n"),
-        buttons: taskButtons(t, L),
+        text: message(deps.templates, L, cardKey, {
+          number: t.number,
+          title: t.title,
+          state: stateLabel(t.state, L),
+          instruction: t.instruction,
+          methodology_version: (t.methodology as Row | undefined)?.version,
+          methodology_date: fmtDay(
+            (t.methodology as Row | undefined)?.created_at,
+          ),
+          visits: safeBlock(visits.length ? visits.join("\n") + "\n" : ""),
+          due_at: fmtDate(t.due_at),
+        }),
+        buttons: taskButtons(t, L, deps.templates, cardKey),
       });
     }
     const action = ({
@@ -191,12 +238,13 @@ export async function taskStep(
       }, key);
       state.task_id = t.id;
       delete state.report;
-      const actions = taskActions(changed.state, L, deps.templates);
+      const changedKey = taskMessageKey("message.tasks.changed", changed.state);
       return save({
-        text: `${esc(changed.number)} — ${esc(stateLabel(changed.state, L))}${
-          actions ? `\n${actions}` : ""
-        }`,
-        buttons: taskButtons(changed, L),
+        text: message(deps.templates, L, changedKey, {
+          number: changed.number,
+          state: stateLabel(changed.state, L),
+        }),
+        buttons: taskButtons(changed, L, deps.templates, changedKey),
       });
     }
     if (command === "/reporttask") {
@@ -211,7 +259,7 @@ export async function taskStep(
         step: "performed_work",
       };
       return save(
-        templateText(deps.templates, L, "tasks.opishite_vypolnennyy_obem"),
+        message(deps.templates, L, "tasks.opishite_vypolnennyy_obem"),
       );
     }
     if (command === "/problem") {
@@ -231,7 +279,11 @@ export async function taskStep(
       state.task_id = t.id;
       delete state.report;
       return save(
-        templateText(deps.templates, L, "tasks.naydennaya_problema_peredana_administratoru_dlya_sozdaniya_ili"),
+        message(
+          deps.templates,
+          L,
+          "tasks.naydennaya_problema_peredana_administratoru_dlya_sozdaniya_ili",
+        ),
       );
     }
     if (command === "/proposevisit") {
@@ -239,10 +291,30 @@ export async function taskStep(
       if (!args.length) {
         // Диалог (срез UX C): день — кнопкой, время — следующим сообщением.
         return save({
-          text: templateText(deps.templates, L, "tasks.kogda_predlozhite_vizit_napishite_odnim_soobscheniem_naprimer"),
+          text: message(
+            deps.templates,
+            L,
+            "tasks.kogda_predlozhite_vizit_napishite_odnim_soobscheniem_naprimer",
+          ),
           buttons: [[
-            btn(pick(L, "Сегодня", "Бүгін"), `/proposevisit ${t.number} сегодня`),
-            btn(pick(L, "Завтра", "Ертең"), `/proposevisit ${t.number} завтра`),
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "tasks.kogda_predlozhite_vizit_napishite_odnim_soobscheniem_naprimer",
+                "today",
+              ),
+              `/proposevisit ${t.number} сегодня`,
+            ),
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "tasks.kogda_predlozhite_vizit_napishite_odnim_soobscheniem_naprimer",
+                "tomorrow",
+              ),
+              `/proposevisit ${t.number} завтра`,
+            ),
           ]],
         });
       }
@@ -256,7 +328,9 @@ export async function taskStep(
         // Прежний ввод пары ISO-дат с часовым поясом — совместимость с тестами.
         interval = { start: parts[0]!, end: parts[1]! };
         note = parts[2] || undefined;
-      } else if (typeof parts[0] === "string" && bareDayOffset(parts[0]) !== null) {
+      } else if (
+        typeof parts[0] === "string" && bareDayOffset(parts[0]) !== null
+      ) {
         // День без времени: запоминаем день, время — следующим сообщением.
         // Активный черновик отчёта сбрасывается, как в других поддиалогах.
         delete state.report;
@@ -265,7 +339,11 @@ export async function taskStep(
           day: almatyDay(bareDayOffset(parts[0])!, new Date()),
         };
         return save(
-          templateText(deps.templates, L, "tasks.teper_ukazhite_vremya_odnim_soobscheniem_naprimer_10"),
+          message(
+            deps.templates,
+            L,
+            "tasks.teper_ukazhite_vremya_odnim_soobscheniem_naprimer_10",
+          ),
         );
       } else if (parts[0]) {
         interval = parseVisitWhen(parts[0], new Date()) ?? undefined;
@@ -274,7 +352,11 @@ export async function taskStep(
       if (!interval) {
         throw new BotTemplateError(
           "VALIDATION_FAILED",
-          templateText(deps.templates, L, "tasks.ne_ponyal_kogda_vizit_primery_zavtra_10"),
+          message(
+            deps.templates,
+            L,
+            "tasks.ne_ponyal_kogda_vizit_primery_zavtra_10",
+          ),
         );
       }
       await proposeVisit(d, actor, {
@@ -284,14 +366,24 @@ export async function taskStep(
         note,
       }, key);
       return save(
-        templateText(deps.templates, L, "tasks.interval_predlozhen_vizit_sostoitsya_tolko_posle_soglasovaniya", { fmtinterval_interval_start_interval_end: fmtInterval(interval.start, interval.end) }),
+        message(
+          deps.templates,
+          L,
+          "tasks.interval_predlozhen_vizit_sostoitsya_tolko_posle_soglasovaniya",
+          {
+            fmtinterval_interval_start_interval_end: fmtInterval(
+              interval.start,
+              interval.end,
+            ),
+          },
+        ),
       );
     }
     if (command === "/noaccess") {
       if (typeof state.task_id !== "string") {
         throw new BotTemplateError(
           "VALIDATION_FAILED",
-          templateText(deps.templates, L, "tasks.snachala_otkroyte_task_nomer"),
+          message(deps.templates, L, "tasks.snachala_otkroyte_task_nomer"),
         );
       }
       const t = await getTask(d, actor, state.task_id);
@@ -299,7 +391,7 @@ export async function taskStep(
       if (!visit) {
         throw new BotTemplateError(
           "VALIDATION_FAILED",
-          templateText(deps.templates, L, "tasks.vizit_ne_nayden"),
+          message(deps.templates, L, "tasks.vizit_ne_nayden"),
         );
       }
       const [reason, attempts] = args.join(" ").split("|").map((s) => s.trim());
@@ -311,7 +403,11 @@ export async function taskStep(
         occurred_at: new Date().toISOString(),
       }, key);
       return save(
-        templateText(deps.templates, L, "tasks.otsutstvie_dostupa_zafiksirovano_administrator_i_zhitel_uvedomleny"),
+        message(
+          deps.templates,
+          L,
+          "tasks.otsutstvie_dostupa_zafiksirovano_administrator_i_zhitel_uvedomleny",
+        ),
       );
     }
     // Шаг диалога визита (срез UX C): после кнопки «сегодня/завтра» жду
@@ -321,7 +417,11 @@ export async function taskStep(
       const interval = visitFromDayTime(String(visitWhen.day), input);
       if (!interval) {
         return save(
-          templateText(deps.templates, L, "tasks.ne_ponyal_vremya_napishite_odnim_soobscheniem_naprimer"),
+          message(
+            deps.templates,
+            L,
+            "tasks.ne_ponyal_vremya_napishite_odnim_soobscheniem_naprimer",
+          ),
         );
       }
       await proposeVisit(d, actor, {
@@ -331,7 +431,17 @@ export async function taskStep(
       }, key);
       delete state.visit_when;
       return save(
-        templateText(deps.templates, L, "tasks.interval_predlozhen_vizit_sostoitsya_tolko_posle_soglasovaniya", { fmtinterval_interval_start_interval_end: fmtInterval(interval.start, interval.end) }),
+        message(
+          deps.templates,
+          L,
+          "tasks.interval_predlozhen_vizit_sostoitsya_tolko_posle_soglasovaniya",
+          {
+            fmtinterval_interval_start_interval_end: fmtInterval(
+              interval.start,
+              interval.end,
+            ),
+          },
+        ),
       );
     }
     const report = state.report as Row | undefined;
@@ -339,25 +449,33 @@ export async function taskStep(
       if (typeof state.task_id !== "string") {
         throw new BotTemplateError(
           "VALIDATION_FAILED",
-          templateText(deps.templates, L, "tasks.snachala_otkroyte_zadanie"),
+          message(deps.templates, L, "tasks.snachala_otkroyte_zadanie"),
         );
       }
       return getTask(d, actor, state.task_id);
     };
     const filesText = (t: Row) =>
-      numbered(((t.pending_files as Row[]) ?? []).map((f) =>
-        `${esc(f.filename)}: ${
-          f.status === "complete"
-            ? templateText(deps.templates, L, "tasks.sohranen")
-            : templateText(deps.templates, L, "tasks.esche_v_ocheredi")
-        }`
-      )) || templateText(deps.templates, L, "tasks.faylov_poka_net");
-    if (command === "/taskfiles") return save(filesText(await current()));
+      numbered(
+        ((t.pending_files as Row[]) ?? []).map((f) =>
+          `${esc(f.filename)}: ${
+            f.status === "complete"
+              ? message(deps.templates, L, "tasks.sohranen")
+              : message(deps.templates, L, "tasks.esche_v_ocheredi")
+          }`
+        ),
+      ) || message(deps.templates, L, "tasks.faylov_poka_net");
+    if (command === "/taskfiles") {
+      return save(
+        message(deps.templates, L, "message.tasks.files", {
+          files: safeBlock(filesText(await current())),
+        }),
+      );
+    }
     if (command === "/submitreport") {
       if (!report || report.step !== "ready") {
         throw new BotTemplateError(
           "VALIDATION_FAILED",
-          templateText(deps.templates, L, "tasks.zapolnite_otchet_reporttask_nomer"),
+          message(deps.templates, L, "tasks.zapolnite_otchet_reporttask_nomer"),
         );
       }
       const t = await current();
@@ -370,8 +488,18 @@ export async function taskStep(
       );
       delete state.report;
       return save({
-        text: `${esc(changed.number)} — ${esc(stateLabel(changed.state, L))}`,
-        buttons: taskButtons(changed, L),
+        text: message(
+          deps.templates,
+          L,
+          taskMessageKey("message.tasks.report_submitted", changed.state),
+          { number: changed.number, state: stateLabel(changed.state, L) },
+        ),
+        buttons: taskButtons(
+          changed,
+          L,
+          deps.templates,
+          taskMessageKey("message.tasks.report_submitted", changed.state),
+        ),
       });
     }
     if (report && !input.startsWith("/")) {
@@ -388,24 +516,36 @@ export async function taskStep(
         report.performed_work = input;
         report.step = "performed_at";
         return save(
-          templateText(deps.templates, L, "tasks.vremya_vypolneniya_gggg_mm_dd_chch_mm"),
+          message(
+            deps.templates,
+            L,
+            "tasks.vremya_vypolneniya_gggg_mm_dd_chch_mm",
+          ),
         );
       }
       if (report.step === "performed_at") {
         if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(input)) {
           return save(
-            templateText(deps.templates, L, "tasks.vvedite_vremya_v_formate_gggg_mm_dd"),
+            message(
+              deps.templates,
+              L,
+              "tasks.vvedite_vremya_v_formate_gggg_mm_dd",
+            ),
           );
         }
         report.performed_at = input.replace(" ", "T") + ":00+05:00";
         report.step = "result";
-        return save(templateText(deps.templates, L, "tasks.opishite_rezultat"));
+        return save(message(deps.templates, L, "tasks.opishite_rezultat"));
       }
       if (report.step === "result") {
         report.result = input;
         report.step = "limitations";
         return save(
-          templateText(deps.templates, L, "tasks.ostavshiesya_ogranicheniya_napishite_net_esli_ih_net"),
+          message(
+            deps.templates,
+            L,
+            "tasks.ostavshiesya_ogranicheniya_napishite_net_esli_ih_net",
+          ),
         );
       }
       if (report.step === "limitations") {
@@ -429,7 +569,9 @@ export async function taskStep(
             )
           ) {
             return save(
-              templateText(deps.templates, L, "tasks.vyberite_nomera_sohranennyh_faylov_cherez_zapyatuyu_ili") + filesText(t),
+              message(deps.templates, L, "message.tasks.evidence_invalid", {
+                files: safeBlock(filesText(t)),
+              }),
             );
           }
           entry.attachment_ids = ids.map((i) => files[i]!.id);
@@ -440,12 +582,30 @@ export async function taskStep(
       }
       if (report.step === "evidence") {
         return save(
-          templateText(deps.templates, L, "tasks.dokazatelstvo_iz_otpravte_fayl_dozhdites_sohraneniya_taskfiles", { number_report_index_1: Number(report.index) + 1, requirements_length: requirements.length }) + filesText(t),
+          message(deps.templates, L, "message.tasks.evidence", {
+            number_report_index_1: Number(report.index) + 1,
+            requirements_length: requirements.length,
+            files: safeBlock(filesText(t)),
+          }),
         );
       }
       return save({
-        text: templateText(deps.templates, L, "tasks.otchet_podgotovlen_submitreport_otpravit_na_proverku"),
-        buttons: [[btn(pick(L, "Отправить отчёт", "Есепті жіберу"), "/submitreport")]],
+        text: message(
+          deps.templates,
+          L,
+          "tasks.otchet_podgotovlen_submitreport_otpravit_na_proverku",
+        ),
+        buttons: [[
+          btn(
+            messageButton(
+              deps.templates,
+              L,
+              "tasks.otchet_podgotovlen_submitreport_otpravit_na_proverku",
+              "submit",
+            ),
+            "/submitreport",
+          ),
+        ]],
       });
     }
     return save(workerHelp(L, deps.templates));

@@ -1,4 +1,8 @@
-import { t, loadTemplateStore, type TemplateStore } from "../../templates/store.ts";
+import { message, safeBlock } from "../../templates/message.ts";
+import {
+  loadTemplateStore,
+  type TemplateStore,
+} from "../../templates/store.ts";
 import { ruleContract } from "../timing/contracts.ts";
 import type { RegistryDeps } from "../registry/service.ts";
 import { jsonValue } from "../registry/validation.ts";
@@ -43,9 +47,15 @@ export async function digestText(
     }
   }
   return visible.length
-    ? `${
-      t(templates, actor.profile.language, "notices.digest_heading")
-    }${day ? ` ${fmtDay(day)}` : ""}\n\n${visible.map((t) => `• ${t}`).join("\n\n")}`
+    ? message(
+      templates,
+      actor.profile.language,
+      day ? "messages.notices.digest_dated" : "messages.notices.digest",
+      {
+        date: day ? fmtDay(day) : "",
+        items: safeBlock(visible.map((text) => `• ${text}`).join("\n\n")),
+      },
+    )
     : null;
 }
 export async function sweepDigests(
@@ -85,14 +95,16 @@ export async function sweepDigests(
       if (actor && text) {
         // Сводка уходит боту сотрудников только когда все её элементы — служебные
         // события; смешанная или жительская сводка — боту жителей (ADR-009).
-        const bot = items.every((i) => i.bot === "worker") ? "worker" : "resident";
+        const bot = items.every((i) => i.bot === "worker")
+          ? "worker"
+          : "resident";
         await exec.query(
           `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,priority,is_test,bot) select telegram_user_id,$2,$3,person_id,case when is_test then 'simulator' else 'telegram' end,'digest',$4::text::jsonb,2,is_test,$5 from profile where id=$1 on conflict(dedup_key) do nothing`,
           [
             actor.profile.id,
             text,
             `digest:${p.recipient_person_id}:${day}:${claimed[0]!.pages}`,
-            JSON.stringify({ items }),
+            JSON.stringify({ items, day }),
             bot,
           ],
         );

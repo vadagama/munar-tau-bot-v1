@@ -1,3 +1,5 @@
+import { loadTemplateStore } from "../../templates/store.ts";
+import { templateNotice } from "../../templates/notice.ts";
 import { emergencyDeliveryFailure } from "../incidents/failures.ts";
 import { informTaskManagers } from "../tasks/timing.ts";
 import { TASK_SELECT, type TaskRow } from "../tasks/access.ts";
@@ -34,6 +36,7 @@ export async function sendNotifications(
   await deps.db.query(
     "update notification set state=case when attempts>=5 then 'failed' else 'queued' end,last_error='DELIVERY_INTERRUPTED',lease_token=null where state='sending' and next_attempt_at<now()",
   );
+  const templates = await loadTemplateStore(deps.db);
   let sent = 0;
   for (let i = 0; i < 20 && Date.now() + 1000 < deadline; i++) {
     const token = crypto.randomUUID();
@@ -56,7 +59,9 @@ export async function sendNotifications(
           deps.db,
           String(row.recipient_person_id),
         );
-        const ref = jsonValue<NoticeOptions & { items?: DigestItem[] }>(
+        const ref = jsonValue<
+          NoticeOptions & { items?: DigestItem[]; day?: string }
+        >(
           row.event_ref,
         );
         if (
@@ -90,7 +95,13 @@ export async function sendNotifications(
           continue;
         }
         if (row.event_type === "digest") {
-          const text = await digestText(deps.db, actor, ref.items ?? []);
+          const text = await digestText(
+            deps.db,
+            actor,
+            ref.items ?? [],
+            ref.day,
+            templates,
+          );
           if (!text) {
             await deps.db.query(
               "update notification set state='canceled',lease_token=null where id=$1 and lease_token=$2",
@@ -159,12 +170,9 @@ export async function sendNotifications(
         [item.notification_id],
       );
       if (task) {
-        const message = {
-          ru:
-            `Назначение задания ${task.number} не доставлено. Требуется резервный ответственный.`,
-          kk:
-            `${task.number}: тапсырма тағайындауы жеткізілмеді. Қосалқы жауапты қажет.`,
-        };
+        const message = templateNotice("notices.tasks_delivery_failed", {
+          number: task.number,
+        });
         await informTaskManagers(
           exec,
           task,

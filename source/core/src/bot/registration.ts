@@ -1,5 +1,6 @@
+import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
-import { t as templateText, loadTemplateStore, type TemplateStore } from "../templates/store.ts";
+import { loadTemplateStore, type TemplateStore } from "../templates/store.ts";
 import {
   label,
   premiseLabels,
@@ -18,23 +19,21 @@ import {
   acceptInvite,
   acceptInviteForNewTelegram,
   createInvite,
-  submitRegistration,
   reviewRegistration,
   revokeOwnConnection,
+  submitRegistration,
 } from "../domains/registrations/service.ts";
 import { submitPrivacyRequest } from "../domains/privacy/service.ts";
 import { ScenarioRegistry } from "./registry.ts";
 import { registrationHelp, welcomeText } from "./help.ts";
-import { btn, type BotReply, replyText } from "./keyboard.ts";
+import { type BotReply, btn, replyText } from "./keyboard.ts";
 import {
-  cmd as cmdCode,
   esc,
   fmtDate,
+  type Lang,
   langOf,
   numbered,
-  pick,
   resolveRef,
-  type Lang,
 } from "./text.ts";
 
 export async function actorForTelegram(
@@ -86,9 +85,11 @@ function roleFromWord(value: string | undefined): string | undefined {
 function registrationLines(rows: Row[], L: Lang): string[] {
   return rows.map((r) => {
     const draft = r.draft ? jsonValue<Row>(r.draft) : {};
-    return `<b>${esc(label(stateLabels, r.state, L))}</b>: ${esc(draft.full_name ?? "—")}, ${
-      esc(label(premiseLabels, r.kind, L, "помещение"))
-    } ${esc(r.code ?? "—")}/${esc(r.number ?? "—")}, ${esc(label(roleLabels, r.role, L))}${
+    return `<b>${esc(label(stateLabels, r.state, L))}</b>: ${
+      esc(draft.full_name ?? "—")
+    }, ${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
+      esc(r.code ?? "—")
+    }/${esc(r.number ?? "—")}, ${esc(label(roleLabels, r.role, L))}${
       r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""
     }`;
   });
@@ -148,29 +149,47 @@ export async function registrationStep(
         [telegramId, actor?.person.id ?? null],
       );
       if (!rows.length) {
-        return templateText(deps.templates, L, "registration.anket_poka_net");
+        return message(deps.templates, L, "registration.anket_poka_net");
       }
       state.status_options = rows.map((r) => String(r.id));
       // Кнопка доступна только редактируемым анкетам: /edit проверит и ответит.
-      const editable = new Set(["pending_review", "need_clarification", "rejected"]);
+      const editable = new Set([
+        "pending_review",
+        "need_clarification",
+        "rejected",
+      ]);
       const buttons = rows
         .map((r, i) =>
           editable.has(String(r.state))
-            ? [btn(pick(L, "Исправить", "Түзету"), `/edit ${i + 1}`)]
+            ? [
+              btn(
+                messageButton(
+                  deps.templates,
+                  L,
+                  "message.registration.status",
+                  "edit",
+                ),
+                `/edit ${i + 1}`,
+              ),
+            ]
             : undefined
         )
         .filter((row): row is NonNullable<typeof row> => !!row);
       return save({
-        text:
-          numbered(registrationLines(rows, L)) +
-          `\n${cmdCode("/fix")} — ${templateText(deps.templates, L, "registration.ispravit_anketu_posle_utochneniya")}`,
+        text: message(deps.templates, L, "message.registration.status", {
+          registrations: safeBlock(numbered(registrationLines(rows, L))),
+        }),
         ...(buttons.length ? { buttons } : {}),
       });
     }
     if (cmd === "/pending" || cmd === "/accesses") {
       if (!actor) {
         return save(
-          templateText(deps.templates, L, "registration.snachala_registratsiya_register"),
+          message(
+            deps.templates,
+            L,
+            "registration.snachala_registratsiya_register",
+          ),
         );
       }
       if (cmd === "/pending") {
@@ -180,19 +199,36 @@ export async function registrationStep(
           [actor.person.id, actor.person.isTest],
         );
         if (!rows.length) {
-          return templateText(deps.templates, L, "registration.anket_na_podtverzhdenie_net");
+          return message(
+            deps.templates,
+            L,
+            "registration.anket_na_podtverzhdenie_net",
+          );
         }
         state.pending_options = rows.map((r) => String(r.id));
         return save({
-          text:
-            numbered(rows.map((r) => {
+          text: message(deps.templates, L, "message.registration.pending", {
+            registrations: safeBlock(numbered(rows.map((r) => {
               const draft = jsonValue<Row>(r.draft);
-              return `<b>${esc(draft.full_name)}</b>, ${esc(draft.phone_e164)}; ${esc(label(premiseLabels, r.kind, L, "помещение"))} ${esc(r.number)}`;
-            })) +
-            `\n${templateText(deps.templates, L, "registration.dlya_otkaza")}: ${cmdCode("/reject НОМЕР причина")}; ${templateText(deps.templates, L, "registration.dlya_spora")}: ${cmdCode("/dispute НОМЕР причина")}`,
+              return `<b>${esc(draft.full_name)}</b>, ${
+                esc(draft.phone_e164)
+              }; ${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
+                esc(r.number)
+              }`;
+            }))),
+          }),
           // Подтвердить можно кнопкой: причина подставится автоматически.
           buttons: rows.map((r, i) => [
-            btn(pick(L, `Подтвердить ${i + 1}`, `Растау ${i + 1}`), `/approve ${i + 1}`),
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.pending",
+                "approve",
+                { index: i + 1 },
+              ),
+              `/approve ${i + 1}`,
+            ),
           ]),
         });
       }
@@ -203,22 +239,33 @@ export async function registrationStep(
         [actor.person.id, actor.person.isTest],
       );
       if (!rows.length) {
-        return templateText(deps.templates, L, "registration.vydannyh_dostupov_net");
+        return message(deps.templates, L, "registration.vydannyh_dostupov_net");
       }
       state.access_options = rows.map((r) => String(r.id));
       const disputeRefs = rows.map((r) => r.registration_id).filter(Boolean);
       state.dispute_options = disputeRefs.map(String);
       return save(
-        numbered(rows.map((r) =>
-          `<b>${esc(r.full_name)}</b>: ${esc(label(premiseLabels, r.kind, L, "помещение"))} ${esc(r.number)}`
-        )) +
-        `\n${cmdCode("/revoke НОМЕР причина")} — ${templateText(deps.templates, L, "registration.prekratit_dostup")}; ${cmdCode("/dispute НОМЕР причина")} — ${templateText(deps.templates, L, "registration.spor_po_ankete")}`,
+        message(deps.templates, L, "message.registration.accesses", {
+          accesses: safeBlock(
+            numbered(
+              rows.map((r) =>
+                `<b>${esc(r.full_name)}</b>: ${
+                  esc(label(premiseLabels, r.kind, L, "помещение"))
+                } ${esc(r.number)}`
+              ),
+            ),
+          ),
+        }),
       );
     }
     if (cmd === "/objects") {
       if (!actor) {
         return save(
-          templateText(deps.templates, L, "registration.snachala_registratsiya_register"),
+          message(
+            deps.templates,
+            L,
+            "registration.snachala_registratsiya_register",
+          ),
         );
       }
       const rows = await exec.query<Row>(
@@ -226,7 +273,11 @@ export async function registrationStep(
         [actor.person.id],
       );
       if (!rows.length) {
-        return templateText(deps.templates, L, "registration.podtverzhdennyh_obektov_net");
+        return message(
+          deps.templates,
+          L,
+          "registration.podtverzhdennyh_obektov_net",
+        );
       }
       const seen = new Set<string>();
       state.object_options = rows.flatMap((r) => {
@@ -236,10 +287,19 @@ export async function registrationStep(
         return [id];
       });
       return save(
-        numbered(rows.map((r) =>
-          `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${esc(r.code)}/${esc(r.number)} — ${esc(label(roleLabels, r.role, L))}, ${esc(label(stateLabels, r.status, L))}`
-        )) +
-        `\n${cmdCode("/invite НОМЕР роль")} — ${templateText(deps.templates, L, "registration.priglasit_zhiltsa_arendator_prozhivayuschiy_ili_drugoe")}`,
+        message(deps.templates, L, "message.registration.objects", {
+          premises: safeBlock(
+            numbered(
+              rows.map((r) =>
+                `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
+                  esc(r.code)
+                }/${esc(r.number)} — ${esc(label(roleLabels, r.role, L))}, ${
+                  esc(label(stateLabels, r.status, L))
+                }`
+              ),
+            ),
+          ),
+        }),
       );
     }
     if (
@@ -254,13 +314,17 @@ export async function registrationStep(
     ) {
       if (!actor) {
         return save(
-          templateText(deps.templates, L, "registration.snachala_registratsiya_register"),
+          message(
+            deps.templates,
+            L,
+            "registration.snachala_registratsiya_register",
+          ),
         );
       }
       if (!parts[1]) {
         throw new BotTemplateError(
           "VALIDATION_FAILED",
-          templateText(deps.templates, L, "registration.ukazhite_nomer_iz_spiska"),
+          message(deps.templates, L, "registration.ukazhite_nomer_iz_spiska"),
         );
       }
       /** Ссылка на объект: номер строки последнего списка или UUID. */
@@ -269,7 +333,11 @@ export async function registrationStep(
         if (!id) {
           throw new BotTemplateError(
             "VALIDATION_FAILED",
-            templateText(deps.templates, L, "registration.ne_ponyal_ssylku_otkroyte_spisok_i_ukazhite"),
+            message(
+              deps.templates,
+              L,
+              "registration.ne_ponyal_ssylku_otkroyte_spisok_i_ukazhite",
+            ),
           );
         }
         return id;
@@ -279,7 +347,11 @@ export async function registrationStep(
         if (!role) {
           throw new BotTemplateError(
             "VALIDATION_FAILED",
-            templateText(deps.templates, L, "registration.ukazhite_rol_arendator_prozhivayuschiy_ili_drugoe"),
+            message(
+              deps.templates,
+              L,
+              "registration.ukazhite_rol_arendator_prozhivayuschiy_ili_drugoe",
+            ),
           );
         }
         const invite = await createInvite(d, actor, {
@@ -287,13 +359,16 @@ export async function registrationStep(
           role,
         });
         return save(
-          `${templateText(deps.templates, L, "registration.priglashenie")}: ${cmdCode(`/start invite_${invite.token}`)}\n${templateText(deps.templates, L, "registration.deystvuet_do")}: ${fmtDate(invite.expires_at)}`,
+          message(deps.templates, L, "message.registration.invite", {
+            invite_command: `/start invite_${invite.token}`,
+            expires_at: fmtDate(invite.expires_at),
+          }),
         );
       }
       if (cmd === "/accept") {
         await acceptInvite(d, actor, parts[1]);
         return save(
-          templateText(deps.templates, L, "registration.dostup_podtverzhden"),
+          message(deps.templates, L, "registration.dostup_podtverzhden"),
         );
       }
       if (cmd === "/revoke") {
@@ -303,7 +378,9 @@ export async function registrationStep(
           ref([state.access_options as string[]]),
           parts.slice(2).join(" "),
         );
-        return save(templateText(deps.templates, L, "registration.svyaz_prekraschena"));
+        return save(
+          message(deps.templates, L, "registration.svyaz_prekraschena"),
+        );
       }
       await reviewRegistration(
         d,
@@ -316,15 +393,17 @@ export async function registrationStep(
         cmd === "/approve"
           ? "approve"
           : cmd === "/reject"
-            ? "reject"
-            : "dispute",
+          ? "reject"
+          : "dispute",
         {
           reason: parts.slice(2).join(" ") ||
-            templateText(deps.templates, L, "registration.reshenie_sobstvennika"),
+            message(deps.templates, L, "registration.reshenie_sobstvennika"),
         },
         true,
       );
-      return save(templateText(deps.templates, L, "registration.reshenie_sohraneno"));
+      return save(
+        message(deps.templates, L, "registration.reshenie_sohraneno"),
+      );
     }
     if (cmd === "/add") {
       for (const key of Object.keys(state)) delete state[key];
@@ -343,7 +422,9 @@ export async function registrationStep(
         [actor.person.id],
       );
       if (person?.phone_e164) state.phone_e164 = String(person.phone_e164);
-      if (parts[1] === "manual") return save(await askBuilding(exec, state, L, deps.templates));
+      if (parts[1] === "manual") {
+        return save(await askBuilding(exec, state, L, deps.templates));
+      }
       // Помещения, связанные с пользователем связями исходного реестра (IMP-12:
       // импорт не подтверждает доступ автоматически), без действующей связи
       // и без анкеты в работе — их и предлагаем списком.
@@ -363,19 +444,48 @@ export async function registrationStep(
         seen.add(id);
         return true;
       });
-      if (!options.length) return save(await askBuilding(exec, state, L, deps.templates));
+      if (!options.length) {
+        return save(await askBuilding(exec, state, L, deps.templates));
+      }
       state.add_options = options.map((r) => String(r.premises_id));
       state.step = "add_select";
       return save({
-        text:
-          templateText(deps.templates, L, "registration.v_reestre_osi_naydeny_pomescheniya_svyazannye_s") +
-          "\n" +
-          numbered(options.map((r) =>
-            `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${esc(r.code)}/${esc(r.number)} — ${esc(label(roleLabels, r.role, L))}`,
-          )),
+        text: message(deps.templates, L, "message.registration.add_select", {
+          premises: safeBlock(
+            numbered(
+              options.map((r) =>
+                `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
+                  esc(r.code)
+                }/${esc(r.number)} — ${esc(label(roleLabels, r.role, L))}`
+              ),
+            ),
+          ),
+        }),
         buttons: [
-          ...options.map((r, i) => [btn(`${r.code}/${r.number}`, String(i + 1))]),
-          [btn(pick(L, "Ввести вручную", "Қолмен енгізу"), "/add manual")],
+          ...options.map((
+            r,
+            i,
+          ) => [
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.add_select",
+                "premise",
+                { code: r.code, number: r.number },
+              ),
+              String(i + 1),
+            ),
+          ]),
+          [btn(
+            messageButton(
+              deps.templates,
+              L,
+              "message.registration.add_select",
+              "manual",
+            ),
+            "/add manual",
+          )],
         ],
       });
     }
@@ -400,9 +510,16 @@ export async function registrationStep(
         if (rows.length) {
           const hasApproved = rows.some((r) => r.state === "approved");
           return save(
-            `${templateText(deps.templates, L, hasApproved ? "registration.already_registered" : "registration.already_applied")}\n${numbered(registrationLines(rows, L))}\n${
-              cmdCode("/status")
-            } — ${templateText(deps.templates, L, "registration.status_anket")}; ${cmdCode("/fix")} — ${templateText(deps.templates, L, "registration.ispravit_anketu")}; ${cmdCode("/add")} — ${templateText(deps.templates, L, "registration.dobavit_esche_obekt")}`,
+            message(
+              deps.templates,
+              L,
+              hasApproved
+                ? "message.registration.already_registered"
+                : "message.registration.already_applied",
+              {
+                registrations: safeBlock(numbered(registrationLines(rows, L))),
+              },
+            ),
           );
         }
       }
@@ -411,14 +528,18 @@ export async function registrationStep(
         if (!parts[1]) {
           throw new BotTemplateError(
             "VALIDATION_FAILED",
-            templateText(deps.templates, L, "registration.ukazhite_nomer_iz_status"),
+            message(deps.templates, L, "registration.ukazhite_nomer_iz_status"),
           );
         }
         const id = resolveRef(parts[1], [state.status_options as string[]]);
         if (!id) {
           throw new BotTemplateError(
             "VALIDATION_FAILED",
-            templateText(deps.templates, L, "registration.ne_ponyal_ssylku_otkroyte_status_i_ukazhite"),
+            message(
+              deps.templates,
+              L,
+              "registration.ne_ponyal_ssylku_otkroyte_status_i_ukazhite",
+            ),
           );
         }
         const [registration] = await exec.query<Row>(
@@ -448,14 +569,27 @@ export async function registrationStep(
         [telegramId, actor?.person.isTest ?? false],
       );
       if (!rows.length) {
-        return templateText(deps.templates, L, "registration.anket_dlya_ispravleniya_net_utochneniy_i_otkazov");
+        return message(
+          deps.templates,
+          L,
+          "registration.anket_dlya_ispravleniya_net_utochneniy_i_otkazov",
+        );
       }
       if (!parts[1] && rows.length > 1) {
         return save(
-          numbered(rows.map((r) =>
-            `<b>${esc(label(stateLabels, r.state, L))}</b>${r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""}`
-          )) +
-          `\n${cmdCode("/fix НОМЕР")} — ${templateText(deps.templates, L, "registration.kakuyu_anketu_ispravit")}`,
+          message(deps.templates, L, "message.registration.fix_select", {
+            registrations: safeBlock(
+              numbered(
+                rows.map((r) =>
+                  `<b>${esc(label(stateLabels, r.state, L))}</b>${
+                    r.decided_reason
+                      ? ` — ${esc(String(r.decided_reason))}`
+                      : ""
+                  }`
+                ),
+              ),
+            ),
+          }),
         );
       }
       const id = parts[1]
@@ -464,7 +598,11 @@ export async function registrationStep(
       if (!id) {
         throw new BotTemplateError(
           "VALIDATION_FAILED",
-          templateText(deps.templates, L, "registration.ne_ponyal_ssylku_ukazhite_nomer_iz_spiska"),
+          message(
+            deps.templates,
+            L,
+            "registration.ne_ponyal_ssylku_ukazhite_nomer_iz_spiska",
+          ),
         );
       }
       const reg = rows.find((r) => String(r.id) === id)!;
@@ -478,10 +616,14 @@ export async function registrationStep(
       state.role = String(reg.role);
       state.step = "fix_name";
       return save(
-        (reg.decided_reason
-          ? `${templateText(deps.templates, L, "registration.vopros_administratora")}: ${esc(String(reg.decided_reason))}\n`
-          : "") +
-          templateText(deps.templates, L, "registration.vvedite_imya_i_familiyu_ili_tochku_chtoby"),
+        message(
+          deps.templates,
+          L,
+          reg.decided_reason
+            ? "message.registration.fix_name_reason"
+            : "registration.vvedite_imya_i_familiyu_ili_tochku_chtoby",
+          { reason: reg.decided_reason },
+        ),
       );
     }
     if (cmd === "/delete") {
@@ -490,22 +632,50 @@ export async function registrationStep(
       // или текстовым эквивалентом "/delete confirm".
       if (!actor) {
         return save(
-          templateText(deps.templates, L, "registration.snachala_registratsiya_register"),
+          message(
+            deps.templates,
+            L,
+            "registration.snachala_registratsiya_register",
+          ),
         );
       }
       if (parts[1] !== "confirm") {
         return save({
-          text: templateText(deps.templates, L, "registration.podat_zapros_na_udalenie_ankety_i_dannyh"),
+          text: message(
+            deps.templates,
+            L,
+            "registration.podat_zapros_na_udalenie_ankety_i_dannyh",
+          ),
           buttons: [[
-            btn(pick(L, "Подтвердить удаление", "Жоюды растау"), "/delete confirm"),
-            btn(pick(L, "Отмена", "Болдырмау"), "/cancel"),
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "registration.podat_zapros_na_udalenie_ankety_i_dannyh",
+                "confirm",
+              ),
+              "/delete confirm",
+            ),
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "registration.podat_zapros_na_udalenie_ankety_i_dannyh",
+                "cancel",
+              ),
+              "/cancel",
+            ),
           ]],
         });
       }
       await submitPrivacyRequest(d, actor, { kind: "delete_profile" });
       for (const key of Object.keys(state)) delete state[key];
       return save(
-        templateText(deps.templates, L, "registration.zapros_na_udalenie_ankety_otpravlen_administratoru_neobyazatelnye"),
+        message(
+          deps.templates,
+          L,
+          "registration.zapros_na_udalenie_ankety_otpravlen_administratoru_neobyazatelnye",
+        ),
       );
     }
     // /start — короткое приветствие (полная справка остаётся на /help);
@@ -520,7 +690,7 @@ export async function registrationStep(
         state.language = input.trim();
         state.step = "name";
         return save(
-          templateText(deps.templates, L, "registration.vashe_imya_i_familiya"),
+          message(deps.templates, L, "registration.vashe_imya_i_familiya"),
         );
       case "name":
         if (!input.trim() || input.length > 300) {
@@ -528,15 +698,24 @@ export async function registrationStep(
         }
         state.full_name = input.trim();
         state.step = "phone";
-        return save(templateText(deps.templates, L, "registration.telefon_7"));
+        return save(message(deps.templates, L, "registration.telefon_7"));
       case "phone": {
         state.phone_e164 = normalizePhone(input);
         if (state.invite) {
           state.step = "consent";
-          return save(consentText(L, [
-            `<b>${esc(String(state.full_name))}</b>, ${esc(String(state.phone_e164))}`,
-            templateText(deps.templates, L, "registration.podtverdite_soglasie_na_obrabotku_imeni_i_telefona"),
-          ].join("\n")));
+          return save(
+            consentText(
+              L,
+              message(
+                deps.templates,
+                L,
+                "message.registration.invite_consent",
+                { full_name: state.full_name, phone: state.phone_e164 },
+              ),
+              deps.templates,
+              "message.registration.invite_consent",
+            ),
+          );
         }
         return save(await askBuilding(exec, state, L, deps.templates));
       }
@@ -545,7 +724,11 @@ export async function registrationStep(
         if (!id) {
           throw new BotTemplateError(
             "VALIDATION_FAILED",
-            templateText(deps.templates, L, "registration.vyberite_nomer_stroki_iz_spiska_add"),
+            message(
+              deps.templates,
+              L,
+              "registration.vyberite_nomer_stroki_iz_spiska_add",
+            ),
           );
         }
         // Роль и помещение берём заново: связи могли измениться между /add
@@ -559,29 +742,63 @@ export async function registrationStep(
         if (!conn) {
           throw new BotTemplateError(
             "INVALID_TRANSITION",
-            templateText(deps.templates, L, "registration.svyaz_uzhe_obrabotana_otpravte_add_zanovo"),
+            message(
+              deps.templates,
+              L,
+              "registration.svyaz_uzhe_obrabotana_otpravte_add_zanovo",
+            ),
           );
         }
         state.premises_id = id;
         state.kind = String(conn.kind);
         state.role = String(conn.role);
         state.step = "consent";
-        return save(consentText(L, [
-          `<b>${templateText(deps.templates, L, "registration.proverte")}</b>: ${esc(String(state.full_name))}, ${esc(String(state.phone_e164))}, ${esc(label(premiseLabels, state.kind, L))} ${esc(String(conn.code))}/${esc(String(conn.number))}, ${esc(label(roleLabels, state.role, L))}.`,
-          templateText(deps.templates, L, "registration.soglasie_na_obrabotku_etih_dannyh_dlya_registratsii") + ` ${cmdCode("/cancel")}`,
-        ].join("\n")));
+        return save(
+          consentText(
+            L,
+            message(
+              deps.templates,
+              L,
+              "message.registration.premises_consent",
+              {
+                full_name: state.full_name,
+                phone: state.phone_e164,
+                kind: label(premiseLabels, state.kind, L),
+                code: conn.code,
+                number: conn.number,
+                role: label(roleLabels, state.role, L),
+              },
+            ),
+            deps.templates,
+            "message.registration.premises_consent",
+          ),
+        );
       }
       case "building": {
         const selected = (state.buildings as Row[])[Number(input) - 1];
         if (!selected) {
-          throw new BotTemplateError("VALIDATION_FAILED", templateText(deps.templates, L, "registration.vyberite_nomer_stroki"));
+          throw new BotTemplateError(
+            "VALIDATION_FAILED",
+            message(deps.templates, L, "registration.vyberite_nomer_stroki"),
+          );
         }
         state.building_id = selected.id;
         state.step = "kind";
         return save({
-          text: templateText(deps.templates, L, "registration.tip_pomescheniya") + "\n" + KIND_TEXT(L),
+          text: message(deps.templates, L, "message.registration.kind", {
+            kinds: safeBlock(KIND_TEXT(L)),
+          }),
           buttons: KIND_OPTIONS.map((kind, i) => [
-            btn(label(premiseLabels, kind, L), String(i + 1)),
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.kind",
+                "kind",
+                { label: label(premiseLabels, kind, L) },
+              ),
+              String(i + 1),
+            ),
           ]),
         });
       }
@@ -589,15 +806,28 @@ export async function registrationStep(
         input = (KIND_OPTIONS[Number(input.trim()) - 1] ?? input) as string;
         if (!KIND_OPTIONS.includes(input.trim())) {
           return {
-            text: templateText(deps.templates, L, "registration.tip_pomescheniya") + "\n" + KIND_TEXT(L),
+            text: message(deps.templates, L, "message.registration.kind", {
+              kinds: safeBlock(KIND_TEXT(L)),
+            }),
             buttons: KIND_OPTIONS.map((kind, i) => [
-              btn(label(premiseLabels, kind, L), String(i + 1)),
+              btn(
+                messageButton(
+                  deps.templates,
+                  L,
+                  "message.registration.kind",
+                  "kind",
+                  { label: label(premiseLabels, kind, L) },
+                ),
+                String(i + 1),
+              ),
             ]),
           };
         }
         state.kind = input.trim();
         state.step = "number";
-        return save(templateText(deps.templates, L, "registration.nomer_pomescheniya"));
+        return save(
+          message(deps.templates, L, "registration.nomer_pomescheniya"),
+        );
       case "number": {
         const [premises] = await exec.query<Row>(
           "select id from premises where building_id=$1 and kind=$2 and number=$3 and status='active' and is_test=$4",
@@ -609,14 +839,29 @@ export async function registrationStep(
           ],
         );
         if (!premises) {
-          return templateText(deps.templates, L, "registration.pomeschenie_ne_naydeno_proverte_nomer_ili_obratites");
+          return message(
+            deps.templates,
+            L,
+            "registration.pomeschenie_ne_naydeno_proverte_nomer_ili_obratites",
+          );
         }
         state.premises_id = premises.id;
         state.step = "role";
         return save({
-          text: templateText(deps.templates, L, "registration.vasha_rol") + "\n" + ROLE_TEXT(L),
+          text: message(deps.templates, L, "message.registration.role", {
+            roles: safeBlock(ROLE_TEXT(L)),
+          }),
           buttons: ROLE_OPTIONS.map((role, i) => [
-            btn(label(roleLabels, role, L), String(i + 1)),
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.role",
+                "role",
+                { label: label(roleLabels, role, L) },
+              ),
+              String(i + 1),
+            ),
           ]),
         });
       }
@@ -624,10 +869,19 @@ export async function registrationStep(
         state.role = (ROLE_OPTIONS[Number(input.trim()) - 1] ??
           input.trim()) as string;
         state.step = "consent";
-        return save(consentText(L, [
-          `<b>${templateText(deps.templates, L, "registration.proverte")}</b>: ${esc(String(state.full_name))}, ${esc(String(state.phone_e164))}, ${esc(label(premiseLabels, state.kind, L))}, ${esc(label(roleLabels, state.role, L))}.`,
-          templateText(deps.templates, L, "registration.soglasie_na_obrabotku_etih_dannyh_dlya_registratsii") + ` ${cmdCode("/cancel")}`,
-        ].join("\n")));
+        return save(
+          consentText(
+            L,
+            message(deps.templates, L, "message.registration.consent", {
+              full_name: state.full_name,
+              phone: state.phone_e164,
+              kind: label(premiseLabels, state.kind, L),
+              role: label(roleLabels, state.role, L),
+            }),
+            deps.templates,
+            "message.registration.consent",
+          ),
+        );
       case "fix_name": {
         const name = input.trim() === "." ? "" : input.trim();
         if (name.length > 300) throw new ApiError("VALIDATION_FAILED");
@@ -641,7 +895,11 @@ export async function registrationStep(
         } else state.full_name = name;
         state.step = "fix_phone";
         return save(
-          templateText(deps.templates, L, "registration.telefon_7_ili_tochku_chtoby_ostavit_prezhniy"),
+          message(
+            deps.templates,
+            L,
+            "registration.telefon_7_ili_tochku_chtoby_ostavit_prezhniy",
+          ),
         );
       }
       case "fix_phone": {
@@ -655,17 +913,25 @@ export async function registrationStep(
           state.phone_e164 = jsonValue<Row>(reg.draft).phone_e164;
         }
         state.step = "consent";
-        return save(consentText(L, [
-          `<b>${templateText(deps.templates, L, "registration.proverte")}</b>: ${esc(String(state.full_name))}, ${esc(String(state.phone_e164))}. ${templateText(deps.templates, L, "registration.pomeschenie_i_rol_sohraneny")}`,
-          templateText(deps.templates, L, "registration.soglasie_na_obrabotku_etih_dannyh_dlya_registratsii") + ` ${cmdCode("/cancel")}`,
-        ].join("\n")));
+        return save(
+          consentText(
+            L,
+            message(deps.templates, L, "message.registration.fix_consent", {
+              full_name: state.full_name,
+              phone: state.phone_e164,
+            }),
+            deps.templates,
+            "message.registration.fix_consent",
+          ),
+        );
       }
       case "consent": {
         if (!["да", "иә"].includes(input.trim().toLowerCase())) {
           return consentText(
             L,
-            templateText(deps.templates, L, "registration.dlya_prodolzheniya_podtverdite_soglasie_otmena") +
-              ` ${cmdCode("/cancel")}`,
+            message(deps.templates, L, "message.registration.consent_retry"),
+            deps.templates,
+            "message.registration.consent_retry",
           );
         }
         state.consent = true;
@@ -680,12 +946,14 @@ export async function registrationStep(
             );
           }
           for (const key of Object.keys(state)) delete state[key];
-          return save(templateText(deps.templates, L, "registration.dostup_podtverzhden"));
+          return save(
+            message(deps.templates, L, "registration.dostup_podtverzhden"),
+          );
         }
         await submitRegistration(d, actor, state, telegramId);
         for (const key of Object.keys(state)) delete state[key];
         return save(
-          `${templateText(deps.templates, L, "registration.anketa_prinyata_dostup_ozhidaet_podtverzhdeniya")}\n${cmdCode("/status")} — ${templateText(deps.templates, L, "registration.status_ankety")}`,
+          message(deps.templates, L, "message.registration.submitted"),
         );
       }
     }
@@ -696,8 +964,17 @@ export async function registrationStep(
 /** Вопрос о языке анкеты: единственная сдвоенная реплика — язык ещё не выбран. */
 function languageStepText(store?: TemplateStore): BotReply {
   return {
-    text: templateText(store, "ru", "registration.language_prompt"),
-    buttons: [[btn("Русский (ru)", "ru"), btn("Қазақша (kk)", "kk")]],
+    text: message(store, "ru", "registration.language_prompt"),
+    buttons: [[
+      btn(
+        messageButton(store, "ru", "registration.language_prompt", "ru"),
+        "ru",
+      ),
+      btn(
+        messageButton(store, "ru", "registration.language_prompt", "kk"),
+        "kk",
+      ),
+    ]],
   };
 }
 
@@ -714,22 +991,37 @@ async function askBuilding(
   state.step = "building";
   state.buildings = buildings;
   return {
-    text:
-      templateText(store, L, "registration.vyberite_zdanie") + "\n" +
-      numbered(buildings.map((b) => `${esc(b.code)} (${esc(b.kind)})`)),
+    text: message(store, L, "message.registration.building", {
+      buildings: safeBlock(
+        numbered(buildings.map((b) => `${esc(b.code)} (${esc(b.kind)})`)),
+      ),
+    }),
     buttons: buildings.map((b, i) => [
-      btn(String(b.code), String(i + 1)),
+      btn(
+        messageButton(store, L, "message.registration.building", "building", {
+          code: b.code,
+        }),
+        String(i + 1),
+      ),
     ]),
   };
 }
 
 /** Шаг согласия: текст + кнопка подтверждения с текстовым эквивалентом. */
-function consentText(lang: Lang, text: string): BotReply {
+function consentText(
+  lang: Lang,
+  text: string,
+  store: TemplateStore | undefined,
+  key: string,
+): BotReply {
   return {
     text,
     buttons: [[
-      btn(lang === "kk" ? "Келісемін (иә)" : "Согласен (да)", lang === "kk" ? "иә" : "да"),
-      btn(lang === "kk" ? "Болдырмау" : "Отмена", "/cancel"),
+      btn(
+        messageButton(store, lang, key, "confirm"),
+        lang === "kk" ? "иә" : "да",
+      ),
+      btn(messageButton(store, lang, key, "cancel"), "/cancel"),
     ]],
   };
 }
@@ -747,7 +1039,10 @@ export function registrationScenarios(deps: RegistryDeps): ScenarioRegistry {
       ]);
       if (!profile || !ctx.actor?.emulation) throw new ApiError("FORBIDDEN");
       const reply = await registrationStep(
-        { ...(ctx.executor ? scopedDeps(deps, ctx.executor) : deps), templates: await loadTemplateStore(ctx.executor ?? deps.db) },
+        {
+          ...(ctx.executor ? scopedDeps(deps, ctx.executor) : deps),
+          templates: await loadTemplateStore(ctx.executor ?? deps.db),
+        },
         String(profile.telegram_user_id),
         input,
         ctx.actor,

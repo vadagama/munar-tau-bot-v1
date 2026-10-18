@@ -1,0 +1,54 @@
+.template-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 24px;
+  width: 100%;
+  align-items: start;
+}
+.template-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.template-preview {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.telegram-preview {
+  background: #e5eee3;
+  padding: 20px;
+  border-radius: 12px;
+}
+.telegram-message {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  color: #16252d;
+}
+.telegram-buttons {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+.telegram-button {
+  flex: 1;
+  text-align: center;
+  background: #d0e0d3;
+  border-radius: 6px;
+  padding: 10px;
+  overflow-wrap: anywhere;
+  color: #164c64;
+}
+@media (max-width: 850px) {
+  .template-workspace {
+    grid-template-columns: 1fr;
+  }
+  .template-preview {
+    position: static;
+  }
+}
