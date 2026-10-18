@@ -58,3 +58,6 @@ ADR фиксируют решения об аутентификации и ра�
 
 - [ADR-010: шаблоны сообщений ботов](decisions/010-bot-message-templates.md) — каталог, версии и отложенный рендер.
 - [Приёмка шаблонов сообщений](bot-message-templates-acceptance.md).
+
+- [ADR-011: целые сообщения и кнопки по сценариям](decisions/011-bot-message-scenarios.md).
+- [Приёмка каталога целых сообщений](bot-message-scenarios-acceptance.md).
