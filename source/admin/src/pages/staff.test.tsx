@@ -32,6 +32,25 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
+// getByRole вычисляет CSS видимости для всего большого дерева AntD в jsdom.
+// Для действий проверяем текст реальной кнопки, для полей — связь с label.
+const buttonText = (name: string) => (_: string, element: Element | null) =>
+  element?.textContent === name;
+function button(name: string, root: HTMLElement = document.body) {
+  const control = within(root).getByText(buttonText(name), { selector: "button" });
+  expect(control).toBeVisible();
+  expect(control).toBeEnabled();
+  return control;
+}
+async function findButton(name: string) {
+  const control = await screen.findByText(buttonText(name), { selector: "button" });
+  expect(control).toBeVisible();
+  expect(control).toBeEnabled();
+  return control;
+}
+function actionRegion(name: string) {
+  return screen.getByLabelText(name, { selector: '[role="region"]' });
+}
 const detail = {
   id: "worker",
   full_name: "Иван Тестов",
@@ -71,17 +90,15 @@ function setup() {
 it("редактирует перечень ролей в единственной шторке без домов и сроков", async () => {
   setup();
   render(<StaffPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Иван Тестов" }));
-  fireEvent.click(await screen.findByRole("button", { name: "Изменить роли" }));
+  fireEvent.click(await findButton("Иван Тестов"));
+  fireEvent.click(await findButton("Изменить роли"));
   expect(screen.getAllByRole("dialog")).toHaveLength(1);
-  fireEvent.click(screen.getByRole("checkbox", { name: "Дежурный" }));
+  fireEvent.click(screen.getByLabelText("Дежурный"));
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Дежурство" },
   });
   fireEvent.click(
-    within(screen.getByRole("dialog")).getByRole("button", {
-      name: "Сохранить роли",
-    }),
+    button("Сохранить роли", actionRegion("Изменение ролей")),
   );
   await waitFor(() =>
     expect(apiFetch).toHaveBeenCalledWith(
@@ -103,9 +120,9 @@ it("редактирует перечень ролей в единственно
 it("прекращение полномочий показывает обязанности и отправляет пустой перечень с причиной", async () => {
   setup();
   render(<StaffPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Иван Тестов" }));
+  fireEvent.click(await findButton("Иван Тестов"));
   fireEvent.click(
-    await screen.findByRole("button", { name: "Прекратить полномочия" }),
+    await findButton("Прекратить полномочия"),
   );
   expect(
     (await screen.findAllByText(/Задания: 2/)).some((el) =>
@@ -115,10 +132,9 @@ it("прекращение полномочий показывает обяза�
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Завершение работы" },
   });
-  const buttons = within(screen.getByRole("dialog")).getAllByRole("button", {
-    name: "Прекратить полномочия",
-  });
-  fireEvent.click(buttons.find((b) => !b.hasAttribute("disabled"))!);
+  fireEvent.click(
+    button("Прекратить полномочия", actionRegion("Прекращение полномочий")),
+  );
   await waitFor(() =>
     expect(apiFetch).toHaveBeenCalledWith(
       "/v1/staff/worker/roles",
@@ -162,25 +178,23 @@ it("добавляет зарегистрированного пользоват
   });
   render(<StaffPage />);
   fireEvent.click(
-    await screen.findByRole("button", { name: "Добавить сотрудника" }),
+    await findButton("Добавить сотрудника"),
   );
   expect(apiFetch).toHaveBeenCalledWith("/v1/staff/candidates/search", {
     method: "POST",
     body: { query: "" },
   });
   fireEvent.mouseDown(
-    screen.getByRole("combobox", { name: "Зарегистрированный пользователь" }),
+    screen.getByLabelText("Зарегистрированный пользователь", { selector: "input" }),
   );
   fireEvent.click(await screen.findByText("Новый Тестов · +70000000001"));
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/staff/new"));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Дежурный" }));
+  fireEvent.click(screen.getByLabelText("Дежурный"));
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Приём на работу" },
   });
   fireEvent.click(
-    within(screen.getByRole("dialog")).getByRole("button", {
-      name: "Добавить сотрудника",
-    }),
+    button("Добавить сотрудника", actionRegion("Добавить сотрудника")),
   );
   await waitFor(() =>
     expect(apiFetch).toHaveBeenCalledWith(
@@ -211,22 +225,20 @@ it("409 сохраняет выбранные роли и причину, обн
     return original(path, opts);
   });
   render(<StaffPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Иван Тестов" }));
-  fireEvent.click(await screen.findByRole("button", { name: "Изменить роли" }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Дежурный" }));
+  fireEvent.click(await findButton("Иван Тестов"));
+  fireEvent.click(await findButton("Изменить роли"));
+  fireEvent.click(screen.getByLabelText("Дежурный"));
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Новая обязанность" },
   });
   fireEvent.click(
-    within(screen.getByRole("dialog")).getByRole("button", {
-      name: "Сохранить роли",
-    }),
+    button("Сохранить роли", actionRegion("Изменение ролей")),
   );
   await screen.findByText(/Данные обновлены, ваш ввод сохранён/);
   expect(screen.getByLabelText("Причина изменения")).toHaveValue(
     "Новая обязанность",
   );
-  expect(screen.getByRole("checkbox", { name: "Дежурный" })).toBeChecked();
+  expect(screen.getByLabelText("Дежурный")).toBeChecked();
   expect(writes).toBe(1);
 });
 
@@ -239,8 +251,8 @@ it("ошибка фонового чтения сохраняет открыто
     return original(path, opts);
   });
   render(<StaffPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Иван Тестов" }));
-  fireEvent.click(await screen.findByRole("button", { name: "Изменить роли" }));
+  fireEvent.click(await findButton("Иван Тестов"));
+  fireEvent.click(await findButton("Изменить роли"));
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Сохранить мой ввод" },
   });
