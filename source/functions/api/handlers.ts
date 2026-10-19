@@ -511,7 +511,7 @@ async function handleEmulationSimulate(ctx: RouteContext): Promise<RouteResult> 
       text: optionalString(body, "input"),
     },
   );
-  return { body: { scenario_id: result.scenarioId, reply: result.reply } };
+  return { body: { scenario_id: result.scenarioId, reply: result.reply, buttons: result.buttons, menu: result.menu } };
 }
 
 // ── Таблица маршрутов VS-1 ─────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import { replyText, type InlineButton } from "../../bot/keyboard.ts";
 // Операции эмуляции (пилот, HLD 10.8): только техадминистратор, только
 // тестовые персоны (is_test). Эмулированный Actor собирается по персоне —
 // права оценивает PDP, привилегированные действия и управление недоступны;
@@ -161,6 +162,8 @@ export async function endEmulation(
 export interface SimulateResult {
   scenarioId: string;
   reply: string;
+  buttons?: InlineButton[][];
+  menu?: (InlineButton & { scenario: string })[][];
 }
 
 /**
@@ -195,6 +198,6 @@ export async function simulate(
       entityId: actor.emulation?.sessionId,
       meta: { scenario: scenarioId },
     }));
-    return { scenarioId, reply };
+    return { scenarioId, reply: replyText(reply), ...(typeof reply === "string" ? {} : { buttons: reply.buttons, menu: reply.menu }) };
   });
 }

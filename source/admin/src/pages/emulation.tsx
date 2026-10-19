@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   Modal,
+  Select,
   Space,
   Spin,
   Table,
@@ -21,6 +22,7 @@ import { ApiClientError, apiFetch } from "../lib/api";
 import type { EmulationPersonsResponse, EmulationPersonJson } from "../lib/types";
 
 const ROLE_LABELS: Record<string, string> = {
+  resident: "Житель",
   administrator: "Администратор",
   deputy: "Заместитель",
   chairman: "Председатель",
@@ -36,6 +38,7 @@ const ROLE_LABELS: Record<string, string> = {
 // назначений — эмуляция не расширяет полномочия техадминистратора.
 export function EmulationPage() {
   const {identity}=useCabinetIdentity();
+  const [role, setRole] = useState<string>("all");
   const [persons, setPersons] = useState<EmulationPersonJson[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +73,7 @@ export function EmulationPage() {
       });
       setCreateOpen(false);
       form.resetFields();
-      setNotice(`Тестовая персона «${values.full_name}» создана. Роль назначает председатель.`);
+      setNotice(`Тестовая персона «${values.full_name}» создана как житель без служебных назначений.`);
       await load();
     } catch (requestError) {
       setError(requestError instanceof ApiClientError ? requestError.message : "Не удалось создать персону");
@@ -104,7 +107,7 @@ export function EmulationPage() {
       key: "roles",
       render: (_: unknown, record: EmulationPersonJson) =>
         record.assignments.length === 0 ? (
-          <Typography.Text type="secondary">нет — вход без роли (AUTH-01)</Typography.Text>
+          <Tag>Житель</Tag>
         ) : (
           <Space size={4} wrap>
             {record.assignments.map((assignment) => (
@@ -142,11 +145,16 @@ export function EmulationPage() {
         style={{ marginBottom: 16 }}
         message="Эмуляция доступна только под тестовыми персонами (is_test). Все действия журналируются с реальным актором и эмулируемой персоной; привилегированные действия недоступны."
       />
+      <Alert type="info" showIcon style={{ marginBottom: 16 }}
+        message="Житель — тестовая персона без служебных назначений. Доступ к помещениям появляется после подтверждения связи через регистрацию. Служебные роли назначает председатель." />
+      <Select aria-label="Роль тестовой персоны" value={role} onChange={setRole}
+        style={{ minWidth: 200, marginBottom: 16 }}
+        options={[{ value: "all", label: "Все роли" }, ...Object.entries(ROLE_LABELS).map(([value, label]) => ({ value, label }))]} />
       <RegistrationSimulator active={!!identity?.me.emulation}/>
       {loading ? (
         <Spin size="large" style={{ display: "block", margin: "60px auto" }} />
       ) : (
-        <Table rowKey={(record) => record.person.id} size="small" columns={columns} dataSource={persons} pagination={false} />
+        <Table rowKey={(record) => record.person.id} size="small" columns={columns} scroll={{ x: 600 }} dataSource={persons.filter(person => role === "all" || (role === "resident" ? person.assignments.length === 0 : person.assignments.some(assignment => assignment.role === role)))} pagination={false} />
       )}
       <Modal
         title="Новая тестовая персона"
@@ -166,7 +174,7 @@ export function EmulationPage() {
           </Form.Item>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Персона создаётся с флагом is_test и синтетическими Telegram и телефоном.
-            Чтобы эмулировать роль, председателю нужно назначить её персоне через «Назначения».
+            Новая персона — житель без служебных назначений. Для роли сотрудника председатель назначает полномочия через «Сотрудники».
           </Typography.Text>
         </Form>
       </Modal>

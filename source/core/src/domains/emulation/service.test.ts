@@ -302,4 +302,12 @@ describe("simulate (LLD-03 §3.16, критерий среза)", () => {
     expect(entry.emulationSessionId).toBe(sessionId);
     expect(entry.meta).toMatchObject({ scenario: "echo" });
   });
+  it("сохраняет кнопки общего сценария вместе с текстом", async () => {
+    const buttons = [[{ text: "Русский", data: "ru" }]];
+    registry.register({ id: "keyboard", description: "Кнопки", run: async () => ({ text: "Язык", buttons }) });
+    const { actor } = await emulatedPersonaActor();
+    const result = await simulate({ ...deps, scenarios: registry }, actor, { scenarioId: "keyboard" });
+    expect(result).toEqual({ scenarioId: "keyboard", reply: "Язык", buttons });
+  });
+
 });

@@ -1,3 +1,4 @@
+import type { BotReply } from "./keyboard.ts";
 import type { DbExecutor } from "../db/client.ts";
 import type { Actor } from "../pdp/types.ts";
 // Реестр сценариев бота — общий модуль для webhook (VS-2) и симулятора
@@ -17,7 +18,7 @@ export interface BotScenarioContext {
 export interface BotScenario {
   id: string;
   description: string;
-  run(input: string, ctx: BotScenarioContext): Promise<string>;
+  run(input: string, ctx: BotScenarioContext): Promise<BotReply>;
 }
 
 /** Реестр известных сценариев. Регистрация — при старте функции бота. */
