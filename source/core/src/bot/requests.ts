@@ -1,18 +1,15 @@
 import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
 import { t as templateText } from "../templates/store.ts";
-import { listRequestVisits, updateVisit } from "../domains/tasks/visits.ts";
 import { label, premiseLabels } from "../locales/registry.ts";
 import { preview, requestCardText, requestListText } from "./request-text.ts";
 import {
   buildingCodeMatches,
   esc,
   fmtDate,
-  fmtInterval,
   normalizeBuildingCode,
   numbered,
 } from "./text.ts";
-import { visitStateText } from "../locales/tasks.ts";
 import { registrationHelp } from "./help.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
@@ -38,9 +35,6 @@ import {
 
 export const REQUEST_COMMANDS = [
   "/result",
-  "/visits",
-  "/confirmvisit",
-  "/missedvisit",
   "/newrequest",
   "/editrequest",
   "/deletedraft",
@@ -201,73 +195,6 @@ export async function requestStep(
         },
       );
     }
-    if (command === "/visits") {
-      const r = await find();
-      const visits = await listRequestVisits(d, actor, String(r.id));
-      state.scenario = "requests";
-      state.visit_options = visits;
-      const lines = visits.map((v) =>
-        `${fmtInterval(v.interval_start, v.interval_end)} — ${
-          esc(visitStateText(v.status, L))
-        }`
-      );
-      return save({
-        text: message(deps.templates, L, "message.requests.visits", {
-          visits: safeBlock(
-            lines.length
-              ? numbered(lines)
-              : templateText(deps.templates, L, "requests.vizitov_net"),
-          ),
-        }),
-        // Согласование визита — кнопкой по строке списка.
-        buttons: visits.map((v, i) => [
-          btn(
-            messageButton(
-              deps.templates,
-              L,
-              "message.requests.visits",
-              "confirm",
-              { index: i + 1 },
-            ),
-            `/confirmvisit ${r.number} ${i + 1}`,
-          ),
-        ]),
-      });
-    }
-    if (command === "/confirmvisit" || command === "/missedvisit") {
-      const visits = (state.visit_options as Row[]) ?? [];
-      const visit = visits[Number(number) - 1];
-      if (!visit) {
-        throw new BotTemplateError(
-          "VALIDATION_FAILED",
-          templateText(
-            deps.templates,
-            L,
-            "requests.snachala_otkroyte_visits_nomer_obrascheniya",
-          ),
-        );
-      }
-      visits[Number(number) - 1] = await updateVisit(
-        d,
-        actor,
-        String(visit.id),
-        {
-          version: visit.version,
-          action: command === "/confirmvisit" ? "confirm" : "no_show",
-          reason: args.join(" "),
-        },
-        opKey,
-      );
-      return save(
-        command === "/confirmvisit"
-          ? templateText(deps.templates, L, "requests.vizit_soglasovan")
-          : templateText(
-            deps.templates,
-            L,
-            "requests.soobschenie_o_neyavke_peredano_administratoru_dlya_proverki",
-          ),
-      );
-    }
     const places = async () =>
       exec.query<Row>(
         `select p.id,p.building_id,p.number,p.kind,b.name,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1 and c.status='active' and p.status='active' and p.is_test=$2 order by b.code,p.kind,p.number`,
@@ -372,6 +299,10 @@ export async function requestStep(
         btn(
           messageButton(deps.templates, L, "message.requests.verify", "send"),
           "/sendrequest",
+        ),
+        btn(
+          messageButton(deps.templates, L, "message.requests.verify", "cancel"),
+          "/requestcancel",
         ),
       ]],
     });
@@ -631,7 +562,7 @@ export async function requestStep(
       return save(
         message(deps.templates, L, "message.requests.sent", {
           number: sent.number,
-          deadline: fmtDate(sent.first_response_due_at),
+          registered: fmtDate(sent.open_at),
         }),
       );
     }

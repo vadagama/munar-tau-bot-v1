@@ -4,7 +4,6 @@ import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
 import { ActionPanel } from "./action-panel";
 import { TaskProblems } from "./task-problems";
-import { TaskVisits } from "./task-visits";
 import { TaskReportForm } from "./task-report";
 import { BoardView, ViewToggle, useBoardView } from "./board";
 import { CardDrawer } from "./card-drawer";
@@ -506,7 +505,6 @@ export function TasksPage() {
               </Button>
             ))}
           </Space>
-          <TaskVisits task={card} onChanged={() => open(card.id, true)} />
           <Typography.Title level={3}>Отчёты</Typography.Title>
           <List
             dataSource={reports}

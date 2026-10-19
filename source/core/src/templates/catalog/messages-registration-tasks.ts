@@ -554,7 +554,7 @@ const defs: TemplateDef[] = [
             "{methodology_date}",
           ) + "\n"
           : "") +
-        "{visits}" + old("tasks.srok", l) + ": {due_at}{actions}",
+        old("tasks.srok", l) + ": {due_at}{actions}",
       taskButtons,
     )
   ),

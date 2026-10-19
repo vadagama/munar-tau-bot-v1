@@ -165,25 +165,6 @@ it("409 обновляет версию задания, сохраняет вв�
  })));
 });
 
-it("вложенная форма визита использует карточку и защищает введённое описание при отмене", async () => {
- const row={...task,state:"in_progress"};
- vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/tasks"?{items:[row]}:row);
- render(<TasksPage />);
- fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
- fireEvent.click(await screen.findByText("Предложить визит",{selector:"button > span"}));
- const drawer=screen.getByRole("dialog");
- expect(screen.getAllByRole("dialog")).toHaveLength(1);
- fireEvent.change(within(drawer).getByLabelText("Описание визита"),{target:{value:"Проверить кран"}});
- fireEvent.click(within(drawer).getByText("Отмена",{selector:"button > span"}));
- expect(within(drawer).getByText("Выйти без сохранения введённых данных?")).toBeVisible();
- fireEvent.click(within(drawer).getByText("Продолжить редактирование",{selector:"button > span"}));
- expect(within(drawer).getByLabelText("Описание визита")).toHaveValue("Проверить кран");
- fireEvent.click(within(drawer).getByText("Отмена",{selector:"button > span"}));
- fireEvent.click(within(drawer).getByText("Выйти без сохранения",{selector:"button > span"}));
- expect(within(drawer).queryByLabelText("Описание визита")).toBeNull();
- expect(within(drawer).getByText("Проверить герметичность")).toBeVisible();
-});
-
 it("вложенная форма связи найденной проблемы остаётся в карточке и защищает решение от потери", async () => {
  const row={...task,can_manage:true,log:[{id:"problem",meta:{action:"found_problem",location:"Подвал",description:"Найдена течь"}}]};
  vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/tasks"?{items:[row]}:row);
