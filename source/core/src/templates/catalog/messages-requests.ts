@@ -475,9 +475,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.sohranit_chernovik",
     ],
     "ru":
-      "Проверьте:\nВид: {kind}\nМесто: {place}\n{description}\nПолный текст сохранён.\nДобавьте файлы (необязательно), затем /sendrequest. При сбое файла обращение можно отправить. /requestcancel — сохранить черновик.",
+      "Проверьте:\nВид: {kind}\nМесто: {place}\n{description}\nПолный текст сохранён.\n/sendrequest — отправить. /requestcancel — сохранить черновик.",
     "kk":
-      "Тексеріңіз:\nТүрі: {kind}\nОрны: {place}\n{description}\nТолық мәтін сақталды.\nФайл қосыңыз (міндетті емес), содан кейін /sendrequest. Файл сәтсіз болса, өтінішті жібере аласыз. /requestcancel — жобаны сақтау.",
+      "Тексеріңіз:\nТүрі: {kind}\nОрны: {place}\n{description}\nТолық мәтін сақталды.\n/sendrequest — жіберу. /requestcancel — жобаны сақтау.",
     "variables": [
       {
         "name": "description",
@@ -519,6 +519,85 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
             },
           ],
         ],
+      },
+    ],
+  },
+  {
+    "key": "message.requests.attachments_prompt",
+    "section": "requests",
+    "title": "Файлы — вопрос",
+    "description":
+      "Полное сообщение бота: предложение приложить файлы к обращению (REQ-03)",
+    "scenario": "Новое обращение",
+    "command": "/newrequest",
+    "ru": "Добавите файл или фото для подтверждения проблемы?",
+    "kk": "Мәселені растау үшін файл немесе фото қосасыз ба?",
+    "variables": [],
+    "buttons": [
+      { "id": "yes", "ru": "Да", "kk": "Иә" },
+      { "id": "no", "ru": "Нет", "kk": "Жоқ" },
+    ],
+    "examples": [
+      {
+        "id": "default",
+        "title": "Пример",
+        "ru": {},
+        "kk": {},
+        "buttons": [[{ "id": "yes" }, { "id": "no" }]],
+      },
+    ],
+  },
+  {
+    "key": "message.requests.attachments_wait",
+    "section": "requests",
+    "title": "Файлы — ожидание медиа",
+    "description":
+      "Полное сообщение бота: приглашение прикрепить файл или фото (REQ-03)",
+    "scenario": "Новое обращение",
+    "command": "/newrequest",
+    "ru":
+      "Прикрепите файл или фото одним сообщением.",
+    "kk":
+      "Файлды немесе фотоны бір хабарламамен жіберіңіз.",
+    "variables": [],
+    "buttons": [
+      { "id": "yes", "ru": "Да", "kk": "Иә" },
+      { "id": "no", "ru": "Нет, без файлов", "kk": "Жоқ, файлсыз" },
+    ],
+    "examples": [
+      {
+        "id": "default",
+        "title": "Пример",
+        "ru": {},
+        "kk": {},
+        "buttons": [[{ "id": "yes" }, { "id": "no" }]],
+      },
+    ],
+  },
+  {
+    "key": "message.requests.attachments_more",
+    "section": "requests",
+    "title": "Файлы — добавить ещё",
+    "description":
+      "Полное сообщение бота: файл принят, вопрос о следующем файле (REQ-03)",
+    "scenario": "Новое обращение",
+    "command": "/newrequest",
+    "ru":
+      "Файл принят в очередь на сохранение. Хотите добавить ещё файл или фото?",
+    "kk":
+      "Файл сақтау кезегіне қабылданды. Тағы файл немесе фото қосқыңыз келе ме?",
+    "variables": [],
+    "buttons": [
+      { "id": "yes", "ru": "Да", "kk": "Иә" },
+      { "id": "no", "ru": "Нет, отправить", "kk": "Жоқ, жіберу" },
+    ],
+    "examples": [
+      {
+        "id": "default",
+        "title": "Пример",
+        "ru": {},
+        "kk": {},
+        "buttons": [[{ "id": "yes" }, { "id": "no" }]],
       },
     ],
   },

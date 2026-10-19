@@ -1,5 +1,7 @@
 import { templateNotice } from "../templates/notice.ts";
 import { t as templateText } from "../templates/store.ts";
+import { messageButton } from "../templates/message.ts";
+import { type BotReply, btn } from "./keyboard.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import type { Row } from "../domains/registry/validation.ts";
 import { jsonValue } from "../domains/registry/validation.ts";
@@ -22,7 +24,7 @@ export async function queueRequestFile(
   message: Row,
   updateId: unknown,
   bot: BotKind = "resident",
-): Promise<string> {
+): Promise<BotReply> {
   const actor = await actorForTelegram(deps, telegramId);
   if (!actor) throw new ApiError("FORBIDDEN");
   const L: Lang = actor.profile.language ?? "ru";
@@ -71,6 +73,27 @@ export async function queueRequestFile(
   );
   if (taskFile) {
     return templateText(deps.templates, L, "requests.fayl_zadaniya_prinyat_v_ochered_dozhdites_soobscheniya");
+  }
+  // Файловый диалог (REQ-03): после принятого медиа — синхронное «Хотите
+  // добавить ещё?»; сохранение остаётся асинхронным («Файл сохранён» — из джобы).
+  if (
+    ["attachments", "attachments_wait", "attachments_more"].includes(
+      String(state.step ?? ""),
+    )
+  ) {
+    state.step = "attachments_more";
+    await deps.db.query(
+      "update bot_dialog set state=$2::text::jsonb,updated_at=now() where telegram_user_id=$1",
+      [telegramId, JSON.stringify(state)],
+    );
+    const yesNo = (key: string) => [[
+      btn(messageButton(deps.templates, L, key, "yes"), L === "kk" ? "иә" : "да"),
+      btn(messageButton(deps.templates, L, key, "no"), L === "kk" ? "жоқ" : "нет"),
+    ]];
+    return {
+      text: templateText(deps.templates, L, "message.requests.attachments_more"),
+      buttons: yesNo("message.requests.attachments_more"),
+    };
   }
   return templateText(deps.templates, L, "requests.fayl_prinyat_v_ochered_poka_ne_sohranen");
 }

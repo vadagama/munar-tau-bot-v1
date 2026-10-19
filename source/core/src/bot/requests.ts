@@ -332,6 +332,42 @@ export async function requestStep(
     // вместо шага адресата; адрес сохраняется как написан, без распознавания.
     const addressPrompt = () =>
       message(deps.templates, L, "message.requests.address");
+    // Диалог файлов (REQ-03): вопрос → медиа → «ещё?» → проверка.
+    const yesNoButtons = (key: string) => [[
+      btn(messageButton(deps.templates, L, key, "yes"), L === "kk" ? "иә" : "да"),
+      btn(messageButton(deps.templates, L, key, "no"), L === "kk" ? "жоқ" : "нет"),
+    ]];
+    const attachmentsPrompt = () => ({
+      text: message(deps.templates, L, "message.requests.attachments_prompt"),
+      buttons: yesNoButtons("message.requests.attachments_prompt"),
+    });
+    const attachmentsWaitPrompt = () => ({
+      text: message(deps.templates, L, "message.requests.attachments_wait"),
+      buttons: yesNoButtons("message.requests.attachments_wait"),
+    });
+    const attachmentsMorePrompt = () => ({
+      text: message(deps.templates, L, "message.requests.attachments_more"),
+      buttons: yesNoButtons("message.requests.attachments_more"),
+    });
+    const verifyCard = () => ({
+      text: message(deps.templates, L, "message.requests.verify", {
+        kind: messageButton(
+          deps.templates,
+          L,
+          "message.requests.kind",
+          REQUEST_KINDS.find((k) => k === state.kind) ?? "request",
+        ),
+        place: state.place_label ??
+          templateText(deps.templates, L, "requests.net"),
+        description: preview(String(state.description ?? ""), 1200),
+      }),
+      buttons: [[
+        btn(
+          messageButton(deps.templates, L, "message.requests.verify", "send"),
+          "/sendrequest",
+        ),
+      ]],
+    });
     const commonPlacePrompt = () =>
       message(deps.templates, L, "message.requests.common_place", {
         name: preview(state.common_name ?? state.common_code ?? "", 50),
@@ -826,26 +862,41 @@ export async function requestStep(
         })
         : await createRequest(d, actor, inputRow);
       state.draft_id = row.id;
-      state.step = "verify";
-      return save({
-        text: message(deps.templates, L, "message.requests.verify", {
-          kind: messageButton(
-            deps.templates,
-            L,
-            "message.requests.kind",
-            kind ?? "request",
-          ),
-          place: state.place_label ??
-            templateText(deps.templates, L, "requests.net"),
-          description: preview(input, 1200),
-        }),
-        buttons: [[
-          btn(
-            messageButton(deps.templates, L, "message.requests.verify", "send"),
-            "/sendrequest",
-          ),
-        ]],
-      });
+      state.description = input;
+      state.step = "attachments";
+      return save(attachmentsPrompt());
+    }
+    if (state.step === "attachments") {
+      const token = input.trim().toLowerCase();
+      if (["нет", "жоқ"].includes(token)) {
+        state.step = "verify";
+        return save(verifyCard());
+      }
+      if (["да", "иә"].includes(token)) {
+        state.step = "attachments_wait";
+        return save(attachmentsWaitPrompt());
+      }
+      return save(attachmentsPrompt());
+    }
+    if (state.step === "attachments_wait") {
+      // Текст вместо медиа — повтор приглашения; «нет» завершает файловый цикл.
+      if (["нет", "жоқ"].includes(input.trim().toLowerCase())) {
+        state.step = "verify";
+        return save(verifyCard());
+      }
+      return save(attachmentsWaitPrompt());
+    }
+    if (state.step === "attachments_more") {
+      const token = input.trim().toLowerCase();
+      if (["нет", "жоқ"].includes(token)) {
+        state.step = "verify";
+        return save(verifyCard());
+      }
+      if (["да", "иә"].includes(token)) {
+        state.step = "attachments_wait";
+        return save(attachmentsWaitPrompt());
+      }
+      return save(attachmentsMorePrompt());
     }
     if (state.draft_id) {
       return save(

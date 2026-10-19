@@ -1,11 +1,11 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { requestCardText, requestListText } from "./request-text.ts";
 import { requestStep } from "./requests.ts";
 import { replyText } from "./keyboard.ts";
 import { MemoryAuditRepo } from "../testing/memory.ts";
 import type { DbClient, DbExecutor } from "../db/client.ts";
 import type { Actor } from "../pdp/types.ts";
-import { message, messagePreview } from "../templates/message.ts";
+import { message, messageButton, messagePreview } from "../templates/message.ts";
 import { getTemplate } from "../templates/catalog/index.ts";
 import { t as templateText, type TemplateStore } from "../templates/store.ts";
 import type { Row } from "../domains/registry/validation.ts";
@@ -334,7 +334,10 @@ it("в доме: выбор дома кнопкой → текст места �
     message(undefined, "ru", "message.requests.common_place", { name: "Дом 2" }),
   );
   await requestStep(d, "1", "подъезд 2", actor);
-  const verify = await requestStep(d, "1", "Не работает освещение", actor);
+  await requestStep(d, "1", "Не работает освещение", actor);
+  // После описания — файловый диалог; проверка после него (REQ-03).
+  expect(state.step).toBe("attachments");
+  const verify = await requestStep(d, "1", "нет", actor);
   expect(replyText(verify)).toBe(
     message(undefined, "ru", "message.requests.verify", {
       kind: "Жалоба",
@@ -420,8 +423,10 @@ it("без привязанных помещений: адрес одной ст
   expect(state.building_id).toBe(null);
   expect(state.place_label).toBe("Дом 107/2, кв 40");
   expect(state.step).toBe("description");
-  const verify = await requestStep(d, "1", "Не работает лифт", actor);
-  expect(replyText(verify)).toBe(
+  await requestStep(d, "1", "Не работает лифт", actor);
+  expect(state.step).toBe("attachments");
+  const card = await requestStep(d, "1", "нет", actor);
+  expect(replyText(card)).toBe(
     message(undefined, "ru", "message.requests.verify", {
       kind: "Жалоба",
       place: "Дом 107/2, кв 40",
@@ -476,7 +481,13 @@ it("вид → место → описание: выбранный вид сох
   await requestStep(d, "1", "1", actor);
   await requestStep(d, "1", "1", actor);
   const verify = await requestStep(d, "1", "Не работает освещение", actor);
+  // После описания — файловый диалог, проверка позже (REQ-03).
   expect(replyText(verify)).toBe(
+    templateText(undefined, "ru", "message.requests.attachments_prompt"),
+  );
+  expect(state.step).toBe("attachments");
+  const card = await requestStep(d, "1", "нет", actor);
+  expect(replyText(card)).toBe(
     message(undefined, "ru", "message.requests.verify", {
       kind: "Вопрос",
       place: "Дом 1, Квартира 4",
@@ -499,8 +510,10 @@ it("/editrequest: черновик — сначала вид, затем тек�
   expect(replyText(prompt)).toBe(
     templateText(undefined, "ru", "requests.vvedite_novyy_tekst_chernovika"),
   );
-  const verify = await requestStep(d, "1", "Не работает освещение", actor);
-  expect(replyText(verify)).toBe(
+  await requestStep(d, "1", "Не работает освещение", actor);
+  expect(state.step).toBe("attachments");
+  const card = await requestStep(d, "1", "нет", actor);
+  expect(replyText(card)).toBe(
     message(undefined, "ru", "message.requests.verify", {
       kind: "Жалоба",
       place: "Дом 1, Квартира 4",
@@ -609,3 +622,86 @@ it.each(["ru", "kk"] as const)(
     expect(replyText(card)).not.toContain("<электрику>");
   },
 );
+
+describe("файловый диалог (REQ-03, R2.4)", () => {
+  it("цикл «да → ожидание → ещё? → нет → проверка» проходим", async () => {
+    const state: Row = {};
+    const d = deps({ count: 1, state });
+    await requestStep(d, "1", "/newrequest", actor);
+    await requestStep(d, "1", "2", actor);
+    await requestStep(d, "1", "1", actor);
+    await requestStep(d, "1", "1", actor);
+    await requestStep(d, "1", "Не работает освещение", actor);
+    expect(state.step).toBe("attachments");
+    // Недопустимый ввод повторяет вопрос.
+    const again = await requestStep(d, "1", "не знаю", actor);
+    expect(state.step).toBe("attachments");
+    expect(replyText(again)).toBe(
+      templateText(undefined, "ru", "message.requests.attachments_prompt"),
+    );
+    // «да» — ожидание медиа.
+    const wait = await requestStep(d, "1", "да", actor);
+    expect(state.step).toBe("attachments_wait");
+    expect(replyText(wait)).toBe(
+      templateText(undefined, "ru", "message.requests.attachments_wait"),
+    );
+    // Текст вместо медиа — повтор приглашения.
+    const still = await requestStep(d, "1", "я передумал", actor);
+    expect(state.step).toBe("attachments_wait");
+    expect(replyText(still)).toBe(
+      templateText(undefined, "ru", "message.requests.attachments_wait"),
+    );
+    // «нет» без файлов — карточка проверки с [Отправить].
+    const card = await requestStep(d, "1", "нет", actor);
+    expect(state.step).toBe("verify");
+    expect(replyText(card)).toBe(
+      message(undefined, "ru", "message.requests.verify", {
+        kind: "Вопрос",
+        place: "Дом 1, Квартира 4",
+        description: "Не работает освещение",
+      }),
+    );
+    expect(
+      typeof card === "object" &&
+        card.buttons?.[0]?.[0]?.data === "/sendrequest",
+    ).toBe(true);
+  });
+
+  it("«ещё? → да» возвращается к ожиданию медиа, «ещё? → нет» — на проверку", async () => {
+    const state: Row = { step: "attachments_more" };
+    const d = deps({ count: 1, state });
+    const wait = await requestStep(d, "1", "да", actor);
+    expect(state.step).toBe("attachments_wait");
+    expect(replyText(wait)).toBe(
+      templateText(undefined, "ru", "message.requests.attachments_wait"),
+    );
+    await requestStep(d, "1", "нет", actor); // из ожидания — на проверку
+    expect(state.step).toBe("verify");
+    const more: Row = { step: "attachments_more", kind: "complaint" };
+    const d2 = deps({ count: 1, state: more });
+    const card = await requestStep(d2, "1", "нет", actor);
+    expect(more.step).toBe("verify");
+    expect(replyText(card)).toBe(
+      message(undefined, "ru", "message.requests.verify", {
+        kind: "Жалоба",
+        place: templateText(undefined, "ru", "requests.net"),
+        description: "",
+      }),
+    );
+  });
+
+  it("кнопки да/нет резолвятся из каталога на обоих языках", () => {
+    for (const key of [
+      "message.requests.attachments_prompt",
+      "message.requests.attachments_wait",
+      "message.requests.attachments_more",
+    ]) {
+      const def = getTemplate(key)!;
+      expect(def.buttons?.map((b) => b.id)).toEqual(["yes", "no"]);
+      for (const lang of ["ru", "kk"] as const) {
+        expect(messageButton(undefined, lang, key, "yes")).toBeTruthy();
+        expect(messageButton(undefined, lang, key, "no")).toBeTruthy();
+      }
+    }
+  });
+});
