@@ -10,6 +10,11 @@
     "kk": "Жаңа өтінім: {fullname}, {premisetextkk}"
   },
   {
+    "key": "notices.registrations_service_submit_registration_lite",
+    "ru": "Новая анкета без помещения: {fullname}",
+    "kk": "Үй-жайсыз жаңа өтінім: {fullname}"
+  },
+  {
     "key": "notices.registrations_service_review_registration_3",
     "ru": "Состояние регистрации: {state_ru}.{reason}",
     "kk": "Тіркелу күйі: {state_kk}.{reason}"

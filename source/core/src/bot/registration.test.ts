@@ -50,9 +50,11 @@ function harness(
   const prefs: unknown[][] = [];
   let current: Row = {};
   const queries: string[] = [];
+  const paramsList: unknown[][] = [];
   const exec: DbExecutor = {
     query: <T>(sql: string, params?: unknown[]): Promise<T[]> => {
       queries.push(sql);
+      paramsList.push(params ? [...params] : []);
       if (sql.startsWith("select state from bot_dialog"))
         return Promise.resolve([{ state: current }] as T[]);
       if (sql.startsWith("update bot_dialog")) {
@@ -105,7 +107,10 @@ function harness(
           (opts.revokeRow ? [opts.revokeRow] : []) as T[],
         );
       }
-      if (sql.startsWith("select id from registration where id=$1"))
+      if (
+        sql.startsWith("select id from registration where id=$1") ||
+        sql.startsWith("select id,premises_id from registration where id=$1")
+      )
         return Promise.resolve(
           opts.editable === undefined || opts.editable === null
             ? []
@@ -140,6 +145,15 @@ function harness(
         return Promise.resolve([] as T[]);
       if (sql.startsWith("select distinct a.person_id from staff_assignment"))
         return Promise.resolve([] as T[]);
+      // submitRegistration: таймер этапа и новая анкета.
+      if (sql.startsWith("select v.id,v.params from time_rule_version"))
+        return Promise.resolve([
+          { id: "v1", params: { hours: 12, clock: "calendar" } },
+        ] as T[]);
+      if (sql.startsWith("insert into timer"))
+        return Promise.resolve([{ due_at: "2026-10-20T10:00:00.000Z" }] as T[]);
+      if (sql.startsWith("insert into registration"))
+        return Promise.resolve([{ id: REG_ID }] as T[]);
       if (opts.profile) {
         // Минимальная цепочка actorForTelegram: связь профиль→персона,
         // сам профиль, персона. Назначения (роли) — пусто по умолчанию.
@@ -191,7 +205,7 @@ function harness(
     transaction: (fn) => fn(exec),
     close: () => Promise.resolve(),
   };
-  return {
+    return {
     deps: {
       db,
       audit: {
@@ -202,6 +216,7 @@ function harness(
       },
     } as unknown as RegistryDeps,
     queries,
+    paramsList,
     audit,
     prefs,
     get state(): Row {
@@ -588,6 +603,66 @@ describe("бот: /register при существующей анкете (guard)
     expect(replyText(reply)).toContain("язык");
     expect(h.state.step).toBe("language");
   });
+
+  it("анкета-минимум на проверке — guard не даёт начать вторую регистрацию", async () => {
+    const h = harness({
+      registrations: [{
+        id: REG_ID,
+        state: "pending_review",
+        draft,
+        premises_id: null,
+        role: null,
+      }],
+    });
+    const reply = await registrationStep(h.deps, "100", "/register");
+    expect(replyText(reply)).toContain(
+      "У вас уже есть анкета. Повторная регистрация не нужна.",
+    );
+    expect(replyText(reply)).toContain("помещение не указано");
+    expect(h.state.step).toBeUndefined();
+  });
+});
+
+describe("бот: анкета без помещения (/status, /fix)", () => {
+  it("/status показывает анкету без помещения и без роли", async () => {
+    const h = harness({
+      registrations: [{
+        id: REG_ID,
+        state: "pending_review",
+        decided_reason: null,
+        draft,
+        premises_id: null,
+        role: null,
+      }],
+    });
+    const reply = await registrationStep(h.deps, "100", "/status");
+    const text = replyText(reply);
+    expect(text).toContain("Oleg Krasnov");
+    expect(text).toContain("помещение не указано");
+    expect(text).toContain("Ожидает проверки");
+  });
+
+  it("/fix на анкете без помещения — premises_id и роль не предзаполняются", async () => {
+    const h = harness({
+      registrations: [{
+        id: REG_ID,
+        state: "need_clarification",
+        decided_reason: "Уточните имя",
+        draft,
+        premises_id: null,
+        role: null,
+      }],
+    });
+    await registrationStep(h.deps, "100", "/fix");
+    expect(h.state.registration_id).toBe(REG_ID);
+    expect(h.state.step).toBe("fix_name");
+    expect(h.state).not.toHaveProperty("premises_id");
+    expect(h.state).not.toHaveProperty("role");
+    // Повторная подача: дом и роль не нужны — после телефона сразу согласие.
+    await registrationStep(h.deps, "100", ".");
+    await registrationStep(h.deps, "100", ".");
+    expect(h.state.step).toBe("consent");
+  });
 });
 
 describe("бот: /add — добавление помещения", () => {
@@ -671,11 +746,14 @@ describe("бот: /add — добавление помещения", () => {
     expect(h.state.add_options).toBeUndefined();
   });
 
-  it("без регистрации — полный мастер: сначала язык", async () => {
+  it("без регистрации — сначала базовая регистрация, мастер привязки не запускается", async () => {
     const h = harness();
     const reply = await registrationStep(h.deps, "100", "/add");
-    expect(replyText(reply)).toContain("язык");
-    expect(h.state.step).toBe("language");
+    expect(replyText(reply)).toContain("Сначала регистрация");
+    expect(reply).toMatchObject({
+      buttons: [[{ text: "Зарегистрироваться", data: "/register" }]],
+    });
+    expect(h.state.step).toBeUndefined();
   });
 });
 
@@ -697,12 +775,9 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
     );
   });
 
-  it("шаги «Тип помещения» и «Ваша роль» без двойной нумерации", async () => {
-    const h = harness();
-    await registrationStep(h.deps, "100", "/register");
-    await registrationStep(h.deps, "100", "ru");
-    await registrationStep(h.deps, "100", "Имя Фамилия");
-    await registrationStep(h.deps, "100", "+77010000000");
+  it("шаги «Тип помещения» и «Ваша роль» без двойной нумерации (привязка через /add manual)", async () => {
+    const h = harness({ profile: true });
+    await registrationStep(h.deps, "100", "/add manual");
     // Выбор здания возвращает список типов помещений.
     const kind = replyText(await registrationStep(h.deps, "100", "1"));
     // numbered() нумерует сам; двойного «1. 1.» в списке нет.
@@ -713,6 +788,42 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
     const role = replyText(await registrationStep(h.deps, "100", "1"));
     expect(role).toContain("1. Собственник");
     expect(role).not.toContain("1. 1.");
+  });
+
+  it("/register — анкета-минимум: язык → имя → телефон → согласие без помещения, подача без premises_id и роли", async () => {
+    const h = harness();
+    const lang = await registrationStep(h.deps, "100", "/register");
+    expect(replyText(lang)).toContain("язык");
+    expect(h.state.step).toBe("language");
+    await registrationStep(h.deps, "100", "ru");
+    await registrationStep(h.deps, "100", "Имя Фамилия");
+    const phoneReply = await registrationStep(h.deps, "100", "+7 777 777 16 76");
+    // Согласие без помещения: нет вопроса о здании и списков типов/ролей.
+    const consent = replyText(phoneReply);
+    expect(consent).toContain("Имя Фамилия");
+    expect(consent).toContain("+77777771676");
+    expect(consent).toContain("Согласие на обработку");
+    expect(consent).not.toContain("Выберите здание");
+    expect(h.state.step).toBe("consent");
+    const done = await registrationStep(h.deps, "100", "да");
+    expect(replyText(done)).toContain("Анкета принята");
+    expect(h.state).toEqual({});
+    const i = h.paramsList.findIndex((p, idx) =>
+      h.queries[idx].startsWith("insert into registration"),
+    );
+    expect(i).toBeGreaterThanOrEqual(0);
+    expect(h.paramsList[i]![2]).toBeNull(); // premises_id
+    expect(h.paramsList[i]![3]).toBeNull(); // role
+  });
+
+  it("/register на казахском — согласие без помещения на казахском", async () => {
+    const h = harness();
+    await registrationStep(h.deps, "100", "/register");
+    await registrationStep(h.deps, "100", "kk");
+    await registrationStep(h.deps, "100", "Аты Жөні");
+    const phoneReply = await registrationStep(h.deps, "100", "+7 701 000 00 00");
+    expect(replyText(phoneReply)).toContain("Тексеріңіз");
+    expect(replyText(phoneReply)).toContain("ОСИ тіркелуі үшін");
   });
 });
 

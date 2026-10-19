@@ -61,12 +61,12 @@
   - [x] Миграция безопасна на существующих данных; эскалации анкет проходят по null
   **Verification:** `npm test -w core` (in-memory); SQL — ревью; `db:push` на dev по запросу. **Dependencies:** нет. **Files:** миграция, `domains/registrations/service.ts`, `domains/registrations/jobs.ts`, `domains/registrations/routing.ts` (сигнатура initialStage) + тесты. **Scope:** M
 
-- [ ] **Task R1.2: Бот — сокращённый мастер и отображение статуса**
+- [x] **Task R1.2: Бот — сокращённый мастер и отображение статуса**
   **Description:** Мастер `/register`: язык → имя → телефон → согласие (шаги `building`/`kind`/`number`/`role` удаляются из `/register`, остаются в `/add`). Согласие — новый текст без помещения/роли (PRV-01); в промпте телефона — пример `+7 777 777 16 76` (правка `registration.telefon_7`). `/status` и `registrationLines` корректно показывают анкету без помещения. Guard `/register`, `/fix`, `/add`, `/start invite_*` — без изменений. Ключи каталога ru+kk + golden-фикстуры.
   **Acceptance criteria:**
-  - [ ] Сценарий «язык → имя → телефон → согласие» создаёт анкету без помещения
-  - [ ] `/add` и приглашения работают как раньше; `/status` показывает оба варианта анкет
-  - [ ] Golden-фикстуры шаблонов обновлены
+  - [x] Сценарий «язык → имя → телефон → согласие» создаёт анкету без помещения
+  - [x] `/add` и приглашения работают как раньше; `/status` показывает оба варианта анкет
+  - [x] Golden-фикстуры шаблонов обновлены
   **Verification:** `npm test -w core` (диалог + golden); симулятор. **Dependencies:** R1.1. **Files:** `bot/registration.ts`, каталог шаблонов, fixtures + тесты. **Scope:** M
 
 - [ ] **Task R1.3: Кабинет — анкета без помещения**

@@ -1,5 +1,11 @@
 [
   {
+    "key": "registration.pomeschenie_ne_ukazano",
+    "source": "registration",
+    "ru": "помещение не указано",
+    "kk": "үй-жай көрсетілмеген"
+  },
+  {
     "key": "registration.anket_poka_net",
     "source": "registration",
     "ru": "Анкет пока нет",
@@ -206,8 +212,8 @@
   {
     "key": "registration.telefon_7",
     "source": "registration",
-    "ru": "Телефон (+7…):",
-    "kk": "Телефон (+7…):"
+    "ru": "Телефон (например: +7 777 777 16 76):",
+    "kk": "Телефон (мысалы: +7 777 777 16 76):"
   },
   {
     "key": "registration.podtverdite_soglasie_na_obrabotku_imeni_i_telefona",

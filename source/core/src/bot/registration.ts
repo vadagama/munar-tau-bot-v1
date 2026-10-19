@@ -83,14 +83,20 @@ function roleFromWord(value: string | undefined): string | undefined {
 }
 
 /** Строка списка анкет: состояние, анкетные данные, помещение, роль, причина. */
-function registrationLines(rows: Row[], L: Lang): string[] {
+function registrationLines(rows: Row[], L: Lang, store?: TemplateStore): string[] {
   return rows.map((r) => {
     const draft = r.draft ? jsonValue<Row>(r.draft) : {};
+    // Анкета-минимум (REG-01) без помещения и роли — только имя и состояние.
+    const place = r.premises_id
+      ? `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
+        esc(r.code ?? "—")
+      }/${esc(r.number ?? "—")}`
+      : esc(message(store, L, "registration.pomeschenie_ne_ukazano"));
     return `<b>${esc(label(stateLabels, r.state, L))}</b>: ${
       esc(draft.full_name ?? "—")
-    }, ${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
-      esc(r.code ?? "—")
-    }/${esc(r.number ?? "—")}, ${esc(label(roleLabels, r.role, L))}${
+    }, ${place}${
+      r.role ? `, ${esc(label(roleLabels, r.role, L))}` : ""
+    }${
       r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""
     }`;
   });
@@ -144,8 +150,8 @@ export async function registrationStep(
     }
     if (cmd === "/status") {
       const rows = await exec.query<Row>(
-        `select r.id,r.state,r.decided_reason,r.review_stage,r.draft,r.role,p.kind,p.number,b.code
-        from registration r join premises p on p.id=r.premises_id join building b on b.id=p.building_id
+        `select r.id,r.state,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
+        from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
         where r.telegram_user_id=$1 or r.person_id=$2 order by r.created_at desc limit 20`,
         [telegramId, actor?.person.id ?? null],
       );
@@ -178,7 +184,9 @@ export async function registrationStep(
         .filter((row): row is NonNullable<typeof row> => !!row);
       return save({
         text: message(deps.templates, L, "message.registration.status", {
-          registrations: safeBlock(numbered(registrationLines(rows, L))),
+          registrations: safeBlock(
+            numbered(registrationLines(rows, L, deps.templates)),
+          ),
         }),
         ...(buttons.length ? { buttons } : {}),
       });
@@ -522,9 +530,9 @@ export async function registrationStep(
     if (cmd === "/add") {
       for (const key of Object.keys(state)) delete state[key];
       if (!actor) {
-        // У нового пользователя ещё нет настроек — полный мастер анкеты (REG-01).
-        state.step = "language";
-        return save(languageStepText(deps.templates));
+        // Анкета-минимум (REG-01): сначала базовая регистрация, привязка
+        // помещения доступна после одобрения анкеты.
+        return save(registerPrompt(deps.templates, L));
       }
       // У зарегистрированного пользователя анкетные данные уже известны (REG-01):
       // язык — из профиля, имя и телефон — из карточки реестра. Персона всегда
@@ -614,8 +622,8 @@ export async function registrationStep(
       // Добавление ещё одного помещения — /add, у него отдельная ветка выше.
       if (cmd === "/register") {
         const rows = await exec.query<Row>(
-          `select r.id,r.state,r.decided_reason,r.review_stage,r.draft,r.role,p.kind,p.number,b.code
-          from registration r join premises p on p.id=r.premises_id join building b on b.id=p.building_id
+          `select r.id,r.state,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
+          from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
           where (r.telegram_user_id=$1 or r.person_id=$2)
           and r.state in ('pending_review','need_clarification','approved','rejected')
           order by r.created_at desc limit 20`,
@@ -629,7 +637,7 @@ export async function registrationStep(
           return save({
             text: message(deps.templates, L, key, {
               registrations: safeBlock(
-                numbered(registrationLines(rows, L)),
+                numbered(registrationLines(rows, L, deps.templates)),
               ),
             }),
             buttons: [[
@@ -669,17 +677,20 @@ export async function registrationStep(
           );
         }
         const [registration] = await exec.query<Row>(
-          "select id from registration where id=$1 and telegram_user_id=$2 and state in ('pending_review','need_clarification','rejected')",
+          "select id,premises_id from registration where id=$1 and telegram_user_id=$2 and state in ('pending_review','need_clarification','rejected')",
           [id, telegramId],
         );
         if (!registration) throw new ApiError("NOT_FOUND");
         for (const key of Object.keys(state)) delete state[key];
         state.registration_id = id;
+        // Анкета-минимум (REG-01) редактируется без помещения: роль и дом не спрашиваем.
+        if (!registration.premises_id) state.mode = "lite";
         state.step = "language";
         return save(languageStepText(deps.templates));
       }
       for (const key of Object.keys(state)) delete state[key];
       if (parts[1]?.startsWith("invite_")) state.invite = parts[1].slice(7);
+      else state.mode = "lite"; // /register — анкета-минимум без помещения и роли.
       state.step = "language";
       return save(languageStepText(deps.templates));
     }
@@ -764,8 +775,10 @@ export async function registrationStep(
       state.language = ["ru", "kk"].includes(String(draft.language))
         ? String(draft.language)
         : "ru";
-      state.premises_id = String(reg.premises_id);
-      state.role = String(reg.role);
+      // Анкета-минимум (REG-01) хранится без помещения: String(null) даёт "null"
+      // и уводит повторную подачу в поиск несуществующего помещения.
+      if (reg.premises_id) state.premises_id = String(reg.premises_id);
+      if (reg.role) state.role = String(reg.role);
       state.step = "fix_name";
       return save(
         message(
@@ -860,6 +873,24 @@ export async function registrationStep(
               ),
               deps.templates,
               "message.registration.invite_consent",
+            ),
+          );
+        }
+        // Анкета-минимум (REG-01): после телефона сразу согласие — без дома,
+        // типа, номера и роли; привязка помещения — отдельно через /add.
+        if (state.mode === "lite") {
+          state.step = "consent";
+          return save(
+            consentText(
+              L,
+              message(
+                deps.templates,
+                L,
+                "message.registration.lite_consent",
+                { full_name: state.full_name, phone: state.phone_e164 },
+              ),
+              deps.templates,
+              "message.registration.lite_consent",
             ),
           );
         }

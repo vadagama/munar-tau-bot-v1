@@ -351,11 +351,11 @@ export const registrationTemplates: readonly TemplateDef[] = [
   {
     "key": "registration.telefon_7",
     "section": "registration",
-    "title": "Телефон (+7…):",
+    "title": "Телефон (например: +7 777 777 16 76):",
     "description": "Реплика registration",
     "variables": [],
-    "ru": "Телефон (+7…):",
-    "kk": "Телефон (+7…):",
+    "ru": "Телефон (например: +7 777 777 16 76):",
+    "kk": "Телефон (мысалы: +7 777 777 16 76):",
   },
   {
     "key": "registration.podtverdite_soglasie_na_obrabotku_imeni_i_telefona",
@@ -447,6 +447,15 @@ export const registrationTemplates: readonly TemplateDef[] = [
     "ru":
       "Помещение не найдено. Проверьте номер или обратитесь к администратору.",
     "kk": "Нысан табылмады. Нөмірді тексеріңіз немесе әкімшіге хабарласыңыз.",
+  },
+  {
+    "key": "registration.pomeschenie_ne_ukazano",
+    "section": "registration",
+    "title": "помещение не указано",
+    "description": "Строка списка анкет без привязки к помещению (REG-01)",
+    "variables": [],
+    "ru": "помещение не указано",
+    "kk": "үй-жай көрсетілмеген",
   },
   {
     "key": "registration.vasha_rol",

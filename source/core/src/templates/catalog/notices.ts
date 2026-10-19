@@ -89,6 +89,31 @@ export const noticesTemplates: readonly TemplateDef[] = [
     ],
   },
   {
+    "key": "notices.registrations_service_submit_registration_lite",
+    "section": "notices",
+    "title": "Новая анкета без помещения → администратору",
+    "description":
+      "Новая анкета без помещения (REG-01) → администратору. Полный текст уведомления на языке получателя.",
+    "variables": [
+      {
+        "name": "fullname",
+        "description": "Имя заявителя",
+        "example": "Иван Тестов",
+      },
+    ],
+    "ru": "Новая анкета без помещения: {fullname}",
+    "kk": "Үй-жайсыз жаңа өтінім: {fullname}",
+    "scenario": "Уведомления · Регистрация и доступ",
+    "examples": [
+      {
+        "id": "default",
+        "title": "Пример доставки",
+        "ru": { "fullname": "Иван Тестов" },
+        "kk": { "fullname": "Иван Тестов" },
+      },
+    ],
+  },
+  {
     "key": "notices.registrations_service_review_registration_3",
     "section": "notices",
     "title": "Решение по анкете → заявителю",

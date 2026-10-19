@@ -502,6 +502,18 @@ const defs: TemplateDef[] = [
     consentButtons,
   ),
   def(
+    "message.registration.lite_consent",
+    "Регистрация без помещения — проверка данных и согласие",
+    "/register",
+    [],
+    (l) =>
+      "<b>" + old(R + "proverte", l) + "</b>: {full_name}, {phone}.\n" +
+      (l === "kk"
+        ? "ОСИ тіркелуі үшін осы деректерді өңдеуге келісім."
+        : "Согласие на обработку этих данных для регистрации в ОСИ."),
+    consentButtons,
+  ),
+  def(
     "message.registration.submitted",
     "Анкета отправлена",
     "/register",
