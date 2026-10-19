@@ -30,6 +30,22 @@ const chairman: Actor = {
   emulation: null,
 };
 describeWithDb("VS-2 реестр", (getDb) => {
+  it("сохраняет, меняет и очищает очередь здания без потери при PATCH других полей", async () => {
+    const [profile] = await getDb().query<{ id: string }>(
+      "select id from profile where person_id=$1", [SEED.chairmanPersonId],
+    );
+    const actor = { ...chairman, profile: { ...chairman.profile, id: profile!.id } };
+    const deps = { db: getDb(), audit: new SqlAuditRepo() };
+    const building = await mutateRegistry(deps, actor, "buildings", { code: "ОЧ-1", construction_phase: 1 });
+    expect(building.construction_phase).toBe(1);
+    const updated = await mutateRegistry(deps, actor, "buildings", { name: "Дом" }, String(building.id));
+    expect(updated.construction_phase).toBe(1);
+    const changed = await mutateRegistry(deps, actor, "buildings", { construction_phase: 5 }, String(building.id));
+    expect(changed.construction_phase).toBe(5);
+    const cleared = await mutateRegistry(deps, actor, "buildings", { construction_phase: null }, String(building.id));
+    expect(cleared.construction_phase).toBeNull();
+    await expect(getDb().query("update building set construction_phase=6 where id=$1", [building.id])).rejects.toThrow();
+  });
   it("поддерживает четыре типа помещений в доме, блокирует дубль внутри типа", async () => {
     const [profile] = await getDb().query<{ id: string }>(
       "select id from profile where person_id=$1",

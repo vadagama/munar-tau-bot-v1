@@ -62,3 +62,69 @@ it("сотрудники загружаются отдельно, включая
   expect(screen.getByText("Исполнитель")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Добавить запись" })).toBeNull();
 });
+
+
+it("фильтрует здания по очереди, отсутствию очереди и возвращает все", async () => {
+  const buildings = [
+    { id: "b1", code: "ДОМ-1", construction_phase: 1 },
+    { id: "b2", code: "ДОМ-2", construction_phase: 2 },
+    { id: "b3", code: "ДОМ-3", construction_phase: null },
+  ];
+  vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings") ? buildings : [] }));
+  render(<RegistryPage />);
+  fireEvent.click(screen.getByRole("tab", { name: "Здания" }));
+  expect(await screen.findByText("ДОМ-3")).toBeInTheDocument();
+  const select = screen.getByRole("combobox", { name: "Фильтр по очереди строительства" });
+  fireEvent.mouseDown(select);
+  fireEvent.click(await screen.findByText("2-я очередь", { selector: ".ant-select-item-option-content" }));
+  expect(screen.getByText("ДОМ-2")).toBeInTheDocument();
+  expect(screen.queryByText("ДОМ-1")).toBeNull();
+  expect(screen.queryByText("ДОМ-3")).toBeNull();
+  fireEvent.mouseDown(select);
+  fireEvent.click(await screen.findByText("Не указана", { selector: ".ant-select-item-option-content" }));
+  expect(screen.getByText("ДОМ-3")).toBeInTheDocument();
+  expect(screen.queryByText("ДОМ-2")).toBeNull();
+  fireEvent.mouseDown(select);
+  fireEvent.click(await screen.findByText("Все очереди", { selector: ".ant-select-item-option-content" }));
+  expect(screen.getByText("ДОМ-1")).toBeInTheDocument();
+  expect(screen.getByText("ДОМ-2")).toBeInTheDocument();
+});
+
+it("сохраняет выбранную очередь здания и явное отсутствие очереди", async () => {
+  vi.mocked(apiFetch).mockResolvedValue({ items: [] });
+  render(<RegistryPage />);
+  fireEvent.click(screen.getByRole("tab", { name: "Здания" }));
+  fireEvent.click(screen.getByRole("button", { name: "Добавить запись" }));
+  fireEvent.change(screen.getByLabelText("Обозначение"), { target: { value: "НОВЫЙ-1" } });
+  fireEvent.mouseDown(screen.getByLabelText("Очередь строительства"));
+  fireEvent.click(await screen.findByText("5-я очередь", { selector: ".ant-select-item-option-content" }));
+  fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registry/buildings", expect.objectContaining({
+    method: "POST", body: expect.objectContaining({ construction_phase: 5 }),
+  })));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  fireEvent.click(screen.getByRole("button", { name: "Добавить запись" }));
+  fireEvent.change(screen.getByLabelText("Обозначение"), { target: { value: "НОВЫЙ-2" } });
+  fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registry/buildings", expect.objectContaining({
+    method: "POST", body: expect.objectContaining({ code: "НОВЫЙ-2", construction_phase: null }),
+  })));
+});
+
+
+it("очистка очереди существующего здания отправляет null, фон не сбрасывает черновик", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings")
+    ? [{ id: "b1", code: "ДОМ-1", construction_phase: 3 }] : [] }));
+  render(<RegistryPage />);
+  fireEvent.click(screen.getByRole("tab", { name: "Здания" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Изменить" }));
+  fireEvent.change(screen.getByLabelText("Обозначение"), { target: { value: "ДОМ-ИЗМЕНЁН" } });
+  const phase = screen.getByLabelText("Очередь строительства");
+  fireEvent.mouseDown(phase.closest(".ant-select")!.querySelector(".ant-select-clear")!);
+  fireEvent(window, new Event("cabinet:refresh-page"));
+  await waitFor(() => expect(screen.getByLabelText("Обозначение")).toHaveValue("ДОМ-ИЗМЕНЁН"));
+  fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registry/buildings/b1", expect.objectContaining({
+    method: "PATCH", body: expect.objectContaining({ code: "ДОМ-ИЗМЕНЁН", construction_phase: null }),
+  })));
+});

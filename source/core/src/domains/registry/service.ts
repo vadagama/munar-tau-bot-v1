@@ -13,6 +13,7 @@ import {
   normalizePhone,
   text,
   validateConnectionRole,
+  validateConstructionPhase,
   validatePremises,
   type Row,
 } from "./validation.ts";
@@ -156,7 +157,8 @@ export async function mutateRegistry(
             "Структуру зданий задаёт председатель",
           );
         data.code = text(data, "code");
-        columns = ["code", "name"];
+        validateConstructionPhase(data.construction_phase);
+        columns = ["code", "name", "construction_phase"];
         buildings = id ? [id] : [];
         break;
       }
