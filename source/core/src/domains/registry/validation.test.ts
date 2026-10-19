@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizePhone,
+  validateConstructionPhase,
   validatePremises,
   validateConnectionRole,
 } from "./validation.ts";
@@ -29,5 +30,15 @@ describe("реестр REG-11/12, IMP-09", () => {
     expect(() => validateConnectionRole("storage", "resident")).toThrow();
     expect(() => validateConnectionRole("apartment", "resident")).not.toThrow();
     expect(() => validateConnectionRole("commercial", "other")).not.toThrow();
+  });
+});
+
+
+describe("очередь строительства REG-11", () => {
+  it.each([undefined, null, 1, 2, 3, 4, 5])("принимает %s", value => {
+    expect(() => validateConstructionPhase(value)).not.toThrow();
+  });
+  it.each([0, 6, -1, 1.5, "1", "", true, {}, NaN, Infinity])("отклоняет %s", value => {
+    expect(() => validateConstructionPhase(value)).toThrow("Очередь строительства");
   });
 });

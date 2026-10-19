@@ -47,6 +47,13 @@ export function text(row: Row, key: string): string {
   return value.trim();
 }
 
+/** REG-11: очередь необязательна; значения API — только целые 1–5. */
+export function validateConstructionPhase(value: unknown): void {
+  if (value === undefined || value === null) return;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 5)
+    invalid("Очередь строительства должна быть целым числом от 1 до 5");
+}
+
 export function validatePremises(row: Row): void {
   text(row, "building_id");
   text(row, "number");

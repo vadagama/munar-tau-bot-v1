@@ -20,6 +20,7 @@ import { apiFetch } from "../lib/api";
 
 type Row = Record<string, unknown>;
 type Entity = "buildings" | "premises" | "persons" | "connections";
+const CONSTRUCTION_PHASES = [1, 2, 3, 4, 5].map(value => ({ value, label: `${value}-я очередь` }));
 const KINDS = [
   { value: "apartment", label: "Квартира" },
   { value: "commercial", label: "Коммерческое помещение" },
@@ -41,6 +42,7 @@ const LABELS: Record<string, string> = {
   phone_e164: "Телефон",
   code: "Обозначение",
   name: "Название",
+  construction_phase: "Очередь строительства",
   kind: "Тип",
   number: "Номер",
   role: "Отношение",
@@ -78,6 +80,7 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
     [buildings, setBuildings] = useState<Row[]>([]),
     [premises, setPremises] = useState<Row[]>([]),
     [persons, setPersons] = useState<Row[]>([]);
+  const [constructionPhase, setConstructionPhase] = useState<number | "all" | "unassigned">("all");
   const [form] = Form.useForm();
   const [recovery, setRecovery] = useState<Row | null>(null),
     [pending, setPending] = useState<Row[]>([]);
@@ -165,6 +168,7 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
   const save = async () => {
     try {
       const values = await form.validateFields();
+      if (entity === "buildings") values.construction_phase ??= null;
       setSaving(true);
       setError(null);
       await apiFetch(
@@ -181,7 +185,7 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
   };
   const keys =
     entity === "buildings"
-      ? ["code", "name"]
+      ? ["code", "name", "construction_phase"]
       : entity === "premises"
         ? ["building_code", "kind", "number", "entrance", "floor", "status"]
         : entity === "persons"
@@ -194,7 +198,9 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
       dataIndex: key,
       key,
       render: (v: unknown) =>
-        key === "kind" ? (
+        key === "construction_phase" ? (
+          v == null ? "Не указана" : `${v}-я очередь`
+        ) : key === "kind" ? (
           displayKind(v)
         ) : key === "role" ? (
           displayRole(v)
@@ -232,7 +238,8 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
   return (
     <PageLayout title={users === "staff" ? "Сотрудники" : users ? "Жители" : "Помещения"}
       actions={users !== "staff" ? <Button type="primary" onClick={() => open(null)}>Добавить запись</Button> : null}
-      filters={!users && <Tabs
+      filters={!users && <>
+      <Tabs
         activeKey={entity}
         onChange={switchEntity}
         items={Object.keys(LABELS)
@@ -240,7 +247,19 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
             ["buildings", "premises", "connections"].includes(k),
           )
           .map((key) => ({ key, label: LABELS[key] }))}
-      />}> <Typography.Paragraph type="secondary">
+      />
+      {entity === "buildings" && <Select
+        aria-label="Фильтр по очереди строительства"
+        value={constructionPhase}
+        onChange={setConstructionPhase}
+        style={{ width: "100%", maxWidth: 280 }}
+        options={[
+          { value: "all", label: "Все очереди" },
+          ...CONSTRUCTION_PHASES,
+          { value: "unassigned", label: "Не указана" },
+        ]}
+      />}
+      </>}> <Typography.Paragraph type="secondary">
           {users === "staff" ? "Пользователи с действующими служебными полномочиями в доступной области." : users
             ? "Жители без действующих служебных назначений. Совпадение телефона не объединяет карточки."
             : "Здания, помещения и привязки помещений к пользователям. Изменения сохраняются в журнале."}
@@ -259,7 +278,11 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
       <Table
         rowKey="id"
         loading={busy}
-        dataSource={rows}
+        dataSource={entity === "buildings" && constructionPhase !== "all"
+          ? rows.filter(row => constructionPhase === "unassigned"
+            ? row.construction_phase == null
+            : row.construction_phase === constructionPhase)
+          : rows}
         columns={columns}
         scroll={{ x: 900 }}
         pagination={{ pageSize: 20, showSizeChanger: true }}
@@ -286,6 +309,9 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
             <>
               {field("code")}
               {field("name", false)}
+              <Form.Item name="construction_phase" label={LABELS.construction_phase}>
+                <Select allowClear placeholder="Не указана" options={CONSTRUCTION_PHASES} />
+              </Form.Item>
             </>
           )}
           {entity === "premises" && (
