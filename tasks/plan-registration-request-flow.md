@@ -44,9 +44,9 @@
   **Verification:** `npm test -w core`; ручной прогон сценария в симуляторе
   **Dependencies:** A1. **Files:** `core/src/bot/requests.ts`, каталог шаблонов, fixtures + тесты. **Scope:** M
 
-- [ ] **Task A3: Документация request-flow**
+- [x] **Task A3: Документация request-flow** (реализовано 19.10.2026)
   **Description:** REQ-03 (порядок создания: вид → место → описание) и раздел 6 `docs/resident-bot-ui-ux-review.md` синхронизируются с реализацией.
-  **Acceptance criteria:** [ ] Оба документа согласованы с кодом, ссылок на устаревший синтаксис-инструкцию в основных репликах нет
+  **Acceptance criteria:** [x] Оба документа согласованы с кодом, ссылок на устаревший синтаксис-инструкцию в основных репликах нет (инструкция убрана из `message.requests.choose_place`, приложение-реестр дополнено шестью новыми ключами, счётчик 81)
   **Verification:** ревью diff. **Dependencies:** A2. **Files:** `docs/requirements-v1.md`, `docs/resident-bot-ui-ux-review.md`. **Scope:** XS
 
 **Checkpoint A:** lint/typecheck/test/build + deno — зелёные; сценарий «вид → адресат → описание» работает в симуляторе; PR `request-flow` готов.
