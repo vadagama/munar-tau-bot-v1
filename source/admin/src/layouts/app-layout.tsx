@@ -1,3 +1,4 @@
+import { EmulationRoleSelect } from "./emulation-role-select";
 import { PAGE_REFRESH_EVENT, usePageRefresh } from "../lib/use-page-refresh";
 import { useState } from "react";
 import { Alert, Button, Layout, Menu, Space, Typography } from "antd";
@@ -117,10 +118,13 @@ export function AppLayout() {
           <Typography.Title level={4} style={{ margin: 0, lineHeight: "32px", fontSize: 18 }}>
             Кабинет администратора
           </Typography.Title>
-          <Space>
+          <Space wrap style={{ maxWidth: "100%" }}>
             <Typography.Text type="secondary">
               {identity?.fullName ?? "…"}
             </Typography.Text>
+            {identity?.me.emulation && <EmulationRoleSelect
+              key={identity.me.profile.id} profileId={identity.me.profile.id}
+              onSwitched={() => window.location.assign("/")} />}
             <Button size="small" onClick={() => logout()}>
               Выйти
             </Button>

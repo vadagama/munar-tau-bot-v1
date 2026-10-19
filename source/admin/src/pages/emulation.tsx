@@ -1,3 +1,4 @@
+import { EMULATION_ROLE_LABELS } from "../lib/emulation-roles";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { RegistrationSimulator } from "./registration-simulator";
@@ -21,17 +22,7 @@ import type { ColumnsType } from "antd/es/table";
 import { ApiClientError, apiFetch } from "../lib/api";
 import type { EmulationPersonsResponse, EmulationPersonJson } from "../lib/types";
 
-const ROLE_LABELS: Record<string, string> = {
-  resident: "Житель",
-  administrator: "Администратор",
-  deputy: "Заместитель",
-  chairman: "Председатель",
-  tech_admin: "Техадмин",
-  duty: "Дежурный",
-  doc_reviewer: "Проверяющий",
-  finance: "Финансы",
-  executor: "Исполнитель",
-};
+
 
 // Эмуляция (Task 7, HLD 10.8): тестовые персоны с ролями, старт/завершение
 // сеанса эмуляции. Роли персонам назначает председатель через раздел
@@ -111,7 +102,7 @@ export function EmulationPage() {
         ) : (
           <Space size={4} wrap>
             {record.assignments.map((assignment) => (
-              <Tag key={assignment.id}>{ROLE_LABELS[assignment.role] ?? assignment.role}</Tag>
+              <Tag key={assignment.id}>{EMULATION_ROLE_LABELS[assignment.role] ?? assignment.role}</Tag>
             ))}
           </Space>
         ),
@@ -149,7 +140,7 @@ export function EmulationPage() {
         message="Житель — тестовая персона без служебных назначений. Доступ к помещениям появляется после подтверждения связи через регистрацию. Служебные роли назначает председатель." />
       <Select aria-label="Роль тестовой персоны" value={role} onChange={setRole}
         style={{ minWidth: 200, marginBottom: 16 }}
-        options={[{ value: "all", label: "Все роли" }, ...Object.entries(ROLE_LABELS).map(([value, label]) => ({ value, label }))]} />
+        options={[{ value: "all", label: "Все роли" }, ...Object.entries(EMULATION_ROLE_LABELS).map(([value, label]) => ({ value, label }))]} />
       <RegistrationSimulator active={!!identity?.me.emulation}/>
       {loading ? (
         <Spin size="large" style={{ display: "block", margin: "60px auto" }} />
