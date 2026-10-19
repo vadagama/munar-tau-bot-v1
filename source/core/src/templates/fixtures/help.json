@@ -44,8 +44,8 @@
   {
     "key": "help.deystviya_reporttask_nomer_otchet_proposevisit_nomer_vizit",
     "source": "help",
-    "ru": "Действия: /reporttask НОМЕР — отчёт; /proposevisit НОМЕР — визит; /pausetask НОМЕР причина — остановка; /problem НОМЕР … — найденная проблема",
-    "kk": "Әрекеттер: /reporttask НОМІР — есеп; /proposevisit НОМІР — сапар; /pausetask НОМІР себеп — тоқтату; /problem НОМІР … — табылған мәселе"
+    "ru": "Действия: /reporttask НОМЕР — отчёт; /pausetask НОМЕР причина — остановка; /problem НОМЕР … — найденная проблема",
+    "kk": "Әрекеттер: /reporttask НОМІР — есеп; /pausetask НОМІР себеп — тоқтату; /problem НОМІР … — табылған мәселе"
   },
   {
     "key": "help.deystviya_starttask_nomer_vozobnovit",

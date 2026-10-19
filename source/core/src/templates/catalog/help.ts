@@ -73,14 +73,13 @@ export const helpTemplates: readonly TemplateDef[] = [
   {
     "key": "help.deystviya_reporttask_nomer_otchet_proposevisit_nomer_vizit",
     "section": "help",
-    "title":
-      "Действия: /reporttask НОМЕР — отчёт; /proposevisit НОМЕР — визит; /pausetask НОМЕР причина — останов",
+    "title": "Действия: /reporttask НОМЕР — отчёт; /pausetask НОМЕР причина — останов",
     "description": "Реплика help",
     "variables": [],
     "ru":
-      "Действия: /reporttask НОМЕР — отчёт; /proposevisit НОМЕР — визит; /pausetask НОМЕР причина — остановка; /problem НОМЕР … — найденная проблема",
+      "Действия: /reporttask НОМЕР — отчёт; /pausetask НОМЕР причина — остановка; /problem НОМЕР … — найденная проблема",
     "kk":
-      "Әрекеттер: /reporttask НОМІР — есеп; /proposevisit НОМІР — сапар; /pausetask НОМІР себеп — тоқтату; /problem НОМІР … — табылған мәселе",
+      "Әрекеттер: /reporttask НОМІР — есеп; /pausetask НОМІР себеп — тоқтату; /problem НОМІР … — табылған мәселе",
   },
   {
     "key": "help.deystviya_starttask_nomer_vozobnovit",

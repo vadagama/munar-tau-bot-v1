@@ -8,7 +8,6 @@ import "./requests.css";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
 import { ActionPanel } from "./action-panel";
-import { TaskVisits } from "./task-visits";
 import { BoardView, ViewToggle, useBoardView } from "./board";
 import { CardDrawer } from "./card-drawer";
 import { useEffect, useRef, useState } from "react";
@@ -808,7 +807,6 @@ export function RequestsPage() {
                     </Button>
                   ))}
                 </Space>
-                {card.kind === "request" && <TaskVisits requestId={String(card.id)} canRespond={card.can_comment !== false && !manage} onChanged={refresh}/>}
                 {own && stateName === "closed" && card.close_method === "author" &&
                   <RatingEditor id={String(card.id)} onError={setError} />}
               </DetailSection>

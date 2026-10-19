@@ -2,23 +2,14 @@ import { BotTemplateError } from "./bot-errors.ts";
 import { message, messageButton, safeBlock } from "../templates/message.ts";
 import type { TemplateStore } from "../templates/store.ts";
 import { reportProblem } from "../domains/tasks/problems.ts";
-import { proposeVisit, updateVisit } from "../domains/tasks/visits.ts";
 import { workerHelp } from "./help.ts";
 import {
   esc,
   fmtDate,
   fmtDay,
-  fmtInterval,
   type Lang,
   numbered,
 } from "./text.ts";
-import { visitStateText } from "../locales/tasks.ts";
-import {
-  almatyDay,
-  bareDayOffset,
-  parseVisitWhen,
-  visitFromDayTime,
-} from "./visit-time.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { jsonValue, type Row } from "../domains/registry/validation.ts";
@@ -35,8 +26,6 @@ import { type BotReply, btn, type InlineButton } from "./keyboard.ts";
 export const TASK_COMMANDS = [
   "/pausetask",
   "/problem",
-  "/proposevisit",
-  "/noaccess",
   "/tasks",
   "/task",
   "/accepttask",
@@ -196,11 +185,6 @@ export async function taskStep(
       state.task_id = t.id;
       delete state.report;
       delete state.visit_when;
-      const visits = ((t.visits as Row[]) ?? []).map((v) =>
-        `${message(deps.templates, L, "tasks.vizit")}: ${
-          fmtInterval(v.interval_start, v.interval_end)
-        } — ${esc(visitStateText(v.status, L))}`
-      );
       const cardKey = taskMessageKey(
         t.methodology ? "message.tasks.card_methodology" : "message.tasks.card",
         t.state,
@@ -215,7 +199,6 @@ export async function taskStep(
           methodology_date: fmtDay(
             (t.methodology as Row | undefined)?.created_at,
           ),
-          visits: safeBlock(visits.length ? visits.join("\n") + "\n" : ""),
           due_at: fmtDate(t.due_at),
         }),
         buttons: taskButtons(t, L, deps.templates, cardKey),
@@ -283,164 +266,6 @@ export async function taskStep(
           deps.templates,
           L,
           "tasks.naydennaya_problema_peredana_administratoru_dlya_sozdaniya_ili",
-        ),
-      );
-    }
-    if (command === "/proposevisit") {
-      const t = await find();
-      if (!args.length) {
-        // Диалог (срез UX C): день — кнопкой, время — следующим сообщением.
-        return save({
-          text: message(
-            deps.templates,
-            L,
-            "tasks.kogda_predlozhite_vizit_napishite_odnim_soobscheniem_naprimer",
-          ),
-          buttons: [[
-            btn(
-              messageButton(
-                deps.templates,
-                L,
-                "tasks.kogda_predlozhite_vizit_napishite_odnim_soobscheniem_naprimer",
-                "today",
-              ),
-              `/proposevisit ${t.number} сегодня`,
-            ),
-            btn(
-              messageButton(
-                deps.templates,
-                L,
-                "tasks.kogda_predlozhite_vizit_napishite_odnim_soobscheniem_naprimer",
-                "tomorrow",
-              ),
-              `/proposevisit ${t.number} завтра`,
-            ),
-          ]],
-        });
-      }
-      const parts = args.join(" ").split("|").map((s) => s.trim());
-      const isIsoWithTz = (v: string | undefined) =>
-        typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v) &&
-        /(Z|[+-]\d{2}:\d{2})$/.test(v);
-      let interval: { start: string; end: string } | undefined;
-      let note: string | undefined;
-      if (isIsoWithTz(parts[0]) && isIsoWithTz(parts[1])) {
-        // Прежний ввод пары ISO-дат с часовым поясом — совместимость с тестами.
-        interval = { start: parts[0]!, end: parts[1]! };
-        note = parts[2] || undefined;
-      } else if (
-        typeof parts[0] === "string" && bareDayOffset(parts[0]) !== null
-      ) {
-        // День без времени: запоминаем день, время — следующим сообщением.
-        // Активный черновик отчёта сбрасывается, как в других поддиалогах.
-        delete state.report;
-        state.visit_when = {
-          task_id: t.id,
-          day: almatyDay(bareDayOffset(parts[0])!, new Date()),
-        };
-        return save(
-          message(
-            deps.templates,
-            L,
-            "tasks.teper_ukazhite_vremya_odnim_soobscheniem_naprimer_10",
-          ),
-        );
-      } else if (parts[0]) {
-        interval = parseVisitWhen(parts[0], new Date()) ?? undefined;
-        note = parts[1] || undefined;
-      }
-      if (!interval) {
-        throw new BotTemplateError(
-          "VALIDATION_FAILED",
-          message(
-            deps.templates,
-            L,
-            "tasks.ne_ponyal_kogda_vizit_primery_zavtra_10",
-          ),
-        );
-      }
-      await proposeVisit(d, actor, {
-        task_id: t.id,
-        interval_start: interval.start,
-        interval_end: interval.end,
-        note,
-      }, key);
-      return save(
-        message(
-          deps.templates,
-          L,
-          "tasks.interval_predlozhen_vizit_sostoitsya_tolko_posle_soglasovaniya",
-          {
-            fmtinterval_interval_start_interval_end: fmtInterval(
-              interval.start,
-              interval.end,
-            ),
-          },
-        ),
-      );
-    }
-    if (command === "/noaccess") {
-      if (typeof state.task_id !== "string") {
-        throw new BotTemplateError(
-          "VALIDATION_FAILED",
-          message(deps.templates, L, "tasks.snachala_otkroyte_task_nomer"),
-        );
-      }
-      const t = await getTask(d, actor, state.task_id);
-      const visit = ((t.visits as Row[]) ?? [])[Number(number) - 1];
-      if (!visit) {
-        throw new BotTemplateError(
-          "VALIDATION_FAILED",
-          message(deps.templates, L, "tasks.vizit_ne_nayden"),
-        );
-      }
-      const [reason, attempts] = args.join(" ").split("|").map((s) => s.trim());
-      await updateVisit(d, actor, String(visit.id), {
-        action: "no_access",
-        version: visit.version,
-        reason,
-        contact_attempts: attempts,
-        occurred_at: new Date().toISOString(),
-      }, key);
-      return save(
-        message(
-          deps.templates,
-          L,
-          "tasks.otsutstvie_dostupa_zafiksirovano_administrator_i_zhitel_uvedomleny",
-        ),
-      );
-    }
-    // Шаг диалога визита (срез UX C): после кнопки «сегодня/завтра» жду
-    // время одним сообщением («10:00», «10:00-12:00») на сохранённый день.
-    const visitWhen = state.visit_when as Row | undefined;
-    if (visitWhen && !input.startsWith("/")) {
-      const interval = visitFromDayTime(String(visitWhen.day), input);
-      if (!interval) {
-        return save(
-          message(
-            deps.templates,
-            L,
-            "tasks.ne_ponyal_vremya_napishite_odnim_soobscheniem_naprimer",
-          ),
-        );
-      }
-      await proposeVisit(d, actor, {
-        task_id: String(visitWhen.task_id),
-        interval_start: interval.start,
-        interval_end: interval.end,
-      }, key);
-      delete state.visit_when;
-      return save(
-        message(
-          deps.templates,
-          L,
-          "tasks.interval_predlozhen_vizit_sostoitsya_tolko_posle_soglasovaniya",
-          {
-            fmtinterval_interval_start_interval_end: fmtInterval(
-              interval.start,
-              interval.end,
-            ),
-          },
         ),
       );
     }
