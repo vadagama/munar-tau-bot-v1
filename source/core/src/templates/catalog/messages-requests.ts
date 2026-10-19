@@ -72,8 +72,8 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "description": "Полное сообщение бота: Выбор адресата",
     "scenario": "Новое обращение",
     "command": "/newrequest",
-    "ru": "Где возникла проблема?\n/requestcancel — назад.",
-    "kk": "Мәселе қай жерде?\n/requestcancel — артқа.",
+    "ru": "Где возникла проблема?",
+    "kk": "Мәселе қай жерде?",
     "variables": [],
     "buttons": [
       {
@@ -115,8 +115,8 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "description": "Полное сообщение бота: Общее имущество — подменю",
     "scenario": "Новое обращение",
     "command": "/newrequest",
-    "ru": "Общее имущество. Где именно?\n/requestcancel — назад.",
-    "kk": "Ортақ мүлік. Дәл қайда?\n/requestcancel — артқа.",
+    "ru": "Общее имущество. Где именно?",
+    "kk": "Ортақ мүлік. Дәл қайда?",
     "variables": [],
     "buttons": [
       {
@@ -159,10 +159,8 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "Полное сообщение бота: ввод номера дома текстом с автопроверкой (REG-11)",
     "scenario": "Новое обращение",
     "command": "/newrequest",
-    "ru":
-      "Напишите номер вашего дома (например, 107/2).\n/requestcancel — назад.",
-    "kk":
-      "Үйіңіздің нөмірін жазыңыз (мысалы, 107/2).\n/requestcancel — артқа.",
+    "ru": "Напишите номер вашего дома (например, 107/2).",
+    "kk": "Үйіңіздің нөмірін жазыңыз (мысалы, 107/2).",
     "variables": [],
     "buttons": [],
     "examples": [
@@ -181,10 +179,8 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "description": "Полное сообщение бота: Место в доме",
     "scenario": "Новое обращение",
     "command": "/newrequest",
-    "ru":
-      "{name}. Опишите место: например, подъезд 2, первый этаж.\n/requestcancel — назад.",
-    "kk":
-      "{name}. Орынды сипаттаңыз: мысалы, 2-кіреберіс, бірінші қабат.\n/requestcancel — артқа.",
+    "ru": "{name}. Опишите место: например, подъезд 2, первый этаж.",
+    "kk": "{name}. Орынды сипаттаңыз: мысалы, 2-кіреберіс, бірінші қабат.",
     "variables": [
       {
         "name": "name",
@@ -214,9 +210,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "scenario": "Новое обращение",
     "command": "/newrequest",
     "ru":
-      "Опишите место на территории ЖК, например: детская площадка у дома 1.\n/requestcancel — назад.",
+      "Опишите место на территории ЖК, например: детская площадка у дома 1.",
     "kk":
-      "Аумақтағы орынды сипаттаңыз, мысалы: 1-үйдегі балалар алаңы.\n/requestcancel — артқа.",
+      "Аумақтағы орынды сипаттаңыз, мысалы: 1-үйдегі балалар алаңы.",
     "variables": [],
     "buttons": [],
     "examples": [
@@ -264,10 +260,8 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.chernovik_sohranyaetsya_do_otpravki",
       "requests.nazad",
     ],
-    "ru":
-      "Выберите номер своего помещения:\n{premises}\nЧерновик сохраняется до отправки. /requestcancel — назад.",
-    "kk":
-      "Үй-жайыңыздың нөмірін таңдаңыз:\n{premises}\nЖоба жіберілгенше сақталады. /requestcancel — артқа.",
+    "ru": "Выберите номер своего помещения:\n{premises}",
+    "kk": "Үй-жайыңыздың нөмірін таңдаңыз:\n{premises}",
     "variables": [
       {
         "name": "premises",
@@ -491,46 +485,91 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     ],
   },
   {
-    "key": "message.requests.attachments_prompt",
+    "key": "message.requests.verify_files",
     "section": "requests",
-    "title": "Файлы — вопрос",
+    "title": "Проверка перед отправкой — с файлами",
     "description":
-      "Полное сообщение бота: предложение приложить файлы к обращению (REQ-03)",
+      "Полное сообщение бота: проверка перед отправкой со счётчиком файлов (REQ-03)",
     "scenario": "Новое обращение",
     "command": "/newrequest",
-    "ru": "Добавите файл или фото для подтверждения проблемы?",
-    "kk": "Мәселені растау үшін файл немесе фото қосасыз ба?",
-    "variables": [],
+    "ru":
+      "Проверьте:\n- Вид: {kind}\n- Место: {place}\n- Сообщение: {description}\n- Файлы: {files}",
+    "kk":
+      "Тексеріңіз:\n- Түрі: {kind}\n- Орны: {place}\n- Хабарлама: {description}\n- Файлдар: {files}",
+    "variables": [
+      {
+        "name": "description",
+        "description": "Описание обращения",
+        "example": "Не работает освещение",
+      },
+      {
+        "name": "files",
+        "description": "Число прикреплённых файлов",
+        "example": "3 файла",
+      },
+      {
+        "name": "kind",
+        "description": "Вид обращения",
+        "example": "Заявка на работу",
+      },
+      {
+        "name": "place",
+        "description": "Место обращения",
+        "example": "Дом 1, подъезд 2",
+      },
+    ],
     "buttons": [
-      { "id": "yes", "ru": "Да", "kk": "Иә" },
-      { "id": "no", "ru": "Нет", "kk": "Жоқ" },
+      {
+        "id": "send",
+        "ru": "Отправить",
+        "kk": "Жіберу",
+      },
+      {
+        "id": "cancel",
+        "ru": "Отменить",
+        "kk": "Болдырмау",
+      },
     ],
     "examples": [
       {
         "id": "default",
         "title": "Пример",
-        "ru": {},
-        "kk": {},
-        "buttons": [[{ "id": "yes" }, { "id": "no" }]],
+        "ru": {
+          "description": "Не работает освещение",
+          "files": "3 файла",
+        },
+        "kk": {
+          "description": "Не работает освещение",
+          "files": "3 файл",
+        },
+        "buttons": [
+          [
+            {
+              "id": "send",
+            },
+            {
+              "id": "cancel",
+            },
+          ],
+        ],
       },
     ],
   },
   {
-    "key": "message.requests.attachments_wait",
+    "key": "message.requests.attachments_prompt",
     "section": "requests",
-    "title": "Файлы — ожидание медиа",
+    "title": "Файлы — приглашение",
     "description":
-      "Полное сообщение бота: приглашение прикрепить файл или фото (REQ-03)",
+      "Полное сообщение бота: предложение прикрепить файлы с кнопкой сохранения запроса (REQ-03)",
     "scenario": "Новое обращение",
     "command": "/newrequest",
     "ru":
-      "Прикрепите файл или фото одним сообщением.",
+      "Прикрепите файл или фото для подтверждения проблемы или нажмите «Сохранить запрос».\nPS/ Можно добавлять до 10 файлов, размер каждого файла не должен превышать 20 МБ.",
     "kk":
-      "Файлды немесе фотоны бір хабарламамен жіберіңіз.",
+      "Мәселені растайтын файл немесе фото жіберіңіз немесе «Өтінішті сақтау» түймесін басыңыз.\nPS/ 10-ға дейін файл қосуға болады, әр файлдың өлшемі 20 МБ-тан аспауы керек.",
     "variables": [],
     "buttons": [
-      { "id": "yes", "ru": "Да", "kk": "Иә" },
-      { "id": "no", "ru": "Нет, без файлов", "kk": "Жоқ, файлсыз" },
+      { "id": "save", "ru": "Сохранить запрос", "kk": "Өтінішті сақтау" },
     ],
     "examples": [
       {
@@ -538,26 +577,25 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "title": "Пример",
         "ru": {},
         "kk": {},
-        "buttons": [[{ "id": "yes" }, { "id": "no" }]],
+        "buttons": [[{ "id": "save" }]],
       },
     ],
   },
   {
     "key": "message.requests.attachments_more",
     "section": "requests",
-    "title": "Файлы — добавить ещё",
+    "title": "Файлы — файл принят",
     "description":
-      "Полное сообщение бота: файл принят, вопрос о следующем файле (REQ-03)",
+      "Полное сообщение бота: файл принят, можно прикрепить ещё или сохранить запрос (REQ-03)",
     "scenario": "Новое обращение",
     "command": "/newrequest",
     "ru":
-      "Файл принят в очередь на сохранение. Хотите добавить ещё файл или фото?",
+      "Файл принят в очередь на сохранение. Можно прикрепить ещё файл или нажать «Сохранить запрос».",
     "kk":
-      "Файл сақтау кезегіне қабылданды. Тағы файл немесе фото қосқыңыз келе ме?",
+      "Файл сақтау кезегіне қабылданды. Тағы бір файл жіберуге болады немесе «Өтінішті сақтау» түймесін басыңыз.",
     "variables": [],
     "buttons": [
-      { "id": "yes", "ru": "Да", "kk": "Иә" },
-      { "id": "no", "ru": "Нет, отправить", "kk": "Жоқ, жіберу" },
+      { "id": "save", "ru": "Сохранить запрос", "kk": "Өтінішті сақтау" },
     ],
     "examples": [
       {
@@ -565,7 +603,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "title": "Пример",
         "ru": {},
         "kk": {},
-        "buttons": [[{ "id": "yes" }, { "id": "no" }]],
+        "buttons": [[{ "id": "save" }]],
       },
     ],
   },
@@ -584,9 +622,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "help.visits_nomer_vizity_say_nomer_tekst_soobschenie",
     ],
     "ru":
-      "Обращение <b>{number}</b> — зарегистрировано {registered}.\nЭкстренные службы бот не заменяет: при непосредственной угрозе жизни звоните 112.",
+      "Обращение <b>{number}</b> успешно зарегистрировано {registered}.\nВ ближайшее время ваше обращение будет рассмотрено администратором.\nPS/ Экстренные службы бот не заменяет: при непосредственной угрозе жизни звоните 112.",
     "kk":
-      "Өтініш <b>{number}</b> — тіркелді {registered}.\nТөтенше қызметтерді бот алмастырмайды: өмірге тікелей қауіп төнгенде 112 нөміріне қоңырау шалыңыз.",
+      "Өтініш <b>{number}</b> сәтті тіркелді {registered}.\nЖақын арада өтінішіңіз әкімші тарапынан қаралады.\nPS/ Төтенше қызметтерді бот алмастырмайды: өмірге тікелей қауіп төнгенде 112 нөміріне қоңырау шалыңыз.",
     "variables": [
       {
         "name": "number",
@@ -913,13 +951,13 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "command": "/newrequest",
   },
   {
-    "key": "requests.dialog_priostanovlen_chernovik_sohranen_register_requests",
+    "key": "requests.formirovanie_obrascheniya_priostanovleno",
     "section": "requests",
-    "title": "Диалог приостановлен, черновик сохранён. /register /requests",
+    "title": "Формирование обращения приостановлено.",
     "description": "Полный ответ бота в сценарии «Новое обращение».",
     "variables": [],
-    "ru": "Диалог приостановлен, черновик сохранён. /register /requests",
-    "kk": "Диалог тоқтатылды, жоба сақталды. /register /requests",
+    "ru": "Формирование обращения приостановлено.",
+    "kk": "Өтінішті жасау тоқтатылды.",
     "scenario": "Новое обращение",
     "command": "/newrequest",
   },
