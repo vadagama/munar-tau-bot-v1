@@ -88,3 +88,12 @@ it("показывает кнопки под ответом и продолжа�
     method: "POST", body: { scenario: "registration", input: "ru" },
   }));
 });
+
+it("показывает форматирование ответа вместо тегов, ввод пользователя оставляет текстом", async () => {
+  vi.mocked(apiFetch).mockResolvedValueOnce({ reply: "<b>З-26-00011</b> — зарегистрировано.\nПервый ответ: 19.10.2026 13:00." });
+  render(<RegistrationSimulator active />);
+  fireEvent.change(screen.getByRole("textbox", { name: "Сообщение симулятору" }), { target: { value: "<b>Мой текст</b>" } });
+  fireEvent.click(screen.getByRole("button", { name: "Отправить шаг" }));
+  expect((await screen.findByText("З-26-00011")).tagName).toBe("STRONG");
+  expect(screen.getByText("Вы: <b>Мой текст</b>")).toBeInTheDocument();
+});

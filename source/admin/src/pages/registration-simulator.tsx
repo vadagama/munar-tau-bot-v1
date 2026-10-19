@@ -1,3 +1,4 @@
+import { TelegramText } from "../components/telegram-text";
 import type { InlineButton } from "../../../core/src/bot/keyboard";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Card, Input, Space, Typography, Select } from "antd";
@@ -103,11 +104,12 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
               <Typography.Paragraph
                 style={{
                   whiteSpace: "pre-wrap",
+                  overflowWrap: "anywhere",
                   marginTop: 8,
                   marginBottom: 0,
                 }}
               >
-                {entry.reply}
+                <TelegramText text={entry.reply} />
               </Typography.Paragraph>
               {entry.buttons?.map((row, rowIndex) => (
                 <Space key={rowIndex} wrap style={{ display: "flex", marginTop: 8 }}>
