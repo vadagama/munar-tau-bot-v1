@@ -1,15 +1,22 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { apiFetch } from "../lib/api";
 import { AppLayout } from "./app-layout";
 
-const state = vi.hoisted(() => ({ roles: ["chairman", "tech_admin"] }));
+const state = vi.hoisted(() => ({ roles: ["chairman", "tech_admin"], emulating: false }));
 vi.mock("@refinedev/core", () => ({ useLogout: () => ({ mutate: vi.fn() }) }));
 vi.mock("../lib/identity", async importOriginal => ({
   ...await importOriginal<typeof import("../lib/identity")>(),
-  useCabinetIdentity: () => ({ roles: state.roles }),
+  useCabinetIdentity: () => ({ roles: state.roles, identity: state.emulating ? {
+    fullName: "Тестовый житель", me: {
+      profile: { id: "resident" }, person: { full_name: "Тестовый житель" },
+      emulation: { session_id: "session", real_person_full_name: "Техадминистратор" },
+    },
+  } : undefined }),
 }));
-afterEach(cleanup);
+vi.mock("../lib/api", () => ({ apiFetch: vi.fn().mockResolvedValue({ persons: [] }) }));
+afterEach(() => { cleanup(); state.emulating = false; vi.clearAllMocks(); });
 function show(path = "/") {
   render(<MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
     <Routes><Route element={<AppLayout />}>
@@ -51,4 +58,18 @@ it("импорт и экспорт раскрывает настройки и в
   expect(screen.getByRole("menuitem", { name: "Импорт и экспорт" })).toBeVisible();
   expect(screen.getByRole("menuitem", { name: "Импорт и экспорт" })).toHaveClass("ant-menu-item-selected");
   expect(screen.getByRole("menuitem", { name: "Помещения" })).not.toHaveClass("ant-menu-item-selected");
+});
+
+it("вне эмуляции не показывает выбор роли и не загружает персон", () => {
+  show();
+  expect(screen.queryByRole("combobox", { name: "Роль эмуляции" })).toBeNull();
+  expect(apiFetch).not.toHaveBeenCalled();
+});
+it("только в эмуляции показывает выбор роли слева от выхода", async () => {
+  state.emulating = true;
+  state.roles = [];
+  show();
+  const select = screen.getByRole("combobox", { name: "Роль эмуляции" });
+  expect(select.compareDocumentPosition(screen.getByRole("button", { name: "Выйти" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/emulation/persons"));
 });

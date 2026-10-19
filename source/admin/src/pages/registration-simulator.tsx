@@ -1,25 +1,36 @@
+import type { InlineButton } from "../../../core/src/bot/keyboard";
 import { useState } from "react";
 import { Alert, Button, Card, Input, Space, Typography, Select } from "antd";
 import { apiFetch } from "../lib/api";
+interface SimulatorReply {
+  scenario_id?: string;
+  reply: string;
+  buttons?: InlineButton[][];
+  menu?: (InlineButton & { scenario: string })[][];
+}
 export function RegistrationSimulator({ active }: { active: boolean }) {
   const [scenario,setScenario]=useState("registration");
+  const [menu, setMenu] = useState<SimulatorReply["menu"]>([]);
   const [input, setInput] = useState(""),
-    [history, setHistory] = useState<{ input: string; reply: string }[]>([]),
+    [history, setHistory] = useState<{ input: string; reply: string; buttons?: InlineButton[][]; scenario: string }[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null);
-  const send = async (text: string) => {
+  const send = async (text: string, targetScenario = scenario) => {
     if (!active || busy || !text.trim()) return;
     setBusy(true);
     setError(null);
     try {
-      const result = await apiFetch<{ reply: string }>(
+      const result = await apiFetch<SimulatorReply>(
         "/v1/emulation/simulate",
-        { method: "POST", body: { scenario, input: text } },
+        { method: "POST", body: { scenario: targetScenario, input: text } },
       );
+      const resolvedScenario = result.scenario_id ?? targetScenario;
       setHistory((previous) => [
         ...previous,
-        { input: text, reply: result.reply },
+        { input: text, reply: result.reply, buttons: result.buttons, scenario: resolvedScenario },
       ]);
+      setScenario(resolvedScenario);
+      setMenu(result.menu ?? []);
       setInput("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка симулятора");
@@ -44,19 +55,19 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
         <Space wrap>
           <Button
             disabled={!active || busy}
-            onClick={() => void send("/register")}
+            onClick={() => void send("/register", "registration")}
           >
             Начать анкету
           </Button>
           <Button
             disabled={!active || busy}
-            onClick={() => void send("/status")}
+            onClick={() => void send("/status", "registration")}
           >
             Статус
           </Button>
           <Button
             disabled={!active || busy}
-            onClick={() => void send("/objects")}
+            onClick={() => void send("/objects", "registration")}
           >
             Мои объекты
           </Button>
@@ -90,9 +101,25 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
               >
                 {entry.reply}
               </Typography.Paragraph>
+              {entry.buttons?.map((row, rowIndex) => (
+                <Space key={rowIndex} wrap style={{ display: "flex", marginTop: 8 }}>
+                  {row.map((button, buttonIndex) => (
+                    <Button key={buttonIndex} disabled={!active || busy}
+                      onClick={() => void send(button.data, entry.scenario)}>{button.text}</Button>
+                  ))}
+                </Space>
+              ))}
             </div>
           ))}
         </div>
+        {menu?.map((row, rowIndex) => (
+          <Space key={rowIndex} wrap>
+            {row.map((button, buttonIndex) => (
+              <Button key={buttonIndex} disabled={!active || busy}
+                onClick={() => void send(button.data, button.scenario)}>{button.text}</Button>
+            ))}
+          </Space>
+        ))}
         <Input.TextArea
           aria-label="Сообщение симулятору"
           value={input}

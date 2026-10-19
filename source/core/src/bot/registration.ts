@@ -1,3 +1,4 @@
+import { withSimulatorMenu } from "./simulator-menu.ts";
 import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
 import { loadTemplateStore, type TemplateStore } from "../templates/store.ts";
@@ -26,7 +27,7 @@ import {
 import { submitPrivacyRequest } from "../domains/privacy/service.ts";
 import { ScenarioRegistry } from "./registry.ts";
 import { registrationHelp, welcomeText } from "./help.ts";
-import { type BotReply, btn, replyText } from "./keyboard.ts";
+import { type BotReply, btn } from "./keyboard.ts";
 import {
   esc,
   fmtDate,
@@ -1264,23 +1265,23 @@ export function registrationScenarios(deps: RegistryDeps): ScenarioRegistry {
     id: "registration",
     description: "REG: регистрация, объекты и приглашения",
     run: async (input, ctx) => {
-      const [profile] = await deps.db.query<{
+      const [profile] = await (ctx.executor ?? deps.db).query<{
         telegram_user_id: string | number;
       }>("select telegram_user_id from profile where id=$1 and is_test=true", [
         ctx.profileId,
       ]);
       if (!profile || !ctx.actor?.emulation) throw new ApiError("FORBIDDEN");
+      const templates = await loadTemplateStore(ctx.executor ?? deps.db);
       const reply = await registrationStep(
         {
           ...(ctx.executor ? scopedDeps(deps, ctx.executor) : deps),
-          templates: await loadTemplateStore(ctx.executor ?? deps.db),
+          templates,
         },
         String(profile.telegram_user_id),
         input,
         ctx.actor,
       );
-      // Эмуляция видит только текст: кнопки — сахар Telegram-транспорта.
-      return replyText(reply);
+      return withSimulatorMenu(reply, "registration", ctx.actor.profile.language, templates);
     },
   });
   return scenarios;

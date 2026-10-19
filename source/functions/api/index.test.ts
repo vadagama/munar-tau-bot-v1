@@ -603,6 +603,24 @@ Deno.test("симулятор: без эмуляции — 400, неизвест
   assertEquals((await unknown.json()).error.code, "NOT_FOUND");
 });
 
+Deno.test("симулятор жителя возвращает текст, inline-кнопки и меню", async () => {
+  const { deps, admin, emulation } = makeDeps();
+  const tech = seedTechAdmin(admin);
+  const techJwt = await token({ sub: tech.sub, sessionId: tech.sessionId });
+  const persona = seedTestPersona({ admin, emulation }, {});
+  await call(deps, "/v1/emulation/sessions", {
+    token: techJwt, method: "POST", body: { emulated_profile_id: persona.profile.id },
+  });
+  const buttons = [[{ text: "Русский", data: "ru" }]];
+  const menu = [[{ text: "Обращения", data: "/requests", scenario: "requests" }]];
+  deps.scenarios.register({ id: "registration", description: "REG", run: () => Promise.resolve({ text: "Язык", buttons, menu }) });
+  const response = await call(deps, "/v1/emulation/simulate", {
+    token: techJwt, method: "POST", body: { scenario: "registration", input: "/register" },
+  });
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), { scenario_id: "registration", reply: "Язык", buttons, menu });
+});
+
 // ── CORS и заголовки приватности ───────────────────────────────────────────
 
 Deno.test("preflight OPTIONS — 204 с CORS-заголовками для localhost (без CABINET_ORIGIN)", async () => {

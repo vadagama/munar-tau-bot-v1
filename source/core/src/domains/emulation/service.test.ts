@@ -302,4 +302,21 @@ describe("simulate (LLD-03 §3.16, критерий среза)", () => {
     expect(entry.emulationSessionId).toBe(sessionId);
     expect(entry.meta).toMatchObject({ scenario: "echo" });
   });
+  it("/register выходит из выбора помещения и возвращает кнопки регистрации", async () => {
+    const buttons = [[{ text: "Русский", data: "ru" }]];
+    registry.register({ id: "requests", description: "REQ", run: async () => "Выберите номер из списка. /objects" });
+    registry.register({ id: "registration", description: "REG", run: async () => ({ text: "Выберите язык", buttons }) });
+    const { actor } = await emulatedPersonaActor();
+    const result = await simulate({ ...deps, scenarios: registry }, actor, { scenarioId: "requests", text: "/register" });
+    expect(result).toEqual({ scenarioId: "registration", reply: "Выберите язык", buttons });
+    expect(audit.entries.at(-1)?.meta).toMatchObject({ scenario: "registration" });
+  });
+  it("сохраняет кнопки общего сценария вместе с текстом", async () => {
+    const buttons = [[{ text: "Русский", data: "ru" }]];
+    registry.register({ id: "keyboard", description: "Кнопки", run: async () => ({ text: "Язык", buttons }) });
+    const { actor } = await emulatedPersonaActor();
+    const result = await simulate({ ...deps, scenarios: registry }, actor, { scenarioId: "keyboard" });
+    expect(result).toEqual({ scenarioId: "keyboard", reply: "Язык", buttons });
+  });
+
 });
