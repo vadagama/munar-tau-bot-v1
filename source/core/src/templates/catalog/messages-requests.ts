@@ -8,9 +8,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "scenario": "Новое обращение",
     "command": "/newrequest",
     "ru":
-      "Выберите вид обращения:\n{kinds}\n/requestcancel — назад.",
+      "Выберите вид обращения:\n{kinds}",
     "kk":
-      "Өтініш түрін таңдаңыз:\n{kinds}\n/requestcancel — артқа.",
+      "Өтініш түрін таңдаңыз:\n{kinds}",
     "variables": [
       {
         "name": "kinds",
@@ -237,9 +237,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "scenario": "Новое обращение",
     "command": "/newrequest",
     "ru":
-      "Напишите адрес одной строкой (например: дом 107/2, кв 11).\n/requestcancel — назад.",
+      "Напишите адрес одной строкой (например: дом 107/2, кв 11).\nP.S. Позже, когда вы привяжете к профилю свои помещения, нужно будет только выбрать их из списка.",
     "kk":
-      "Адресті бір жолмен жазыңыз (мысалы: 107/2-үй, 11-пәтер).\n/requestcancel — артқа.",
+      "Адресті бір жолмен жазыңыз (мысалы: 107/2-үй, 11-пәтер).\nP.S. Кейін профиліңізге өз үй-жайларыңызды байланыстырсаңыз, оларды тізімнен ғана таңдау қалады.",
     "variables": [],
     "buttons": [],
     "examples": [
@@ -435,9 +435,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.sohranit_chernovik",
     ],
     "ru":
-      "Проверьте:\nВид: {kind}\nМесто: {place}\n{description}\nПолный текст сохранён.\n/sendrequest — отправить. /requestcancel — сохранить черновик.",
+      "Проверьте:\n- Вид: {kind}\n- Место: {place}\n- Сообщение: {description}",
     "kk":
-      "Тексеріңіз:\nТүрі: {kind}\nОрны: {place}\n{description}\nТолық мәтін сақталды.\n/sendrequest — жіберу. /requestcancel — жобаны сақтау.",
+      "Тексеріңіз:\n- Түрі: {kind}\n- Орны: {place}\n- Хабарлама: {description}",
     "variables": [
       {
         "name": "description",
@@ -461,6 +461,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "ru": "Отправить",
         "kk": "Жіберу",
       },
+      {
+        "id": "cancel",
+        "ru": "Отменить",
+        "kk": "Болдырмау",
+      },
     ],
     "examples": [
       {
@@ -476,6 +481,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           [
             {
               "id": "send",
+            },
+            {
+              "id": "cancel",
             },
           ],
         ],
@@ -576,9 +584,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "help.visits_nomer_vizity_say_nomer_tekst_soobschenie",
     ],
     "ru":
-      "<b>{number}</b> — зарегистрировано. Первый ответ: {deadline}.\nДействия: /visits НОМЕР — визиты; /say НОМЕР текст — сообщение\nЭкстренные службы бот не заменяет: при непосредственной угрозе жизни звоните 112.",
+      "Обращение <b>{number}</b> — зарегистрировано {registered}.\nЭкстренные службы бот не заменяет: при непосредственной угрозе жизни звоните 112.",
     "kk":
-      "<b>{number}</b> — тіркелді. Алғашқы жауап: {deadline}.\nӘрекеттер: /visits НОМІР — сапарлар; /say НОМІР мәтін — хабарлама\nТөтенше қызметтерді бот алмастырмайды: өмірге тікелей қауіп төнгенде 112 нөміріне қоңырау шалыңыз.",
+      "Өтініш <b>{number}</b> — тіркелді {registered}.\nТөтенше қызметтерді бот алмастырмайды: өмірге тікелей қауіп төнгенде 112 нөміріне қоңырау шалыңыз.",
     "variables": [
       {
         "name": "number",
@@ -586,9 +594,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "example": "З-26-00001",
       },
       {
-        "name": "deadline",
-        "description": "Срок первого ответа",
-        "example": "20.10.2026 12:00",
+        "name": "registered",
+        "description": "Дата и время регистрации",
+        "example": "20.10.2026 08:44",
       },
     ],
     "buttons": [],
@@ -598,11 +606,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "title": "Пример",
         "ru": {
           "number": "З-26-00001",
-          "deadline": "20.10.2026 12:00",
+          "registered": "20.10.2026 08:44",
         },
         "kk": {
           "number": "З-26-00001",
-          "deadline": "20.10.2026 12:00",
+          "registered": "20.10.2026 08:44",
         },
       },
     ],
@@ -656,64 +664,6 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
               "id": "place",
               "vars": {
                 "number": "4",
-              },
-            },
-          ],
-        ],
-      },
-    ],
-  },
-  {
-    "key": "message.requests.visits",
-    "section": "requests",
-    "title": "Список визитов",
-    "description": "Полное сообщение бота: Список визитов",
-    "scenario": "Визиты",
-    "command": "/visits",
-    "legacyKeys": [
-      "requests.ispolnitel_ne_prishel",
-    ],
-    "ru":
-      "{visits}\n/missedvisit НОМЕР_ОБРАЩЕНИЯ НОМЕР_В_СПИСКЕ причина — исполнитель не пришёл",
-    "kk":
-      "{visits}\n/missedvisit НОМЕР_ОБРАЩЕНИЯ НОМЕР_В_СПИСКЕ причина — орындаушы келмеді",
-    "variables": [
-      {
-        "name": "visits",
-        "description": "Визиты и их состояния",
-        "example": "20.10.2026 10:00–12:00 — согласован",
-      },
-    ],
-    "buttons": [
-      {
-        "id": "confirm",
-        "ru": "Согласовать {index}",
-        "kk": "Келісу {index}",
-        "variables": [
-          {
-            "name": "index",
-            "description": "Номер визита",
-            "example": "1",
-          },
-        ],
-      },
-    ],
-    "examples": [
-      {
-        "id": "default",
-        "title": "Пример",
-        "ru": {
-          "visits": "20.10.2026 10:00–12:00 — согласован",
-        },
-        "kk": {
-          "visits": "20.10.2026 10:00–12:00 — согласован",
-        },
-        "buttons": [
-          [
-            {
-              "id": "confirm",
-              "vars": {
-                "index": "1",
               },
             },
           ],
@@ -1079,8 +1029,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "description": "Полный ответ бота в сценарии «Новое обращение».",
     "variables": [],
     "ru":
-      "Опишите проблему своими словами. Категория не нужна — достаточно текста и фото.",
-    "kk": "Мәселені сипаттаңыз. Санат қажет емес — мәтін мен фото жеткілікті.",
+      "Опишите проблему в свободной форме (например, «Не включается свет в подъезде»).",
+    "kk":
+      "Мәселені еркін түрде сипаттаңыз (мысалы, «Кіреберістегі жарық жанбайды»).",
     "scenario": "Новое обращение",
     "command": "/newrequest",
   },
@@ -1189,9 +1140,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count} {report_command}\nДействия: /visits НОМЕР — визиты; /say НОМЕР текст — сообщение",
+      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count} {report_command}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count} {report_command}\nӘрекеттер: /visits НОМІР — сапарлар; /say НОМІР мәтін — хабарлама",
+      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count} {report_command}",
     "variables": [
       {
         "name": "number",
