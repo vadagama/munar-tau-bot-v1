@@ -817,8 +817,8 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
     const done = await registrationStep(h.deps, "100", "да");
     expect(replyText(done)).toContain("Анкета принята");
     expect(h.state).toEqual({});
-    const i = h.paramsList.findIndex((p, idx) =>
-      h.queries[idx].startsWith("insert into registration"),
+    const i = h.queries.findIndex((q) =>
+      q.startsWith("insert into registration"),
     );
     expect(i).toBeGreaterThanOrEqual(0);
     expect(h.paramsList[i]![2]).toBeNull(); // premises_id
