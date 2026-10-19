@@ -2,6 +2,8 @@
 
 Спеки: `docs/specs/SPEC-request-flow.md`, `docs/specs/SPEC-registration-binding.md`. Идея и карта возможностей: `docs/ideas/registration-and-request-flow.md`. Статус: на ревью.
 
+> **19.10.2026:** Фаза A реализована и влита (PR #57). Фаза B (`registration-binding`) и C1 заменены планом [`tasks/plan-registration-lite.md`](plan-registration-lite.md) (решение пользователя: анкета-минимум без дома/помещения/роли, доступ к обращениям после подтверждения анкеты, привязка — через `/add`).
+
 ## Overview
 
 Два независимых модуля: `request-flow` (вид и адресат при создании обращения — только бот и каталог шаблонов) и `registration-binding` (непривязанная анкета — миграция, домен, бот, кабинет). Порядок: сначала `request-flow` (меньше, без схемы), затем `registration-binding`. Задачи — вертикальные срезы, каждая оставляет систему рабочей.
