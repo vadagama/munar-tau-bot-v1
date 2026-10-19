@@ -1,6 +1,6 @@
 ---
 name: using-agent-skills
-description: Discovers and invokes agent skills. Use when starting a session, or when you need to decide which skill or workflow applies to the piece of work at hand. This is the meta-skill that governs how all other skills are discovered and invoked.
+description: Discovers and invokes agent skills. Use at the start of every new task (not once per session) to pick the applicable skills and announce them, and whenever you need to decide which skill or workflow applies to the piece of work at hand. This is the meta-skill that governs how all other skills are discovered and invoked.
 ---
 
 # Using Agent Skills
@@ -18,6 +18,7 @@ Task arrives
     │
     ├── Don't know what you want yet? ──────→ interview-me
     ├── Have a rough concept, need variants? → idea-refine
+    ├── Asked to analyze/evaluate a proposal (no code yet)? → idea-refine; interview-me if the ask is incomplete
     ├── New project/feature/change? ──→ spec-driven-development
     ├── No quality bar written down? ──→ constraint-driven-development
     ├── Have a spec, need tasks? ──────→ planning-and-task-breakdown
@@ -130,7 +131,7 @@ These are the subtle errors that look like productivity but create problems:
 
 ## Skill Rules
 
-1. **Check for an applicable skill before starting work.** Skills encode processes that prevent common mistakes.
+1. **Check for an applicable skill before starting work — per task, every time.** Skills encode processes that prevent common mistakes. Do not treat skills loaded earlier in the session as a substitute for walking the map again. Announce the outcome in your first reply on the task as `Skills: <names>` (or state explicitly that none apply) before reading code or making edits; the visible declaration is what makes skipping detectable and correctable.
 
 2. **Skills are workflows, not suggestions.** Follow the steps in order. Don't skip verification steps.
 
