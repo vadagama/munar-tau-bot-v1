@@ -92,6 +92,26 @@ export function numbered(lines: readonly string[]): string {
   return lines.map((line, i) => `${i + 1}. ${line}`).join("\n");
 }
 
+/**
+ * Нормализация кода дома для ввода текстом (REG-11): регистр, «/», «-» и
+ * пробелы приводятся к одному виду — «107-2», «107 2», «107/2» совпадают.
+ */
+export function normalizeBuildingCode(value: string): string {
+  return value.trim().toLowerCase()
+    .replace(/[\s\-–—]+/g, "/")
+    .replace(/\/{2,}/g, "/")
+    .replace(/^\/+|\/+$/g, "");
+}
+
+/** Совпадение кода дома с пользовательским вводом: со слешем, без разделителей и со словом «дом». */
+export function buildingCodeMatches(code: unknown, input: string): boolean {
+  const house = /^(дом|үй)[\/\s]*/;
+  const a = normalizeBuildingCode(String(code ?? "")).replace(house, "");
+  const b = normalizeBuildingCode(input).replace(house, "");
+  if (!a || !b) return false;
+  return a === b || a.replaceAll("/", "") === b.replaceAll("/", "");
+}
+
 /** Язык подачи бота (срез UX B): один язык вместо сдвоенных «ru / kk». */
 export type Lang = "ru" | "kk";
 

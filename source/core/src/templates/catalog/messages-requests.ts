@@ -154,63 +154,23 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
   {
     "key": "message.requests.building",
     "section": "requests",
-    "title": "Выбор дома",
-    "description": "Полное сообщение бота: Выбор дома",
+    "title": "Номер дома текстом",
+    "description":
+      "Полное сообщение бота: ввод номера дома текстом с автопроверкой (REG-11)",
     "scenario": "Новое обращение",
     "command": "/newrequest",
     "ru":
-      "Выберите дом:\n{buildings}\nМожно ввести код дома, например: 1\n/requestcancel — назад.",
+      "Напишите номер вашего дома (например, 107/2).\n/requestcancel — назад.",
     "kk":
-      "Үйді таңдаңыз:\n{buildings}\nҮй кодын енгізуге болады, мысалы: 1\n/requestcancel — артқа.",
-    "variables": [
-      {
-        "name": "buildings",
-        "description": "Нумерованный список домов",
-        "example": "1. Дом 1\n2. Дом 2",
-      },
-    ],
-    "buttons": [
-      {
-        "id": "building",
-        "ru": "{name}",
-        "kk": "{name}",
-        "variables": [
-          {
-            "name": "name",
-            "description": "Название или код дома",
-            "example": "Дом 1",
-          },
-        ],
-      },
-    ],
+      "Үйіңіздің нөмірін жазыңыз (мысалы, 107/2).\n/requestcancel — артқа.",
+    "variables": [],
+    "buttons": [],
     "examples": [
       {
         "id": "default",
         "title": "Пример",
-        "ru": {
-          "buildings": "1. Дом 1\n2. Дом 2",
-        },
-        "kk": {
-          "buildings": "1. Дом 1\n2. Дом 2",
-        },
-        "buttons": [
-          [
-            {
-              "id": "building",
-              "vars": {
-                "name": "Дом 1",
-              },
-            },
-          ],
-          [
-            {
-              "id": "building",
-              "vars": {
-                "name": "Дом 2",
-              },
-            },
-          ],
-        ],
+        "ru": {},
+        "kk": {},
       },
     ],
   },

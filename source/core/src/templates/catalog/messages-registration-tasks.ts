@@ -403,16 +403,14 @@ const defs: TemplateDef[] = [
   ),
   def(
     "message.registration.building",
-    "Регистрация — выбор здания",
+    "Регистрация — номер дома текстом",
     "/register",
     [R + "vyberite_zdanie"],
-    (l) => old(R + "vyberite_zdanie", l) + "\n{buildings}",
-    [{
-      id: "building",
-      ru: "{code}",
-      kk: "{code}",
-      variables: variables("{code}", ""),
-    }],
+    (l) =>
+      l === "kk"
+        ? "Үйіңіздің нөмірін жазыңыз (мысалы, 107/2).\n/cancel — артқа."
+        : "Напишите номер вашего дома (например, 107/2).\n/cancel — назад.",
+    [],
   ),
   def(
     "message.registration.kind",

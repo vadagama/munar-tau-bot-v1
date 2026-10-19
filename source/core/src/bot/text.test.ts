@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildingCodeMatches,
   cmd,
   esc,
   fmtDate,
   fmtInterval,
   isUuid,
   langOf,
+  normalizeBuildingCode,
   numbered,
   pick,
   resolveRef,
@@ -93,5 +95,25 @@ describe("язык подачи (срез UX B)", () => {
   it("pick выбирает реплику по языку", () => {
     expect(pick("ru", "да", "иә")).toBe("да");
     expect(pick("kk", "да", "иә")).toBe("иә");
+  });
+});
+
+describe("номер дома текстом (REG-11)", () => {
+  it("normalizeBuildingCode: «/», «-» и пробелы равнозначны", () => {
+    expect(normalizeBuildingCode("107/2")).toBe("107/2");
+    expect(normalizeBuildingCode("107-2")).toBe("107/2");
+    expect(normalizeBuildingCode("107 2")).toBe("107/2");
+    expect(normalizeBuildingCode(" 107 // 2 ")).toBe("107/2");
+    expect(normalizeBuildingCode("")).toBe("");
+  });
+  it("buildingCodeMatches: ввод находит код в любом написании", () => {
+    expect(buildingCodeMatches("107/2", "107-2")).toBe(true);
+    expect(buildingCodeMatches("107/2", "107 2")).toBe(true);
+    expect(buildingCodeMatches("107/2", "1072")).toBe(true);
+    expect(buildingCodeMatches("Ж1", "ж 1")).toBe(true);
+    expect(buildingCodeMatches("2", "дом-2")).toBe(true);
+    expect(buildingCodeMatches("Дом <1>", "Дом <1>")).toBe(true);
+    expect(buildingCodeMatches("107/2", "999")).toBe(false);
+    expect(buildingCodeMatches("107/2", "")).toBe(false);
   });
 });

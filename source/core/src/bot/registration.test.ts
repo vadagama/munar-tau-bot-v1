@@ -728,20 +728,20 @@ describe("бот: /add — добавление помещения", () => {
     await expect(registrationStep(h.deps, "100", "9")).rejects.toThrow();
   });
 
-  it("нет связанных помещений — сразу выбор здания с предзаполненными данными", async () => {
+  it("нет связанных помещений — сразу номер дома текстом с предзаполненными данными", async () => {
     const h = harness({ profile: true });
     const reply = await registrationStep(h.deps, "100", "/add");
-    expect(replyText(reply)).toContain("Выберите здание");
+    expect(replyText(reply)).toContain("Напишите номер вашего дома");
     expect(h.state.step).toBe("building");
     expect(h.state.full_name).toBe("Тест Тестов");
     expect(h.state.phone_e164).toBe("+77771234567");
     expect(h.state.language).toBe("ru");
   });
 
-  it("кнопка «Ввести вручную» (/add manual) — сразу выбор здания", async () => {
+  it("кнопка «Ввести вручную» (/add manual) — сразу номер дома текстом", async () => {
     const h = harness({ profile: true, addConnections: connections });
     const reply = await registrationStep(h.deps, "100", "/add manual");
-    expect(replyText(reply)).toContain("Выберите здание");
+    expect(replyText(reply)).toContain("Напишите номер вашего дома");
     expect(h.state.step).toBe("building");
     expect(h.state.add_options).toBeUndefined();
   });
@@ -778,8 +778,8 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
   it("шаги «Тип помещения» и «Ваша роль» без двойной нумерации (привязка через /add manual)", async () => {
     const h = harness({ profile: true });
     await registrationStep(h.deps, "100", "/add manual");
-    // Выбор здания возвращает список типов помещений.
-    const kind = replyText(await registrationStep(h.deps, "100", "1"));
+    // Дом вводится кодом текстом: «/», «-» и пробелы равнозначны (REG-11).
+    const kind = replyText(await registrationStep(h.deps, "100", "ж 1"));
     // numbered() нумерует сам; двойного «1. 1.» в списке нет.
     expect(kind).toContain("1. Квартира");
     expect(kind).not.toContain("1. 1.");
@@ -788,6 +788,15 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
     const role = replyText(await registrationStep(h.deps, "100", "1"));
     expect(role).toContain("1. Собственник");
     expect(role).not.toContain("1. 1.");
+  });
+
+  it("номер дома текстом: неизвестный код повторяет вопрос с примером", async () => {
+    const h = harness({ profile: true });
+    await registrationStep(h.deps, "100", "/add manual");
+    const again = await registrationStep(h.deps, "100", "999");
+    expect(h.state.step).toBe("building");
+    expect(h.state.building_id).toBeUndefined();
+    expect(replyText(again)).toContain("Напишите номер вашего дома");
   });
 
   it("/register — анкета-минимум: язык → имя → телефон → согласие без помещения, подача без premises_id и роли", async () => {

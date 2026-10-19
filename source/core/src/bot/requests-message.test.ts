@@ -284,7 +284,7 @@ it.each([[2, "default"], [1, "one"]] as const)(
 );
 
 it.each(["ru", "kk"] as const)(
-  "общее имущество: предпросмотр подменю и списка домов на %s",
+  "общее имущество: подменю и номер дома текстом на %s",
   async (lang) => {
     const state: Row = {};
     const d = deps({ count: 1, state });
@@ -298,16 +298,12 @@ it.each(["ru", "kk"] as const)(
       typeof common === "object" &&
         common.buttons?.map((row) => row.map((button) => button.text)),
     ).toEqual(commonExpected.buttons);
+    // Дом запрашивается текстом с примером, без списка (REG-11).
     const buildings = await requestStep(d, "1", "1", L);
     expect(replyText(buildings)).toBe(
-      message(undefined, lang, "message.requests.building", {
-        buildings: "1. Дом 1\n2. Дом 2",
-      }),
+      message(undefined, lang, "message.requests.building"),
     );
-    expect(
-      typeof buildings === "object" &&
-        buildings.buttons?.map((row) => row.map((button) => button.text)),
-    ).toEqual([["Дом 1"], ["Дом 2"]]);
+    expect(buildings).not.toHaveProperty("buttons");
   },
 );
 
@@ -328,8 +324,8 @@ it("в доме: выбор дома кнопкой → текст места �
   await requestStep(d, "1", "/newrequest", actor);
   await requestStep(d, "1", "3", actor); // жалоба
   await requestStep(d, "1", "2", actor); // общее имущество
-  await requestStep(d, "1", "1", actor); // в доме → список
-  const prompt = await requestStep(d, "1", "2", actor); // дом 2
+  await requestStep(d, "1", "1", actor); // в доме → номер дома текстом
+  const prompt = await requestStep(d, "1", "2", actor); // дом 2 (код)
   expect(replyText(prompt)).toBe(
     message(undefined, "ru", "message.requests.common_place", { name: "Дом 2" }),
   );
@@ -353,15 +349,22 @@ it("в доме: выбор дома кнопкой → текст места �
   expect(insert?.params[9]).toBe("подъезд 2"); // location_text
 });
 
-it("в доме: выбор дома кодом текстом — альтернатива кнопкам", async () => {
+it("в доме: номер дома текстом — автопроверка по коду", async () => {
   const state: Row = {};
   const d = deps({ count: 1, state });
   await requestStep(d, "1", "/newrequest", actor);
   await requestStep(d, "1", "1", actor);
   await requestStep(d, "1", "2", actor);
   await requestStep(d, "1", "1", actor);
-  await requestStep(d, "1", "107/2", actor); // код дома текстом
-  expect(state.building_id).toBe("house");
+  // Неизвестный код повторяет вопрос с примером.
+  const unknown = await requestStep(d, "1", "107/2", actor);
+  expect(state.step).toBe("common_building");
+  expect(replyText(unknown)).toBe(
+    message(undefined, "ru", "message.requests.building"),
+  );
+  // «/», «-» и пробелы равнозначны (REG-11).
+  await requestStep(d, "1", "дом-2", actor);
+  expect(state.building_id).toBe("house2");
   expect(state.step).toBe("common_place");
 });
 

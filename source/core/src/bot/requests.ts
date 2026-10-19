@@ -4,7 +4,14 @@ import { t as templateText } from "../templates/store.ts";
 import { listRequestVisits, updateVisit } from "../domains/tasks/visits.ts";
 import { label, premiseLabels } from "../locales/registry.ts";
 import { preview, requestCardText, requestListText } from "./request-text.ts";
-import { esc, fmtDate, fmtInterval, numbered } from "./text.ts";
+import {
+  buildingCodeMatches,
+  esc,
+  fmtDate,
+  fmtInterval,
+  normalizeBuildingCode,
+  numbered,
+} from "./text.ts";
 import { visitStateText } from "../locales/tasks.ts";
 import { registrationHelp } from "./help.ts";
 import type { Actor } from "../pdp/types.ts";
@@ -374,33 +381,11 @@ export async function requestStep(
       });
     const commonTerritoryPrompt = () =>
       message(deps.templates, L, "message.requests.common_territory");
-    // Список домов (как askBuilding в регистрации); код текстом — альтернатива.
+    // Дом текстом с автопроверкой (REG-11): список всех домов не выводится.
     const askBuildings = async () => {
-      const buildings = await exec.query<Row>(
-        "select id,name,code from building order by code",
-      );
-      state.building_options = buildings;
       state.step = "common_building";
       return {
-        text: message(deps.templates, L, "message.requests.building", {
-          buildings: safeBlock(
-            numbered(
-              buildings.map((b) => esc(preview(b.name ?? b.code, 50))),
-            ),
-          ),
-        }),
-        buttons: buildings.map((b, i) => [
-          btn(
-            messageButton(
-              deps.templates,
-              L,
-              "message.requests.building",
-              "building",
-              { name: preview(b.name ?? b.code, 20) },
-            ),
-            String(i + 1),
-          ),
-        ]),
+        text: message(deps.templates, L, "message.requests.building"),
       };
     };
     const premisesLabel = (p: Row) =>
@@ -715,18 +700,15 @@ export async function requestStep(
       return save(commonTerritoryPrompt());
     }
     if (state.step === "common_building") {
-      const options = (state.building_options ?? []) as Row[];
-      const selected = options[Number(input.trim()) - 1];
-      let building: Row | undefined = selected;
-      if (!building) {
-        const q = input.trim();
-        if (!q) return save(await askBuildings());
-        const [found] = await exec.query<Row>(
-          "select id,name,code from building where id::text=$1 or code=$1 limit 1",
-          [q],
-        );
-        building = found;
-      }
+      // Номер дома текстом с автопроверкой (REG-11); точный код/UUID тоже принимается.
+      const code = normalizeBuildingCode(input);
+      if (!code) return save(await askBuildings());
+      const buildings = await exec.query<Row>(
+        "select id,name,code from building order by code",
+      );
+      const building = buildings.find((b) =>
+        String(b.id) === input.trim() || buildingCodeMatches(b.code, input)
+      );
       if (!building) return save(await askBuildings());
       state.building_id = building.id;
       state.premises_id = null;

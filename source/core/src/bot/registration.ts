@@ -29,10 +29,12 @@ import { ScenarioRegistry } from "./registry.ts";
 import { registrationHelp, welcomeText } from "./help.ts";
 import { type BotReply, btn } from "./keyboard.ts";
 import {
+  buildingCodeMatches,
   esc,
   fmtDate,
   type Lang,
   langOf,
+  normalizeBuildingCode,
   numbered,
   resolveRef,
 } from "./text.ts";
@@ -962,12 +964,17 @@ export async function registrationStep(
         );
       }
       case "building": {
-        const selected = (state.buildings as Row[])[Number(input) - 1];
+        // Номер дома текстом с автопроверкой (REG-11): «/», «-» и пробелы
+        // равнозначны; не найден — повтор с примером.
+        const code = normalizeBuildingCode(input);
+        const buildings = code
+          ? await exec.query<Row>("select id,code from building order by code")
+          : [];
+        const selected = buildings.find((b) =>
+          buildingCodeMatches(b.code, input)
+        );
         if (!selected) {
-          throw new BotTemplateError(
-            "VALIDATION_FAILED",
-            message(deps.templates, L, "registration.vyberite_nomer_stroki"),
-          );
+          return save(await askBuilding(exec, state, L, deps.templates));
         }
         state.building_id = selected.id;
         state.step = "kind";
@@ -1244,30 +1251,16 @@ function registerPrompt(store?: TemplateStore, L: Lang = "ru"): BotReply {
   };
 }
 
-/** Шаг выбора здания: шаг и список — в состояние диалога, ответ — с кнопками. */
+/** Шаг выбора здания текстом (REG-11): список всех домов не выводится. */
 async function askBuilding(
   exec: DbExecutor,
   state: Row,
   L: Lang,
   store?: TemplateStore,
 ): Promise<BotReply> {
-  const buildings = await exec.query<Row>(
-    "select id,code from building order by code",
-  );
   state.step = "building";
-  state.buildings = buildings;
   return {
-    text: message(store, L, "message.registration.building", {
-      buildings: safeBlock(numbered(buildings.map((b) => esc(b.code)))),
-    }),
-    buttons: buildings.map((b, i) => [
-      btn(
-        messageButton(store, L, "message.registration.building", "building", {
-          code: b.code,
-        }),
-        String(i + 1),
-      ),
-    ]),
+    text: message(store, L, "message.registration.building"),
   };
 }
 
