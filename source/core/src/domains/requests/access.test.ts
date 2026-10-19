@@ -87,6 +87,68 @@ describe("VS-3 PDP SHR/MSG/CMP", () => {
     ).toBe(false));
 });
 
+describe("адресные обращения без дома (REG-01, R2.2)", () => {
+  const admin: Actor = {
+    ...actor,
+    assignments: [{
+      id: "a",
+      role: "administrator" as const,
+      scopeBuildingIds: [],
+      financialRights: false,
+      registryExportRights: false,
+      regulationsRights: false,
+    }],
+  };
+  const chairman: Actor = {
+    ...actor,
+    person: { ...actor.person, id: "chair" },
+    profile: { ...actor.profile, personId: "chair", id: "profile-chair" },
+    assignments: [{
+      id: "c",
+      role: "chairman" as const,
+      scopeBuildingIds: [],
+      financialRights: false,
+      registryExportRights: false,
+      regulationsRights: false,
+    }],
+  };
+  const addressRequest = (): ResourceRef => ({
+    requestAccess: {
+      ...resource.requestAccess!,
+      buildingId: null,
+    },
+  });
+
+  it("адресное обращение видит и обрабатывает администратор", () => {
+    expect(can(admin, "request.read", addressRequest()).allow).toBe(true);
+    expect(can(admin, "request.manage", addressRequest()).allow).toBe(true);
+  });
+
+  it("chairmanOnly-жалоба без дома — только председатель", () => {
+    const r: ResourceRef = {
+      requestAccess: {
+        ...resource.requestAccess!,
+        buildingId: null,
+        chairmanOnly: true,
+      },
+    };
+    expect(can(admin, "request.read", r).allow).toBe(false);
+    expect(can(chairman, "request.read", r).allow).toBe(true);
+  });
+
+  it("жалоба на самого сотрудника без дома ему не раскрывается", () => {
+    const r: ResourceRef = {
+      requestAccess: {
+        ...resource.requestAccess!,
+        buildingId: null,
+        complaintSubjectId: "owner",
+      },
+    };
+    expect(can(admin, "request.internal", r).allow).toBe(false);
+    expect(can(chairman, "request.internal", r).allow).toBe(true);
+  });
+});
+
 describe("адресные обращения без привязки (REG-01)", () => {
   /** exec с профилем автора и без связей (как у жителя после одобрения анкеты-минимум). */
   function profileExec(): DbExecutor {

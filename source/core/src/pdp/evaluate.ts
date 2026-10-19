@@ -25,8 +25,10 @@ export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {})
     const r = resource.requestAccess;
     if (!r || r.isTest !== actor.person.isTest || actor.person.status !== "active") return deny("Обращение недоступно");
     const own = r.authorId === actor.person.id;
+    // Обращение без дома (REG-01) попадает в общую очередь: администратору и
+    // заместителю оно доступно без домовой области; chairmanOnly сохраняется.
     const staff = r.state !== "draft" && r.complaintSubjectId !== actor.person.id && actor.assignments.some(a =>
-      a.role === "chairman" || (!r.chairmanOnly && ["administrator", "deputy"].includes(a.role) && r.buildingId !== null && (a.scopeBuildingIds ?? []).includes(r.buildingId)));
+      a.role === "chairman" || (!r.chairmanOnly && ["administrator", "deputy"].includes(a.role) && (r.buildingId === null || (a.scopeBuildingIds ?? []).includes(r.buildingId))));
     const resident = own || (r.state !== "draft" && r.participant);
     if (action === "request.author") return own && r.activeAuthor ? ALLOW : deny("Нужна действующая связь автора");
     if (action === "request.manage" || action === "request.internal") return staff ? ALLOW : deny("Нет полномочий на обращение");
