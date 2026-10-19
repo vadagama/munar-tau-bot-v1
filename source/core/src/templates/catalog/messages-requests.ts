@@ -66,6 +66,209 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     ],
   },
   {
+    "key": "message.requests.target",
+    "section": "requests",
+    "title": "Выбор адресата",
+    "description": "Полное сообщение бота: Выбор адресата",
+    "scenario": "Новое обращение",
+    "command": "/newrequest",
+    "ru": "Где возникла проблема?\n/requestcancel — назад.",
+    "kk": "Мәселе қай жерде?\n/requestcancel — артқа.",
+    "variables": [],
+    "buttons": [
+      {
+        "id": "my_places",
+        "ru": "Мои помещения",
+        "kk": "Үй-жайларым",
+      },
+      {
+        "id": "common",
+        "ru": "Общее имущество",
+        "kk": "Ортақ мүлік",
+      },
+    ],
+    "examples": [
+      {
+        "id": "default",
+        "title": "Пример",
+        "ru": {},
+        "kk": {},
+        "buttons": [
+          [
+            {
+              "id": "my_places",
+            },
+          ],
+          [
+            {
+              "id": "common",
+            },
+          ],
+        ],
+      },
+    ],
+  },
+  {
+    "key": "message.requests.common",
+    "section": "requests",
+    "title": "Общее имущество — подменю",
+    "description": "Полное сообщение бота: Общее имущество — подменю",
+    "scenario": "Новое обращение",
+    "command": "/newrequest",
+    "ru": "Общее имущество. Где именно?\n/requestcancel — назад.",
+    "kk": "Ортақ мүлік. Дәл қайда?\n/requestcancel — артқа.",
+    "variables": [],
+    "buttons": [
+      {
+        "id": "house",
+        "ru": "В доме",
+        "kk": "Үйде",
+      },
+      {
+        "id": "territory",
+        "ru": "На территории",
+        "kk": "Аумақта",
+      },
+    ],
+    "examples": [
+      {
+        "id": "default",
+        "title": "Пример",
+        "ru": {},
+        "kk": {},
+        "buttons": [
+          [
+            {
+              "id": "house",
+            },
+          ],
+          [
+            {
+              "id": "territory",
+            },
+          ],
+        ],
+      },
+    ],
+  },
+  {
+    "key": "message.requests.building",
+    "section": "requests",
+    "title": "Выбор дома",
+    "description": "Полное сообщение бота: Выбор дома",
+    "scenario": "Новое обращение",
+    "command": "/newrequest",
+    "ru":
+      "Выберите дом:\n{buildings}\nМожно ввести код дома, например: 1\n/requestcancel — назад.",
+    "kk":
+      "Үйді таңдаңыз:\n{buildings}\nҮй кодын енгізуге болады, мысалы: 1\n/requestcancel — артқа.",
+    "variables": [
+      {
+        "name": "buildings",
+        "description": "Нумерованный список домов",
+        "example": "1. Дом 1\n2. Дом 2",
+      },
+    ],
+    "buttons": [
+      {
+        "id": "building",
+        "ru": "{name}",
+        "kk": "{name}",
+        "variables": [
+          {
+            "name": "name",
+            "description": "Название или код дома",
+            "example": "Дом 1",
+          },
+        ],
+      },
+    ],
+    "examples": [
+      {
+        "id": "default",
+        "title": "Пример",
+        "ru": {
+          "buildings": "1. Дом 1\n2. Дом 2",
+        },
+        "kk": {
+          "buildings": "1. Дом 1\n2. Дом 2",
+        },
+        "buttons": [
+          [
+            {
+              "id": "building",
+              "vars": {
+                "name": "Дом 1",
+              },
+            },
+          ],
+          [
+            {
+              "id": "building",
+              "vars": {
+                "name": "Дом 2",
+              },
+            },
+          ],
+        ],
+      },
+    ],
+  },
+  {
+    "key": "message.requests.common_place",
+    "section": "requests",
+    "title": "Место в доме",
+    "description": "Полное сообщение бота: Место в доме",
+    "scenario": "Новое обращение",
+    "command": "/newrequest",
+    "ru":
+      "{name}. Опишите место: например, подъезд 2, первый этаж.\n/requestcancel — назад.",
+    "kk":
+      "{name}. Орынды сипаттаңыз: мысалы, 2-кіреберіс, бірінші қабат.\n/requestcancel — артқа.",
+    "variables": [
+      {
+        "name": "name",
+        "description": "Название или код дома",
+        "example": "Дом 1",
+      },
+    ],
+    "buttons": [],
+    "examples": [
+      {
+        "id": "default",
+        "title": "Пример",
+        "ru": {
+          "name": "Дом 1",
+        },
+        "kk": {
+          "name": "Дом 1",
+        },
+      },
+    ],
+  },
+  {
+    "key": "message.requests.common_territory",
+    "section": "requests",
+    "title": "Место на территории",
+    "description": "Полное сообщение бота: Место на территории",
+    "scenario": "Новое обращение",
+    "command": "/newrequest",
+    "ru":
+      "Опишите место на территории ЖК, например: детская площадка у дома 1.\n/requestcancel — назад.",
+    "kk":
+      "Аумақтағы орынды сипаттаңыз, мысалы: 1-үйдегі балалар алаңы.\n/requestcancel — артқа.",
+    "variables": [],
+    "buttons": [],
+    "examples": [
+      {
+        "id": "default",
+        "title": "Пример",
+        "ru": {},
+        "kk": {},
+      },
+    ],
+  },
+  {
     "key": "message.requests.choose_place",
     "section": "requests",
     "title": "Выбор помещения",
@@ -79,9 +282,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.nazad",
     ],
     "ru":
-      "Выберите номер своего помещения:\n{premises}\nОбщее имущество: дом КОД описание места; территория: территория описание места. Черновик сохраняется до отправки. /requestcancel — назад.",
+      "Выберите номер своего помещения:\n{premises}\nЧерновик сохраняется до отправки. /requestcancel — назад.",
     "kk":
-      "Үй-жайыңыздың нөмірін таңдаңыз:\n{premises}\nОртақ мүлік: үй КОД орын сипаттамасы; аумақ: аумақ орын сипаттамасы. Жоба жіберілгенше сақталады. /requestcancel — артқа.",
+      "Үй-жайыңыздың нөмірін таңдаңыз:\n{premises}\nЖоба жіберілгенше сақталады. /requestcancel — артқа.",
     "variables": [
       {
         "name": "premises",
@@ -249,14 +452,24 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.sohranit_chernovik",
     ],
     "ru":
-      "Проверьте:\n{description}\nПолный текст сохранён.\nДобавьте файлы (необязательно), затем /sendrequest. При сбое файла обращение можно отправить. /requestcancel — сохранить черновик.",
+      "Проверьте:\nВид: {kind}\nМесто: {place}\n{description}\nПолный текст сохранён.\nДобавьте файлы (необязательно), затем /sendrequest. При сбое файла обращение можно отправить. /requestcancel — сохранить черновик.",
     "kk":
-      "Тексеріңіз:\n{description}\nТолық мәтін сақталды.\nФайл қосыңыз (міндетті емес), содан кейін /sendrequest. Файл сәтсіз болса, өтінішті жібере аласыз. /requestcancel — жобаны сақтау.",
+      "Тексеріңіз:\nТүрі: {kind}\nОрны: {place}\n{description}\nТолық мәтін сақталды.\nФайл қосыңыз (міндетті емес), содан кейін /sendrequest. Файл сәтсіз болса, өтінішті жібере аласыз. /requestcancel — жобаны сақтау.",
     "variables": [
       {
         "name": "description",
         "description": "Описание обращения",
         "example": "Не работает освещение",
+      },
+      {
+        "name": "kind",
+        "description": "Вид обращения",
+        "example": "Заявка на работу",
+      },
+      {
+        "name": "place",
+        "description": "Место обращения",
+        "example": "Дом 1, подъезд 2",
       },
     ],
     "buttons": [

@@ -65,6 +65,32 @@ const KIND_ALIASES: Record<string, (typeof REQUEST_KINDS)[number]> = {
   "жалоба": "complaint",
   "шағым": "complaint",
 };
+/** Адресат обращения: мои помещения или общее имущество. */
+const REQUEST_TARGETS = ["my_places", "common"] as const;
+const TARGET_ALIASES: Record<string, (typeof REQUEST_TARGETS)[number]> = {
+  "мои помещения": "my_places",
+  "мои": "my_places",
+  "помещения": "my_places",
+  "үй-жайларым": "my_places",
+  "менің үй-жайларым": "my_places",
+  "общее имущество": "common",
+  "общее": "common",
+  "имущество": "common",
+  "ортақ мүлік": "common",
+  "ортақ": "common",
+};
+/** Подменю общего имущества: в доме или на территории. */
+const COMMON_KINDS = ["house", "territory"] as const;
+const COMMON_ALIASES: Record<string, (typeof COMMON_KINDS)[number]> = {
+  "в доме": "house",
+  "дом": "house",
+  "доме": "house",
+  "үйде": "house",
+  "на территории": "territory",
+  "территория": "territory",
+  "аумақ": "territory",
+  "аумақта": "territory",
+};
 export async function requestStep(
   deps: RegistryDeps,
   telegramId: string,
@@ -289,13 +315,98 @@ export async function requestStep(
         ]),
       };
     };
+    // Шаг адресата (REQ-02): мои помещения или общее имущество.
+    const targetPrompt = () => ({
+      text: message(deps.templates, L, "message.requests.target"),
+      buttons: REQUEST_TARGETS.map((t, i) => [
+        btn(messageButton(deps.templates, L, "message.requests.target", t), String(i + 1)),
+      ]),
+    });
+    const commonPrompt = () => ({
+      text: message(deps.templates, L, "message.requests.common"),
+      buttons: COMMON_KINDS.map((k, i) => [
+        btn(messageButton(deps.templates, L, "message.requests.common", k), String(i + 1)),
+      ]),
+    });
+    const commonPlacePrompt = () =>
+      message(deps.templates, L, "message.requests.common_place", {
+        name: preview(state.common_name ?? state.common_code ?? "", 50),
+      });
+    const commonTerritoryPrompt = () =>
+      message(deps.templates, L, "message.requests.common_territory");
+    // Список домов (как askBuilding в регистрации); код текстом — альтернатива.
+    const askBuildings = async () => {
+      const buildings = await exec.query<Row>(
+        "select id,name,code from building order by code",
+      );
+      state.building_options = buildings;
+      state.step = "common_building";
+      return {
+        text: message(deps.templates, L, "message.requests.building", {
+          buildings: safeBlock(
+            numbered(
+              buildings.map((b) => esc(preview(b.name ?? b.code, 50))),
+            ),
+          ),
+        }),
+        buttons: buildings.map((b, i) => [
+          btn(
+            messageButton(
+              deps.templates,
+              L,
+              "message.requests.building",
+              "building",
+              { name: preview(b.name ?? b.code, 20) },
+            ),
+            String(i + 1),
+          ),
+        ]),
+      };
+    };
+    const premisesLabel = (p: Row) =>
+      `${preview(p.name ?? p.code, 50)}, ${
+        label(premiseLabels, p.kind, L, "помещение")
+      } ${preview(p.number, 30)}`;
+    // Метка места из состояния диалога — для /editrequest и ввода UUID.
+    const loadPlaceLabel = async () => {
+      if (state.premises_id) {
+        const [p] = await exec.query<Row>(
+          "select p.number,p.kind,b.name,b.code from premises p join building b on b.id=p.building_id where p.id=$1",
+          [state.premises_id],
+        );
+        if (p) {
+          state.place_label = premisesLabel(p);
+          return;
+        }
+      }
+      if (state.building_id) {
+        const [b] = await exec.query<Row>(
+          "select name,code from building where id=$1",
+          [state.building_id],
+        );
+        if (b) {
+          state.place_label = `${preview(b.name ?? b.code, 50)}${
+            state.location_text ? `, ${state.location_text}` : ""
+          }`;
+          return;
+        }
+      }
+      state.place_label = state.location_text
+        ? preview(String(state.location_text), 120)
+        : templateText(deps.templates, L, "requests.net");
+    };
     if (command === "/objects") {
       const items = await places();
       state.place_options = items;
       // Нажатие кнопки помещения начинает черновик для него: тот же шаг выбора,
       // что и после /newrequest, — иначе кнопка вне диалога черновика не работает.
-      // Вид через /objects не выбирается — не оставлять выбор вида от прерванного диалога.
+      // Вид и место через /objects не выбираются — не оставлять выбор
+      // прерванного диалога в состоянии.
       delete state.kind;
+      delete state.place_label;
+      delete state.common_kind;
+      delete state.common_code;
+      delete state.common_name;
       state.step = "place";
       return save({
         text: message(deps.templates, L, "message.requests.places", {
@@ -352,40 +463,45 @@ export async function requestStep(
         state.premises_id = draft.premises_id;
         state.building_id = draft.building_id;
         state.location_text = draft.location_text;
-        state.step = command === "/editrequest" ? "kind" : "verify";
-        return save(
-          command === "/editrequest"
-            ? kindPrompt()
-            : {
-              text: message(deps.templates, L, "message.requests.saved_draft", {
-                description: preview(draft.description, 1200),
-              }),
-              buttons: [[
-                btn(
-                  messageButton(
-                    deps.templates,
-                    L,
-                    "message.requests.saved_draft",
-                    "send",
-                  ),
-                  "/sendrequest",
-                ),
-                btn(
-                  messageButton(
-                    deps.templates,
-                    L,
-                    "message.requests.saved_draft",
-                    "delete",
-                  ),
-                  "/deletedraft",
-                ),
-              ]],
-            },
-        );
+        if (command === "/editrequest") {
+          await loadPlaceLabel();
+          state.step = "kind";
+          return save(kindPrompt());
+        }
+        state.step = "verify";
+        return save({
+          text: message(deps.templates, L, "message.requests.saved_draft", {
+            description: preview(draft.description, 1200),
+          }),
+          buttons: [[
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.requests.saved_draft",
+                "send",
+              ),
+              "/sendrequest",
+            ),
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.requests.saved_draft",
+                "delete",
+              ),
+              "/deletedraft",
+            ),
+          ]],
+        });
       }
       delete state.draft_id;
-      // Вид — первый шаг (REQ-03), затем место.
+      // Вид — первый шаг (REQ-03), затем адресат (REQ-02).
       delete state.kind;
+      delete state.place_label;
+      delete state.common_kind;
+      delete state.common_code;
+      delete state.common_name;
       state.step = "kind";
       return save(kindPrompt());
     }
@@ -511,8 +627,80 @@ export async function requestStep(
           ),
         );
       }
-      state.step = "place";
-      return save(await placePrompt());
+      state.step = "target";
+      return save(targetPrompt());
+    }
+    if (state.step === "target") {
+      const token = input.trim().toLowerCase();
+      const target = REQUEST_TARGETS[Number(token) - 1] ?? TARGET_ALIASES[token];
+      if (!target) return save(targetPrompt());
+      if (target === "my_places") {
+        state.step = "place";
+        return save(await placePrompt());
+      }
+      state.step = "common";
+      return save(commonPrompt());
+    }
+    if (state.step === "common") {
+      const token = input.trim().toLowerCase();
+      const target = COMMON_KINDS[Number(token) - 1] ?? COMMON_ALIASES[token];
+      if (!target) return save(commonPrompt());
+      if (target === "house") return save(await askBuildings());
+      state.premises_id = null;
+      state.building_id = null;
+      state.common_kind = "territory";
+      state.step = "common_place";
+      return save(commonTerritoryPrompt());
+    }
+    if (state.step === "common_building") {
+      const options = (state.building_options ?? []) as Row[];
+      const selected = options[Number(input.trim()) - 1];
+      let building: Row | undefined = selected;
+      if (!building) {
+        const q = input.trim();
+        if (!q) return save(await askBuildings());
+        const [found] = await exec.query<Row>(
+          "select id,name,code from building where id::text=$1 or code=$1 limit 1",
+          [q],
+        );
+        building = found;
+      }
+      if (!building) return save(await askBuildings());
+      state.building_id = building.id;
+      state.premises_id = null;
+      state.common_kind = "house";
+      state.common_code = building.code;
+      state.common_name = building.name;
+      state.step = "common_place";
+      return save(commonPlacePrompt());
+    }
+    if (state.step === "common_place") {
+      const location = input.trim();
+      if (!location) {
+        return save(
+          state.common_kind === "house"
+            ? commonPlacePrompt()
+            : commonTerritoryPrompt(),
+        );
+      }
+      state.location_text = location;
+      state.premises_id = null;
+      if (state.common_kind === "house") {
+        state.place_label = `${
+          preview(state.common_name ?? state.common_code ?? "", 50)
+        }, ${location}`;
+      } else {
+        state.building_id = null;
+        state.place_label = preview(location, 120);
+      }
+      state.step = "description";
+      return save(
+        templateText(
+          deps.templates,
+          L,
+          "requests.opishite_problemu_svoimi_slovami_kategoriya_ne_nuzhna",
+        ),
+      );
     }
     if (state.step === "place") {
       if (command === "дом" || command === "үй") {
@@ -523,8 +711,9 @@ export async function requestStep(
             "requests.ukazhite_kod_doma_i_mesto_dom_1",
           );
         }
-        const [building] = await exec.query<{ id: string }>(
-          "select id from building where id::text=$1 or (kind='house' and code=$1) limit 1",
+        // Колонка building.kind удалена (REG-11): код здания уникален сам.
+        const [building] = await exec.query<Row>(
+          "select id,name,code from building where id::text=$1 or code=$1 limit 1",
           [number],
         );
         if (!building) {
@@ -536,17 +725,22 @@ export async function requestStep(
         state.building_id = building.id;
         state.location_text = args.join(" ");
         state.premises_id = null;
+        state.place_label = `${
+          preview(building.name ?? building.code, 50)
+        }, ${state.location_text}`;
       } else if (command === "территория" || command === "аумақ") {
         if (!number) {
-          return templateText(
-            deps.templates,
-            L,
-            "requests.opishite_mesto_na_territorii",
-          );
+          // Без описания — приглашение места (тот же шаг, что в подменю общего имущества).
+          state.premises_id = null;
+          state.building_id = null;
+          state.common_kind = "territory";
+          state.step = "common_place";
+          return save(commonTerritoryPrompt());
         }
         state.building_id = null;
         state.location_text = [number, ...args].join(" ");
         state.premises_id = null;
+        state.place_label = preview(state.location_text, 120);
       } else {
         const options = (state.place_options ?? []) as Row[];
         const selected = options[Number(input.trim()) - 1];
@@ -564,6 +758,12 @@ export async function requestStep(
         state.premises_id = selected?.id ?? input.trim();
         state.building_id = selected?.building_id ?? null;
         state.location_text = null;
+        if (selected) {
+          state.place_label = premisesLabel(selected);
+        } else {
+          // Ввод UUID помещения — метку собираем из реестра.
+          await loadPlaceLabel();
+        }
       }
       state.step = "description";
       return save(
@@ -578,6 +778,8 @@ export async function requestStep(
       // Вид передаём только выбранный в этом диалоге: undefined сохраняет
       // вид существующего черновика (editRequest) или дефолт «request».
       const kind = REQUEST_KINDS.find((k) => k === state.kind);
+      // Диалоги, начатые до деплоя, не имеют метки места — собираем из реестра.
+      if (state.place_label === undefined) await loadPlaceLabel();
       const inputRow = {
         text: input,
         premises_id: state.premises_id,
@@ -601,6 +803,14 @@ export async function requestStep(
       state.step = "verify";
       return save({
         text: message(deps.templates, L, "message.requests.verify", {
+          kind: messageButton(
+            deps.templates,
+            L,
+            "message.requests.kind",
+            kind ?? "request",
+          ),
+          place: state.place_label ??
+            templateText(deps.templates, L, "requests.net"),
           description: preview(input, 1200),
         }),
         buttons: [[
