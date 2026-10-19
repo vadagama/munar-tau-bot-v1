@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Alert, Button, Card, Input, Space, Typography, Select } from "antd";
 import { apiFetch } from "../lib/api";
 interface SimulatorReply {
+  scenario_id?: string;
   reply: string;
   buttons?: InlineButton[][];
   menu?: (InlineButton & { scenario: string })[][];
@@ -23,11 +24,12 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
         "/v1/emulation/simulate",
         { method: "POST", body: { scenario: targetScenario, input: text } },
       );
+      const resolvedScenario = result.scenario_id ?? targetScenario;
       setHistory((previous) => [
         ...previous,
-        { input: text, reply: result.reply, buttons: result.buttons, scenario: targetScenario },
+        { input: text, reply: result.reply, buttons: result.buttons, scenario: resolvedScenario },
       ]);
-      setScenario(targetScenario);
+      setScenario(resolvedScenario);
       setMenu(result.menu ?? []);
       setInput("");
     } catch (e) {

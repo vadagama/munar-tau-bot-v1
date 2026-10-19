@@ -58,3 +58,21 @@ it("кнопка главного меню выбирает сценарий, а
     method: "POST", body: { scenario: "requests", input: "Не горит свет" },
   }));
 });
+
+it("показывает кнопки под ответом и продолжает сценарий, выбранный сервером по /register", async () => {
+  vi.mocked(apiFetch).mockResolvedValueOnce({
+    scenario_id: "registration", reply: "Выберите язык",
+    buttons: [[{ text: "Русский", data: "ru" }]],
+  }).mockResolvedValueOnce({ scenario_id: "registration", reply: "Укажите имя" });
+  render(<RegistrationSimulator active />);
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "Сценарий симулятора" }));
+  fireEvent.click(screen.getByText("Обращения", { selector: ".ant-select-item-option-content" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Сообщение симулятору" }), { target: { value: "/register" } });
+  fireEvent.click(screen.getByRole("button", { name: "Отправить шаг" }));
+  const button = await screen.findByRole("button", { name: "Русский" });
+  expect(screen.getByRole("log", { name: "Диалог симулятора" })).toContainElement(button);
+  fireEvent.click(button);
+  await waitFor(() => expect(apiFetch).toHaveBeenLastCalledWith("/v1/emulation/simulate", {
+    method: "POST", body: { scenario: "registration", input: "ru" },
+  }));
+});

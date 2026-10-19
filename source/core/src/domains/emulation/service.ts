@@ -1,3 +1,6 @@
+import { INCIDENT_COMMANDS } from "../../bot/incidents.ts";
+import { REQUEST_COMMANDS } from "../../bot/requests.ts";
+import { TASK_COMMANDS } from "../../bot/tasks.ts";
 import { replyText, type InlineButton } from "../../bot/keyboard.ts";
 // Операции эмуляции (пилот, HLD 10.8): только техадминистратор, только
 // тестовые персоны (is_test). Эмулированный Actor собирается по персоне —
@@ -179,7 +182,20 @@ export async function simulate(
   if (!actor.emulation) {
     throw new ApiError("VALIDATION_FAILED", "Симулятор доступен только в режиме эмуляции (HLD 10.8)");
   }
-  const scenarioId = input.scenarioId.trim();
+  const selectedScenario = input.scenarioId.trim();
+  if (!deps.scenarios.get(selectedScenario)) {
+    throw new ApiError("NOT_FOUND", "Сценарий не найден");
+  }
+  // Как в Telegram: команда выбирает сценарий, обычный ответ продолжает
+  // выбранный. Иначе /register на шаге выбора помещения съедается как номер.
+  const command = (input.text ?? "").trim().split(/\s+/)[0] ?? "";
+  const scenarioId = !command.startsWith("/") ? selectedScenario
+    : REQUEST_COMMANDS.includes(command) ? "requests"
+    : INCIDENT_COMMANDS.includes(command) ? "incidents"
+    : TASK_COMMANDS.includes(command) ? "tasks"
+    : command === "/notifications" ? "notifications"
+    : selectedScenario === "tasks" && ["/help", "/start"].includes(command) ? "tasks"
+    : "registration";
   const scenario = deps.scenarios.get(scenarioId);
   if (!scenario) {
     throw new ApiError("NOT_FOUND", "Сценарий не найден");
