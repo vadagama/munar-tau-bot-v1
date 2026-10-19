@@ -47,15 +47,25 @@ export async function submitRegistration(
       "Подтвердите согласие на обработку данных",
     );
   return deps.db.transaction(async (exec) => {
-    const premises = await getPremises(exec, text(input, "premises_id"));
-    if (premises.is_test !== (actor?.person.isTest ?? false))
-      throw new ApiError("NOT_FOUND");
-    if (premises.status !== "active")
-      throw new ApiError("VALIDATION_FAILED", "Помещение архивировано");
-    validateConnectionRole(String(premises.kind), input.role);
-    if (!actor && !telegramId) throw new ApiError("UNAUTHENTICATED");
     const adminSubmission = input.person_id !== undefined;
-    if (adminSubmission) requireBuilding(actor!, String(premises.building_id));
+    // Анкета-минимум (REG-01): заявитель может подать анкету без помещения и
+    // роли; заявка от сотрудника всегда привязана к помещению реестра.
+    const hasPremises =
+      input.premises_id !== undefined && input.premises_id !== null &&
+      String(input.premises_id).trim() !== "";
+    if (adminSubmission && !hasPremises)
+      throw new ApiError("VALIDATION_FAILED", "Укажите помещение анкеты");
+    let premises: Row | null = null;
+    if (hasPremises) {
+      premises = await getPremises(exec, text(input, "premises_id"));
+      if (premises.is_test !== (actor?.person.isTest ?? false))
+        throw new ApiError("NOT_FOUND");
+      if (premises.status !== "active")
+        throw new ApiError("VALIDATION_FAILED", "Помещение архивировано");
+      validateConnectionRole(String(premises.kind), input.role);
+    }
+    if (!actor && !telegramId) throw new ApiError("UNAUTHENTICATED");
+    if (adminSubmission) requireBuilding(actor!, String(premises!.building_id));
     const personId = adminSubmission
       ? text(input, "person_id")
       : (actor?.person.id ?? null);
@@ -71,12 +81,15 @@ export async function submitRegistration(
       )
         throw new ApiError("NOT_FOUND");
     }
-    const owners = await exec.query<Row>(
-      `select c.person_id from connection c join profile pr on pr.person_id=c.person_id and pr.archived_at is null join person n on n.id=c.person_id where c.premises_id=$1 and c.role='owner' and c.status='active' and n.is_test=$2`,
-      [premises.id, actor?.person.isTest ?? false],
-    );
-    const stage =
-      input.role === "tenant" && owners.length
+    const owners = premises
+      ? await exec.query<Row>(
+          `select c.person_id from connection c join profile pr on pr.person_id=c.person_id and pr.archived_at is null join person n on n.id=c.person_id where c.premises_id=$1 and c.role='owner' and c.status='active' and n.is_test=$2`,
+          [premises.id, actor?.person.isTest ?? false],
+        )
+      : [];
+    const stage = !premises
+      ? await initialStage(exec, null, actor?.person.isTest ?? false)
+      : input.role === "tenant" && owners.length
         ? "owner"
         : await initialStage(
             exec,
@@ -118,8 +131,8 @@ export async function submitRegistration(
             consent: true,
             terms_version: "registration-v1",
           }),
-          premises.id,
-          input.role,
+          premises?.id ?? null,
+          premises ? input.role : null,
           stage,
           due.toISOString(),
         ],
@@ -132,7 +145,7 @@ export async function submitRegistration(
           "registration.edit",
           "registration",
           String(existing.id),
-          [String(premises.building_id)],
+          premises ? [String(premises.building_id)] : [],
           { state: existing.state },
           { state: "pending_review" },
         );
@@ -150,8 +163,8 @@ export async function submitRegistration(
           consent: true,
           terms_version: "registration-v1",
         }),
-        premises.id,
-        input.role,
+        premises?.id ?? null,
+        premises ? input.role : null,
         adminSubmission ? "admin" : "bot",
         telegramId ?? null,
         stage,
@@ -168,30 +181,34 @@ export async function submitRegistration(
       row!.id,
       due.toISOString(),
     ]);
-    const premiseText = `${label(premiseLabels, premises.kind, "ru")} ${premises.number}`,
-      premiseTextKk = `${label(premiseLabels, premises.kind, "kk")} ${premises.number}`;
-    for (const owner of owners)
-      if (stage === "owner")
-        await notifyPerson(
-          exec,
-          String(owner.person_id),
-          templateNotice("notices.registrations_service_submit_registration_1", {fullname: fullName, premisetext: premiseText, premisetextkk: premiseTextKk}),
-          `${row!.id}:owner:${owner.person_id}`,
-          { registrationAccess: { premisesId: String(premises.id), role: "owner" }, buildingIds: [String(premises.building_id)] },
-        );
+    if (premises) {
+      const premiseText = `${label(premiseLabels, premises.kind, "ru")} ${premises.number}`,
+        premiseTextKk = `${label(premiseLabels, premises.kind, "kk")} ${premises.number}`;
+      for (const owner of owners)
+        if (stage === "owner")
+          await notifyPerson(
+            exec,
+            String(owner.person_id),
+            templateNotice("notices.registrations_service_submit_registration_1", {fullname: fullName, premisetext: premiseText, premisetextkk: premiseTextKk}),
+            `${row!.id}:owner:${owner.person_id}`,
+            { registrationAccess: { premisesId: String(premises.id), role: "owner" }, buildingIds: [String(premises.building_id)] },
+          );
+    }
     if (stage !== "owner")
       for (const reviewer of await reviewers(
         exec,
-        String(premises.building_id),
+        premises ? String(premises.building_id) : null,
         stage,
         actor?.person.isTest ?? false,
       ))
         await notifyPerson(
           exec,
           reviewer,
-          templateNotice("notices.registrations_service_submit_registration_2", {fullname: fullName, premisetext: premiseText, premisetextkk: premiseTextKk}),
+          templateNotice("notices.registrations_service_submit_registration_2", {fullname: fullName, premisetext: premises ? `${label(premiseLabels, premises.kind, "ru")} ${premises.number}` : "", premisetextkk: premises ? `${label(premiseLabels, premises.kind, "kk")} ${premises.number}` : ""}),
           `${row!.id}:review:${reviewer}`,
-          { bot: "worker", registrationAccess: { premisesId: String(premises.id), role: stage }, buildingIds: [String(premises.building_id)] },
+          premises
+            ? { bot: "worker", registrationAccess: { premisesId: String(premises.id), role: stage }, buildingIds: [String(premises.building_id)] }
+            : { bot: "worker", buildingIds: [] },
         );
     if (actor)
       await recordAudit(
@@ -201,7 +218,7 @@ export async function submitRegistration(
         "registration.submit",
         "registration",
         String(row!.id),
-        [String(premises.building_id)],
+        premises ? [String(premises.building_id)] : [],
         null,
         { state: "pending_review" },
       );
@@ -214,8 +231,8 @@ export async function listRegistrations(
 ): Promise<Row[]> {
   const scope = registryScope(actor);
   const rows = await deps.db.query<Row>(
-    `select r.*,p.building_id,p.kind,p.number,b.code as building_code from registration r join premises p on p.id=r.premises_id join building b on b.id=p.building_id
-    where ($1::uuid[] is null or p.building_id=any($1::uuid[])) and r.is_test=$2 order by r.created_at desc`,
+    `select r.*,p.building_id,p.kind,p.number,b.code as building_code from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
+    where ($1::uuid[] is null or r.premises_id is null or p.building_id=any($1::uuid[])) and r.is_test=$2 order by r.created_at desc`,
     [scope, actor.person.isTest],
   );
   return rows.map((row) => ({ ...row, draft: jsonValue<Row>(row.draft) }));
@@ -248,10 +265,12 @@ export async function editRegistration(
       [id, JSON.stringify(draft)],
     );
     if (row.state === "rejected") {
-      const premises = await getPremises(exec, String(row.premises_id));
+      const premises = row.premises_id
+        ? await getPremises(exec, String(row.premises_id))
+        : null;
       const stage = await initialStage(
         exec,
-        String(premises.building_id),
+        premises ? String(premises.building_id) : null,
         actor.person.isTest,
       );
       const due = await startTimer(exec, "registration_stage", id, stage);
@@ -298,10 +317,19 @@ export async function reviewRegistration(
     );
     if (!row || row.is_test !== actor.person.isTest)
       throw new ApiError("NOT_FOUND");
-    const premises = await getPremises(exec, String(row.premises_id));
-    if (premises.is_test !== actor.person.isTest)
+    // Анкета-минимум (REG-01) хранится без premises_id: проверка помещения и
+    // домовая область применяются только к привязанным анкетам.
+    const premises = row.premises_id
+      ? await getPremises(exec, String(row.premises_id))
+      : null;
+    if (premises && premises.is_test !== actor.person.isTest)
       throw new ApiError("NOT_FOUND");
     if (asOwner) {
+      if (!premises)
+        throw new ApiError(
+          "INVALID_TRANSITION",
+          "Подтверждение собственника доступно только для анкеты с помещением",
+        );
       await activeOwner(exec, actor, String(premises.id));
       if (
         decision !== "dispute" &&
@@ -309,7 +337,7 @@ export async function reviewRegistration(
       )
         throw new ApiError("FORBIDDEN");
     } else {
-      requireBuilding(actor, String(premises.building_id));
+      if (premises) requireBuilding(actor, String(premises.building_id));
       if (row.total_due_at && row.dispute_checker_id === actor.person.id)
         throw new ApiError(
           "FORBIDDEN",
@@ -333,6 +361,11 @@ export async function reviewRegistration(
       }
     }
     if (decision === "dispute") {
+      if (!premises)
+        throw new ApiError(
+          "INVALID_TRANSITION",
+          "Спор оформляется о доступе к помещению — анкета без помещения не оспаривается",
+        );
       if (row.role === "owner")
         throw new ApiError(
           "FORBIDDEN",
@@ -424,16 +457,19 @@ export async function reviewRegistration(
         );
         if (!matched || matched.is_test !== actor.person.isTest)
           throw new ApiError("NOT_FOUND");
-        // Явно выбранная карточка проверяется по связи с этим помещением.
-        const links = await exec.query(
-          "select id from connection where person_id=$1 and premises_id=$2 and status<>'revoked'",
-          [matched.id, premises.id],
-        );
-        if (!links.length)
-          throw new ApiError(
-            "VALIDATION_FAILED",
-            "Карточка не связана с помещением; сначала проверьте реестр",
+        // Явно выбранная карточка проверяется по связи с этим помещением;
+        // для анкеты без помещения достаточно существования карточки.
+        if (premises) {
+          const links = await exec.query(
+            "select id from connection where person_id=$1 and premises_id=$2 and status<>'revoked'",
+            [matched.id, premises.id],
           );
+          if (!links.length)
+            throw new ApiError(
+              "VALIDATION_FAILED",
+              "Карточка не связана с помещением; сначала проверьте реестр",
+            );
+        }
         personId = matched.id;
       }
       if (!personId) {
@@ -479,36 +515,38 @@ export async function reviewRegistration(
             ],
           );
       }
-      const [active] = await exec.query<Row>(
-        "select role from connection where person_id=$1 and premises_id=$2 and status='active'",
-        [personId, premises.id],
-      );
-      if (active && active.role !== row.role)
-        throw new ApiError(
-          "VALIDATION_FAILED",
-          "Изменение роли оформляется отдельно через реестр",
+      if (premises) {
+        const [active] = await exec.query<Row>(
+          "select role from connection where person_id=$1 and premises_id=$2 and status='active'",
+          [personId, premises.id],
         );
-      await exec.query(
-        "update connection set status='active',confirmed_by=$3,confirmed_at=now() where person_id=$1 and premises_id=$2 and status='pending' and role=$4",
-        [personId, premises.id, actor.person.id, row.role],
-      );
-      await exec.query(
-        `insert into connection(person_id,premises_id,role,basis,status,confirmed_by,confirmed_at,created_by)
-        select $1,$2,$3,$4,'active',$5,now(),$5 where not exists(select 1 from connection where person_id=$1 and premises_id=$2 and status='active')`,
-        [
-          personId,
-          premises.id,
-          row.role,
-          row.role === "owner"
-            ? "ownership"
-            : row.role === "tenant"
-              ? "rent"
-              : "family",
-          actor.person.id,
-        ],
-      );
+        if (active && active.role !== row.role)
+          throw new ApiError(
+            "VALIDATION_FAILED",
+            "Изменение роли оформляется отдельно через реестр",
+          );
+        await exec.query(
+          "update connection set status='active',confirmed_by=$3,confirmed_at=now() where person_id=$1 and premises_id=$2 and status='pending' and role=$4",
+          [personId, premises.id, actor.person.id, row.role],
+        );
+        await exec.query(
+          `insert into connection(person_id,premises_id,role,basis,status,confirmed_by,confirmed_at,created_by)
+          select $1,$2,$3,$4,'active',$5,now(),$5 where not exists(select 1 from connection where person_id=$1 and premises_id=$2 and status='active')`,
+          [
+            personId,
+            premises.id,
+            row.role,
+            row.role === "owner"
+              ? "ownership"
+              : row.role === "tenant"
+                ? "rent"
+                : "family",
+            actor.person.id,
+          ],
+        );
+      }
     }
-    if (decision === "approve")
+    if (decision === "approve" && premises)
       await exec.query(
         "update registration set connection_id=(select id from connection where person_id=$2 and premises_id=$3 and status='active') where id=$1",
         [id, personId, premises.id],
@@ -546,7 +584,7 @@ export async function reviewRegistration(
       `registration.${decision}`,
       "registration",
       id,
-      [String(premises.building_id)],
+      premises ? [String(premises.building_id)] : [],
       { state: row.state },
       { state, person_id: personId },
       reason ?? undefined,

@@ -53,12 +53,12 @@
 
 ### Фаза R1: анкета-минимум
 
-- [ ] **Task R1.1: Миграция и домен анкеты без помещения**
+- [x] **Task R1.1: Миграция и домен анкеты без помещения**
   **Description:** Миграция: `registration.premises_id` и `role` → nullable (существующие строки не затронуты, идемпотентный стиль). `submitRegistration`: анкета `draft = {language, full_name, phone_e164}` без premises/kind/number/role; `review_stage='administrator'`, таймер этапа и уведомления администраторам без домового сужения. `reviewRegistration`: approve без помещения создаёт/обновляет person+profile (язык) **без** connection; reject/dispute/clarify работают без привязки. `listRegistrations` — LEFT JOIN premises (карточки без дома). Эскалации/`jobs.ts` не падают на `premises_id IS NULL`.
   **Acceptance criteria:**
-  - [ ] Непривязанная анкета создаётся, видна в списках и `/status`
-  - [ ] Approve без помещения даёт профиль без связей; повторный approve идемпотентен
-  - [ ] Миграция безопасна на существующих данных; эскалации анкет проходят по null
+  - [x] Непривязанная анкета создаётся, видна в списках и `/status`
+  - [x] Approve без помещения даёт профиль без связей; повторный approve идемпотентен
+  - [x] Миграция безопасна на существующих данных; эскалации анкет проходят по null
   **Verification:** `npm test -w core` (in-memory); SQL — ревью; `db:push` на dev по запросу. **Dependencies:** нет. **Files:** миграция, `domains/registrations/service.ts`, `domains/registrations/jobs.ts`, `domains/registrations/routing.ts` (сигнатура initialStage) + тесты. **Scope:** M
 
 - [ ] **Task R1.2: Бот — сокращённый мастер и отображение статуса**
