@@ -1,20 +1,25 @@
 import type { InlineButton } from "../../../core/src/bot/keyboard";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Card, Input, Space, Typography, Select } from "antd";
 import { apiFetch } from "../lib/api";
 interface SimulatorReply {
   scenario_id?: string;
   reply: string;
   buttons?: InlineButton[][];
-  menu?: (InlineButton & { scenario: string })[][];
 }
 export function RegistrationSimulator({ active }: { active: boolean }) {
   const [scenario,setScenario]=useState("registration");
-  const [menu, setMenu] = useState<SimulatorReply["menu"]>([]);
   const [input, setInput] = useState(""),
     [history, setHistory] = useState<{ input: string; reply: string; buttons?: InlineButton[][]; scenario: string }[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null);
+  const latestMessage = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const message = latestMessage.current;
+    if (!message) return;
+    message.focus({ preventScroll: true });
+    message.scrollIntoView({ block: "start", inline: "nearest" });
+  }, [history.length]);
   const send = async (text: string, targetScenario = scenario) => {
     if (!active || busy || !text.trim()) return;
     setBusy(true);
@@ -30,7 +35,6 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
         { input: text, reply: result.reply, buttons: result.buttons, scenario: resolvedScenario },
       ]);
       setScenario(resolvedScenario);
-      setMenu(result.menu ?? []);
       setInput("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка симулятора");
@@ -87,6 +91,10 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
           {history.map((entry, index) => (
             <div
               key={index}
+              ref={index === history.length - 1 ? latestMessage : undefined}
+              role="article"
+              aria-label={`Ответ симулятора ${index + 1}`}
+              tabIndex={-1}
               style={{ padding: "12px 0", borderBottom: "1px solid #eee" }}
             >
               <Typography.Text type="secondary">
@@ -112,14 +120,6 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
             </div>
           ))}
         </div>
-        {menu?.map((row, rowIndex) => (
-          <Space key={rowIndex} wrap>
-            {row.map((button, buttonIndex) => (
-              <Button key={buttonIndex} disabled={!active || busy}
-                onClick={() => void send(button.data, button.scenario)}>{button.text}</Button>
-            ))}
-          </Space>
-        ))}
         <Input.TextArea
           aria-label="Сообщение симулятору"
           value={input}
