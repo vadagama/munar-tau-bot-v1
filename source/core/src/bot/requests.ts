@@ -51,6 +51,20 @@ export const REQUEST_COMMANDS = [
   "/sendrequest",
   "/requestcancel",
 ];
+
+/** Виды обращения (request_kind): порядок — нумерация в реплике и в кнопках. */
+const REQUEST_KINDS = ["request", "question", "complaint"] as const;
+/** Текстовые эквиваленты шага вида (без учёта регистра, оба языка). */
+const KIND_ALIASES: Record<string, (typeof REQUEST_KINDS)[number]> = {
+  "заявка": "request",
+  "заявка на работу": "request",
+  "жұмысқа өтінім": "request",
+  "өтінім": "request",
+  "вопрос": "question",
+  "сұрақ": "question",
+  "жалоба": "complaint",
+  "шағым": "complaint",
+};
 export async function requestStep(
   deps: RegistryDeps,
   telegramId: string,
@@ -234,11 +248,54 @@ export async function requestStep(
           } ${esc(preview(p.number, 30))}`
         ),
       );
+    // Шаг вида (REQ-03): подписи и список — из одного шаблона каталога,
+    // кнопка равна номеру строки.
+    const kindPrompt = () => ({
+      text: message(deps.templates, L, "message.requests.kind", {
+        kinds: numbered(
+          REQUEST_KINDS.map((k) =>
+            messageButton(deps.templates, L, "message.requests.kind", k)
+          ),
+        ),
+      }),
+      buttons: REQUEST_KINDS.map((k, i) => [
+        btn(
+          messageButton(deps.templates, L, "message.requests.kind", k),
+          String(i + 1),
+        ),
+      ]),
+    });
+    const placePrompt = async () => {
+      const items = await places();
+      state.place_options = items;
+      return {
+        text: message(deps.templates, L, "message.requests.choose_place", {
+          premises: safeBlock(placeMenu(items)),
+        }),
+        buttons: items.slice(0, 20).map((p, i) => [
+          btn(
+            messageButton(
+              deps.templates,
+              L,
+              "message.requests.choose_place",
+              "place",
+              {
+                building: preview(p.name ?? p.code, 24),
+                number: preview(p.number, 12),
+              },
+            ),
+            String(i + 1),
+          ),
+        ]),
+      };
+    };
     if (command === "/objects") {
       const items = await places();
       state.place_options = items;
       // Нажатие кнопки помещения начинает черновик для него: тот же шаг выбора,
       // что и после /newrequest, — иначе кнопка вне диалога черновика не работает.
+      // Вид через /objects не выбирается — не оставлять выбор вида от прерванного диалога.
+      delete state.kind;
       state.step = "place";
       return save({
         text: message(deps.templates, L, "message.requests.places", {
@@ -251,6 +308,7 @@ export async function requestStep(
               ),
           ),
         }),
+        // Выбор помещения — кнопка равна номеру строки.
         buttons: items.slice(0, 20).map((p, i) => [
           btn(
             messageButton(
@@ -294,14 +352,10 @@ export async function requestStep(
         state.premises_id = draft.premises_id;
         state.building_id = draft.building_id;
         state.location_text = draft.location_text;
-        state.step = command === "/editrequest" ? "description" : "verify";
+        state.step = command === "/editrequest" ? "kind" : "verify";
         return save(
           command === "/editrequest"
-            ? templateText(
-              deps.templates,
-              L,
-              "requests.vvedite_novyy_tekst_chernovika",
-            )
+            ? kindPrompt()
             : {
               text: message(deps.templates, L, "message.requests.saved_draft", {
                 description: preview(draft.description, 1200),
@@ -330,30 +384,10 @@ export async function requestStep(
         );
       }
       delete state.draft_id;
-      state.step = "place";
-      const items = await places();
-      state.place_options = items;
-      return save({
-        text: message(deps.templates, L, "message.requests.choose_place", {
-          premises: safeBlock(placeMenu(items)),
-        }),
-        // Выбор помещения — главный выбор среза: кнопка равна номеру строки.
-        buttons: items.slice(0, 20).map((p, i) => [
-          btn(
-            messageButton(
-              deps.templates,
-              L,
-              "message.requests.choose_place",
-              "place",
-              {
-                building: preview(p.name ?? p.code, 24),
-                number: preview(p.number, 12),
-              },
-            ),
-            String(i + 1),
-          ),
-        ]),
-      });
+      // Вид — первый шаг (REQ-03), затем место.
+      delete state.kind;
+      state.step = "kind";
+      return save(kindPrompt());
     }
     if (command === "/requestcancel" || command === "/registration") {
       for (const k of Object.keys(state)) delete state[k];
@@ -460,6 +494,26 @@ export async function requestStep(
         }),
       );
     }
+    if (state.step === "kind") {
+      const token = input.trim().toLowerCase();
+      const kind = REQUEST_KINDS[Number(token) - 1] ?? KIND_ALIASES[token];
+      // Недопустимый ввод повторяет вопрос, состояние не меняется.
+      if (!kind) return save(kindPrompt());
+      state.kind = kind;
+      if (state.draft_id) {
+        // /editrequest: место черновика сохранено, остаётся новый текст.
+        state.step = "description";
+        return save(
+          templateText(
+            deps.templates,
+            L,
+            "requests.vvedite_novyy_tekst_chernovika",
+          ),
+        );
+      }
+      state.step = "place";
+      return save(await placePrompt());
+    }
     if (state.step === "place") {
       if (command === "дом" || command === "үй") {
         if (!number || !args.join(" ").trim()) {
@@ -521,12 +575,15 @@ export async function requestStep(
       );
     }
     if (state.step === "description") {
+      // Вид передаём только выбранный в этом диалоге: undefined сохраняет
+      // вид существующего черновика (editRequest) или дефолт «request».
+      const kind = REQUEST_KINDS.find((k) => k === state.kind);
       const inputRow = {
         text: input,
         premises_id: state.premises_id,
         building_id: state.building_id,
         location_text: state.location_text,
-        kind: "request",
+        ...(kind ? { kind } : {}),
         source: "bot",
         as_draft: true,
       };

@@ -1,6 +1,71 @@
 import type { TemplateDef } from "./types.ts";
 export const requestsMessageTemplates: readonly TemplateDef[] = [
   {
+    "key": "message.requests.kind",
+    "section": "requests",
+    "title": "Выбор вида обращения",
+    "description": "Полное сообщение бота: Выбор вида обращения",
+    "scenario": "Новое обращение",
+    "command": "/newrequest",
+    "ru":
+      "Выберите вид обращения:\n{kinds}\n/requestcancel — назад.",
+    "kk":
+      "Өтініш түрін таңдаңыз:\n{kinds}\n/requestcancel — артқа.",
+    "variables": [
+      {
+        "name": "kinds",
+        "description": "Нумерованный список видов обращения",
+        "example": "1. Заявка на работу\n2. Вопрос\n3. Жалоба",
+      },
+    ],
+    "buttons": [
+      {
+        "id": "request",
+        "ru": "Заявка на работу",
+        "kk": "Жұмысқа өтінім",
+      },
+      {
+        "id": "question",
+        "ru": "Вопрос",
+        "kk": "Сұрақ",
+      },
+      {
+        "id": "complaint",
+        "ru": "Жалоба",
+        "kk": "Шағым",
+      },
+    ],
+    "examples": [
+      {
+        "id": "default",
+        "title": "Пример",
+        "ru": {
+          "kinds": "1. Заявка на работу\n2. Вопрос\n3. Жалоба",
+        },
+        "kk": {
+          "kinds": "1. Жұмысқа өтінім\n2. Сұрақ\n3. Шағым",
+        },
+        "buttons": [
+          [
+            {
+              "id": "request",
+            },
+          ],
+          [
+            {
+              "id": "question",
+            },
+          ],
+          [
+            {
+              "id": "complaint",
+            },
+          ],
+        ],
+      },
+    ],
+  },
+  {
     "key": "message.requests.choose_place",
     "section": "requests",
     "title": "Выбор помещения",
