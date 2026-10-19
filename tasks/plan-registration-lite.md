@@ -132,7 +132,7 @@
   **Verification:** ревью diff. **Dependencies:** R2.6. **Files:** `docs/requirements-v1.md`, `docs/hld.md`, `docs/access-matrix.md`, `docs/decisions/015-*.md`, `docs/README.md`, `docs/specs/*`, `tasks/plan-registration-request-flow.md`, `AGENTS.md`. **Scope:** M
 
 **Checkpoint: Complete** (Definition of Done: тесты зелёные, без регрессий, поведение проверено на рантайме, документация обновлена)
-- [ ] Критерии сценария выполнены (этап 1 без дома/помещения/роли; доступ после approve; адрес текстом; диалог файлов; привязка через `/add`)
+- [x] Критерии сценария выполнены (этап 1 без дома/помещения/роли; доступ после approve; адрес текстом; диалог файлов; привязка через `/add`)
 - [ ] PR готов к согласованию (merge — только после одобрения)
 
 ## Risks and Mitigations
