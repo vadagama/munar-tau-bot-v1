@@ -9,7 +9,7 @@ import type { Actor } from "../pdp/types.ts";
 import type { DbExecutor } from "../db/client.ts";
 import type { TemplateStore } from "../templates/store.ts";
 import { getTemplate } from "../templates/catalog/index.ts";
-import { messagePreview } from "../templates/message.ts";
+import { message, messagePreview } from "../templates/message.ts";
 const { getTask, listTasks } = vi.hoisted(() => ({
   getTask: vi.fn(),
   listTasks: vi.fn(),
@@ -60,6 +60,7 @@ function harness(
         id: "r",
         state: "pending_review",
         draft: { full_name: "<Алия>" },
+        premises_id: "p1",
         kind: "apartment",
         number: "4",
         code: "1",
@@ -103,28 +104,13 @@ describe("Полные сообщения регистрации и задани
       buttons: [[{ text: "Уточнить", data: "/edit 1" }]],
     });
   });
-  it("building step renders the same full template in bot and preview", async () => {
-    const h = harness(
-      store(
-        "message.registration.building",
-        "<b>Выберите дом</b>\n{buildings}\n/cancel — отмена",
-        { building: "Здание {code}" },
-      ),
-      { step: "phone", full_name: "Алия" },
-    );
+  it("building step asks for the house code as plain text (REG-11)", async () => {
+    const h = harness(undefined, { step: "phone", full_name: "Алия" });
     const result = await registrationStep(h.deps, "1", "+77001234567", actor);
     expect(replyText(result)).toBe(
-      "<b>Выберите дом</b>\n1. Дом &lt;1&gt;\n/cancel — отмена",
+      message(undefined, "ru", "message.registration.building"),
     );
-    expect(result).toMatchObject({
-      buttons: [[{ text: "Здание Дом <1>", data: "1" }]],
-    });
-    const preview = messagePreview(
-      h.deps.templates,
-      getTemplate("message.registration.building")!,
-    );
-    expect(preview.ru.text).toContain("<b>Выберите дом</b>");
-    expect(preview.ru.buttons[0]?.[0]).toBe("Здание 1");
+    expect(result).not.toHaveProperty("buttons");
   });
   it("consent summary escapes profile values and preserves confirmation action", async () => {
     const h = harness(
@@ -238,8 +224,9 @@ describe("Полные сообщения регистрации и задани
       const cases = [
         {
           key: "message.registration.kind",
-          input: "1",
-          state: { step: "building", buildings: [{ id: "b" }] },
+          // Дом теперь вводится кодом текстом (REG-11), а не номером строки.
+          input: "Дом <1>",
+          state: { step: "building" },
         },
         {
           key: "message.registration.role",

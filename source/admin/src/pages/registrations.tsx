@@ -49,6 +49,11 @@ const REASON_LABELS: Record<string, string> = {
   reject: "Основание отказа",
   dispute: "Основание спора",
 };
+/** Анкета-минимум (REG-01) без помещения — место не указано. */
+const placeText = (r: Row): string =>
+  r.premises_id
+    ? `${r.building_code} · ${displayKind(r.kind)} ${r.number}`
+    : "Помещение не указано";
 export function RegistrationsPage() {
   const [view, setView] = useBoardView("view.registrations");
   const [rows, setRows] = useState<Row[]>([]),
@@ -187,10 +192,10 @@ export function RegistrationsPage() {
                   {String(d.phone_e164 ?? "")}
                 </Typography.Text>
                 <Typography.Text style={{ display: "block" }}>
-                  {`${r.building_code} · ${displayKind(r.kind)} ${r.number}`}
+                  {placeText(r)}
                 </Typography.Text>
                 <Typography.Text type="secondary" style={{ display: "block" }}>
-                  {displayRole(r.role)}
+                  {r.role ? displayRole(r.role) : ""}
                   {r.stage_due_at
                     ? ` · до ${new Date(String(r.stage_due_at)).toLocaleString("ru-RU")}`
                     : ""}
@@ -237,10 +242,13 @@ export function RegistrationsPage() {
             },
             {
               title: "Помещение",
-              render: (_, r) =>
-                `${r.building_code} · ${displayKind(r.kind)} ${r.number}`,
+              render: (_, r) => placeText(r),
             },
-            { title: "Отношение", dataIndex: "role", render: displayRole },
+            {
+              title: "Отношение",
+              dataIndex: "role",
+              render: (v) => (v ? displayRole(v) : "—"),
+            },
             {
               title: "Состояние",
               dataIndex: "state",
@@ -296,10 +304,11 @@ export function RegistrationsPage() {
                 ({String(approveDraft?.phone_e164 ?? "")})?
               </Typography.Paragraph>
               <Typography.Paragraph type="secondary">
-                В реестре создаётся карточка заявителя и подтверждается доступ:
-                {" "}
-                {String(action.row.building_code)} · {displayKind(action.row.kind)}{" "}
-                {String(action.row.number)}, {displayRole(action.row.role)}.
+                {action.row.premises_id
+                  ? <>В реестре создаётся карточка заявителя и подтверждается доступ: {" "}
+                    {String(action.row.building_code)} · {displayKind(action.row.kind)}{" "}
+                    {String(action.row.number)}, {displayRole(action.row.role)}.</>
+                  : "В реестре создаётся карточка заявителя и открывается доступ к обращениям без привязки к помещению. Помещение заявитель добавит позже командой /add в боте."}
               </Typography.Paragraph>
               {!!matchedPersons.length && (
                 <Form.Item

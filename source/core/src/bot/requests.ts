@@ -4,7 +4,14 @@ import { t as templateText } from "../templates/store.ts";
 import { listRequestVisits, updateVisit } from "../domains/tasks/visits.ts";
 import { label, premiseLabels } from "../locales/registry.ts";
 import { preview, requestCardText, requestListText } from "./request-text.ts";
-import { esc, fmtDate, fmtInterval, numbered } from "./text.ts";
+import {
+  buildingCodeMatches,
+  esc,
+  fmtDate,
+  fmtInterval,
+  normalizeBuildingCode,
+  numbered,
+} from "./text.ts";
 import { visitStateText } from "../locales/tasks.ts";
 import { registrationHelp } from "./help.ts";
 import type { Actor } from "../pdp/types.ts";
@@ -328,39 +335,57 @@ export async function requestStep(
         btn(messageButton(deps.templates, L, "message.requests.common", k), String(i + 1)),
       ]),
     });
+    // Адрес одной строкой (REG-01): для жителя без подтверждённых помещений —
+    // вместо шага адресата; адрес сохраняется как написан, без распознавания.
+    const addressPrompt = () =>
+      message(deps.templates, L, "message.requests.address");
+    // Диалог файлов (REQ-03): вопрос → медиа → «ещё?» → проверка.
+    const yesNoButtons = (key: string) => [[
+      btn(messageButton(deps.templates, L, key, "yes"), L === "kk" ? "иә" : "да"),
+      btn(messageButton(deps.templates, L, key, "no"), L === "kk" ? "жоқ" : "нет"),
+    ]];
+    const attachmentsPrompt = () => ({
+      text: message(deps.templates, L, "message.requests.attachments_prompt"),
+      buttons: yesNoButtons("message.requests.attachments_prompt"),
+    });
+    const attachmentsWaitPrompt = () => ({
+      text: message(deps.templates, L, "message.requests.attachments_wait"),
+      buttons: yesNoButtons("message.requests.attachments_wait"),
+    });
+    const attachmentsMorePrompt = () => ({
+      text: message(deps.templates, L, "message.requests.attachments_more"),
+      buttons: yesNoButtons("message.requests.attachments_more"),
+    });
+    const verifyCard = () => ({
+      text: message(deps.templates, L, "message.requests.verify", {
+        kind: messageButton(
+          deps.templates,
+          L,
+          "message.requests.kind",
+          REQUEST_KINDS.find((k) => k === state.kind) ?? "request",
+        ),
+        place: state.place_label ??
+          templateText(deps.templates, L, "requests.net"),
+        description: preview(String(state.description ?? ""), 1200),
+      }),
+      buttons: [[
+        btn(
+          messageButton(deps.templates, L, "message.requests.verify", "send"),
+          "/sendrequest",
+        ),
+      ]],
+    });
     const commonPlacePrompt = () =>
       message(deps.templates, L, "message.requests.common_place", {
         name: preview(state.common_name ?? state.common_code ?? "", 50),
       });
     const commonTerritoryPrompt = () =>
       message(deps.templates, L, "message.requests.common_territory");
-    // Список домов (как askBuilding в регистрации); код текстом — альтернатива.
+    // Дом текстом с автопроверкой (REG-11): список всех домов не выводится.
     const askBuildings = async () => {
-      const buildings = await exec.query<Row>(
-        "select id,name,code from building order by code",
-      );
-      state.building_options = buildings;
       state.step = "common_building";
       return {
-        text: message(deps.templates, L, "message.requests.building", {
-          buildings: safeBlock(
-            numbered(
-              buildings.map((b) => esc(preview(b.name ?? b.code, 50))),
-            ),
-          ),
-        }),
-        buttons: buildings.map((b, i) => [
-          btn(
-            messageButton(
-              deps.templates,
-              L,
-              "message.requests.building",
-              "building",
-              { name: preview(b.name ?? b.code, 20) },
-            ),
-            String(i + 1),
-          ),
-        ]),
+        text: message(deps.templates, L, "message.requests.building"),
       };
     };
     const premisesLabel = (p: Row) =>
@@ -627,8 +652,30 @@ export async function requestStep(
           ),
         );
       }
+      // Без подтверждённых помещений шаг «Мои помещения / Общее имущество»
+      // пропускается (REG-01): сразу адрес одной строкой.
+      if (!(await places()).length) {
+        state.step = "address";
+        return save(addressPrompt());
+      }
       state.step = "target";
       return save(targetPrompt());
+    }
+    if (state.step === "address") {
+      const location = input.trim();
+      if (!location) return save(addressPrompt());
+      state.premises_id = null;
+      state.building_id = null;
+      state.location_text = location;
+      state.place_label = preview(location, 120);
+      state.step = "description";
+      return save(
+        templateText(
+          deps.templates,
+          L,
+          "requests.opishite_problemu_svoimi_slovami_kategoriya_ne_nuzhna",
+        ),
+      );
     }
     if (state.step === "target") {
       const token = input.trim().toLowerCase();
@@ -653,18 +700,15 @@ export async function requestStep(
       return save(commonTerritoryPrompt());
     }
     if (state.step === "common_building") {
-      const options = (state.building_options ?? []) as Row[];
-      const selected = options[Number(input.trim()) - 1];
-      let building: Row | undefined = selected;
-      if (!building) {
-        const q = input.trim();
-        if (!q) return save(await askBuildings());
-        const [found] = await exec.query<Row>(
-          "select id,name,code from building where id::text=$1 or code=$1 limit 1",
-          [q],
-        );
-        building = found;
-      }
+      // Номер дома текстом с автопроверкой (REG-11); точный код/UUID тоже принимается.
+      const code = normalizeBuildingCode(input);
+      if (!code) return save(await askBuildings());
+      const buildings = await exec.query<Row>(
+        "select id,name,code from building order by code",
+      );
+      const building = buildings.find((b) =>
+        String(b.id) === input.trim() || buildingCodeMatches(b.code, input)
+      );
       if (!building) return save(await askBuildings());
       state.building_id = building.id;
       state.premises_id = null;
@@ -800,26 +844,41 @@ export async function requestStep(
         })
         : await createRequest(d, actor, inputRow);
       state.draft_id = row.id;
-      state.step = "verify";
-      return save({
-        text: message(deps.templates, L, "message.requests.verify", {
-          kind: messageButton(
-            deps.templates,
-            L,
-            "message.requests.kind",
-            kind ?? "request",
-          ),
-          place: state.place_label ??
-            templateText(deps.templates, L, "requests.net"),
-          description: preview(input, 1200),
-        }),
-        buttons: [[
-          btn(
-            messageButton(deps.templates, L, "message.requests.verify", "send"),
-            "/sendrequest",
-          ),
-        ]],
-      });
+      state.description = input;
+      state.step = "attachments";
+      return save(attachmentsPrompt());
+    }
+    if (state.step === "attachments") {
+      const token = input.trim().toLowerCase();
+      if (["нет", "жоқ"].includes(token)) {
+        state.step = "verify";
+        return save(verifyCard());
+      }
+      if (["да", "иә"].includes(token)) {
+        state.step = "attachments_wait";
+        return save(attachmentsWaitPrompt());
+      }
+      return save(attachmentsPrompt());
+    }
+    if (state.step === "attachments_wait") {
+      // Текст вместо медиа — повтор приглашения; «нет» завершает файловый цикл.
+      if (["нет", "жоқ"].includes(input.trim().toLowerCase())) {
+        state.step = "verify";
+        return save(verifyCard());
+      }
+      return save(attachmentsWaitPrompt());
+    }
+    if (state.step === "attachments_more") {
+      const token = input.trim().toLowerCase();
+      if (["нет", "жоқ"].includes(token)) {
+        state.step = "verify";
+        return save(verifyCard());
+      }
+      if (["да", "иә"].includes(token)) {
+        state.step = "attachments_wait";
+        return save(attachmentsWaitPrompt());
+      }
+      return save(attachmentsMorePrompt());
     }
     if (state.draft_id) {
       return save(

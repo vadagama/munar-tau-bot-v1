@@ -1,11 +1,11 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { requestCardText, requestListText } from "./request-text.ts";
 import { requestStep } from "./requests.ts";
 import { replyText } from "./keyboard.ts";
 import { MemoryAuditRepo } from "../testing/memory.ts";
 import type { DbClient, DbExecutor } from "../db/client.ts";
 import type { Actor } from "../pdp/types.ts";
-import { message, messagePreview } from "../templates/message.ts";
+import { message, messageButton, messagePreview } from "../templates/message.ts";
 import { getTemplate } from "../templates/catalog/index.ts";
 import { t as templateText, type TemplateStore } from "../templates/store.ts";
 import type { Row } from "../domains/registry/validation.ts";
@@ -103,6 +103,8 @@ function deps({
       return [{ building_id: "house", is_test: true }] as T[];
     }
     if (sql.startsWith("select 1 from connection")) return [{}] as T[];
+    // Адресное обращение (REG-01): действующий профиль автора без связей.
+    if (sql.startsWith("select 1 from profile pr join person")) return [{}] as T[];
     if (sql.startsWith("select p.number,p.kind,b.name,b.code from premises")) {
       return [{ number: "4", kind: "apartment", name: "Дом 1", code: "1" }] as T[];
     }
@@ -239,7 +241,7 @@ it("шаг адресата: недопустимый ввод повторяе�
   expect(replyText(again)).toBe(targetPreview().ru.text);
 });
 
-it.each([[2, "default"], [1, "one"], [0, "empty"]] as const)(
+it.each([[2, "default"], [1, "one"]] as const)(
   "мои помещения: предпросмотр совпадает с полным ответом для %s помещений",
   async (count, example) => {
     const state: Row = {};
@@ -260,7 +262,7 @@ it.each([[2, "default"], [1, "one"], [0, "empty"]] as const)(
   },
 );
 
-it.each([[2, "default"], [1, "one"], [0, "empty"]] as const)(
+it.each([[2, "default"], [1, "one"]] as const)(
   "мои помещения: казахский предпросмотр совпадает для %s помещений",
   async (count, example) => {
     const state: Row = {};
@@ -282,7 +284,7 @@ it.each([[2, "default"], [1, "one"], [0, "empty"]] as const)(
 );
 
 it.each(["ru", "kk"] as const)(
-  "общее имущество: предпросмотр подменю и списка домов на %s",
+  "общее имущество: подменю и номер дома текстом на %s",
   async (lang) => {
     const state: Row = {};
     const d = deps({ count: 1, state });
@@ -296,16 +298,12 @@ it.each(["ru", "kk"] as const)(
       typeof common === "object" &&
         common.buttons?.map((row) => row.map((button) => button.text)),
     ).toEqual(commonExpected.buttons);
+    // Дом запрашивается текстом с примером, без списка (REG-11).
     const buildings = await requestStep(d, "1", "1", L);
     expect(replyText(buildings)).toBe(
-      message(undefined, lang, "message.requests.building", {
-        buildings: "1. Дом 1\n2. Дом 2",
-      }),
+      message(undefined, lang, "message.requests.building"),
     );
-    expect(
-      typeof buildings === "object" &&
-        buildings.buttons?.map((row) => row.map((button) => button.text)),
-    ).toEqual([["Дом 1"], ["Дом 2"]]);
+    expect(buildings).not.toHaveProperty("buttons");
   },
 );
 
@@ -326,13 +324,16 @@ it("в доме: выбор дома кнопкой → текст места �
   await requestStep(d, "1", "/newrequest", actor);
   await requestStep(d, "1", "3", actor); // жалоба
   await requestStep(d, "1", "2", actor); // общее имущество
-  await requestStep(d, "1", "1", actor); // в доме → список
-  const prompt = await requestStep(d, "1", "2", actor); // дом 2
+  await requestStep(d, "1", "1", actor); // в доме → номер дома текстом
+  const prompt = await requestStep(d, "1", "2", actor); // дом 2 (код)
   expect(replyText(prompt)).toBe(
     message(undefined, "ru", "message.requests.common_place", { name: "Дом 2" }),
   );
   await requestStep(d, "1", "подъезд 2", actor);
-  const verify = await requestStep(d, "1", "Не работает освещение", actor);
+  await requestStep(d, "1", "Не работает освещение", actor);
+  // После описания — файловый диалог; проверка после него (REQ-03).
+  expect(state.step).toBe("attachments");
+  const verify = await requestStep(d, "1", "нет", actor);
   expect(replyText(verify)).toBe(
     message(undefined, "ru", "message.requests.verify", {
       kind: "Жалоба",
@@ -348,15 +349,22 @@ it("в доме: выбор дома кнопкой → текст места �
   expect(insert?.params[9]).toBe("подъезд 2"); // location_text
 });
 
-it("в доме: выбор дома кодом текстом — альтернатива кнопкам", async () => {
+it("в доме: номер дома текстом — автопроверка по коду", async () => {
   const state: Row = {};
   const d = deps({ count: 1, state });
   await requestStep(d, "1", "/newrequest", actor);
   await requestStep(d, "1", "1", actor);
   await requestStep(d, "1", "2", actor);
   await requestStep(d, "1", "1", actor);
-  await requestStep(d, "1", "107/2", actor); // код дома текстом
-  expect(state.building_id).toBe("house");
+  // Неизвестный код повторяет вопрос с примером.
+  const unknown = await requestStep(d, "1", "107/2", actor);
+  expect(state.step).toBe("common_building");
+  expect(replyText(unknown)).toBe(
+    message(undefined, "ru", "message.requests.building"),
+  );
+  // «/», «-» и пробелы равнозначны (REG-11).
+  await requestStep(d, "1", "дом-2", actor);
+  expect(state.building_id).toBe("house2");
   expect(state.step).toBe("common_place");
 });
 
@@ -398,6 +406,54 @@ it("мои помещения: старый синтаксис «дом КОД �
   expect(state.place_label).toBe("Дом 1, подъезд 3");
 });
 
+it("без привязанных помещений: адрес одной строкой вместо шага адресата", async () => {
+  const captured: { sql: string; params: readonly unknown[] }[] = [];
+  const state: Row = {};
+  const d = deps({ count: 0, state, captured });
+  await requestStep(d, "1", "/newrequest", actor);
+  await requestStep(d, "1", "3", actor); // вид: жалоба
+  // Шаг «Мои помещения / Общее имущество» пропущен — сразу адрес.
+  expect(state.step).toBe("address");
+  const afterEmpty = await requestStep(d, "1", "   ", actor);
+  // Пустой ввод повторяет приглашение адреса.
+  expect(state.step).toBe("address");
+  expect(replyText(afterEmpty)).toBe(
+    templateText(undefined, "ru", "message.requests.address"),
+  );
+  await requestStep(d, "1", "Дом 107/2, кв 40", actor);
+  expect(state.location_text).toBe("Дом 107/2, кв 40");
+  expect(state.premises_id).toBe(null);
+  expect(state.building_id).toBe(null);
+  expect(state.place_label).toBe("Дом 107/2, кв 40");
+  expect(state.step).toBe("description");
+  await requestStep(d, "1", "Не работает лифт", actor);
+  expect(state.step).toBe("attachments");
+  const card = await requestStep(d, "1", "нет", actor);
+  expect(replyText(card)).toBe(
+    message(undefined, "ru", "message.requests.verify", {
+      kind: "Жалоба",
+      place: "Дом 107/2, кв 40",
+      description: "Не работает лифт",
+    }),
+  );
+  const insert = captured.find((c) => c.sql.startsWith("insert into request("));
+  expect(insert?.params[4]).toBe("complaint");
+  expect(insert?.params[7]).toBe(null); // premises_id
+  expect(insert?.params[8]).toBe(null); // building_id
+  expect(insert?.params[9]).toBe("Дом 107/2, кв 40"); // location_text
+});
+
+it("без привязанных помещений: приглашение адреса на казахском", async () => {
+  const state: Row = {};
+  const d = deps({ count: 0, state });
+  await requestStep(d, "1", "/newrequest", kkActor);
+  const prompt = await requestStep(d, "1", "2", kkActor); // вид: вопрос
+  expect(state.step).toBe("address");
+  expect(replyText(prompt)).toBe(
+    templateText(undefined, "kk", "message.requests.address"),
+  );
+});
+
 it("мои помещения: «территория» без описания ведёт к приглашению места", async () => {
   const state: Row = {};
   const d = deps({ count: 1, state });
@@ -428,7 +484,13 @@ it("вид → место → описание: выбранный вид сох
   await requestStep(d, "1", "1", actor);
   await requestStep(d, "1", "1", actor);
   const verify = await requestStep(d, "1", "Не работает освещение", actor);
+  // После описания — файловый диалог, проверка позже (REQ-03).
   expect(replyText(verify)).toBe(
+    templateText(undefined, "ru", "message.requests.attachments_prompt"),
+  );
+  expect(state.step).toBe("attachments");
+  const card = await requestStep(d, "1", "нет", actor);
+  expect(replyText(card)).toBe(
     message(undefined, "ru", "message.requests.verify", {
       kind: "Вопрос",
       place: "Дом 1, Квартира 4",
@@ -451,8 +513,10 @@ it("/editrequest: черновик — сначала вид, затем тек�
   expect(replyText(prompt)).toBe(
     templateText(undefined, "ru", "requests.vvedite_novyy_tekst_chernovika"),
   );
-  const verify = await requestStep(d, "1", "Не работает освещение", actor);
-  expect(replyText(verify)).toBe(
+  await requestStep(d, "1", "Не работает освещение", actor);
+  expect(state.step).toBe("attachments");
+  const card = await requestStep(d, "1", "нет", actor);
+  expect(replyText(card)).toBe(
     message(undefined, "ru", "message.requests.verify", {
       kind: "Жалоба",
       place: "Дом 1, Квартира 4",
@@ -561,3 +625,86 @@ it.each(["ru", "kk"] as const)(
     expect(replyText(card)).not.toContain("<электрику>");
   },
 );
+
+describe("файловый диалог (REQ-03, R2.4)", () => {
+  it("цикл «да → ожидание → ещё? → нет → проверка» проходим", async () => {
+    const state: Row = {};
+    const d = deps({ count: 1, state });
+    await requestStep(d, "1", "/newrequest", actor);
+    await requestStep(d, "1", "2", actor);
+    await requestStep(d, "1", "1", actor);
+    await requestStep(d, "1", "1", actor);
+    await requestStep(d, "1", "Не работает освещение", actor);
+    expect(state.step).toBe("attachments");
+    // Недопустимый ввод повторяет вопрос.
+    const again = await requestStep(d, "1", "не знаю", actor);
+    expect(state.step).toBe("attachments");
+    expect(replyText(again)).toBe(
+      templateText(undefined, "ru", "message.requests.attachments_prompt"),
+    );
+    // «да» — ожидание медиа.
+    const wait = await requestStep(d, "1", "да", actor);
+    expect(state.step).toBe("attachments_wait");
+    expect(replyText(wait)).toBe(
+      templateText(undefined, "ru", "message.requests.attachments_wait"),
+    );
+    // Текст вместо медиа — повтор приглашения.
+    const still = await requestStep(d, "1", "я передумал", actor);
+    expect(state.step).toBe("attachments_wait");
+    expect(replyText(still)).toBe(
+      templateText(undefined, "ru", "message.requests.attachments_wait"),
+    );
+    // «нет» без файлов — карточка проверки с [Отправить].
+    const card = await requestStep(d, "1", "нет", actor);
+    expect(state.step).toBe("verify");
+    expect(replyText(card)).toBe(
+      message(undefined, "ru", "message.requests.verify", {
+        kind: "Вопрос",
+        place: "Дом 1, Квартира 4",
+        description: "Не работает освещение",
+      }),
+    );
+    expect(
+      typeof card === "object" &&
+        card.buttons?.[0]?.[0]?.data === "/sendrequest",
+    ).toBe(true);
+  });
+
+  it("«ещё? → да» возвращается к ожиданию медиа, «ещё? → нет» — на проверку", async () => {
+    const state: Row = { step: "attachments_more" };
+    const d = deps({ count: 1, state });
+    const wait = await requestStep(d, "1", "да", actor);
+    expect(state.step).toBe("attachments_wait");
+    expect(replyText(wait)).toBe(
+      templateText(undefined, "ru", "message.requests.attachments_wait"),
+    );
+    await requestStep(d, "1", "нет", actor); // из ожидания — на проверку
+    expect(state.step).toBe("verify");
+    const more: Row = { step: "attachments_more", kind: "complaint" };
+    const d2 = deps({ count: 1, state: more });
+    const card = await requestStep(d2, "1", "нет", actor);
+    expect(more.step).toBe("verify");
+    expect(replyText(card)).toBe(
+      message(undefined, "ru", "message.requests.verify", {
+        kind: "Жалоба",
+        place: templateText(undefined, "ru", "requests.net"),
+        description: "",
+      }),
+    );
+  });
+
+  it("кнопки да/нет резолвятся из каталога на обоих языках", () => {
+    for (const key of [
+      "message.requests.attachments_prompt",
+      "message.requests.attachments_wait",
+      "message.requests.attachments_more",
+    ]) {
+      const def = getTemplate(key)!;
+      expect(def.buttons?.map((b) => b.id)).toEqual(["yes", "no"]);
+      for (const lang of ["ru", "kk"] as const) {
+        expect(messageButton(undefined, lang, key, "yes")).toBeTruthy();
+        expect(messageButton(undefined, lang, key, "no")).toBeTruthy();
+      }
+    }
+  });
+});

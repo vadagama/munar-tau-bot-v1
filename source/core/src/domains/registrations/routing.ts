@@ -4,7 +4,7 @@ import type { DbExecutor } from "../../db/client.ts";
 
 export async function reviewers(
   exec: DbExecutor,
-  _buildingId: string,
+  _buildingId: string | null,
   role: string,
   isTest = false,
 ): Promise<string[]> {
@@ -17,7 +17,7 @@ export async function reviewers(
 }
 export async function initialStage(
   exec: DbExecutor,
-  buildingId: string,
+  buildingId: string | null,
   isTest = false,
 ): Promise<string> {
   if ((await reviewers(exec, buildingId, "administrator", isTest)).length)

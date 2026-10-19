@@ -8,6 +8,7 @@ const registration = {
   id: "reg-1",
   state: "pending_review",
   draft: { full_name: "Иван Иванов", phone_e164: "+79990000002" },
+  premises_id: "p1",
   building_code: "Д1",
   kind: "apartment",
   number: "12",
@@ -49,4 +50,51 @@ it("переключение на таблицу сохраняет прежни
   fireEvent.click(screen.getByRole("radio", { name: "Таблица" }));
   expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Подтвердить" })).toBeInTheDocument();
+});
+
+const liteRegistration = {
+  id: "reg-2",
+  state: "pending_review",
+  draft: { full_name: "Пётр Петров", phone_e164: "+79990000003" },
+  premises_id: null,
+  building_code: null,
+  kind: null,
+  number: null,
+  role: null,
+  stage_due_at: "2026-10-20T10:00:00Z",
+  overdue_at: null,
+};
+
+it("анкета без помещения: карточка и таблица без дома, подтверждение доступно", async () => {
+  vi.mocked(apiFetch).mockImplementation(async (path) =>
+    path === "/v1/registrations"
+      ? { items: [liteRegistration] }
+      : { items: [] },
+  );
+  render(<RegistrationsPage />);
+  expect(await screen.findByText("Пётр Петров")).toBeInTheDocument();
+  // На доске и в таблице — «Помещение не указано», без «null» и пустых меток.
+  const places = await screen.findAllByText("Помещение не указано");
+  expect(places.length).toBeGreaterThanOrEqual(1);
+  expect(screen.queryByText(/null/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/^\s*·\s/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("radio", { name: "Таблица" }));
+  expect(await screen.findAllByText("Помещение не указано")).not.toHaveLength(0);
+  expect(screen.getAllByText("Подтвердить").length).toBeGreaterThanOrEqual(1);
+});
+
+it("анкета без помещения: подтверждение создаёт доступ без привязки", async () => {
+  vi.mocked(apiFetch).mockImplementation(async (path) =>
+    path === "/v1/registrations"
+      ? { items: [liteRegistration] }
+      : { items: [] },
+  );
+  render(<RegistrationsPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Подтвердить" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(dialog).toHaveTextContent("Пётр Петров");
+  expect(dialog).toHaveTextContent(
+    /доступ к обращениям без привязки к помещению/,
+  );
+  expect(dialog).not.toHaveTextContent("подтверждается доступ:");
 });

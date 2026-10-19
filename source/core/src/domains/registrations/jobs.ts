@@ -12,6 +12,8 @@ import type { Row } from "../registry/validation.ts";
 /** Кто и куда: имя из черновика анкеты и помещение — вместо UUID. */
 function registrationSubject(row: Row): string {
   const draft = row.draft ? jsonValue<Row>(row.draft) : {};
+  // Анкета-минимум (REG-01) без помещения — только имя заявителя.
+  if (!row.premises_id) return String(draft.full_name ?? "");
   const premise = `${label(premiseLabels, row.kind, "ru")} ${row.number ?? "—"}`;
   return `${draft.full_name ?? ""}, ${premise}`.replace(/^, /, "");
 }
@@ -47,7 +49,7 @@ export async function sweepRegistrations(
         continue;
       }
       const [row] = await exec.query<Row>(
-        `select r.*,p.building_id,p.kind,p.number from registration r join premises p on p.id=r.premises_id where r.id=$1 for update of r`,
+        `select r.*,p.building_id,p.kind,p.number from registration r left join premises p on p.id=r.premises_id where r.id=$1 for update of r`,
         [timer.entity_id],
       );
       if (
@@ -65,7 +67,7 @@ export async function sweepRegistrations(
         );
         for (const person of await reviewers(
           exec,
-          String(row.building_id),
+          row.building_id ? String(row.building_id) : null,
           "chairman",
           Boolean(row.is_test),
         ))
@@ -80,14 +82,14 @@ export async function sweepRegistrations(
         if (stage === "owner")
           stage = await initialStage(
             exec,
-            String(row.building_id),
+            row.building_id ? String(row.building_id) : null,
             Boolean(row.is_test),
           );
         else if (stage === "administrator")
           stage = (
             await reviewers(
               exec,
-              String(row.building_id),
+              row.building_id ? String(row.building_id) : null,
               "deputy",
               Boolean(row.is_test),
             )
@@ -126,7 +128,7 @@ export async function sweepRegistrations(
         );
         for (const person of await reviewers(
           exec,
-          String(row.building_id),
+          row.building_id ? String(row.building_id) : null,
           stage,
           Boolean(row.is_test),
         ))
@@ -158,7 +160,7 @@ export async function sweepRegistrations(
         before: { stage: row.review_stage },
         after: { stage, overdue: timer.stage === "dispute:total" },
         reason: "REG-14",
-        scopeBuildings: [String(row.building_id)],
+        scopeBuildings: row.building_id ? [String(row.building_id)] : [],
         meta: { timer_id: timer.id },
       });
     }

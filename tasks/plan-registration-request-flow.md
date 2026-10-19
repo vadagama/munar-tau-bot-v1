@@ -1,6 +1,8 @@
 # Implementation Plan: Регистрация с уточнением помещения и новый сценарий обращения
 
-Спеки: `docs/specs/SPEC-request-flow.md`, `docs/specs/SPEC-registration-binding.md`. Идея и карта возможностей: `docs/ideas/registration-and-request-flow.md`. Статус: на ревью.
+Спеки: `docs/specs/SPEC-request-flow.md`, `docs/specs/SPEC-registration-lite.md` (заменяет удалённый `SPEC-registration-binding.md`). Идея и карта возможностей: `docs/ideas/registration-and-request-flow.md`. Статус: на ревью.
+
+> **19.10.2026:** Фаза A реализована и влита (PR #57). Фаза B (`registration-binding`) и C1 заменены планом [`tasks/plan-registration-lite.md`](plan-registration-lite.md) (решение пользователя: анкета-минимум без дома/помещения/роли, доступ к обращениям после подтверждения анкеты, привязка — через `/add`).
 
 ## Overview
 

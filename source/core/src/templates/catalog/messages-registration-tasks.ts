@@ -403,16 +403,14 @@ const defs: TemplateDef[] = [
   ),
   def(
     "message.registration.building",
-    "Регистрация — выбор здания",
+    "Регистрация — номер дома текстом",
     "/register",
     [R + "vyberite_zdanie"],
-    (l) => old(R + "vyberite_zdanie", l) + "\n{buildings}",
-    [{
-      id: "building",
-      ru: "{code}",
-      kk: "{code}",
-      variables: variables("{code}", ""),
-    }],
+    (l) =>
+      l === "kk"
+        ? "Үйіңіздің нөмірін жазыңыз (мысалы, 107/2).\n/cancel — артқа."
+        : "Напишите номер вашего дома (например, 107/2).\n/cancel — назад.",
+    [],
   ),
   def(
     "message.registration.kind",
@@ -499,6 +497,18 @@ const defs: TemplateDef[] = [
       l === "kk"
         ? "Жалғастыру үшін келісімді растаңыз."
         : "Для продолжения подтвердите согласие.",
+    consentButtons,
+  ),
+  def(
+    "message.registration.lite_consent",
+    "Регистрация без помещения — проверка данных и согласие",
+    "/register",
+    [],
+    (l) =>
+      "<b>" + old(R + "proverte", l) + "</b>: {full_name}, {phone}.\n" +
+      (l === "kk"
+        ? "ОСИ тіркелуі үшін осы деректерді өңдеуге келісім."
+        : "Согласие на обработку этих данных для регистрации в ОСИ."),
     consentButtons,
   ),
   def(
