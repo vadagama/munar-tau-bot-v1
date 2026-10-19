@@ -33,22 +33,22 @@ export function EmulationRoleSelect({ profileId, onSwitched }: {
   useEffect(() => { void load(); }, [load]);
   usePageRefresh(load, !loading && !busy);
 
-  const grouped = new Map<string, { value: string; label: string; profileId: string; disabled: boolean }[]>();
+  const byRole = new Map<string, { value: string; label: string; profileId: string; disabled: boolean }>();
   for (const person of persons) {
-    const roles = person.assignments.length ? [...new Set(person.assignments.map(a => a.role))] : ["resident"];
+    const roles = person.assignments.length ? person.assignments.map(a => a.role) : ["resident"];
     for (const role of roles) {
-      const label = EMULATION_ROLE_LABELS[role] ?? role;
-      const options = grouped.get(role) ?? [];
-      options.push({ value: `${role}:${person.profile.id}`, label: `${label} — ${person.person.full_name}`,
-        profileId: person.profile.id, disabled: person.profile.id === profileId });
-      grouped.set(role, options);
+      // Одна строка на роль; текущую персону сохраняем при совпадении ролей.
+      if (!byRole.has(role) || person.profile.id === profileId) {
+        byRole.set(role, { value: `${role}:${person.profile.id}`,
+          label: `Тест: ${(EMULATION_ROLE_LABELS[role] ?? role).toLocaleLowerCase("ru")}`,
+          profileId: person.profile.id, disabled: person.profile.id === profileId });
+      }
     }
   }
-  const options = [...grouped].map(([role, options]) => ({ label: EMULATION_ROLE_LABELS[role] ?? role, options }));
-  const entries = options.flatMap(group => group.options);
-  const selected = entries.find(option => option.profileId === profileId)?.value;
+  const options = [...byRole.values()];
+  const selected = options.find(option => option.profileId === profileId)?.value;
   const switchPerson = async (value: string) => {
-    const target = entries.find(option => option.value === value);
+    const target = options.find(option => option.value === value);
     if (!target || target.profileId === profileId || pending.current) return;
     pending.current = true;
     setBusy(true);

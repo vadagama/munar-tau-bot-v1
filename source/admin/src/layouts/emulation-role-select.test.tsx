@@ -11,14 +11,17 @@ const persons = [
 ];
 beforeEach(() => { vi.mocked(apiFetch).mockResolvedValue({ persons }); });
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
-it("группирует персон по ролям, переключает сеанс и сообщает об успехе", async () => {
+it("показывает плоский список уникальных ролей без имён персон и переключает сеанс", async () => {
   const onSwitched = vi.fn();
   render(<EmulationRoleSelect profileId="resident" onSwitched={onSwitched} />);
   await waitFor(() => expect(screen.getByRole("combobox", { name: "Роль эмуляции" })).toBeEnabled());
   fireEvent.mouseDown(screen.getByRole("combobox", { name: "Роль эмуляции" }));
-  fireEvent.click(await screen.findByText("Исполнитель — Второй исполнитель", { selector: ".ant-select-item-option-content" }));
+  expect(screen.queryByText("Первый исполнитель")).toBeNull();
+  expect(document.querySelector(".ant-select-item-group")).toBeNull();
+  expect(screen.getAllByText("Тест: исполнитель", { selector: ".ant-select-item-option-content" })).toHaveLength(1);
+  fireEvent.click(screen.getByText("Тест: исполнитель", { selector: ".ant-select-item-option-content" }));
   await waitFor(() => expect(apiFetch).toHaveBeenLastCalledWith("/v1/emulation/sessions", {
-    method: "POST", body: { emulated_profile_id: "executor-2" },
+    method: "POST", body: { emulated_profile_id: "executor-1" },
   }));
   await waitFor(() => expect(onSwitched).toHaveBeenCalledOnce());
 });
@@ -28,9 +31,9 @@ it("ошибка переключения сохраняет текущую пе
   render(<EmulationRoleSelect profileId="resident" onSwitched={onSwitched} />);
   await waitFor(() => expect(screen.getByRole("combobox", { name: "Роль эмуляции" })).toBeEnabled());
   fireEvent.mouseDown(screen.getByRole("combobox", { name: "Роль эмуляции" }));
-  fireEvent.click(await screen.findByText("Исполнитель — Первый исполнитель", { selector: ".ant-select-item-option-content" }));
+  fireEvent.click(await screen.findByText("Тест: исполнитель", { selector: ".ant-select-item-option-content" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Персона недоступна");
-  expect(screen.getByText("Житель — Тестовый житель", { selector: ".ant-select-selection-item" })).toBeInTheDocument();
+  expect(screen.getByText("Тест: житель", { selector: ".ant-select-selection-item" })).toBeInTheDocument();
   expect(onSwitched).not.toHaveBeenCalled();
 });
 it("ошибка загрузки видна и не запускает смену сеанса", async () => {
@@ -47,7 +50,7 @@ it("блокирует повторное переключение до заве
   render(<EmulationRoleSelect profileId="resident" onSwitched={onSwitched} />);
   await waitFor(() => expect(screen.getByRole("combobox", { name: "Роль эмуляции" })).toBeEnabled());
   fireEvent.mouseDown(screen.getByRole("combobox", { name: "Роль эмуляции" }));
-  fireEvent.click(await screen.findByText("Исполнитель — Первый исполнитель", { selector: ".ant-select-item-option-content" }));
+  fireEvent.click(await screen.findByText("Тест: исполнитель", { selector: ".ant-select-item-option-content" }));
   expect(screen.getByRole("combobox", { name: "Роль эмуляции" })).toBeDisabled();
   expect(onSwitched).not.toHaveBeenCalled();
   finish({});
