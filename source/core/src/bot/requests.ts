@@ -328,6 +328,10 @@ export async function requestStep(
         btn(messageButton(deps.templates, L, "message.requests.common", k), String(i + 1)),
       ]),
     });
+    // Адрес одной строкой (REG-01): для жителя без подтверждённых помещений —
+    // вместо шага адресата; адрес сохраняется как написан, без распознавания.
+    const addressPrompt = () =>
+      message(deps.templates, L, "message.requests.address");
     const commonPlacePrompt = () =>
       message(deps.templates, L, "message.requests.common_place", {
         name: preview(state.common_name ?? state.common_code ?? "", 50),
@@ -627,8 +631,30 @@ export async function requestStep(
           ),
         );
       }
+      // Без подтверждённых помещений шаг «Мои помещения / Общее имущество»
+      // пропускается (REG-01): сразу адрес одной строкой.
+      if (!(await places()).length) {
+        state.step = "address";
+        return save(addressPrompt());
+      }
       state.step = "target";
       return save(targetPrompt());
+    }
+    if (state.step === "address") {
+      const location = input.trim();
+      if (!location) return save(addressPrompt());
+      state.premises_id = null;
+      state.building_id = null;
+      state.location_text = location;
+      state.place_label = preview(location, 120);
+      state.step = "description";
+      return save(
+        templateText(
+          deps.templates,
+          L,
+          "requests.opishite_problemu_svoimi_slovami_kategoriya_ne_nuzhna",
+        ),
+      );
     }
     if (state.step === "target") {
       const token = input.trim().toLowerCase();

@@ -269,6 +269,29 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     ],
   },
   {
+    "key": "message.requests.address",
+    "section": "requests",
+    "title": "Адрес одной строкой",
+    "description":
+      "Полное сообщение бота: адрес обращения одной строкой для жителя без привязанных помещений (REG-01)",
+    "scenario": "Новое обращение",
+    "command": "/newrequest",
+    "ru":
+      "Напишите адрес одной строкой (например: дом 107/2, кв 11).\n/requestcancel — назад.",
+    "kk":
+      "Адресті бір жолмен жазыңыз (мысалы: 107/2-үй, 11-пәтер).\n/requestcancel — артқа.",
+    "variables": [],
+    "buttons": [],
+    "examples": [
+      {
+        "id": "default",
+        "title": "Пример",
+        "ru": {},
+        "kk": {},
+      },
+    ],
+  },
+  {
     "key": "message.requests.choose_place",
     "section": "requests",
     "title": "Выбор помещения",

@@ -241,7 +241,7 @@ it("шаг адресата: недопустимый ввод повторяе�
   expect(replyText(again)).toBe(targetPreview().ru.text);
 });
 
-it.each([[2, "default"], [1, "one"], [0, "empty"]] as const)(
+it.each([[2, "default"], [1, "one"]] as const)(
   "мои помещения: предпросмотр совпадает с полным ответом для %s помещений",
   async (count, example) => {
     const state: Row = {};
@@ -262,7 +262,7 @@ it.each([[2, "default"], [1, "one"], [0, "empty"]] as const)(
   },
 );
 
-it.each([[2, "default"], [1, "one"], [0, "empty"]] as const)(
+it.each([[2, "default"], [1, "one"]] as const)(
   "мои помещения: казахский предпросмотр совпадает для %s помещений",
   async (count, example) => {
     const state: Row = {};
@@ -398,6 +398,52 @@ it("мои помещения: старый синтаксис «дом КОД �
   expect(insert?.params[8]).toBe("house"); // building_id
   expect(insert?.params[9]).toBe("подъезд 3"); // location_text
   expect(state.place_label).toBe("Дом 1, подъезд 3");
+});
+
+it("без привязанных помещений: адрес одной строкой вместо шага адресата", async () => {
+  const captured: { sql: string; params: readonly unknown[] }[] = [];
+  const state: Row = {};
+  const d = deps({ count: 0, state, captured });
+  await requestStep(d, "1", "/newrequest", actor);
+  await requestStep(d, "1", "3", actor); // вид: жалоба
+  // Шаг «Мои помещения / Общее имущество» пропущен — сразу адрес.
+  expect(state.step).toBe("address");
+  const afterEmpty = await requestStep(d, "1", "   ", actor);
+  // Пустой ввод повторяет приглашение адреса.
+  expect(state.step).toBe("address");
+  expect(replyText(afterEmpty)).toBe(
+    templateText(undefined, "ru", "message.requests.address"),
+  );
+  await requestStep(d, "1", "Дом 107/2, кв 40", actor);
+  expect(state.location_text).toBe("Дом 107/2, кв 40");
+  expect(state.premises_id).toBe(null);
+  expect(state.building_id).toBe(null);
+  expect(state.place_label).toBe("Дом 107/2, кв 40");
+  expect(state.step).toBe("description");
+  const verify = await requestStep(d, "1", "Не работает лифт", actor);
+  expect(replyText(verify)).toBe(
+    message(undefined, "ru", "message.requests.verify", {
+      kind: "Жалоба",
+      place: "Дом 107/2, кв 40",
+      description: "Не работает лифт",
+    }),
+  );
+  const insert = captured.find((c) => c.sql.startsWith("insert into request("));
+  expect(insert?.params[4]).toBe("complaint");
+  expect(insert?.params[7]).toBe(null); // premises_id
+  expect(insert?.params[8]).toBe(null); // building_id
+  expect(insert?.params[9]).toBe("Дом 107/2, кв 40"); // location_text
+});
+
+it("без привязанных помещений: приглашение адреса на казахском", async () => {
+  const state: Row = {};
+  const d = deps({ count: 0, state });
+  await requestStep(d, "1", "/newrequest", kkActor);
+  const prompt = await requestStep(d, "1", "2", kkActor); // вид: вопрос
+  expect(state.step).toBe("address");
+  expect(replyText(prompt)).toBe(
+    templateText(undefined, "kk", "message.requests.address"),
+  );
 });
 
 it("мои помещения: «территория» без описания ведёт к приглашению места", async () => {
