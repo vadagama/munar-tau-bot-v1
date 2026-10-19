@@ -60,6 +60,7 @@ function harness(
         id: "r",
         state: "pending_review",
         draft: { full_name: "<Алия>" },
+        premises_id: "p1",
         kind: "apartment",
         number: "4",
         code: "1",

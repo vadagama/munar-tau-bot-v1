@@ -27,7 +27,11 @@ export async function requestAccess(
     `select
  exists(select 1 from request_participant p join connection c on c.person_id=p.person_id and c.premises_id=$3 and c.status='active'
  where p.request_id=$1 and p.person_id=$2 and p.role='participant' and p.revoked_at is null) as participant,
- exists(select 1 from connection c where c.person_id=$4 and c.status='active' and ($3::uuid is null or c.premises_id=$3)) as active_author`,
+ case when $3::uuid is null then
+   exists(select 1 from profile pr join person n on n.id=pr.person_id where pr.person_id=$4 and pr.archived_at is null and n.status='active')
+ else
+   exists(select 1 from connection c where c.person_id=$4 and c.status='active' and c.premises_id=$3)
+ end as active_author`,
     [row.id, actor.person.id, row.premises_id, row.author_person_id],
   );
   return {
@@ -105,14 +109,23 @@ export async function validateLocation(
     ) throw new ApiError("VALIDATION_FAILED", "Некорректное помещение");
     buildingId = p.building_id;
   }
-  const [connection] = await exec.query(
-    `select 1 from connection c join person n on n.id=c.person_id where c.person_id=$1 and c.status='active' and n.status='active' and n.is_test=$3 and ($2::uuid is null or c.premises_id=$2)`,
-    [authorId, premisesId, actor.person.isTest],
-  );
+  // Привязанное помещение требует действующую связь заявителя; адресное
+  // обращение (REG-01, premises_id IS NULL) — достаточно действующего профиля.
+  const [connection] = premisesId
+    ? await exec.query(
+        `select 1 from connection c join person n on n.id=c.person_id where c.person_id=$1 and c.status='active' and n.status='active' and n.is_test=$3 and c.premises_id=$2`,
+        [authorId, premisesId, actor.person.isTest],
+      )
+    : await exec.query(
+        `select 1 from profile pr join person n on n.id=pr.person_id where pr.person_id=$1 and pr.archived_at is null and n.status='active' and n.is_test=$2`,
+        [authorId, actor.person.isTest],
+      );
   if (!connection) {
     throw new ApiError(
       "FORBIDDEN",
-      "Нужна действующая подтверждённая связь заявителя",
+      premisesId
+        ? "Нужна действующая подтверждённая связь заявителя"
+        : "Нужен действующий профиль заявителя",
     );
   }
   if (

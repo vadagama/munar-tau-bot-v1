@@ -103,6 +103,8 @@ function deps({
       return [{ building_id: "house", is_test: true }] as T[];
     }
     if (sql.startsWith("select 1 from connection")) return [{}] as T[];
+    // Адресное обращение (REG-01): действующий профиль автора без связей.
+    if (sql.startsWith("select 1 from profile pr join person")) return [{}] as T[];
     if (sql.startsWith("select p.number,p.kind,b.name,b.code from premises")) {
       return [{ number: "4", kind: "apartment", name: "Дом 1", code: "1" }] as T[];
     }

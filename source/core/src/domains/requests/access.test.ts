@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { can } from "../../pdp/evaluate.ts";
 import type { Actor, ResourceRef } from "../../pdp/types.ts";
+import type { DbExecutor } from "../../db/client.ts";
+import { validateLocation } from "./access.ts";
 const actor: Actor = {
   person: { id: "owner", fullName: "Тест", isTest: true, status: "active" },
   profile: { id: "p", personId: "owner", isTest: true, language: "ru" },
@@ -83,4 +85,62 @@ describe("VS-3 PDP SHR/MSG/CMP", () => {
         },
       }).allow,
     ).toBe(false));
+});
+
+describe("адресные обращения без привязки (REG-01)", () => {
+  /** exec с профилем автора и без связей (как у жителя после одобрения анкеты-минимум). */
+  function profileExec(): DbExecutor {
+    return {
+      query: <T>(sql: string): Promise<T[]> => {
+        if (sql.startsWith("select 1 from profile pr join person"))
+          return Promise.resolve([{ ok: 1 }] as T[]);
+        return Promise.resolve([] as T[]);
+      },
+    };
+  }
+  function emptyExec(): DbExecutor {
+    return { query: <T>(): Promise<T[]> => Promise.resolve([] as T[]) };
+  }
+
+  it("автор с действующим профилем и без связей создаёт адресное обращение", async () => {
+    const loc = await validateLocation(
+      profileExec(),
+      actor,
+      "owner",
+      { location_text: "Дом 107/2, кв 40" },
+    );
+    expect(loc).toEqual({ buildingId: null, premisesId: null });
+  });
+
+  it("без профиля и связей адресное обращение запрещено", async () => {
+    await expect(
+      validateLocation(
+        emptyExec(),
+        actor,
+        "owner",
+        { location_text: "Дом 107/2, кв 40" },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("привязанное помещение по-прежнему требует действующую связь заявителя", async () => {
+    const boundExec: DbExecutor = {
+      query: <T>(sql: string): Promise<T[]> => {
+        if (sql.startsWith("select building_id,is_test from premises"))
+          return Promise.resolve([{ building_id: "b1", is_test: true }] as T[]);
+        return Promise.resolve([] as T[]);
+      },
+    };
+    await expect(
+      validateLocation(
+        boundExec,
+        actor,
+        "owner",
+        { premises_id: "p1" },
+      ),
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: "Нужна действующая подтверждённая связь заявителя",
+    });
+  });
 });
