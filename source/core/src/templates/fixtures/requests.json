@@ -162,12 +162,6 @@
     "kk": "артқа"
   },
   {
-    "key": "requests.dialog_priostanovlen_chernovik_sohranen_register_requests",
-    "source": "requests",
-    "ru": "Диалог приостановлен, черновик сохранён. /register /requests",
-    "kk": "Диалог тоқтатылды, жоба сақталды. /register /requests"
-  },
-  {
     "key": "requests.nekorrektnaya_stranitsa",
     "source": "requests",
     "ru": "Некорректная страница",

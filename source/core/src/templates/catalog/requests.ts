@@ -248,15 +248,6 @@ export const requestsTemplates: readonly TemplateDef[] = [
     "kk": "артқа",
   },
   {
-    "key": "requests.dialog_priostanovlen_chernovik_sohranen_register_requests",
-    "section": "requests",
-    "title": "Диалог приостановлен, черновик сохранён. /register /requests",
-    "description": "Реплика requests",
-    "variables": [],
-    "ru": "Диалог приостановлен, черновик сохранён. /register /requests",
-    "kk": "Диалог тоқтатылды, жоба сақталды. /register /requests",
-  },
-  {
     "key": "requests.nekorrektnaya_stranitsa",
     "section": "requests",
     "title": "Некорректная страница",

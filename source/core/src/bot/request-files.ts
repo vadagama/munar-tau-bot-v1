@@ -74,25 +74,32 @@ export async function queueRequestFile(
   if (taskFile) {
     return templateText(deps.templates, L, "requests.fayl_zadaniya_prinyat_v_ochered_dozhdites_soobscheniya");
   }
-  // Файловый диалог (REQ-03): после принятого медиа — синхронное «Хотите
-  // добавить ещё?»; сохранение остаётся асинхронным («Файл сохранён» — из джобы).
+  // Файловый диалог (REQ-03): после принятого медиа — приглашение следующего
+  // файла или сохранения запроса; сохранение остаётся асинхронным
+  // («Файл сохранён» — из джобы). Старые шаги нормализуются в attachments.
   if (
     ["attachments", "attachments_wait", "attachments_more"].includes(
       String(state.step ?? ""),
     )
   ) {
-    state.step = "attachments_more";
+    state.step = "attachments";
     await deps.db.query(
       "update bot_dialog set state=$2::text::jsonb,updated_at=now() where telegram_user_id=$1",
       [telegramId, JSON.stringify(state)],
     );
-    const yesNo = (key: string) => [[
-      btn(messageButton(deps.templates, L, key, "yes"), L === "kk" ? "иә" : "да"),
-      btn(messageButton(deps.templates, L, key, "no"), L === "kk" ? "жоқ" : "нет"),
-    ]];
     return {
       text: templateText(deps.templates, L, "message.requests.attachments_more"),
-      buttons: yesNo("message.requests.attachments_more"),
+      buttons: [[
+        btn(
+          messageButton(
+            deps.templates,
+            L,
+            "message.requests.attachments_more",
+            "save",
+          ),
+          "/sendrequest",
+        ),
+      ]],
     };
   }
   return templateText(deps.templates, L, "requests.fayl_prinyat_v_ochered_poka_ne_sohranen");

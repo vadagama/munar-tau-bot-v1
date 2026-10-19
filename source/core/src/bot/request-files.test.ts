@@ -218,7 +218,7 @@ function queueFixture(dialogState: Row) {
   };
 }
 
-it("медиа в файловом диалоге переводит шаг в «Хотите добавить ещё?»", async () => {
+it("медиа в файловом диалоге принимается и предлагает следующий файл или сохранение", async () => {
   const f = queueFixture({
     scenario: "requests",
     draft_id: "r1",
@@ -227,13 +227,14 @@ it("медиа в файловом диалоге переводит шаг в �
   const reply = await queueRequestFile(f.deps, "100", {
     photo: [{ file_id: "f1", file_size: 100, width: 1, height: 1 }],
   }, 1);
-  expect(f.state().step).toBe("attachments_more");
+  // Шаг нормализуется в «attachments»: выбор «да/нет» больше не задаётся.
+  expect(f.state().step).toBe("attachments");
   expect(replyText(reply)).toBe(
     templateText(undefined, "ru", "message.requests.attachments_more"),
   );
-  // Кнопки да/нет с текстовыми эквивалентами.
+  // Кнопка «Сохранить запрос» ведёт на /sendrequest.
   expect(reply).toMatchObject({
-    buttons: [[{ data: "да" }, { data: "нет" }]],
+    buttons: [[{ data: "/sendrequest" }]],
   });
 });
 

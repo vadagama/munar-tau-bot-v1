@@ -48,6 +48,7 @@ interface FakeOptions {
   templates?: TemplateStore;
   state?: Row;
   draft?: Row | null;
+  fileCount?: number;
   captured?: { sql: string; params: readonly unknown[] }[];
 }
 
@@ -57,6 +58,7 @@ function deps({
   templates,
   state = {},
   draft = null,
+  fileCount = 0,
   captured,
 }: FakeOptions = {}) {
   const places = [{
@@ -87,6 +89,10 @@ function deps({
       return [{ state }] as T[];
     }
     if (sql.startsWith("select p.id")) return places as T[];
+    // Счётчик файлов для карточки проверки (verify_files).
+    if (sql.startsWith("select count(*)::int as n from attachment")) {
+      return [{ n: fileCount }] as T[];
+    }
     if (sql.startsWith("select * from request where author_person_id")) {
       return (draft ? [draft] : []) as T[];
     }
@@ -331,9 +337,9 @@ it("в доме: выбор дома кнопкой → текст места �
   );
   await requestStep(d, "1", "подъезд 2", actor);
   await requestStep(d, "1", "Не работает освещение", actor);
-  // После описания — файловый диалог; проверка после него (REQ-03).
+  // После описания — файловое приглашение; проверка по кнопке сохранения.
   expect(state.step).toBe("attachments");
-  const verify = await requestStep(d, "1", "нет", actor);
+  const verify = await requestStep(d, "1", "/sendrequest", actor);
   expect(replyText(verify)).toBe(
     message(undefined, "ru", "message.requests.verify", {
       kind: "Жалоба",
@@ -428,7 +434,7 @@ it("без привязанных помещений: адрес одной ст
   expect(state.step).toBe("description");
   await requestStep(d, "1", "Не работает лифт", actor);
   expect(state.step).toBe("attachments");
-  const card = await requestStep(d, "1", "нет", actor);
+  const card = await requestStep(d, "1", "/sendrequest", actor);
   expect(replyText(card)).toBe(
     message(undefined, "ru", "message.requests.verify", {
       kind: "Жалоба",
@@ -484,12 +490,13 @@ it("вид → место → описание: выбранный вид сох
   await requestStep(d, "1", "1", actor);
   await requestStep(d, "1", "1", actor);
   const verify = await requestStep(d, "1", "Не работает освещение", actor);
-  // После описания — файловый диалог, проверка позже (REQ-03).
+  // После описания — файловое приглашение; карточка проверки открывается
+  // кнопкой сохранения (/sendrequest), а не ответом «нет» (REQ-03).
   expect(replyText(verify)).toBe(
     templateText(undefined, "ru", "message.requests.attachments_prompt"),
   );
   expect(state.step).toBe("attachments");
-  const card = await requestStep(d, "1", "нет", actor);
+  const card = await requestStep(d, "1", "/sendrequest", actor);
   expect(replyText(card)).toBe(
     message(undefined, "ru", "message.requests.verify", {
       kind: "Вопрос",
@@ -515,7 +522,7 @@ it("/editrequest: черновик — сначала вид, затем тек�
   );
   await requestStep(d, "1", "Не работает освещение", actor);
   expect(state.step).toBe("attachments");
-  const card = await requestStep(d, "1", "нет", actor);
+  const card = await requestStep(d, "1", "/sendrequest", actor);
   expect(replyText(card)).toBe(
     message(undefined, "ru", "message.requests.verify", {
       kind: "Жалоба",
@@ -627,7 +634,7 @@ it.each(["ru", "kk"] as const)(
 );
 
 describe("файловый диалог (REQ-03, R2.4)", () => {
-  it("цикл «да → ожидание → ещё? → нет → проверка» проходим", async () => {
+  it("приглашение → /sendrequest → карточка проверки без файлов", async () => {
     const state: Row = {};
     const d = deps({ count: 1, state });
     await requestStep(d, "1", "/newrequest", actor);
@@ -636,26 +643,14 @@ describe("файловый диалог (REQ-03, R2.4)", () => {
     await requestStep(d, "1", "1", actor);
     await requestStep(d, "1", "Не работает освещение", actor);
     expect(state.step).toBe("attachments");
-    // Недопустимый ввод повторяет вопрос.
+    // Текст вместо медиа повторяет приглашение, состояние не меняется.
     const again = await requestStep(d, "1", "не знаю", actor);
     expect(state.step).toBe("attachments");
     expect(replyText(again)).toBe(
       templateText(undefined, "ru", "message.requests.attachments_prompt"),
     );
-    // «да» — ожидание медиа.
-    const wait = await requestStep(d, "1", "да", actor);
-    expect(state.step).toBe("attachments_wait");
-    expect(replyText(wait)).toBe(
-      templateText(undefined, "ru", "message.requests.attachments_wait"),
-    );
-    // Текст вместо медиа — повтор приглашения.
-    const still = await requestStep(d, "1", "я передумал", actor);
-    expect(state.step).toBe("attachments_wait");
-    expect(replyText(still)).toBe(
-      templateText(undefined, "ru", "message.requests.attachments_wait"),
-    );
-    // «нет» без файлов — карточка проверки с [Отправить].
-    const card = await requestStep(d, "1", "нет", actor);
+    // «Сохранить запрос» (/sendrequest) без файлов — карточка проверки.
+    const card = await requestStep(d, "1", "/sendrequest", actor);
     expect(state.step).toBe("verify");
     expect(replyText(card)).toBe(
       message(undefined, "ru", "message.requests.verify", {
@@ -670,20 +665,61 @@ describe("файловый диалог (REQ-03, R2.4)", () => {
     ).toBe(true);
   });
 
-  it("«ещё? → да» возвращается к ожиданию медиа, «ещё? → нет» — на проверку", async () => {
-    const state: Row = { step: "attachments_more" };
-    const d = deps({ count: 1, state });
-    const wait = await requestStep(d, "1", "да", actor);
-    expect(state.step).toBe("attachments_wait");
-    expect(replyText(wait)).toBe(
-      templateText(undefined, "ru", "message.requests.attachments_wait"),
-    );
-    await requestStep(d, "1", "нет", actor); // из ожидания — на проверку
+  it("с файлами карточка проверки показывает число файлов", async () => {
+    const state: Row = {};
+    const d = deps({ count: 1, state, fileCount: 3 });
+    await requestStep(d, "1", "/newrequest", actor);
+    await requestStep(d, "1", "2", actor);
+    await requestStep(d, "1", "1", actor);
+    await requestStep(d, "1", "1", actor);
+    await requestStep(d, "1", "Не работает освещение", actor);
+    const card = await requestStep(d, "1", "/sendrequest", actor);
     expect(state.step).toBe("verify");
-    const more: Row = { step: "attachments_more", kind: "complaint" };
-    const d2 = deps({ count: 1, state: more });
-    const card = await requestStep(d2, "1", "нет", actor);
-    expect(more.step).toBe("verify");
+    expect(replyText(card)).toBe(
+      message(undefined, "ru", "message.requests.verify_files", {
+        kind: "Вопрос",
+        place: "Дом 1, Квартира 4",
+        description: "Не работает освещение",
+        files: "3 файла",
+      }),
+    );
+  });
+
+  it("счётчик файлов на казахском — без плюрализации", async () => {
+    const state: Row = {
+      step: "attachments",
+      kind: "complaint",
+      description: "Свет",
+      draft_id: "r1",
+    };
+    const d = deps({ count: 1, state, fileCount: 2 });
+    const card = await requestStep(d, "1", "/sendrequest", kkActor);
+    expect(state.step).toBe("verify");
+    expect(replyText(card)).toBe(
+      message(undefined, "kk", "message.requests.verify_files", {
+        kind: messageButton(undefined, "kk", "message.requests.kind", "complaint"),
+        place: templateText(undefined, "kk", "requests.net"),
+        description: "Свет",
+        files: "2 файл",
+      }),
+    );
+  });
+
+  it("старые шаги «ожидание/ещё?» нормализуются и ведут к проверке по кнопке", async () => {
+    const state: Row = {
+      step: "attachments_more",
+      kind: "complaint",
+      draft_id: "r1",
+    };
+    const d = deps({ count: 1, state });
+    // Текст вместо медиа — приглашение, шаг нормализуется.
+    const prompt = await requestStep(d, "1", "что-то", actor);
+    expect(state.step).toBe("attachments");
+    expect(replyText(prompt)).toBe(
+      templateText(undefined, "ru", "message.requests.attachments_prompt"),
+    );
+    const card = await requestStep(d, "1", "/sendrequest", actor);
+    expect(state.step).toBe("verify");
     expect(replyText(card)).toBe(
       message(undefined, "ru", "message.requests.verify", {
         kind: "Жалоба",
@@ -693,17 +729,15 @@ describe("файловый диалог (REQ-03, R2.4)", () => {
     );
   });
 
-  it("кнопки да/нет резолвятся из каталога на обоих языках", () => {
+  it("кнопка «Сохранить запрос» резолвится из каталога на обоих языках", () => {
     for (const key of [
       "message.requests.attachments_prompt",
-      "message.requests.attachments_wait",
       "message.requests.attachments_more",
     ]) {
       const def = getTemplate(key)!;
-      expect(def.buttons?.map((b) => b.id)).toEqual(["yes", "no"]);
+      expect(def.buttons?.map((b) => b.id)).toEqual(["save"]);
       for (const lang of ["ru", "kk"] as const) {
-        expect(messageButton(undefined, lang, key, "yes")).toBeTruthy();
-        expect(messageButton(undefined, lang, key, "no")).toBeTruthy();
+        expect(messageButton(undefined, lang, key, "save")).toBeTruthy();
       }
     }
   });
