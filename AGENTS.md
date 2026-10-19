@@ -19,7 +19,8 @@
 
 В `.agents/skills/<имя>/SKILL.md` лежат проектные навыки — рабочие процессы для типовых фаз работы. Их использование обязательно: выбор навыка — первый шаг любой задачи, до чтения кода и любых правок.
 
-- Если выбор неочевиден, начните с мета-навыка `using-agent-skills` — там карта «задача → навык» и базовые правила поведения (surface assumptions, scope discipline, «verify, don't assume»)
+- Каждая задача начинается с обращения к мета-навыку `using-agent-skills` — там карта «задача → навык» и базовые правила поведения (surface assumptions, scope discipline, «verify, don't assume»). Навык вызывается на каждую задачу заново: «уже читал в этой сессии» — не основание пропустить выбор
+- Выбранные навыки объявляйте в первом ответе по задаче строкой «Навыки: …»; если ни один не подходит — напишите это явно. Объявление делает пропуск выбора видимым и поправимым
 - Навык — это порядок действий, а не справка: шаги по порядку, проверки не пропускать. Обычно задействовано несколько навыков; типовая цепочка: `interview-me` / `spec-driven-development` → `planning-and-task-breakdown` → `incremental-implementation` → `test-driven-development` → `code-review-and-quality` → `git-workflow-and-versioning` → `documentation-and-adrs`
 - Привязка к правилам этого документа: ветки/коммиты/PR — `git-workflow-and-versioning`, ADR и документация — `documentation-and-adrs`, приёмка изменений — `code-review-and-quality`, отладка — `debugging-and-error-recovery`, UI кабинета — `frontend-ui-engineering`
 - Если среда поддерживает skills нативно — используйте её механизм; в остальных случаях достаточно прочитать `SKILL.md` нужного навыка
