@@ -21,7 +21,7 @@
 | `registration-binding` | Анкета без привязанного помещения: шаг бота, схема (`registration.premises_id` → nullable, текст в `draft`), привязка в кабинете, маршрут собственника после привязки | — |
 | `request-flow` | Выбор вида и адресата при создании обращения: сценарий бота, каталог шаблонов, совместимость черновиков | — |
 
-Порядок сборки: модули независимы; `request-flow` меньше — можно сделать первым. Спеки: `docs/specs/SPEC-registration-binding.md`, `docs/specs/SPEC-request-flow.md`.
+Порядок сборки: модули независимы; `request-flow` меньше — можно сделать первым. Спеки: `docs/specs/SPEC-registration-lite.md` (заменила `SPEC-registration-binding.md`), `docs/specs/SPEC-request-flow.md`.
 
 ## Ключевые допущения (проверить в PR)
 

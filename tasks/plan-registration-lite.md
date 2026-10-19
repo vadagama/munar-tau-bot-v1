@@ -125,10 +125,10 @@
 
 ### Фаза R3: документация и приёмка
 
-- [ ] **Task R3.1: Документация и ADR**
+- [x] **Task R3.1: Документация и ADR**
   **Description:** Правки: REG-01 (анкета без помещения/роли), REG-02 (доступ после подтверждения анкеты), REQ-02 (обращение по адресу текстом для подтверждённого пользователя), REQ-03 (порядок: вид → адрес → описание → файлы диалогом → проверка); HLD (схема nullable, правила PDP); `access-matrix` (видимость обращений без дома). ADR-015 «Анкета-минимум и обращения без привязки» (контекст → решение → альтернативы → проверки) + индекс `docs/README.md`. `SPEC-registration-binding.md` заменить новым дизайном, `SPEC-request-flow.md` дополнить; в `plan-registration-request-flow.md` пометить Фазу B заменённой. При необходимости строка в доменных правилах AGENTS.md.
   **Acceptance criteria:**
-  - [ ] Документы согласованы, индекс ADR обновлён, ссылки на старый дизайн устранены
+  - [x] Документы согласованы, индекс ADR обновлён, ссылки на старый дизайн устранены
   **Verification:** ревью diff. **Dependencies:** R2.6. **Files:** `docs/requirements-v1.md`, `docs/hld.md`, `docs/access-matrix.md`, `docs/decisions/015-*.md`, `docs/README.md`, `docs/specs/*`, `tasks/plan-registration-request-flow.md`, `AGENTS.md`. **Scope:** M
 
 **Checkpoint: Complete** (Definition of Done: тесты зелёные, без регрессий, поведение проверено на рантайме, документация обновлена)
