@@ -1,6 +1,7 @@
+import { CardDrawer } from "./card-drawer";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
@@ -38,7 +39,7 @@ const DECISION_LABELS: Record<string, string> = {
 };
 const decisionsFor = (r: Row): string[] =>
   r.state === "approved"
-    ? ["dispute"]
+    ? (r.premises_id ? ["dispute"] : [])
     : ["pending_review", "need_clarification", "disputed"].includes(
         String(r.state),
       )
@@ -65,23 +66,52 @@ export function RegistrationsPage() {
     [saving, setSaving] = useState(false);
   const [failures, setFailures] = useState<Row[]>([]);
   const [form] = Form.useForm();
+  const [manageForm] = Form.useForm();
+  const [management, setManagement] = useState<{ row: Row; operation: "edit" | "delete" } | null>(null);
+  const [managementError, setManagementError] = useState<string | null>(null);
+  const managementKey = useRef(crypto.randomUUID());
+  const reading = useRef(false);
+  const openManagement = (row: Row, operation: "edit" | "delete") => {
+    manageForm.resetFields();
+    manageForm.setFieldsValue({ ...(row.draft as Row), language: (row.draft as Row)?.language ?? "ru" });
+    managementKey.current = crypto.randomUUID();
+    setManagementError(null);
+    setManagement({ row: { ...row }, operation });
+  };
+  const saveManagement = async () => {
+    if (!management) return;
+    try {
+      const values = await manageForm.validateFields();
+      setSaving(true);
+      await apiFetch(`/v1/registrations/${management.row.id}/manage`, {
+        method: "POST", idempotencyKey: managementKey.current,
+        body: { ...values, operation: management.operation, expected_version: management.row.version },
+      });
+      setManagement(null);
+      await load();
+    } catch (e) {
+      if (e instanceof Error) setManagementError(e.message);
+    } finally { setSaving(false); }
+  };
   const approveDraft =
     action?.decision === "approve"
       ? (action.row.draft as Row | undefined)
       : undefined;
-  const matchedPersons = approveDraft?.phone_e164
+  const matchedPersons = !action?.row.person_id && approveDraft?.phone_e164
     ? persons.filter(
         (p) => String(p.phone_e164) === String(approveDraft.phone_e164),
       )
     : [];
-  const load = async () => {
-    setBusy(true);
+  const load = async (background = false) => {
+    if (reading.current) return;
+    reading.current = true;
+    if (!background) setBusy(true);
     setError(null);
     try {
       const [r, n, f] = await Promise.all([
         apiFetch<{ items: Row[] }>("/v1/registrations"),
-        apiFetch<{ items: Row[] }>("/v1/registry/persons"),
-        apiFetch<{ items: Row[] }>("/v1/registry/notification-failures"),
+        apiFetch<{ items: Row[] }>("/v1/registry/persons").catch(() => ({ items: [] })),
+        apiFetch<{ items: Row[] }>("/v1/registry/notification-failures").catch(() => ({ items: [] })),
       ]);
       setRows(r.items);
       setPersons(n.items);
@@ -90,9 +120,10 @@ export function RegistrationsPage() {
       setError(e instanceof Error ? e.message : "Ошибка");
     } finally {
       setBusy(false);
+      reading.current = false;
     }
   };
-  usePageRefresh(load, !busy && !saving);
+  usePageRefresh(() => load(true), !busy && !saving);
   useEffect(() => {
     void load();
   }, []);
@@ -102,7 +133,7 @@ export function RegistrationsPage() {
       setSaving(true);
       await apiFetch(
         `/v1/registrations/${action!.row.id}/${action!.decision}`,
-        { method: "POST", body: values },
+        { method: "POST", body: { ...values, expected_version: action!.row.version } },
       );
       setAction(null);
       await load();
@@ -112,8 +143,8 @@ export function RegistrationsPage() {
       setSaving(false);
     }
   };
-  const decisionButtons = (r: Row) =>
-    decisionsFor(r).map((decision) => (
+  const decisionButtons = (r: Row) => [
+    ...decisionsFor(r).map((decision) => (
       <Button
         key={decision}
         danger={decision === "reject"}
@@ -124,7 +155,12 @@ export function RegistrationsPage() {
       >
         {DECISION_LABELS[decision]}
       </Button>
-    ));
+    )),
+    ...(r.can_manage ? [
+      <Button key="edit" onClick={() => openManagement(r, "edit")}>Исправить</Button>,
+      <Button key="delete" danger onClick={() => openManagement(r, "delete")}>Удалить</Button>,
+    ] : []),
+  ];
   const visible = rows.filter((r) => !state || r.state === state);
   return (
     <PageLayout title="Регистрации"
@@ -200,6 +236,7 @@ export function RegistrationsPage() {
                     ? ` · до ${new Date(String(r.stage_due_at)).toLocaleString("ru-RU")}`
                     : ""}
                 </Typography.Text>
+                {!!r.confirmed_draft && <Tag color="blue">Исправления на проверке · прежний доступ сохранён</Tag>}
                 {r.overdue_at && <Tag color="red">Просрочено</Tag>}
                 {decisionButtons(r).length > 0 && (
                   <div
@@ -252,11 +289,8 @@ export function RegistrationsPage() {
             {
               title: "Состояние",
               dataIndex: "state",
-              render: (v) => (
-                <Tag color={v === "disputed" ? "orange" : undefined}>
-                  {STATES[String(v)]}
-                </Tag>
-              ),
+              render: (v, r) => <Space direction="vertical"><Tag color={v === "disputed" ? "orange" : undefined}>{STATES[String(v)]}</Tag>
+                {!!r.confirmed_draft && <Tag color="blue">Исправления на проверке · прежний доступ сохранён</Tag>}</Space>,
             },
             {
               title: "Срок",
@@ -278,6 +312,24 @@ export function RegistrationsPage() {
           ]}
         />
       )}
+      <CardDrawer open={!!management} title={management?.operation === "delete" ? "Удаление анкеты" : "Исправление анкеты"}
+        onClose={() => setManagement(null)} closeDisabled={saving} hasUnsavedChanges={() => manageForm.isFieldsTouched()}
+        footer={<Button type="primary" danger={management?.operation === "delete"} loading={saving} onClick={() => void saveManagement()}>
+          {management?.operation === "delete" ? "Удалить анкету" : "Отправить на проверку"}
+        </Button>}>
+        {managementError && <Alert type="error" message={managementError} />}
+        {management?.operation === "delete" ? <Alert showIcon type="warning" message="Доступ к боту и кабинету закроется. Связи с помещениями и служебные роли прекратятся. История обращений и операций сохранится." />
+          : <Typography.Paragraph>Исправления проверит ОСИ. До одобрения действуют прежние сведения и доступ.</Typography.Paragraph>}
+        {!!management?.row.confirmed_draft && <Typography.Paragraph type="secondary">Действующие данные: {String((management.row.confirmed_draft as Row).full_name)} · {String((management.row.confirmed_draft as Row).phone_e164)}</Typography.Paragraph>}
+        <Form form={manageForm} layout="vertical" name="registration-management">
+          {management?.operation === "edit" && <>
+            <Form.Item name="full_name" label="Имя и фамилия" rules={[{ required: true, whitespace: true, message: "Укажите имя" }]}><Input maxLength={200} /></Form.Item>
+            <Form.Item name="phone_e164" label="Телефон" rules={[{ required: true, message: "Укажите телефон" }]}><Input /></Form.Item>
+            <Form.Item name="language" label="Язык" rules={[{ required: true }]}><Select options={[{ value: "ru", label: "Русский" }, { value: "kk", label: "Қазақша" }]} /></Form.Item>
+          </>}
+          <Form.Item name="reason" label="Причина" rules={[{ required: true, whitespace: true, message: "Укажите основание" }]}><Input.TextArea maxLength={300} /></Form.Item>
+        </Form>
+      </CardDrawer>
       <Modal
         title={
           action?.decision === "approve"
@@ -304,7 +356,9 @@ export function RegistrationsPage() {
                 ({String(approveDraft?.phone_e164 ?? "")})?
               </Typography.Paragraph>
               <Typography.Paragraph type="secondary">
-                {action.row.premises_id
+                {action.row.confirmed_draft
+                  ? "После одобрения обновятся данные пользователя. Связи, роли и история сохранятся."
+                  : action.row.premises_id
                   ? <>В реестре создаётся карточка заявителя и подтверждается доступ: {" "}
                     {String(action.row.building_code)} · {displayKind(action.row.kind)}{" "}
                     {String(action.row.number)}, {displayRole(action.row.role)}.</>

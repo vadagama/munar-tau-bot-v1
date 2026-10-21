@@ -807,3 +807,22 @@ Deno.test("ROL-02f: профиль разделяет назначенную р�
   assertEquals(body.effective_roles.includes("tech_admin"),false);
   assertEquals(body.assignments.map((a:{role:string})=>a.role),["administrator"]);
 });
+
+Deno.test("управление анкетой использует отдельный privileged PDP-маршрут", () => {
+  const route = matchRoute("POST", "/v1/registrations/11111111-1111-1111-1111-111111111111/manage");
+  assertEquals(route?.route.action, "registration.manage");
+  assertEquals(route?.route.evaluateAs, "effective");
+  assertEquals(route?.params.id, "11111111-1111-1111-1111-111111111111");
+});
+
+Deno.test("исполнитель не управляет чужой анкетой через прямой API", async () => {
+  const { deps, admin } = makeDeps();
+  const executor = makeTestActor("executor", [], { personId: "p-executor" });
+  seedIdentity(admin, { sub: "sub-executor", sessionId: "s-executor", personId: "p-executor", profileId: "prof-executor", actor: executor });
+  const jwt = await token({ sub: "sub-executor", sessionId: "s-executor" });
+  const response = await call(deps, "/v1/registrations/11111111-1111-1111-1111-111111111111/manage", {
+    token: jwt, method: "POST", body: { operation: "delete", expected_version: 1, reason: "Проверка отказа" },
+  });
+  assertEquals(response.status, 403);
+  assertEquals((await response.json()).error.code, "FORBIDDEN");
+});

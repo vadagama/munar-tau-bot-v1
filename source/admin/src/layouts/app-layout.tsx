@@ -82,6 +82,7 @@ export function AppLayout() {
       ] },
       { key: "/registry", label: "Помещения" },
     ] : []),
+    ...(!manager && roles.includes("tech_admin") ? [{ key: "/registrations", label: "Регистрации" }] : []),
     { key: "notifications", label: "Уведомления", children: [
       ...(manager ? [{ key: "/notifications/failures", label: "Ошибки доставки" }] : []),
       { key: "/notifications/preferences", label: "Мои настройки" },

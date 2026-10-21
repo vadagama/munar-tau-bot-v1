@@ -1,3 +1,4 @@
+import { manageRegistration } from "../../core/src/domains/registrations/management.ts";
 import {ruleContract} from "../../core/src/domains/timing/contracts.ts";
 import type { Route, RouteContext } from "./handlers.ts";
 import {
@@ -302,6 +303,13 @@ routes.push(
       status: 201,
       body: await submitRegistration(deps(ctx), ctx.actor, ctx.body),
     }),
+  },
+  {
+    method: "POST",
+    path: "/v1/registrations/:id/manage",
+    action: "registration.manage",
+    evaluateAs: "effective",
+    handler: async ctx => ({ body: await manageRegistration(deps(ctx), ctx.actor, ctx.params.id!, ctx.body, ctx.request.headers.get("Idempotency-Key")) }),
   },
   {
     method: "PATCH",
