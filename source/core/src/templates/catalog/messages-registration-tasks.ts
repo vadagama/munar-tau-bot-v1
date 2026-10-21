@@ -190,9 +190,9 @@ function def(
     : undefined;
   if (optionConfig) {
     const { name, id, options, labels } = optionConfig;
-    sample[name] = options.map((option, i) => `${i + 1}. ${labels[option]!.ru}`)
+    if (vars.some(v => v.name === name)) sample[name] = options.map((option, i) => `${i + 1}. ${labels[option]!.ru}`)
       .join("\n");
-    sampleKk[name] = options.map((option, i) =>
+    if (vars.some(v => v.name === name)) sampleKk[name] = options.map((option, i) =>
       `${i + 1}. ${labels[option]!.kk}`
     ).join("\n");
     buttonRows = options.map(
@@ -236,7 +236,7 @@ const defs: TemplateDef[] = [
       l === "kk"
         ? "Өтінім күйі:\n{registrations}"
         : "Статус анкеты:\n{registrations}",
-    [{ id: "edit", ru: "Исправить анкету", kk: "Өтінімді түзету" }],
+    [{ id: "edit", ru: "Исправить анкету", kk: "Өтінімді түзету" }, { id: "delete", ru: "Удалить анкету", kk: "Өтінімді жою" }],
   ),
   def(
     "message.registration.pending",
@@ -366,7 +366,7 @@ const defs: TemplateDef[] = [
         id: "add",
         ru: "Добавить помещение",
         kk: "Үй-жай қосу",
-      }],
+      }, { id: "delete", ru: "Удалить анкету", kk: "Өтінімді жою" }],
     )
   ),
   def(
@@ -417,7 +417,7 @@ const defs: TemplateDef[] = [
     "Регистрация — тип помещения",
     "/register",
     [R + "tip_pomescheniya"],
-    (l) => old(R + "tip_pomescheniya", l) + "\n{kinds}",
+    (l) => old(R + "tip_pomescheniya", l),
     [{
       id: "kind",
       ru: "{label}",
@@ -434,7 +434,7 @@ const defs: TemplateDef[] = [
     "Регистрация — роль жителя",
     "/register",
     [R + "vasha_rol"],
-    (l) => old(R + "vasha_rol", l) + "\n{roles}",
+    (l) => old(R + "vasha_rol", l),
     [{
       id: "role",
       ru: "{label}",
@@ -510,6 +510,12 @@ const defs: TemplateDef[] = [
         ? "ОСИ тіркелуі үшін осы деректерді өңдеуге келісім."
         : "Согласие на обработку этих данных для регистрации в ОСИ."),
     consentButtons,
+  ),
+  def(
+    "message.registration.correction_submitted", "Исправления отправлены", "/fix", [],
+    l => l === "kk" ? "Түзетулер тексеруге жіберілді. Бұрынғы деректер мен қолжетімділік сақталды."
+      : "Исправления отправлены на проверку. Прежние данные и доступ сохранены.",
+    [{ id: "status", ru: "Статус анкеты", kk: "Өтінім күйі" }],
   ),
   def(
     "message.registration.submitted",
@@ -605,6 +611,8 @@ const defs: TemplateDef[] = [
 // Existing complete replies retain keys and history; only compositional fragments are hidden.
 const consumed = new Set(defs.flatMap((d) => d.legacyKeys ?? []));
 const internal = new Set([
+  "registration.delete_own_reason",
+  "registration.previous_access_retained",
   "registration.reshenie_sobstvennika",
   "tasks.vizit",
   "tasks.sohranen",

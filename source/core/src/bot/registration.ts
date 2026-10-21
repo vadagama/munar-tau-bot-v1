@@ -24,7 +24,7 @@ import {
   revokeOwnConnection,
   submitRegistration,
 } from "../domains/registrations/service.ts";
-import { submitPrivacyRequest } from "../domains/privacy/service.ts";
+import { manageRegistration, withdrawUnconfirmedRegistration } from "../domains/registrations/management.ts";
 import { ScenarioRegistry } from "./registry.ts";
 import { registrationHelp, welcomeText } from "./help.ts";
 import { type BotReply, btn } from "./keyboard.ts";
@@ -100,7 +100,7 @@ function registrationLines(rows: Row[], L: Lang, store?: TemplateStore): string[
       r.role ? `, ${esc(label(roleLabels, r.role, L))}` : ""
     }${
       r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""
-    }`;
+    }${r.confirmed_draft ? `\n${esc(message(store, L, "registration.previous_access_retained"))}` : ""}`;
   });
 }
 
@@ -152,9 +152,9 @@ export async function registrationStep(
     }
     if (cmd === "/status") {
       const rows = await exec.query<Row>(
-        `select r.id,r.state,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
+        `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
         from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
-        where r.telegram_user_id=$1 or r.person_id=$2 order by r.created_at desc limit 20`,
+        where (r.telegram_user_id=$1 or r.person_id=$2) and r.superseded_by is null order by r.created_at desc limit 20`,
         [telegramId, actor?.person.id ?? null],
       );
       if (!rows.length) {
@@ -166,6 +166,7 @@ export async function registrationStep(
         "pending_review",
         "need_clarification",
         "rejected",
+        "approved",
       ]);
       const buttons = rows
         .map((r, i) =>
@@ -184,6 +185,9 @@ export async function registrationStep(
             : undefined
         )
         .filter((row): row is NonNullable<typeof row> => !!row);
+      if (rows.some(r => r.state !== "withdrawn")) buttons.push([
+        btn(messageButton(deps.templates, L, "message.registration.status", "delete"), "/delete"),
+      ]);
       return save({
         text: message(deps.templates, L, "message.registration.status", {
           registrations: safeBlock(
@@ -624,10 +628,10 @@ export async function registrationStep(
       // Добавление ещё одного помещения — /add, у него отдельная ветка выше.
       if (cmd === "/register") {
         const rows = await exec.query<Row>(
-          `select r.id,r.state,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
+          `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
           from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
           where (r.telegram_user_id=$1 or r.person_id=$2)
-          and r.state in ('pending_review','need_clarification','approved','rejected')
+          and r.superseded_by is null and r.state in ('pending_review','need_clarification','approved','rejected')
           order by r.created_at desc limit 20`,
           [telegramId, actor?.person.id ?? null],
         );
@@ -655,6 +659,7 @@ export async function registrationStep(
                 messageButton(deps.templates, L, key, "add"),
                 "/add",
               ),
+              btn(messageButton(deps.templates, L, key, "delete"), "/delete"),
             ]],
           });
         }
@@ -679,12 +684,13 @@ export async function registrationStep(
           );
         }
         const [registration] = await exec.query<Row>(
-          "select id,premises_id from registration where id=$1 and telegram_user_id=$2 and state in ('pending_review','need_clarification','rejected')",
+          "select id,premises_id,version from registration where id=$1 and telegram_user_id=$2 and superseded_by is null and state in ('pending_review','need_clarification','rejected','approved')",
           [id, telegramId],
         );
         if (!registration) throw new ApiError("NOT_FOUND");
         for (const key of Object.keys(state)) delete state[key];
         state.registration_id = id;
+        state.expected_version = registration.version;
         // Анкета-минимум (REG-01) редактируется без помещения: роль и дом не спрашиваем.
         if (!registration.premises_id) state.mode = "lite";
         state.step = "language";
@@ -702,8 +708,8 @@ export async function registrationStep(
       // сохраняются из анкеты. Номер резолвится по свежему запросу — ничего
       // в состоянии не хранится (иначе воспроизводится баг /edit).
       const rows = await exec.query<Row>(
-        `select id,state,decided_reason,draft,premises_id,role from registration
-        where telegram_user_id=$1 and is_test=$2 and state in ('need_clarification','rejected','pending_review') and total_due_at is null
+        `select id,state,decided_reason,draft,premises_id,role,version from registration
+        where telegram_user_id=$1 and is_test=$2 and superseded_by is null and state in ('need_clarification','rejected','pending_review','approved') and (total_due_at is null or state='approved')
         order by case state when 'need_clarification' then 0 when 'rejected' then 1 else 2 end, updated_at desc`,
         [telegramId, actor?.person.isTest ?? false],
       );
@@ -774,6 +780,7 @@ export async function registrationStep(
       const draft = jsonValue<Row>(reg.draft);
       for (const key of Object.keys(state)) delete state[key];
       state.registration_id = String(reg.id);
+      state.expected_version = reg.version;
       state.language = ["ru", "kk"].includes(String(draft.language))
         ? String(draft.language)
         : "ru";
@@ -794,50 +801,28 @@ export async function registrationStep(
       );
     }
     if (cmd === "/delete") {
-      // PRV-02: команда подаёт запрос администратору, а не удаляет анкету;
-      // история обращений и операций сохраняется. Подтверждение — кнопкой
-      // или текстовым эквивалентом "/delete confirm".
-      if (!actor) {
-        return save(registerPrompt(deps.templates, L));
-      }
       if (parts[1] !== "confirm") {
+        const [row] = await exec.query<Row>(
+          "select id,version from registration where telegram_user_id=$1 and superseded_by is null and state<>'withdrawn' order by (premises_id is null) desc,created_at desc limit 1", [telegramId],
+        );
+        if (!row) return save(message(deps.templates, L, "registration.anket_poka_net"));
+        state.delete_id = row.id;
+        state.delete_version = row.version;
+        state.delete_key = crypto.randomUUID();
         return save({
-          text: message(
-            deps.templates,
-            L,
-            "registration.podat_zapros_na_udalenie_ankety_i_dannyh",
-          ),
-          buttons: [[
-            btn(
-              messageButton(
-                deps.templates,
-                L,
-                "registration.podat_zapros_na_udalenie_ankety_i_dannyh",
-                "confirm",
-              ),
-              "/delete confirm",
-            ),
-            btn(
-              messageButton(
-                deps.templates,
-                L,
-                "registration.podat_zapros_na_udalenie_ankety_i_dannyh",
-                "cancel",
-              ),
-              "/cancel",
-            ),
-          ]],
+          text: message(deps.templates, L, "registration.delete_confirm"),
+          buttons: [[btn(messageButton(deps.templates, L, "registration.delete_confirm", "confirm"), "/delete confirm"),
+            btn(messageButton(deps.templates, L, "registration.delete_confirm", "cancel"), "/cancel")]],
         });
       }
-      await submitPrivacyRequest(d, actor, { kind: "delete_profile" });
+      if (!state.delete_id || !state.delete_key) throw new ApiError("INVALID_TRANSITION");
+      if (actor) await manageRegistration(d, actor, String(state.delete_id), {
+        operation: "delete", expected_version: state.delete_version,
+        reason: message(deps.templates, L, "registration.delete_own_reason"),
+      }, state.delete_key);
+      else await withdrawUnconfirmedRegistration(d, telegramId, String(state.delete_id), Number(state.delete_version));
       for (const key of Object.keys(state)) delete state[key];
-      return save(
-        message(
-          deps.templates,
-          L,
-          "registration.zapros_na_udalenie_ankety_otpravlen_administratoru_neobyazatelnye",
-        ),
-      );
+      return save(message(deps.templates, L, "registration.deleted"));
     }
     // /start — короткое приветствие (полная справка остаётся на /help);
     // свободный текст без активного шага — полная справка, как раньше.
@@ -1144,20 +1129,21 @@ export async function registrationStep(
             message(deps.templates, L, "registration.dostup_podtverzhden"),
           );
         }
-        await submitRegistration(d, actor, state, telegramId);
+        const submitted = await submitRegistration(d, actor, state, telegramId);
+        const submittedKey = submitted?.confirmed_draft ? "message.registration.correction_submitted" : "message.registration.submitted";
         for (const key of Object.keys(state)) delete state[key];
         return save({
           text: message(
             deps.templates,
             L,
-            "message.registration.submitted",
+            submittedKey,
           ),
           buttons: [[
             btn(
               messageButton(
                 deps.templates,
                 L,
-                "message.registration.submitted",
+                submittedKey,
                 "status",
               ),
               "/status",

@@ -30,6 +30,7 @@ export type ActionKey =
   | "registry.export"
   | "registration.self"
   | "registration.review"
+  | "registration.manage"
   | "privacy.request"
   | "meta.me"
   | "meta.dictionary"
@@ -90,7 +91,8 @@ export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
   "registry.write": { privileged: false, roles: ["chairman", "administrator", "deputy"] },
   "registry.export": { privileged: true, roles: ["chairman", "administrator" ] },
   "registration.self": { privileged: false },
-  "registration.review": { privileged: false, roles: ["chairman", "administrator", "deputy"] },
+  "registration.review": { privileged: false, roles: ["chairman", "administrator", "deputy", "tech_admin"] },
+  "registration.manage": { privileged: true, roles: ["chairman", "administrator", "deputy", "tech_admin"] },
   // PRV-02: запрос удаления профиля/отзыва согласия подаёт сам житель.
   "privacy.request": { privileged: false },
   "meta.me": { privileged: false },

@@ -101,7 +101,7 @@ describe("Полные сообщения регистрации и задани
       "<b>Ваши анкеты</b>\n1. <b>Ожидает проверки</b>: &lt;Алия&gt;, Квартира 1/4, Собственник\nВсе действия здесь",
     );
     expect(result).toMatchObject({
-      buttons: [[{ text: "Уточнить", data: "/edit 1" }]],
+      buttons: [[{ text: "Уточнить", data: "/edit 1" }], [{ text: "Удалить анкету", data: "/delete" }]],
     });
   });
   it("building step asks for the house code as plain text (REG-11)", async () => {

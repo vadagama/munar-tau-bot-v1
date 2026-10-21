@@ -1,5 +1,16 @@
 import type { TemplateDef } from "./types.ts";
 export const noticesTemplates: readonly TemplateDef[] = [
+  ...([
+    ["approve", "Исправления анкеты подтверждены. Данные обновлены.", "Өтінім түзетулері расталды. Деректер жаңартылды."],
+    ["reject", "Исправления анкеты отклонены. Прежние данные и доступ сохранены. {reason}", "Өтінім түзетулері қабылданбады. Бұрынғы деректер мен қолжетімділік сақталды. {reason}"],
+    ["clarify", "Нужно уточнить исправления анкеты. Прежний доступ сохранён. {reason}", "Өтінім түзетулерін нақтылау керек. Бұрынғы қолжетімділік сақталды. {reason}"],
+  ] as const).map(([decision, ru, kk]) => ({
+    key: `notices.registration.correction_${decision}`, section: "notices" as const, scenario: "Уведомления · Исправление анкеты", title: `${({ approve: "Исправления подтверждены", reject: "Исправления отклонены", clarify: "Уточнение исправлений" })[decision]} → заявителю`,
+    description: "Решение ОСИ без изменения прежнего доступа при отказе или уточнении",
+    variables: [{ name: "reason", description: "Причина решения", example: "Уточните телефон" }], ru, kk,
+    examples: [{ id: "default", title: "Решение по исправлениям", ru: { reason: "Уточните телефон" }, kk: { reason: "Телефонды нақтылаңыз" } }],
+  })),
+
   {
     "key": "notices.registrations_service_submit_registration_1",
     "section": "notices",

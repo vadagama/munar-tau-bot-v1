@@ -6,7 +6,7 @@ import type {
   AuditEntryInput,
   AuditRepo,
 } from "../audit/port.ts";
-import { reviewRegistration, submitRegistration } from "./service.ts";
+import { reviewRegistration, reviseRegistration, submitRegistration } from "./service.ts";
 import { sweepRegistrations } from "./jobs.ts";
 import type { Row } from "../registry/validation.ts";
 const actor: Actor = {
@@ -64,7 +64,8 @@ function harness(registration: Row, options: HarnessOptions = {}) {
             kind: "apartment",
           },
         ] as T[]);
-      if (query.startsWith("select * from person where id=$1 for update"))
+      if (query.startsWith("select * from person where id=$1 for update") ||
+        query.startsWith("select id,is_test,status from person where id=$1 for update"))
         return Promise.resolve(
           (options.matchedPerson ? [options.matchedPerson] : []) as T[],
         );
@@ -305,6 +306,87 @@ it("анкета без помещения не оспаривается — н�
   expect(h.writes).toHaveLength(0);
 });
 
+it("исправление через прежний API без expected_version отклоняется", async () => {
+  const h = harness({});
+  await expect(reviseRegistration(h.deps, h.deps.db, actor, {
+    ...liteRegistration, id: "r", state: "approved", version: 3,
+  }, liteRegistration.draft as Row)).rejects.toMatchObject({ code: "CONCURRENT_MODIFICATION" });
+  expect(h.writes).toHaveLength(0);
+});
+
+it("исторический total_due_at не блокирует исправление approved", async () => {
+  const h = submitHarness();
+  await reviseRegistration(h.deps, h.deps.db, null, {
+    ...liteRegistration, id: "r", state: "approved", version: 3,
+    total_due_at: "2026-10-01T00:00:00Z",
+  }, { ...liteRegistration.draft as Row, expected_version: 3 });
+  expect(h.writes.some(query => query.startsWith("update registration set confirmed_draft="))).toBe(true);
+  expect(h.writes.some(query => query.startsWith("update person"))).toBe(false);
+});
+
+it("одобрение повторной регистрации возвращает прежние person/profile без восстановления связей и ролей", async () => {
+  const h = harness({
+    ...liteRegistration, person_id: "resident", reactivating: true,
+    state: "pending_review", version: 2,
+  }, {
+    matchedPerson: { id: "resident", is_test: false, status: "archived" },
+    profiles: [{ id: "old-profile", person_id: "resident", telegram_user_id: 777, archived_at: "2026-10-20T00:00:00Z" }],
+    auditAppend: auditAppendOk,
+  });
+  const result = await reviewRegistration(h.deps, actor, "r", "approve", { expected_version: 2 });
+  expect(result.state).toBe("approved");
+  expect(result.person_id).toBe("resident");
+  const personUpdate = h.writes.findIndex(query => query.startsWith("update person set"));
+  const profileUpdate = h.writes.findIndex(query => query.startsWith("update profile set"));
+  expect(personUpdate).toBeGreaterThanOrEqual(0);
+  expect(profileUpdate).toBeGreaterThanOrEqual(0);
+  expect(h.writeParams[personUpdate]).toEqual(["resident", "Житель", "+77770000001"]);
+  expect(h.writeParams[profileUpdate]).toEqual(["resident", "ru", 777]);
+  expect(h.writes[personUpdate]).toContain("status='active'");
+  expect(h.writes[profileUpdate]).toContain("archived_at=null");
+  expect(h.writes.some(query => /^(insert into|update) (connection|staff_assignment)\b/.test(query))).toBe(false);
+  expect(h.writes.some(query => /^insert into (person|profile|registration)\b/.test(query))).toBe(false);
+});
+
+for (const decision of ["approve", "reject", "clarify"] as const) {
+  it(`исправление подтверждённой анкеты: ${decision} сохраняет прежний доступ и применяет данные только после одобрения`, async () => {
+    const original = { ...liteRegistration.draft as Row, full_name: "Прежнее имя", language: "ru" };
+    const proposed = { ...original, full_name: "Новое имя", phone_e164: "+77779999999", language: "kk" };
+    const h = harness({
+      ...liteRegistration, person_id: "resident", version: 4,
+      state: "pending_review", draft: proposed, confirmed_draft: original,
+    }, {
+      matchedPerson: { id: "resident", is_test: false, status: "active" },
+      profiles: [{ id: "pr-resident", person_id: "resident", telegram_user_id: 777, archived_at: null }],
+      auditAppend: auditAppendOk,
+    });
+    const result = await reviewRegistration(h.deps, actor, "r", decision, {
+      expected_version: 4, reason: "Проверка исправлений",
+    });
+    expect(result.state).toBe(decision === "clarify" ? "need_clarification" : "approved");
+    expect(result.person_id).toBe("resident");
+    const personUpdate = h.writes.findIndex((query) => query.startsWith("update person set"));
+    const profileUpdate = h.writes.findIndex((query) => query.startsWith("update profile set"));
+    if (decision === "approve") {
+      expect(personUpdate).toBeGreaterThanOrEqual(0);
+      expect(h.writeParams[personUpdate]).toEqual(["resident", "Новое имя", "+77779999999"]);
+      expect(profileUpdate).toBeGreaterThanOrEqual(0);
+      expect(h.writeParams[profileUpdate]).toEqual(["resident", "kk", 777]);
+    } else {
+      expect(personUpdate).toBe(-1);
+      expect(profileUpdate).toBe(-1);
+    }
+    expect(h.writes.some((query) => /^(insert into|update) connection\b/.test(query))).toBe(false);
+    expect(h.writes.some((query) => /^(insert into person|insert into profile|update access_session|update staff_assignment)\b/.test(query))).toBe(false);
+    const restore = h.writes.findIndex((query) => query.startsWith("update registration set draft=case"));
+    if (decision === "clarify") expect(restore).toBe(-1);
+    else {
+      expect(restore).toBeGreaterThanOrEqual(0);
+      expect(h.writeParams[restore]).toEqual(["r", decision === "reject"]);
+    }
+  });
+}
+
 const STAGE_PARAMS = {
   hours: 12,
   clock: "working",
@@ -314,11 +396,22 @@ const STAGE_PARAMS = {
 };
 
 /** Харнесс подачи анкеты: таймеры, регламент и список сотрудников замкнуты. */
-function submitHarness(options: { reviewers?: string[] } = {}) {
+function submitHarness(options: { reviewers?: string[]; existingRegistration?: boolean; existingProfile?: boolean; withdrawnRegistration?: Row } = {}) {
   const writes: string[] = [];
   const writeParams: unknown[][] = [];
   const exec: DbExecutor = {
     query: <T>(query: string, params?: readonly unknown[]) => {
+      if (query.startsWith("select r.* from registration r where r.telegram_user_id="))
+        return Promise.resolve((options.withdrawnRegistration ? [options.withdrawnRegistration] : []) as T[]);
+      if (query.startsWith("update registration set draft=") && options.withdrawnRegistration) {
+        writes.push(query);
+        writeParams.push(params ? [...params] : []);
+        return Promise.resolve([{ ...options.withdrawnRegistration, state: "pending_review", reactivating: !!options.withdrawnRegistration.person_id, draft: JSON.parse(String(params?.[1])) }] as T[]);
+      }
+      if (query.startsWith("select id from registration where telegram_user_id="))
+        return Promise.resolve((options.existingRegistration ? [{ id: "existing-r" }] : []) as T[]);
+      if (query.startsWith("select id from profile where telegram_user_id="))
+        return Promise.resolve((options.existingProfile ? [{ id: "existing-profile" }] : []) as T[]);
       if (query.startsWith("select distinct a.person_id from staff_assignment"))
         return Promise.resolve(
           (options.reviewers ?? []).map((person_id) => ({ person_id })) as T[],
@@ -350,6 +443,31 @@ function submitHarness(options: { reviewers?: string[] } = {}) {
     list: () => Promise.reject(new Error("unused")),
   };
   return { deps: { db, audit }, writes, writeParams };
+}
+
+it("повторная регистрация после удаления использует прежнюю анкету и ждёт проверки", async () => {
+  const h = submitHarness({ withdrawnRegistration: {
+    ...liteRegistration, id: "original-registration", person_id: "resident", state: "withdrawn",
+  } });
+  const result = await submitRegistration(h.deps, null, {
+    ...liteRegistration.draft as Row, full_name: "Повторная регистрация",
+  }, "777");
+  expect(result.id).toBe("original-registration");
+  expect(result.state).toBe("pending_review");
+  expect(result.reactivating).toBe(true);
+  expect((result.draft as Row).full_name).toBe("Повторная регистрация");
+  expect(h.writes.some(query => /^insert into (registration|person|profile)\b/.test(query))).toBe(false);
+  expect(h.writes.some(query => /^update (person|profile|connection|staff_assignment)\b/.test(query))).toBe(false);
+});
+
+for (const duplicate of ["existingRegistration", "existingProfile"] as const) {
+  it(`один Telegram-аккаунт: ${duplicate} блокирует вторую основную анкету`, async () => {
+    const h = submitHarness({ [duplicate]: true });
+    await expect(submitRegistration(h.deps, null, liteRegistration.draft as Row, "777"))
+      .rejects.toMatchObject({ code: "INVALID_TRANSITION" });
+    expect(h.writes.some((query) => query.startsWith("insert into registration"))).toBe(false);
+    expect(h.writes.some((query) => query.startsWith("insert into timer"))).toBe(false);
+  });
 }
 
 it("анкета-минимум создаётся без помещения на этап администратора", async () => {

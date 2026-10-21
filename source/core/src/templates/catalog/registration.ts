@@ -1,6 +1,51 @@
 import type { TemplateDef } from "./types.ts";
 export const registrationTemplates: readonly TemplateDef[] = [
   {
+    key: "registration.delete_confirm",
+    section: "registration",
+    title: "Подтверждение удаления анкеты",
+    description: "Последствия удаления",
+    variables: [],
+    ru:
+      "Удалить анкету? Доступ к боту и кабинету закроется, связи с помещениями и служебные роли прекратятся. История обращений и операций сохранится.",
+    kk:
+      "Өтінімді жою керек пе? Бот пен кабинетке қолжетімділік жабылады, үй-жайлармен байланыстар мен қызметтік рөлдер тоқтатылады. Өтініштер мен операциялар тарихы сақталады.",
+    buttons: [{ id: "confirm", ru: "Удалить анкету", kk: "Өтінімді жою" }, {
+      id: "cancel",
+      ru: "Отмена",
+      kk: "Болдырмау",
+    }],
+  },
+  {
+    key: "registration.deleted",
+    section: "registration",
+    title: "Анкета удалена",
+    description: "Результат удаления",
+    variables: [],
+    ru:
+      "Анкета удалена. Доступ закрыт. История обращений и операций сохранена.",
+    kk:
+      "Өтінім жойылды. Қолжетімділік жабылды. Өтініштер мен операциялар тарихы сақталды.",
+  },
+  {
+    key: "registration.delete_own_reason",
+    section: "registration",
+    title: "Причина удаления заявителем",
+    description: "Причина в аудите",
+    variables: [],
+    ru: "По подтверждённому запросу заявителя",
+    kk: "Өтінім берушінің расталған сұрауы бойынша",
+  },
+  {
+    key: "registration.previous_access_retained",
+    section: "registration",
+    title: "Исправления на проверке",
+    description: "Прежний доступ сохранён",
+    variables: [],
+    ru: "Исправления на проверке. Прежний доступ сохранён.",
+    kk: "Түзетулер тексерілуде. Бұрынғы қолжетімділік сақталды.",
+  },
+  {
     "key": "registration.anket_poka_net",
     "section": "registration",
     "title": "Анкет пока нет",

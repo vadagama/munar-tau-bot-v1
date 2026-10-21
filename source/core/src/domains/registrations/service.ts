@@ -5,6 +5,7 @@ import { jsonValue } from "../registry/validation.ts";
 import { initialStage, reviewers } from "./routing.ts";
 import type { Actor } from "../../pdp/types.ts";
 import type { DbExecutor } from "../../db/client.ts";
+import { can } from "../../pdp/evaluate.ts";
 import { ApiError } from "../../errors/api.ts";
 import { registryScope, requireBuilding } from "../registry/access.ts";
 import {
@@ -30,6 +31,45 @@ export async function activeOwner(
     [actor.person.id, premisesId],
   );
   if (!rows.length) throw new ApiError("NOT_FOUND");
+}
+async function notifyRegistrationReviewers(exec: DbExecutor, row: Row, fullName: string, stage: string, buildingId: string | null) {
+  const recipients = stage === "owner"
+    ? (await exec.query<{ person_id: string }>("select person_id from connection where premises_id=$1 and role='owner' and status='active'", [row.premises_id])).map(r => r.person_id)
+    : await reviewers(exec, buildingId, stage, Boolean(row.is_test));
+  for (const reviewer of recipients) {
+    await notifyPerson(exec, reviewer,
+      templateNotice("notices.registrations_service_submit_registration_2", { fullname: fullName, premisetext: "", premisetextkk: "" }),
+      `${row.id}:revision:${row.version}:${reviewer}`,
+      { bot: stage === "owner" ? "resident" : "worker", buildingIds: buildingId ? [buildingId] : [], isTest: Boolean(row.is_test),
+        registrationAccess: { premisesId: row.premises_id ? String(row.premises_id) : null, role: stage } });
+  }
+}
+/** Предложение исправлений не меняет действующие person/profile до одобрения. */
+export async function reviseRegistration(
+  deps: RegistryDeps, exec: DbExecutor, actor: Actor | null, row: Row, input: Row,
+): Promise<Row> {
+  if (row.superseded_by || row.state === "withdrawn" || (row.total_due_at && row.state !== "approved") ||
+    !["approved", "pending_review", "need_clarification", "rejected"].includes(String(row.state)))
+    throw new ApiError("INVALID_TRANSITION");
+  if (!Number.isInteger(input.expected_version) || input.expected_version !== row.version)
+    throw new ApiError("CONCURRENT_MODIFICATION");
+  const draft = { ...jsonValue<Row>(row.draft), full_name: text(input, "full_name"),
+    phone_e164: normalizePhone(input.phone_e164), language: input.language };
+  if (!["ru", "kk"].includes(String(draft.language))) throw new ApiError("VALIDATION_FAILED");
+  const premises = row.premises_id ? await getPremises(exec, String(row.premises_id)) : null;
+  const stage = row.review_stage === "owner" && row.state !== "approved" && !row.confirmed_draft
+    ? "owner" : await initialStage(exec, premises ? String(premises.building_id) : null, Boolean(row.is_test));
+  await exec.query("update timer set state='canceled' where entity_id=$1 and state='pending'", [row.id]);
+  const due = await startTimer(exec, stage === "owner" ? "tenant_wait" : "registration_stage", String(row.id), stage);
+  const [updated] = await exec.query<Row>(
+    "update registration set confirmed_draft=case when state='approved' and confirmed_draft is null then draft else confirmed_draft end,draft=$2::text::jsonb,state='pending_review',review_stage=$3,stage_due_at=$4,total_due_at=null,dispute_checker_id=null,overdue_at=null,decided_reason=null,updated_at=now() where id=$1 returning *",
+    [row.id, JSON.stringify(draft), stage, due.toISOString()],
+  );
+  if (actor) await recordAudit(deps, exec, actor, "registration.edit", "registration", String(row.id),
+    premises ? [String(premises.building_id)] : [], { state: row.state }, { state: "pending_review" },
+    typeof input.reason === "string" ? input.reason : undefined);
+  await notifyRegistrationReviewers(exec, row, String(draft.full_name), stage, premises ? String(premises.building_id) : null);
+  return updated!;
 }
 export async function submitRegistration(
   deps: RegistryDeps,
@@ -66,12 +106,13 @@ export async function submitRegistration(
     }
     if (!actor && !telegramId) throw new ApiError("UNAUTHENTICATED");
     if (adminSubmission) requireBuilding(actor!, String(premises!.building_id));
-    const personId = adminSubmission
+    let personId = adminSubmission
       ? text(input, "person_id")
       : (actor?.person.id ?? null);
+    let reactivating = false;
     if (personId) {
       const [person] = await exec.query<Row>(
-        "select id,is_test,status from person where id=$1",
+        "select id,is_test,status from person where id=$1 for update",
         [personId],
       );
       if (
@@ -103,57 +144,48 @@ export async function submitRegistration(
       );
       if (!existing || existing.is_test !== (actor?.person.isTest ?? false))
         throw new ApiError("NOT_FOUND");
-      if (
-        !["pending_review", "need_clarification", "rejected"].includes(
-          String(existing.state),
-        ) ||
-        existing.total_due_at
-      )
-        throw new ApiError("INVALID_TRANSITION");
-      await exec.query(
-        "update timer set state='canceled' where entity_id=$1 and state='pending'",
-        [existing.id],
+      return reviseRegistration(deps, exec, actor, existing, input);
+    }
+    // Сериализация по Telegram закрывает гонку между диалогами и API. Индекс — второй заслон.
+    if (!hasPremises) {
+      let identity = telegramId;
+      if (!identity && actor) {
+        const [profile] = await exec.query<Row>("select telegram_user_id from profile where id=$1 and archived_at is null", [actor.profile.id]);
+        identity = profile?.telegram_user_id ? String(profile.telegram_user_id) : undefined;
+      }
+      if (!identity) throw new ApiError("UNAUTHENTICATED");
+      telegramId = identity;
+      await exec.query("select pg_advisory_xact_lock(hashtextextended($1,0))", [`registration:${identity}`]);
+      const existing = await exec.query<Row>(
+        "select id from registration where telegram_user_id=$1 and premises_id is null and superseded_by is null and state<>'withdrawn' for update", [identity],
       );
-      const due = await startTimer(
-        exec,
-        stage === "owner" ? "tenant_wait" : "registration_stage",
-        String(existing.id),
-        stage,
+      if (existing.length) throw new ApiError("INVALID_TRANSITION", "Анкета уже существует. Откройте её для исправления.");
+      const profiles = await exec.query<Row>("select id from profile where telegram_user_id=$1 and archived_at is null", [identity]);
+      if (profiles.length && !actor) throw new ApiError("INVALID_TRANSITION", "Аккаунт уже зарегистрирован");
+      const [closed] = await exec.query<Row>(
+        `select r.* from registration r where r.telegram_user_id=$1 and r.premises_id is null
+          and r.superseded_by is null and r.state='withdrawn' and r.is_test=$2 order by r.created_at desc limit 1 for update`, [identity, actor?.person.isTest ?? false],
       );
-      const [updated] = await exec.query<Row>(
-        "update registration set draft=$2::text::jsonb,premises_id=$3,role=$4,state='pending_review',review_stage=$5,stage_due_at=$6,updated_at=now() where id=$1 returning *",
-        [
-          existing.id,
-          JSON.stringify({
-            full_name: fullName,
-            phone_e164: phone,
-            language: input.language,
-            consent: true,
-            terms_version: "registration-v1",
-          }),
-          premises?.id ?? null,
-          premises ? input.role : null,
-          stage,
-          due.toISOString(),
-        ],
-      );
-      if (actor)
-        await recordAudit(
-          deps,
-          exec,
-          actor,
-          "registration.edit",
-          "registration",
-          String(existing.id),
-          premises ? [String(premises.building_id)] : [],
-          { state: existing.state },
-          { state: "pending_review" },
+      if (closed) {
+        const [reopened] = await exec.query<Row>(
+          "update registration set draft=$2::text::jsonb,state='pending_review',confirmed_draft=null,reactivating=(person_id is not null),review_stage=$3,decided_reason=null,stage_due_at=null,total_due_at=null,overdue_at=null where id=$1 returning *",
+          [closed.id, JSON.stringify({ full_name: fullName, phone_e164: phone, language: input.language, consent: true, terms_version: "registration-v1" }), stage],
         );
-      return updated!;
+        const due = await startTimer(exec, "registration_stage", String(closed.id), stage);
+        await exec.query("update registration set stage_due_at=$2 where id=$1", [closed.id, due.toISOString()]);
+        await notifyRegistrationReviewers(exec, closed, fullName, stage, null);
+        return reopened!;
+      }
+      const [archived] = await exec.query<Row>(
+        "select pr.person_id from profile pr join person n on n.id=pr.person_id where pr.telegram_user_id=$1 and pr.archived_at is not null and n.status='archived' and n.is_test=$2", [identity, actor?.person.isTest ?? false],
+      );
+      if (archived) { personId = String(archived.person_id); reactivating = true; }
+
+
     }
     const [row] = await exec.query<Row>(
-      `insert into registration(person_id,draft,premises_id,role,source,telegram_user_id,review_stage,is_test)
-      values ($1,$2::text::jsonb,$3,$4,$5,$6,$7,$8) returning *`,
+      `insert into registration(person_id,draft,premises_id,role,source,telegram_user_id,review_stage,is_test,reactivating)
+      values ($1,$2::text::jsonb,$3,$4,$5,$6,$7,$8,$9) returning *`,
       [
         personId,
         JSON.stringify({
@@ -169,6 +201,7 @@ export async function submitRegistration(
         telegramId ?? null,
         stage,
         actor?.person.isTest ?? false,
+        reactivating,
       ],
     );
     const due = await startTimer(
@@ -208,7 +241,7 @@ export async function submitRegistration(
           `${row!.id}:review:${reviewer}`,
           premises
             ? { bot: "worker", registrationAccess: { premisesId: String(premises.id), role: stage }, buildingIds: [String(premises.building_id)] }
-            : { bot: "worker", buildingIds: [] },
+            : { bot: "worker", buildingIds: [], registrationAccess: { premisesId: null, role: stage } },
         );
     if (actor)
       await recordAudit(
@@ -229,68 +262,25 @@ export async function listRegistrations(
   deps: RegistryDeps,
   actor: Actor,
 ): Promise<Row[]> {
-  const scope = registryScope(actor);
+  if (!can(actor, "registration.review").allow) throw new ApiError("FORBIDDEN");
+  const scope = actor.assignments.some(a => a.role === "tech_admin") ? null : registryScope(actor);
   const rows = await deps.db.query<Row>(
     `select r.*,p.building_id,p.kind,p.number,b.code as building_code from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
-    where ($1::uuid[] is null or r.premises_id is null or p.building_id=any($1::uuid[])) and r.is_test=$2 order by r.created_at desc`,
+    where ($1::uuid[] is null or r.premises_id is null or p.building_id=any($1::uuid[])) and r.is_test=$2 and r.superseded_by is null order by r.created_at desc`,
     [scope, actor.person.isTest],
   );
-  return rows.map((row) => ({ ...row, draft: jsonValue<Row>(row.draft) }));
+  return rows.map((row) => ({ ...row, draft: jsonValue<Row>(row.draft),
+    confirmed_draft: row.confirmed_draft ? jsonValue<Row>(row.confirmed_draft) : null,
+    can_manage: row.state !== "withdrawn" && can(actor, "registration.manage").allow,
+  }));
 }
 export async function editRegistration(
-  deps: RegistryDeps,
-  actor: Actor,
-  id: string,
-  input: Row,
+  deps: RegistryDeps, actor: Actor, id: string, input: Row,
 ): Promise<Row> {
-  return deps.db.transaction(async (exec) => {
-    const [row] = await exec.query<Row>(
-      "select * from registration where id=$1 and person_id=$2 for update",
-      [id, actor.person.id],
-    );
-    if (!row) throw new ApiError("NOT_FOUND");
-    if (
-      !["pending_review", "need_clarification", "rejected"].includes(
-        String(row.state),
-      )
-    )
-      throw new ApiError("INVALID_TRANSITION");
-    const draft = { ...jsonValue<Row>(row.draft) };
-    if (input.full_name !== undefined)
-      draft.full_name = text(input, "full_name");
-    if (input.phone_e164 !== undefined)
-      draft.phone_e164 = normalizePhone(input.phone_e164);
-    await exec.query(
-      "update registration set draft=$2::text::jsonb,state='pending_review',updated_at=now() where id=$1",
-      [id, JSON.stringify(draft)],
-    );
-    if (row.state === "rejected") {
-      const premises = row.premises_id
-        ? await getPremises(exec, String(row.premises_id))
-        : null;
-      const stage = await initialStage(
-        exec,
-        premises ? String(premises.building_id) : null,
-        actor.person.isTest,
-      );
-      const due = await startTimer(exec, "registration_stage", id, stage);
-      await exec.query(
-        "update registration set review_stage=$2,stage_due_at=$3,total_due_at=null,dispute_checker_id=null where id=$1",
-        [id, stage, due.toISOString()],
-      );
-    }
-    await recordAudit(
-      deps,
-      exec,
-      actor,
-      "registration.edit",
-      "registration",
-      id,
-      [],
-      { state: row.state },
-      { state: "pending_review" },
-    );
-    return { ...row, draft, state: "pending_review" };
+  return deps.db.transaction(async exec => {
+    const [row] = await exec.query<Row>("select * from registration where id=$1 and person_id=$2 for update", [id, actor.person.id]);
+    if (!row || row.is_test !== actor.person.isTest) throw new ApiError("NOT_FOUND");
+    return reviseRegistration(deps, exec, actor, row, { ...jsonValue<Row>(row.draft), ...input });
   });
 }
 
@@ -315,8 +305,13 @@ export async function reviewRegistration(
       "select * from registration where id=$1 for update",
       [id],
     );
-    if (!row || row.is_test !== actor.person.isTest)
+    if (!row || row.superseded_by || row.is_test !== actor.person.isTest)
       throw new ApiError("NOT_FOUND");
+    if (input.expected_version !== undefined && row.version !== input.expected_version)
+      throw new ApiError("CONCURRENT_MODIFICATION");
+    const correction = !!row.confirmed_draft;
+    if ((correction || row.reactivating) && input.person_id && input.person_id !== row.person_id)
+      throw new ApiError("FORBIDDEN", "Исправление не переносит анкету другому человеку");
     // Анкета-минимум (REG-01) хранится без premises_id: проверка помещения и
     // домовая область применяются только к привязанным анкетам.
     const premises = row.premises_id
@@ -337,13 +332,14 @@ export async function reviewRegistration(
       )
         throw new ApiError("FORBIDDEN");
     } else {
-      if (premises) requireBuilding(actor, String(premises.building_id));
+      if (!can(actor, "registration.review").allow) throw new ApiError("FORBIDDEN");
+      if (premises && !actor.assignments.some(a => a.role === "tech_admin")) requireBuilding(actor, String(premises.building_id));
       if (row.total_due_at && row.dispute_checker_id === actor.person.id)
         throw new ApiError(
           "FORBIDDEN",
           "Спор о собственных действиях передаётся председателю (CMP-02)",
         );
-      const chairman = actor.assignments.some((a) => a.role === "chairman");
+      const chairman = actor.assignments.some((a) => ["chairman", "tech_admin"].includes(a.role));
       if (decision !== "dispute") {
         if (row.review_stage === "owner")
           throw new ApiError(
@@ -441,7 +437,7 @@ export async function reviewRegistration(
         if (
           !person ||
           person.is_test !== actor.person.isTest ||
-          person.status !== "active"
+          (person.status !== "active" && !row.reactivating)
         )
           throw new ApiError("NOT_FOUND");
       }
@@ -490,8 +486,8 @@ export async function reviewRegistration(
       }
       if (row.telegram_user_id) {
         const existing = await exec.query<Row>(
-          "select * from profile where (person_id=$1 or telegram_user_id=$2) and archived_at is null for update",
-          [personId, row.telegram_user_id],
+          "select * from profile where (person_id=$1 or telegram_user_id=$2) and (archived_at is null or ($3 and telegram_user_id=$2)) for update",
+          [personId, row.telegram_user_id, row.reactivating === true],
         );
         if (
           existing.some(
@@ -515,7 +511,11 @@ export async function reviewRegistration(
             ],
           );
       }
-      if (premises) {
+      if (correction || row.reactivating) {
+        await exec.query("update person set full_name=$2,phone_e164=$3,status='active',updated_at=now() where id=$1", [personId, draft.full_name, draft.phone_e164]);
+        await exec.query("update profile set language=$2,archived_at=null where person_id=$1 and telegram_user_id=$3", [personId, draft.language, row.telegram_user_id]);
+      }
+      if (premises && !correction && !row.reactivating) {
         const [active] = await exec.query<Row>(
           "select role from connection where person_id=$1 and premises_id=$2 and status='active'",
           [personId, premises.id],
@@ -546,7 +546,7 @@ export async function reviewRegistration(
         );
       }
     }
-    if (decision === "approve" && premises)
+    if (decision === "approve" && premises && !correction && !row.reactivating)
       await exec.query(
         "update registration set connection_id=(select id from connection where person_id=$2 and premises_id=$3 and status='active') where id=$1",
         [id, personId, premises.id],
@@ -557,7 +557,7 @@ export async function reviewRegistration(
         [row.connection_id, reason],
       );
     const state =
-      decision === "approve"
+      decision === "approve" || (correction && decision === "reject")
         ? "approved"
         : decision === "reject"
           ? "rejected"
@@ -565,6 +565,13 @@ export async function reviewRegistration(
     await exec.query(
       "update registration set state=$2,person_id=$3,checker_id=$4,decided_at=now(),decided_reason=$5,updated_at=now() where id=$1",
       [id, state, personId, actor.person.id, reason],
+    );
+    if (decision !== "clarify") await exec.query(
+      "update registration set total_due_at=null,stage_due_at=null,dispute_checker_id=null,reactivating=case when $2 then false else reactivating end where id=$1", [id, decision === "approve"],
+    );
+    if (correction && decision !== "clarify") await exec.query(
+      "update registration set draft=case when $2 then confirmed_draft else draft end,confirmed_draft=null where id=$1",
+      [id, decision === "reject"],
     );
     if (decision !== "clarify")
       await exec.query(
@@ -574,7 +581,8 @@ export async function reviewRegistration(
     await notifyTelegram(
       exec,
       row.telegram_user_id,
-      templateNotice(decision === "clarify" ? "notices.registrations_service_review_registration_3_clarify" : "notices.registrations_service_review_registration_3", {state_ru:label(stateLabels,state,"ru"),state_kk:label(stateLabels,state,"kk"),reason:reason ? " "+reason : ""}),
+      correction ? templateNotice(`notices.registration.correction_${decision}`, { reason: reason ?? "" })
+        : templateNotice(decision === "clarify" ? "notices.registrations_service_review_registration_3_clarify" : "notices.registrations_service_review_registration_3", {state_ru:label(stateLabels,state,"ru"),state_kk:label(stateLabels,state,"kk"),reason:reason ? " "+reason : ""}),
       `${id}:${state}:${row.updated_at}`,
     );
     await recordAudit(
@@ -642,6 +650,9 @@ export async function acceptInvite(
   token: string,
 ): Promise<Row> {
   return deps.db.transaction(async (exec) => {
+    const [person] = await exec.query<Row>("select id,is_test,status from person where id=$1 for update", [actor.person.id]);
+    if (!person || person.status !== "active" || person.is_test !== actor.person.isTest) throw new ApiError("NOT_FOUND");
+
     const [invite] = await exec.query<Row>(
       "select * from invite where token=$1 for update",
       [token],
@@ -914,7 +925,7 @@ export async function recoverTelegram(
       for (const b of buildings) requireBuilding(actor, b.building_id);
     }
     const [registration] = await exec.query<Row>(
-      "select * from registration where id=$1 and state in ('pending_review','need_clarification') and telegram_user_id is not null for update",
+      "select * from registration where id=$1 and state in ('pending_review','need_clarification') and superseded_by is null and telegram_user_id is not null for update",
       [registrationId],
     );
     if (!registration || registration.is_test !== actor.person.isTest)

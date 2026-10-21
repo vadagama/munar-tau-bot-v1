@@ -45,7 +45,10 @@ function harness(
     openPrivacyRequests?: Row[];
   } = {},
 ) {
-  const registrations = opts.registrations ?? [];
+  const registrations = (opts.registrations ?? []).map(row => {
+    if (row.version === undefined) row.version = 1;
+    return row;
+  });
   const audit: Row[] = [];
   const prefs: unknown[][] = [];
   let current: Row = {};
@@ -63,18 +66,23 @@ function harness(
       }
       // /status (все анкеты) и guard /register (только действующие состояния):
       // guard-запрос различается по фильтру состояний в SQL.
-      if (sql.startsWith("select r.id,r.state,r.decided_reason")) {
+      if (/^select r\.id,r\.state,.*?\sfrom registration r\b/s.test(sql)) {
         const rows = sql.includes("'approved'")
           ? registrations.filter((r) => ACTIVE_STATES.includes(String(r.state)))
           : registrations;
         return Promise.resolve(rows as T[]);
       }
-      if (
-        sql.includes(
-          "state in ('need_clarification','rejected','pending_review') and total_due_at is null",
-        )
-      )
-        return Promise.resolve(registrations as T[]);
+      if (/^select id,state,decided_reason,draft,premises_id,role(?:,version)? from registration\b/.test(sql)) {
+        const allowedStates = sql.match(/state in \(([^)]+)\)/)?.[1]
+          ?.match(/'([^']+)'/g)?.map((state) => state.slice(1, -1)) ?? [];
+        return Promise.resolve(registrations.filter((row) =>
+          allowedStates.includes(String(row.state)) && (!row.total_due_at || row.state === "approved")
+        ) as T[]);
+      }
+      if (sql.startsWith("select id,version from registration where telegram_user_id="))
+        return Promise.resolve(registrations.filter(row => row.state !== "withdrawn" && !row.superseded_by).slice(0, 1) as T[]);
+      if (sql.startsWith("select * from registration where id=$1 and telegram_user_id=$2"))
+        return Promise.resolve(registrations.filter(row => row.id === params?.[0]) as T[]);
       // /pending: анкеты на подтверждение собственника.
       if (sql.startsWith("select r.id,r.draft,p.kind,p.number")) {
         return Promise.resolve((opts.pendingRows ?? []) as T[]);
@@ -109,7 +117,7 @@ function harness(
       }
       if (
         sql.startsWith("select id from registration where id=$1") ||
-        sql.startsWith("select id,premises_id from registration where id=$1")
+        /^select id,premises_id(?:,version)? from registration where id=\$1/.test(sql)
       )
         return Promise.resolve(
           opts.editable === undefined || opts.editable === null
@@ -581,6 +589,7 @@ describe("бот: /register при существующей анкете (guard)
         { text: "Статус анкет", data: "/status" },
         { text: "Исправить анкету", data: "/fix" },
         { text: "Добавить помещение", data: "/add" },
+        { text: "Удалить анкету", data: "/delete" },
       ]],
     });
     expect(h.state.step).toBeUndefined();
@@ -624,6 +633,63 @@ describe("бот: /register при существующей анкете (guard)
 });
 
 describe("бот: анкета без помещения (/status, /fix)", () => {
+  it("подтверждённая основная анкета: /register → /status → /fix открывает исправление той же анкеты", async () => {
+    const h = harness({
+      registrations: [{
+        id: REG_ID,
+        state: "approved",
+        decided_reason: null,
+        draft,
+        premises_id: null,
+        role: null,
+      }],
+    });
+
+    const registered = await registrationStep(h.deps, "100", "/register");
+    expect(replyText(registered)).toContain("Доступ подтверждён");
+    expect(h.state.step).toBeUndefined();
+    const status = await registrationStep(h.deps, "100", "/status");
+    expect(replyText(status)).toContain("Доступ подтверждён");
+
+    const fix = await registrationStep(h.deps, "100", "/fix");
+    expect(replyText(fix)).toContain("имя и фамилию");
+    expect(h.state.step).toBe("fix_name");
+    expect(h.state.registration_id).toBe(REG_ID);
+    expect(h.state).not.toHaveProperty("premises_id");
+    expect(h.state).not.toHaveProperty("role");
+
+    await registrationStep(h.deps, "100", "Новое имя");
+    await registrationStep(h.deps, "100", "+77779876543");
+    expect(h.state.registration_id).toBe(REG_ID);
+    expect(h.state.step).toBe("consent");
+    expect(h.state.full_name).toBe("Новое имя");
+    expect(h.state.phone_e164).toBe("+77779876543");
+    expect(h.queries.some((query) => query.startsWith("insert into registration"))).toBe(false);
+  });
+
+  it.each(["ru", "kk"] as const)("кнопочные ответы основной анкеты не дублируют команды (%s)", async (language) => {
+    const h = harness({
+      profile: true,
+      profileLanguage: language,
+      registrations: [{
+        id: REG_ID,
+        state: "approved",
+        decided_reason: null,
+        draft: { ...draft, language },
+        premises_id: null,
+        role: null,
+      }],
+    });
+    for (const command of ["/register", "/status"]) {
+      const reply = await registrationStep(h.deps, "100", command);
+      expect(typeof reply).toBe("object");
+      if (typeof reply === "object") {
+        expect(reply.buttons?.flat().some((button) => /^\/(fix|edit)(?:\s|$)/.test(button.data))).toBe(true);
+        expect(replyText(reply)).not.toMatch(/\/(register|status|fix|edit|add|delete)\b/);
+      }
+    }
+  });
+
   it("/status показывает анкету без помещения и без роли", async () => {
     const h = harness({
       registrations: [{
@@ -775,19 +841,20 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
     );
   });
 
-  it("шаги «Тип помещения» и «Ваша роль» без двойной нумерации (привязка через /add manual)", async () => {
+  it("шаги «Тип помещения» и «Ваша роль» показывают варианты только кнопками (привязка через /add manual)", async () => {
     const h = harness({ profile: true });
     await registrationStep(h.deps, "100", "/add manual");
     // Дом вводится кодом текстом: «/», «-» и пробелы равнозначны (REG-11).
-    const kind = replyText(await registrationStep(h.deps, "100", "ж 1"));
-    // numbered() нумерует сам; двойного «1. 1.» в списке нет.
-    expect(kind).toContain("1. Квартира");
-    expect(kind).not.toContain("1. 1.");
-    await registrationStep(h.deps, "100", "1"); // тип помещения
-    // Ввод номера помещения возвращает список ролей.
-    const role = replyText(await registrationStep(h.deps, "100", "1"));
-    expect(role).toContain("1. Собственник");
-    expect(role).not.toContain("1. 1.");
+    const kind = await registrationStep(h.deps, "100", "ж 1");
+    expect(replyText(kind)).toContain("Тип помещения");
+    expect(replyText(kind)).not.toContain("Квартира");
+    expect(kind).toMatchObject({ buttons: expect.any(Array) });
+    expect(typeof kind === "object" && kind.buttons?.flat().some(button => button.text.includes("Квартира"))).toBe(true);
+    await registrationStep(h.deps, "100", "1");
+    const role = await registrationStep(h.deps, "100", "1");
+    expect(replyText(role)).toContain("Ваша роль");
+    expect(replyText(role)).not.toContain("Собственник");
+    expect(typeof role === "object" && role.buttons?.flat().some(button => button.text.includes("Собственник"))).toBe(true);
   });
 
   it("номер дома текстом: неизвестный код повторяет вопрос с примером", async () => {
@@ -836,48 +903,71 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
   });
 });
 
-describe("бот: /delete — запрос удаления анкеты (PRV-02) [L394-435]", () => {
-  it("без регистрации — подсказка /register, запрос не подаётся", async () => {
+describe("бот: /delete — удаление с подтверждением", () => {
+  const pending = {
+    id: REG_ID, version: 3, state: "pending_review", person_id: null,
+    telegram_user_id: "100", is_test: false, premises_id: null, draft,
+  };
+
+  it("без анкеты сообщает, что анкет нет", async () => {
     const h = harness();
-    const reply = await registrationStep(h.deps, "100", "/delete confirm");
-    expect(replyText(reply)).toContain("Сначала регистрация.");
-    expect(reply).toMatchObject({
-      buttons: [[{ text: "Зарегистрироваться", data: "/register" }]],
-    });
-    expect(h.audit.length).toBe(0);
-  });
-
-  it("без confirm — предупреждение с кнопкой подтверждения, ничего не подаётся", async () => {
-    const h = harness({ profile: true });
     const reply = await registrationStep(h.deps, "100", "/delete");
-    const text = replyText(reply);
-    expect(text).toContain("запрос на удаление анкеты");
-    expect(text).toContain("История обращений и операций сохранится");
-    expect(typeof reply === "object" && reply.buttons?.[0]?.[0]?.data).toBe(
-      "/delete confirm",
-    );
-    expect(h.audit.length).toBe(0);
+    expect(replyText(reply)).toContain("Анкет пока нет");
+    expect(h.state.delete_id).toBeUndefined();
+    expect(h.audit).toHaveLength(0);
   });
 
-  it("confirm — запрос подан, аудит записан, необязательные рассылки отключены", async () => {
-    const h = harness({ profile: true });
+  it("confirm без предварительного предупреждения запрещён", async () => {
+    const h = harness({ registrations: [pending] });
+    await expect(registrationStep(h.deps, "100", "/delete confirm"))
+      .rejects.toMatchObject({ code: "INVALID_TRANSITION" });
+    expect(h.audit).toHaveLength(0);
+  });
+
+  it("предупреждает о закрытии доступа и сохраняет версию для подтверждения", async () => {
+    const h = harness({ registrations: [pending] });
+    const reply = await registrationStep(h.deps, "100", "/delete");
+    expect(replyText(reply)).toContain("Доступ к боту и кабинету закроется");
+    expect(replyText(reply)).toContain("История обращений и операций сохранится");
+    expect(replyText(reply)).not.toContain("/delete");
+    expect(reply).toMatchObject({ buttons: [[
+      { data: "/delete confirm" }, { data: "/cancel" },
+    ]] });
+    expect(h.state.delete_id).toBe(REG_ID);
+    expect(h.state.delete_version).toBe(3);
+    expect(h.audit).toHaveLength(0);
+  });
+
+  it("заявитель до создания профиля удаляет свою ожидающую анкету", async () => {
+    const h = harness({ registrations: [pending] });
+    await registrationStep(h.deps, "100", "/delete");
     const reply = await registrationStep(h.deps, "100", "/delete confirm");
-    expect(replyText(reply)).toContain(
-      "Запрос на удаление анкеты отправлен администратору",
-    );
-    expect(h.audit.length).toBe(1);
-    expect(h.audit[0]).toMatchObject({ action: "privacy.request" });
+    expect(replyText(reply)).toContain("Анкета удалена");
+    expect(h.audit).toHaveLength(1);
+    expect(h.audit[0]).toMatchObject({ action: "registration.delete", entityId: REG_ID });
+    expect(h.queries.some(sql => sql.startsWith("update registration set state='withdrawn'"))).toBe(true);
+    expect(h.queries.some(sql => sql.startsWith("insert into privacy_request"))).toBe(false);
     expect(h.state).toEqual({});
-    // publication, work.report, request.status — три отключения; mode='off' —
-    // литерал SQL, а не параметр.
-    expect(
-      h.queries.filter((sql) => sql.startsWith("insert into notification_pref"))
-        .length,
-    ).toBe(3);
-    expect(
-      h.queries
-        .filter((sql) => sql.startsWith("insert into notification_pref"))
-        .every((sql) => sql.includes("'off'")),
-    ).toBe(true);
+  });
+
+  it("отмена закрывает подтверждение и не удаляет анкету", async () => {
+    const h = harness({ registrations: [pending] });
+    await registrationStep(h.deps, "100", "/delete");
+    await registrationStep(h.deps, "100", "/cancel");
+    await expect(registrationStep(h.deps, "100", "/delete confirm"))
+      .rejects.toMatchObject({ code: "INVALID_TRANSITION" });
+    expect(h.audit).toHaveLength(0);
+    expect(h.queries.some(sql => sql.startsWith("update registration set state='withdrawn'"))).toBe(false);
+  });
+
+  it("изменение анкеты после предупреждения требует повторного подтверждения", async () => {
+    const changed = { ...pending };
+    const h = harness({ registrations: [changed] });
+    await registrationStep(h.deps, "100", "/delete");
+    changed.version = 4;
+    await expect(registrationStep(h.deps, "100", "/delete confirm"))
+      .rejects.toMatchObject({ code: "CONCURRENT_MODIFICATION" });
+    expect(h.audit).toHaveLength(0);
+    expect(h.queries.some(sql => sql.startsWith("update registration set state='withdrawn'"))).toBe(false);
   });
 });

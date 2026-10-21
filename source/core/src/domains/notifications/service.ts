@@ -27,7 +27,7 @@ export interface NoticeOptions {
   type?: EventType;
   requestId?: string;
   taskId?: string;
-  registrationAccess?: { premisesId: string; role: string };
+  registrationAccess?: { premisesId: string | null; role: string };
   audience?: "personal" | "resident" | "staff" | "publication";
   /** Канал-бот доставки (ADR-009): по умолчанию — бот жителей. */
   bot?: BotKind;
@@ -85,26 +85,31 @@ export async function noticeAllowed(
   }
   if (notice.registrationAccess) {
     const { premisesId, role } = notice.registrationAccess;
-    const [premises] = await exec.query<
-      { building_id: string; is_test: boolean }
-    >(
-      "select building_id,is_test from premises where id=$1",
-      [premisesId],
-    );
-    if (!premises || premises.is_test !== actor.person.isTest) return false;
-    if (role === "owner") {
-      const [owner] = await exec.query(
-        "select id from connection where person_id=$1 and premises_id=$2 and role='owner' and status='active'",
-        [actor.person.id, premisesId],
+    if (premisesId === null) {
+      if (!can(actor, "registration.review").allow || !actor.assignments.some(a =>
+        ["chairman", "tech_admin", role].includes(a.role))) return false;
+    } else {
+      const [premises] = await exec.query<
+        { building_id: string; is_test: boolean }
+      >(
+        "select building_id,is_test from premises where id=$1",
+        [premisesId],
       );
-      if (!owner) return false;
-    } else if (
-      !can(actor, "registration.review").allow ||
-      !actor.assignments.some((a) =>
-        a.role === "chairman" ||
-        (a.role === role && a.scopeBuildingIds?.includes(premises.building_id))
-      )
-    ) return false;
+      if (!premises || premises.is_test !== actor.person.isTest) return false;
+      if (role === "owner") {
+        const [owner] = await exec.query(
+          "select id from connection where person_id=$1 and premises_id=$2 and role='owner' and status='active'",
+          [actor.person.id, premisesId],
+        );
+        if (!owner) return false;
+      } else if (
+        !can(actor, "registration.review").allow ||
+        !actor.assignments.some((a) =>
+          a.role === "chairman" ||
+          (a.role === role && a.scopeBuildingIds?.includes(premises.building_id))
+        )
+      ) return false;
+    }
   }
   if (notice.taskId) {
     try {

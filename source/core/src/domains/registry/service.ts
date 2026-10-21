@@ -245,10 +245,10 @@ export async function mutateRegistry(
         if (!BASES.includes(data.basis as (typeof BASES)[number]))
           invalid("Укажите основание связи");
         const [person] = await exec.query<Row>(
-          "select * from person where id=$1",
+          "select * from person where id=$1 for update",
           [text(data, "person_id")],
         );
-        if (!person || person.is_test !== actor.person.isTest)
+        if (!person || person.status !== "active" || person.is_test !== actor.person.isTest)
           throw new ApiError("NOT_FOUND");
         if (before?.status === "revoked")
           throw new ApiError(
