@@ -107,3 +107,16 @@ it("открывает номер обращения своей служебно
  await waitFor(()=>expect(apiFetch).toHaveBeenLastCalledWith('/v1/emulation/simulate',{method:'POST',body:{scenario:'staff-requests',input:`/start sreq_${id}`}}));
  expect(await screen.findByText('Карточка обращения')).toBeInTheDocument();
 });
+
+it("показывает кнопки регистрации только в сценарии регистрации, отменяя диалог в любом сценарии",async()=>{
+ render(<RegistrationSimulator active />);
+ fireEvent.mouseDown(screen.getByRole("combobox",{name:"Сценарий симулятора"}));
+ fireEvent.click(screen.getByText("Обращения",{selector:".ant-select-item-option-content"}));
+ expect(screen.queryByRole("button",{name:"Начать анкету"})).not.toBeInTheDocument();
+ expect(screen.queryByRole("button",{name:"Статус"})).not.toBeInTheDocument();
+ expect(screen.queryByRole("button",{name:"Мои объекты"})).not.toBeInTheDocument();
+ fireEvent.click(screen.getByRole("button",{name:"Отменить диалог"}));
+ await waitFor(()=>expect(apiFetch).toHaveBeenLastCalledWith("/v1/emulation/simulate",{
+   method:"POST", body:{scenario:"requests",input:"/cancel"},
+ }));
+});
