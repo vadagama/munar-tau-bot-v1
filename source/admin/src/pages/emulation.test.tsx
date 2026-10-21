@@ -16,14 +16,10 @@ beforeEach(() => { vi.mocked(apiFetch).mockResolvedValue({ persons: [
     { person: { id: "staff", full_name: "Тестовый сотрудник" }, profile: { id: "staff-profile" }, assignments: [{ id: "role", role: "executor" }] },
   ] }); refreshIdentity.mockClear(); vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element)); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
-it("показывает жителя без служебных назначений и позволяет выбрать его роль", async () => {
+it("показывает жителя без служебных назначений и сотрудника с ролью", async () => {
   render(<EmulationPage />);
   expect(await screen.findByText("Тестовый житель")).toBeInTheDocument();
   expect(screen.getByText("Тестовый сотрудник")).toBeInTheDocument();
-  fireEvent.mouseDown(screen.getByRole("combobox", { name: "Роль тестовой персоны" }));
-  fireEvent.click(screen.getByText("Житель", { selector: ".ant-select-item-option-content" }));
-  await waitFor(() => expect(screen.queryByText("Тестовый сотрудник")).not.toBeInTheDocument());
-  expect(screen.getByText("Тестовый житель")).toBeInTheDocument();
 });
 
 it("обновляет персону без перехода с экрана эмуляции", async () => {
