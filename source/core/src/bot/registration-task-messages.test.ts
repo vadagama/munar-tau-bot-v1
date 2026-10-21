@@ -134,23 +134,21 @@ describe("Полные сообщения регистрации и задани
       }]],
     });
   });
-  it("task list has one template and editable dynamic buttons", async () => {
+  it("task list is one template with clickable numbers instead of buttons", async () => {
     listTasks.mockResolvedValue([{
+      id: "00000000-0000-0000-0000-000000000001",
       number: "З-26-1",
       title: "<Освещение>",
       state: "in_progress",
     }]);
-    const h = harness(
-      store("message.tasks.list", "<b>Задания</b>\n{tasks}", {
-        open: "Открыть {number}",
-      }),
-    );
+    const h = harness(store("message.tasks.list", "<b>Задания</b>\n{tasks}"));
     const result = await taskStep(h.deps, "1", "/tasks", actor);
     expect(replyText(result)).toContain("&lt;Освещение&gt;");
     expect(replyText(result)).toMatch(/^<b>Задания<\/b>/);
-    expect(result).toMatchObject({
-      buttons: [[{ text: "Открыть З-26-1", data: "/task З-26-1" }]],
-    });
+    expect(replyText(result)).toContain(
+      'href="https://t.me/munar_tau_worker_bot?start=wrk_00000000-0000-0000-0000-000000000001">З-26-1</a>',
+    );
+    expect(result).not.toHaveProperty("buttons");
   });
   it("task card is fully editable while task instruction remains escaped", async () => {
     getTask.mockResolvedValue({
