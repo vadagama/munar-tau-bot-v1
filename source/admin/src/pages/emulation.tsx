@@ -26,7 +26,9 @@ import type { EmulationPersonsResponse, EmulationPersonJson } from "../lib/types
 
 // Эмуляция (Task 7, HLD 10.8): тестовые персоны с ролями, старт/завершение
 // сеанса эмуляции. Роли персонам назначает председатель через раздел
-// назначений — эмуляция не расширяет полномочия техадминистратора.
+// назначений; снимать роли тестовых персон можно здесь — с причиной,
+// журналированием и уведомлением персоне (эмуляция не расширяет полномочия
+// техадминистратора: действие выполняет реальный техадмин).
 export function EmulationPage() {
   const { identity, refreshIdentity } = useCabinetIdentity();
   const pending = useRef(false);
@@ -38,6 +40,9 @@ export function EmulationPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [form] = Form.useForm<{ full_name: string }>();
+  const [revokeTarget, setRevokeTarget] = useState<{ assignmentId: string; personName: string; roleLabel: string } | null>(null);
+  const [revoking, setRevoking] = useState(false);
+  const [revokeForm] = Form.useForm<{ reason: string }>();
 
   const load = useCallback(async (silent = false) => {
     if (pending.current) return;
@@ -96,6 +101,28 @@ export function EmulationPage() {
     }
   };
 
+  const revokeRole = async () => {
+    if (!revokeTarget) return;
+    try {
+      const values = await revokeForm.validateFields();
+      setRevoking(true);
+      setError(null);
+      await apiFetch(`/v1/emulation/assignments/${revokeTarget.assignmentId}/revoke`, {
+        method: "POST",
+        body: { reason: values.reason },
+      });
+      setNotice(`Роль «${revokeTarget.roleLabel}» снята с персоны «${revokeTarget.personName}».`);
+      setRevokeTarget(null);
+      revokeForm.resetFields();
+      await load();
+      await refreshIdentity();
+    } catch (requestError) {
+      setError(requestError instanceof ApiClientError ? requestError.message : "Не удалось снять роль");
+    } finally {
+      setRevoking(false);
+    }
+  };
+
   const columns: ColumnsType<EmulationPersonJson> = [
     { title: "Имя", dataIndex: ["person", "full_name"] },
     {
@@ -111,9 +138,24 @@ export function EmulationPage() {
           <Tag>Житель</Tag>
         ) : (
           <Space size={4} wrap>
-            {record.assignments.map((assignment) => (
-              <Tag key={assignment.id}>{EMULATION_ROLE_LABELS[assignment.role] ?? assignment.role}</Tag>
-            ))}
+            {record.assignments.map((assignment) => {
+              const roleLabel = EMULATION_ROLE_LABELS[assignment.role] ?? assignment.role;
+              return (
+                <Tag
+                  key={assignment.id}
+                  closable
+                  onClose={(e) => {
+                    e.preventDefault();
+                    setNotice(null);
+                    setError(null);
+                    revokeForm.resetFields();
+                    setRevokeTarget({ assignmentId: assignment.id, personName: record.person.full_name, roleLabel });
+                  }}
+                >
+                  {roleLabel}
+                </Tag>
+              );
+            })}
           </Space>
         ),
     },
@@ -147,7 +189,7 @@ export function EmulationPage() {
         message="Эмуляция доступна только под тестовыми персонами (is_test). Все действия журналируются с реальным актором и эмулируемой персоной; привилегированные действия недоступны."
       />
       <Alert type="info" showIcon style={{ marginBottom: 16 }}
-        message="Житель — тестовая персона без служебных назначений. Доступ к помещениям появляется после подтверждения связи через регистрацию. Служебные роли назначает председатель." />
+        message="Житель — тестовая персона без служебных назначений. Доступ к помещениям появляется после подтверждения связи через регистрацию. Служебные роли назначает председатель; снять роль тестовой персоны можно здесь — крестиком на теге роли (с причиной)." />
       <Select aria-label="Роль тестовой персоны" value={role} onChange={setRole}
         style={{ minWidth: 200, marginBottom: 16 }}
         options={[{ value: "all", label: "Все роли" }, ...Object.entries(EMULATION_ROLE_LABELS).map(([value, label]) => ({ value, label }))]} />
@@ -178,6 +220,31 @@ export function EmulationPage() {
             Новая персона — житель без служебных назначений. Для роли сотрудника председатель назначает полномочия через «Сотрудники».
           </Typography.Text>
         </Form>
+      </Modal>
+      <Modal
+        title="Снять роль"
+        open={revokeTarget !== null}
+        onCancel={() => setRevokeTarget(null)}
+        onOk={() => void revokeRole()}
+        okText="Снять роль"
+        okButtonProps={{ danger: true, disabled: revoking }}
+        cancelText="Отмена"
+      >
+        {revokeTarget !== null && (
+          <Form form={revokeForm} layout="vertical" onFinish={() => void revokeRole()}>
+            <Typography.Paragraph>
+              Снять роль «{revokeTarget.roleLabel}» с персоны «{revokeTarget.personName}»? Персона
+              сохранится как житель; при сокращении ролей её сеансы будут завершены.
+            </Typography.Paragraph>
+            <Form.Item
+              name="reason"
+              label="Причина"
+              rules={[{ required: true, message: "Укажите причину снятия роли" }]}
+            >
+              <Input.TextArea rows={3} maxLength={500} placeholder="Например: роль выдавалась для проверки сценария" />
+            </Form.Item>
+          </Form>
+        )}
       </Modal>
     </PageLayout>
   );
