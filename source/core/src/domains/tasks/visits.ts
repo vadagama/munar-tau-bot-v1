@@ -67,6 +67,7 @@ export async function proposeVisit(
           [initial.request_id],
         );
         const task = await requireTask(exec, actor, taskId, "task.read", true);
+        if(input.expected_version!==undefined)checkVersion(task.version,input.expected_version);
         if (
           !request || !request.premises_id ||
           CLOSED_STATES.includes(String(request.state)) ||

@@ -67,3 +67,10 @@ it.each([
   await expect(startRequestWork(deps, actor, "r", body, "key")).rejects.toMatchObject({ code });
   expect(createTaskInTransaction).not.toHaveBeenCalled();
 });
+
+it("сохраняет адрес одной строкой при отсутствии дома",async()=>{
+ vi.mocked(requireRequest).mockResolvedValue({id:'r',number:'З-1',version:4,state:'reviewing',building_id:null,premises_id:null,location_text:'У въезда со стороны школы'} as never);
+ vi.mocked(exec.query).mockImplementation(async(sql)=>sql.startsWith('select concat_ws')?[]:[]);
+ await startRequestWork(deps,actor,'r',input,'address-key');
+ expect(createTaskInTransaction).toHaveBeenCalledWith(deps,exec,actor,expect.objectContaining({instruction:'У въезда со стороны школы\n\nУстранить течь'}));
+});
