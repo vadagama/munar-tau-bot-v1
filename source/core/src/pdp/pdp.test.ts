@@ -78,6 +78,7 @@ describe("реестр действий", () => {
       "notification.preferences",
       "privacy.request",
       "publication.approve", "publication.manage", "publication.read",
+      "registration.manage",
       "registration.review",
       "registration.self",
       "registry.export",
@@ -269,4 +270,12 @@ describe("пределы сеанса AUTH-06 — константы", () => {
     expect(SESSION_TOTAL_LIMIT_MS).toBe(12 * 3600 * 1000);
     expect(SESSION_IDLE_LIMIT_MS).toBe(30 * 60 * 1000);
   });
+});
+
+it("REG-02a: управление чужой анкетой privileged и запрещено в эмуляции", () => {
+  const chairman = actorFrom([withRole("chairman", undefined)]);
+  expect(can(chairman, "registration.manage").allow).toBe(true);
+  const emulated = actorFrom([withRole("chairman", undefined)], { emulated: true });
+  expect(can(emulated, "registration.manage").allow).toBe(false);
+  expect(can(actorFrom([withRole("tech_admin", undefined)]), "registration.review").allow).toBe(true);
 });

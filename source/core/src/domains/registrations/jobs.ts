@@ -53,7 +53,7 @@ export async function sweepRegistrations(
         [timer.entity_id],
       );
       if (
-        !row ||
+        !row || row.superseded_by ||
         !["pending_review", "need_clarification", "disputed"].includes(
           String(row.state),
         )

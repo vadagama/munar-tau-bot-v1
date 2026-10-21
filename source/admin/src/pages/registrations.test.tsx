@@ -98,3 +98,29 @@ it("анкета без помещения: подтверждение созд�
   );
   expect(dialog).not.toHaveTextContent("подтверждается доступ:");
 });
+
+it("исправление подтверждённой анкеты отправляет предложение с версией и причиной", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/registrations"
+    ? { items: [{ ...liteRegistration, state: "approved", version: 3, can_manage: true }] } : { items: [] });
+  render(<RegistrationsPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Исправить" }));
+  const name = await screen.findByRole("textbox", { name: "Имя и фамилия" });
+  fireEvent.change(name, { target: { value: "Новое имя" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Причина" }), { target: { value: "Исправление опечатки" } });
+  fireEvent.click(screen.getByRole("button", { name: "Отправить на проверку" }));
+  await vi.waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registrations/reg-2/manage", expect.objectContaining({
+    method: "POST", idempotencyKey: expect.any(String),
+    body: expect.objectContaining({ operation: "edit", expected_version: 3, full_name: "Новое имя", reason: "Исправление опечатки" }),
+  })));
+});
+
+it("удаление предупреждает о закрытии доступа и требует причину", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/registrations"
+    ? { items: [{ ...liteRegistration, state: "approved", version: 3, can_manage: true }] } : { items: [] });
+  render(<RegistrationsPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
+  expect(await screen.findByText(/Доступ к боту и кабинету закроется/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Удалить анкету" }));
+  expect(await screen.findByText("Укажите основание")).toBeInTheDocument();
+  expect(vi.mocked(apiFetch).mock.calls.some(([path]) => path.endsWith("/manage"))).toBe(false);
+});
