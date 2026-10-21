@@ -1,5 +1,27 @@
 import type { TemplateDef } from "./types.ts";
 export const staffRequestTemplates: readonly TemplateDef[] = [
+  {
+    key: "staff.file_saved",
+    section: "requests",
+    scenario: "Обращения сотрудников",
+    command: "/staffrequests",
+    title: "Статус сохранённого файла",
+    description: "Статус материала в карточке обращения",
+    variables: [],
+    ru: "Сохранён",
+    kk: "Сақталды",
+  },
+  {
+    key: "staff.file_incomplete",
+    section: "requests",
+    scenario: "Обращения сотрудников",
+    command: "/staffrequests",
+    title: "Статус несохранённого файла",
+    description: "Статус материала в карточке обращения",
+    variables: [],
+    ru: "Не сохранён",
+    kk: "Сақталмады",
+  },
  {key:'staff.upload_queued',section:'requests',scenario:'Обращения сотрудников',command:'/staffrequests',title:'Файл ожидает сохранения',description:'Приём медиа в служебную форму',variables:[],ru:'Файл принят в очередь. Дождитесь сохранения, затем проверьте сообщение перед отправкой.',kk:'Файл кезекке қабылданды. Сақталуын күтіп, жіберер алдында хабарламаны тексеріңіз.'},
   {
     "key": "staff.building_code",

@@ -277,7 +277,9 @@ export async function staffRequestStep(
           }?start=stsk_${esc(m.id)}">${esc(m.number)}</a> · ${esc(m.title)} · ${
             esc(TASK_STATE_TEXT[String(m.state)]?.[L] ?? m.state)
           }`
-          : `${esc(m.filename)} · ${esc(m.status)}`
+          : `${esc(m.filename)} · ${
+            esc(text(m.status === "complete" ? "file_saved" : "file_incomplete"))
+          }`
       );
       if (kind === "messages") {
         state.read_ids = data.items.filter((m) =>
