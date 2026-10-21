@@ -56,3 +56,17 @@ it("блокирует повторное переключение до заве
   finish({});
   await waitFor(() => expect(onSwitched).toHaveBeenCalledOnce());
 });
+
+it("ожидает обновления идентичности и разблокирует выбор без перезагрузки", async () => {
+  let finish!: () => void;
+  const onSwitched = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+  render(<EmulationRoleSelect profileId="resident" onSwitched={onSwitched} />);
+  const select = screen.getByRole("combobox", { name: "Роль эмуляции" });
+  await waitFor(() => expect(select).toBeEnabled());
+  fireEvent.mouseDown(select);
+  fireEvent.click(await screen.findByText("Тест: исполнитель", { selector: ".ant-select-item-option-content" }));
+  await waitFor(() => expect(onSwitched).toHaveBeenCalledOnce());
+  expect(select).toBeDisabled();
+  finish();
+  await waitFor(() => expect(select).toBeEnabled());
+});

@@ -3,7 +3,7 @@ import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { RegistrationSimulator } from "./registration-simulator";
 import { useCabinetIdentity } from "../lib/identity";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
@@ -28,7 +28,9 @@ import type { EmulationPersonsResponse, EmulationPersonJson } from "../lib/types
 // сеанса эмуляции. Роли персонам назначает председатель через раздел
 // назначений — эмуляция не расширяет полномочия техадминистратора.
 export function EmulationPage() {
-  const {identity}=useCabinetIdentity();
+  const { identity, refreshIdentity } = useCabinetIdentity();
+  const pending = useRef(false);
+  const [switching, setSwitching] = useState(false);
   const [role, setRole] = useState<string>("all");
   const [persons, setPersons] = useState<EmulationPersonJson[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,8 +39,10 @@ export function EmulationPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [form] = Form.useForm<{ full_name: string }>();
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (pending.current) return;
+    pending.current = true;
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const response = await apiFetch<EmulationPersonsResponse>("/v1/emulation/persons");
@@ -46,11 +50,12 @@ export function EmulationPage() {
     } catch (requestError) {
       setError(requestError instanceof ApiClientError ? requestError.message : "Ошибка загрузки персон");
     } finally {
+      pending.current = false;
       setLoading(false);
     }
   }, []);
 
-  usePageRefresh(load, !loading);
+  usePageRefresh(() => load(true), !loading && !switching);
   useEffect(() => {
     void load();
   }, [load]);
@@ -72,6 +77,9 @@ export function EmulationPage() {
   };
 
   const startEmulation = async (person: EmulationPersonJson) => {
+    if (pending.current || switching) return;
+    pending.current = true;
+    setSwitching(true);
     setError(null);
     setNotice(null);
     try {
@@ -79,10 +87,12 @@ export function EmulationPage() {
         method: "POST",
         body: { emulated_profile_id: person.profile.id },
       });
-      // Сеанс эмуляции влияет на весь кабинет — перезагружаем интерфейс.
-      window.location.assign("/");
+      await refreshIdentity();
     } catch (requestError) {
       setError(requestError instanceof ApiClientError ? requestError.message : "Не удалось начать эмуляцию");
+    } finally {
+      pending.current = false;
+      setSwitching(false);
     }
   };
 
@@ -112,7 +122,7 @@ export function EmulationPage() {
       key: "actions",
       width: 200,
       render: (_: unknown, record: EmulationPersonJson) => (
-        <Button type="primary" size="small" onClick={() => void startEmulation(record)}>
+        <Button type="primary" size="small" disabled={switching} onClick={() => void startEmulation(record)}>
           Войти под персоной
         </Button>
       ),
@@ -141,7 +151,7 @@ export function EmulationPage() {
       <Select aria-label="Роль тестовой персоны" value={role} onChange={setRole}
         style={{ minWidth: 200, marginBottom: 16 }}
         options={[{ value: "all", label: "Все роли" }, ...Object.entries(EMULATION_ROLE_LABELS).map(([value, label]) => ({ value, label }))]} />
-      <RegistrationSimulator active={!!identity?.me.emulation}/>
+      <RegistrationSimulator key={identity?.me.emulation?.session_id ?? "inactive"} active={!!identity?.me.emulation && !switching}/>
       {loading ? (
         <Spin size="large" style={{ display: "block", margin: "60px auto" }} />
       ) : (

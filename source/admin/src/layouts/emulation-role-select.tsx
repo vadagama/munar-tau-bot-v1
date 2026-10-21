@@ -8,7 +8,7 @@ import { usePageRefresh } from "../lib/use-page-refresh";
 /** Быстрая смена тестовой персоны через обычный, проверяемый сервером сеанс. */
 export function EmulationRoleSelect({ profileId, onSwitched }: {
   profileId: string;
-  onSwitched: () => void;
+  onSwitched: () => unknown | Promise<unknown>;
 }) {
   const [persons, setPersons] = useState<EmulationPersonJson[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,9 +55,10 @@ export function EmulationRoleSelect({ profileId, onSwitched }: {
     setError(null);
     try {
       await apiFetch("/v1/emulation/sessions", { method: "POST", body: { emulated_profile_id: target.profileId } });
-      onSwitched();
+      await onSwitched();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось переключить эмуляцию");
+    } finally {
       pending.current = false;
       setBusy(false);
     }
