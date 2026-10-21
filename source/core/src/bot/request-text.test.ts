@@ -2,6 +2,52 @@ import { expect, it } from "vitest";
 import { preview, requestCardText, requestListText } from "./request-text.ts";
 import { replyText } from "./keyboard.ts";
 
+it("номер обращения с UUID — глубокая ссылка на бота жителя с username из среды", () => {
+  const id = "123e4567-e89b-12d3-a456-426614174000";
+  const rows = [{
+    id,
+    number: "З-26-1",
+    state: "in_work",
+    author_person_id: "author",
+    description: "Не работает свет",
+    created_at: "2026-10-20T07:00:00Z",
+  }];
+  // Фолбэк — фактический username бота жителя; ссылка на несуществующего
+  // бота даёт в Telegram «Username not found» (регрессия 22.10.2026).
+  const reply = requestListText(rows, "author", 1);
+  expect(replyText(reply)).toContain(
+    `href="https://t.me/munar_tau_user_bot?start=req_${id}"`,
+  );
+  // Username из среды подставляется вместо фолбэка.
+  const custom = requestListText(
+    rows,
+    "author",
+    1,
+    "ru",
+    undefined,
+    "munar_tau_resident_bot",
+  );
+  expect(replyText(custom)).toContain(
+    `href="https://t.me/munar_tau_resident_bot?start=req_${id}"`,
+  );
+  // Строка без UUID-id (симулятор, черновик) остаётся текстом без ссылки.
+  const plain = requestListText(
+    [{
+      number: "З-26-2",
+      state: "in_work",
+      author_person_id: "author",
+      description: "d",
+    }],
+    "author",
+    1,
+  );
+  expect(replyText(plain)).not.toContain("t.me/");
+  // Невалидный username из среды не попадает в URL.
+  expect(() =>
+    requestListText(rows, "author", 1, "ru", undefined, "bad username")
+  ).toThrow();
+});
+
 it("длинная история и список помещаются в sendMessage и предлагают следующую страницу", () => {
   const rows = Array.from(
     { length: 20 },

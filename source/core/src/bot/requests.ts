@@ -562,7 +562,14 @@ export async function requestStep(
       delete state.draft_id;
       delete state.step;
       return save(
-        requestListText(rows, actor.person.id, page, L, deps.templates),
+        requestListText(
+          rows,
+          actor.person.id,
+          page,
+          L,
+          deps.templates,
+          deps.residentBotUsername,
+        ),
       );
     }
     if (command === "/request") {

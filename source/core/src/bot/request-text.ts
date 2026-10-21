@@ -2,6 +2,7 @@ import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { t as templateText, type TemplateStore } from "../templates/store.ts";
 import { requestStateText } from "../locales/requests.ts";
 import type { Row } from "../domains/registry/validation.ts";
+import { ApiError } from "../errors/api.ts";
 import { type BotReply, btn, type InlineButton } from "./keyboard.ts";
 import { esc, fmtDate, fmtDay, type Lang, numbered } from "./text.ts";
 
@@ -19,10 +20,15 @@ export function requestListText(
   page: number,
   lang: Lang = "ru",
   store?: TemplateStore,
+  residentBotUsername?: string,
 ): BotReply {
+  // Username бота жителя для глубокой ссылки из списка: из среды или фолбэк
+  // по фактически созданному боту (ADR-009; @munar_tau_bot не существует).
+  const username = residentBotUsername ?? "munar_tau_user_bot";
+  if (!/^[A-Za-z0-9_]+$/.test(username)) throw new ApiError("INTERNAL");
   const visible = rows.slice(0, 10);
   const list = visible.map((r) =>
-    `<b>${r.state!=='draft' && /^[0-9a-f-]{36}$/i.test(String(r.id)) ? `<a href="https://t.me/munar_tau_bot?start=req_${r.id}">${esc(r.number)}</a>` : (r.number
+    `<b>${r.state!=='draft' && /^[0-9a-f-]{36}$/i.test(String(r.id)) ? `<a href="https://t.me/${username}?start=req_${r.id}">${esc(r.number)}</a>` : (r.number
       ? esc(r.number)
       : templateText(store, lang, "requests.chernovik"))}</b>${
       r.state === "draft"

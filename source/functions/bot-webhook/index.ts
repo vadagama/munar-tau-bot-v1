@@ -101,6 +101,7 @@ export async function handle(
       // всплеск при параллельных обновлениях (см. комментарий в api/deps.ts).
       db: createDbClient(requireEnv(env, "SUPABASE_DB_URL"), { max: 2 }),
       audit: new SqlAuditRepo(),
+      residentBotUsername: env("TELEGRAM_BOT_USERNAME"),
       workerBotUsername: env("TELEGRAM_WORKER_BOT_USERNAME"),
       fileStorage: env("SUPABASE_URL") && env("SUPABASE_SERVICE_ROLE_KEY") ? new SupabaseFileStorage(env("SUPABASE_URL")!,env("SUPABASE_SERVICE_ROLE_KEY")!) : undefined,
     };
