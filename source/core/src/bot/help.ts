@@ -148,7 +148,8 @@ type MenuKey =
   | "add"
   | "notifications"
   | "help"
-  | "tasks";
+  | "tasks"
+  | "staffrequests";
 const MENU_LABELS: Record<"ru" | "kk", Record<MenuKey, string>> = {
   ru: {
     newrequest: "🆕 Новое обращение",
@@ -158,6 +159,7 @@ const MENU_LABELS: Record<"ru" | "kk", Record<MenuKey, string>> = {
     notifications: "⚙️ Настройки",
     help: "❓ Помощь",
     tasks: "🗂 Мои задания",
+    staffrequests:"📬 Обращения",
   },
   kk: {
     newrequest: "🆕 Жаңа өтініш",
@@ -167,6 +169,7 @@ const MENU_LABELS: Record<"ru" | "kk", Record<MenuKey, string>> = {
     notifications: "⚙️ Баптаулар",
     help: "❓ Анықтама",
     tasks: "🗂 Менің тапсырмаларым",
+    staffrequests:"📬 Өтініштер",
   },
 };
 
@@ -184,7 +187,7 @@ export function residentMenu(
   key = "help.welcome_text",
 ): string[][] {
   const l = Object.fromEntries(
-    (Object.keys(MENU_LABELS.ru) as MenuKey[]).filter((id) => id !== "tasks")
+    (Object.keys(MENU_LABELS.ru) as MenuKey[]).filter((id) => id !== "tasks" && id !== "staffrequests")
       .map((id) => [id, messageButton(store, lang, key, id)]),
   );
   return [
@@ -203,7 +206,7 @@ export function workerMenu(
     tasks: messageButton(store, lang, "help.worker_help", "tasks"),
     help: messageButton(store, lang, "help.worker_help", "help"),
   };
-  return [[l.tasks, l.help]];
+  return [[l.tasks, messageButton(store,lang,"help.worker_help","staffrequests")], [messageButton(store,lang,"help.worker_help","notifications"),l.help]];
 }
 
 /**
@@ -213,6 +216,10 @@ export function workerMenu(
 /** Current and historical labels share one routing/validation source. */
 function menuAliases(store?: TemplateStore): [string, string][] {
   const aliases = Object.entries(MENU_COMMANDS);
+  for (const lang of ["ru","kk"] as const) {
+    aliases.push([messageButton(store,lang,"staff.controls","entry"),"/staffrequests"]);
+    aliases.push([messageButton(store,lang,"staff.controls","settings"),"/notifications"]);
+  }
   for (
     const key of [
       "help.welcome_text",
@@ -221,7 +228,7 @@ function menuAliases(store?: TemplateStore): [string, string][] {
     ]
   ) {
     const ids: MenuKey[] = key === "help.worker_help"
-      ? ["tasks", "help"]
+      ? ["tasks", "staffrequests", "notifications", "help"]
       : ["newrequest", "requests", "objects", "add", "notifications", "help"];
     for (const lang of ["ru", "kk"] as const) {
       for (const id of ids) {

@@ -1,10 +1,11 @@
-import { message, safeBlock } from "../templates/message.ts";
+import { loadDialog } from "./dialog.ts";
+import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
 import { t as templateText } from "../templates/store.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { actorForTelegram } from "./registration.ts";
-import type { BotReply } from "./keyboard.ts";
+import { btn, type BotReply } from "./keyboard.ts";
 import {
   getPreferences,
   setPreference,
@@ -32,6 +33,7 @@ export async function notificationStep(
       ),
     );
   }
+  await loadDialog(deps.db,telegramId,deps.bot ?? "resident",actor.profile.id,actor.emulation?.sessionId??null,"notifications");
   const [, requestedType, requestedMode, language] = input.trim().toLowerCase()
     .split(/\s+/);
   const types: Record<string, string> = {
@@ -56,9 +58,11 @@ export async function notificationStep(
   const mode = requestedMode
     ? modes[requestedMode] ?? requestedMode
     : undefined;
-  const settings = type
-    ? await setPreference(deps, actor, type, mode, language)
-    : await getPreferences(deps.db, actor);
+  let settings = await getPreferences(deps.db, actor);
+  if(type==='language' && ['ru','kk'].includes(String(mode))) {
+    const item=settings.items.find(i=>i.event_type==='publication');
+    settings=await setPreference(deps,actor,'publication',item?.mode??'immediate',mode);
+  } else if(type && mode) settings=await setPreference(deps,actor,type,mode,language);
   const kk = settings.language === "kk";
   const names: Record<string, string> = kk
     ? {
@@ -77,15 +81,19 @@ export async function notificationStep(
       digest: "сводка",
       off: "выключено",
     };
-  return message(
+  const lang = kk ? "kk" : "ru";
+  const button=(id:string,command:string)=>btn(messageButton(deps.templates,lang,"bot.controls",id),command);
+  return {text: message(
     deps.templates,
     kk ? "kk" : "ru",
-    "messages.notifications.settings",
+    "bot.settings",
     {
       settings: safeBlock(
         settings.items.map((i) => `${names[i.event_type]}: ${names[i.mode]}`)
           .join("\n"),
       ),
     },
-  );
+  ), buttons: type && type!=="language" && !mode
+    ? [(["immediate",...(type==="request.status"?[]:["digest"]),"off"]).map(mode=>button(mode,`/notifications ${type} ${mode}`)),[button("back","/notifications")]]
+    : [[button("publication","/notifications publication")],[button("work_report","/notifications work.report")],[button("request_status","/notifications request.status")],[btn("Русский","/notifications language ru"),btn("Қазақша","/notifications language kk")]]};
 }

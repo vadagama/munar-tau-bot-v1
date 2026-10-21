@@ -68,8 +68,8 @@
   {
     "key": "tasks.snachala_otkroyte_task_nomer",
     "source": "tasks",
-    "ru": "Сначала откройте /task НОМЕР",
-    "kk": "Алдымен /task НОМІР ашыңыз"
+    "ru": "Сначала откройте задание.",
+    "kk": "Алдымен тапсырманы ашыңыз."
   },
   {
     "key": "tasks.vizit_ne_nayden",
@@ -116,20 +116,20 @@
   {
     "key": "tasks.zapolnite_otchet_reporttask_nomer",
     "source": "tasks",
-    "ru": "Заполните отчёт: /reporttask НОМЕР",
-    "kk": "Есепті толтырыңыз: /reporttask НОМІР"
+    "ru": "Сначала заполните отчёт.",
+    "kk": "Алдымен есепті толтырыңыз."
   },
   {
     "key": "tasks.vremya_vypolneniya_gggg_mm_dd_chch_mm",
     "source": "tasks",
-    "ru": "Время выполнения: ГГГГ-ММ-ДД ЧЧ:ММ (Алматы). Например 2026-10-17 15:30.",
-    "kk": "Орындалу уақыты: ЖЖЖЖ-АА-КК СС:ММ (Алматы). Мысалы 2026-10-17 15:30."
+    "ru": "Укажите время выполнения: ДД.ММ.ГГГГ ЧЧ:ММ (Алматы).",
+    "kk": "Орындалған уақытты көрсетіңіз: КК.АА.ЖЖЖЖ СС:ММ (Алматы)."
   },
   {
     "key": "tasks.vvedite_vremya_v_formate_gggg_mm_dd",
     "source": "tasks",
-    "ru": "Введите время в формате ГГГГ-ММ-ДД ЧЧ:ММ",
-    "kk": "Уақытты ЖЖЖЖ-АА-КК СС:ММ форматында енгізіңіз"
+    "ru": "Укажите время: ДД.ММ.ГГГГ ЧЧ:ММ (Алматы).",
+    "kk": "Уақытты көрсетіңіз: КК.АА.ЖЖЖЖ СС:ММ (Алматы)."
   },
   {
     "key": "tasks.opishite_rezultat",
@@ -140,8 +140,8 @@
   {
     "key": "tasks.ostavshiesya_ogranicheniya_napishite_net_esli_ih_net",
     "source": "tasks",
-    "ru": "Оставшиеся ограничения? Напишите «нет», если их нет.",
-    "kk": "Қалған шектеулер бар ма? Жоқ болса «жоқ» деп жазыңыз."
+    "ru": "Опишите оставшиеся ограничения.",
+    "kk": "Қалған шектеулерді сипаттаңыз."
   },
   {
     "key": "tasks.vyberite_nomera_sohranennyh_faylov_cherez_zapyatuyu_ili",
@@ -152,13 +152,13 @@
   {
     "key": "tasks.dokazatelstvo_iz_otpravte_fayl_dozhdites_sohraneniya_taskfiles",
     "source": "tasks",
-    "ru": "Доказательство {number_report_index_1} из {requirements_length}. Отправьте файл, дождитесь сохранения (/taskfiles), затем введите его номер. Если доказательства нет — нет причина.\n",
-    "kk": "Дәлел {number_report_index_1} / {requirements_length}. Файл жіберіп, сақталуын күтіңіз (/taskfiles), содан кейін нөмірін жазыңыз. Дәлел жоқ болса — жоқ себеп.\n"
+    "ru": "Доказательство {number_report_index_1} из {requirements_length}. Прикрепите файл и дождитесь сохранения.\n",
+    "kk": "Дәлел {number_report_index_1}, барлығы {requirements_length}. Файлды тіркеп, сақталуын күтіңіз.\n"
   },
   {
     "key": "tasks.otchet_podgotovlen_submitreport_otpravit_na_proverku",
     "source": "tasks",
-    "ru": "Отчёт подготовлен. /submitreport — отправить на проверку.",
-    "kk": "Есеп дайын. /submitreport — тексеруге жіберу."
+    "ru": "Отчёт подготовлен. Проверьте данные перед отправкой.",
+    "kk": "Есеп дайын. Жібермес бұрын деректерді тексеріңіз."
   }
 ]

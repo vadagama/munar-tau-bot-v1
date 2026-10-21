@@ -1,3 +1,4 @@
+import { navigationReply } from "./navigation.ts";
 import { loadDialog, saveDialog } from "./dialog.ts";
 import { withSimulatorMenu } from "./simulator-menu.ts";
 import { message, messageButton, safeBlock } from "../templates/message.ts";
@@ -127,7 +128,7 @@ export async function registrationStep(
     const d = scopedDeps(deps, exec);
     const actor = providedActor ?? (await actorForTelegram(d, telegramId));
     const bot = deps.bot ?? "resident";
-    const state = await loadDialog(exec, telegramId, bot, actor?.profile.id ?? null, actor?.emulation?.sessionId ?? null);
+    const state = await loadDialog(exec, telegramId, bot, actor?.profile.id ?? null, actor?.emulation?.sessionId ?? null, "registration");
     // Язык подачи: выбранный в диалоге, иначе язык профиля, иначе русский.
     const L: Lang = langOf(state.language ?? actor?.profile.language);
     const help = () => registrationHelp(L, deps.templates);
@@ -1282,7 +1283,7 @@ export function registrationScenarios(deps: RegistryDeps): ScenarioRegistry {
         input,
         ctx.actor,
       );
-      return withSimulatorMenu(reply, "registration", ctx.actor.profile.language, templates);
+      return withSimulatorMenu(navigationReply(reply,"registration",ctx.actor.profile.language,templates,input), "registration", ctx.actor.profile.language, templates);
     },
   });
   return scenarios;

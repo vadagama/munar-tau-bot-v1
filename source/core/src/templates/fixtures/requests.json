@@ -68,8 +68,8 @@
   {
     "key": "requests.snachala_otkroyte_visits_nomer_obrascheniya",
     "source": "requests",
-    "ru": "Сначала откройте /visits НОМЕР_ОБРАЩЕНИЯ",
-    "kk": "Алдымен /visits НОМІР ашыңыз"
+    "ru": "Сначала откройте визиты из карточки обращения.",
+    "kk": "Алдымен өтініш карточкасынан келулерді ашыңыз."
   },
   {
     "key": "requests.vizit_soglasovan",
@@ -98,8 +98,8 @@
   {
     "key": "requests.lichnyy_chernovik_udalen_newrequest",
     "source": "requests",
-    "ru": "Личный черновик удалён. /newrequest",
-    "kk": "Жеке жоба жойылды. /newrequest"
+    "ru": "Личный черновик удалён.",
+    "kk": "Жеке жоба жойылды."
   },
   {
     "key": "requests.vvedite_novyy_tekst_chernovika",
@@ -230,8 +230,8 @@
   {
     "key": "requests.vyberite_nomer_iz_spiska_objects",
     "source": "requests",
-    "ru": "Выберите номер из списка. /objects",
-    "kk": "Тізімнен нөмір таңдаңыз. /objects"
+    "ru": "Выберите помещение.",
+    "kk": "Үй-жайды таңдаңыз."
   },
   {
     "key": "requests.opishite_problemu_svoimi_slovami_kategoriya_ne_nuzhna",
@@ -266,7 +266,7 @@
   {
     "key": "requests.chernovik_sohranen_dobavte_fayly_ili_sendrequest_requestcancel",
     "source": "requests",
-    "ru": "Черновик сохранён. Добавьте файлы или /sendrequest. /requestcancel — выйти без удаления.",
-    "kk": "Жоба сақталды. Файл қосыңыз немесе /sendrequest. /requestcancel — жобаны сақтап шығу."
+    "ru": "Черновик сохранён. Можно прикрепить файлы.",
+    "kk": "Жоба сақталды. Файлдарды тіркеуге болады."
   }
 ]

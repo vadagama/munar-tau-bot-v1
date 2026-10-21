@@ -297,8 +297,8 @@ export const registrationTemplates: readonly TemplateDef[] = [
     "title": "Укажите номер из /status",
     "description": "Реплика registration",
     "variables": [],
-    "ru": "Укажите номер из /status",
-    "kk": "/status тізімінің нөмірін көрсетіңіз",
+    "ru": "Выберите анкету.",
+    "kk": "Сауалнаманы таңдаңыз.",
   },
   {
     "key": "registration.ne_ponyal_ssylku_otkroyte_status_i_ukazhite",
@@ -306,8 +306,8 @@ export const registrationTemplates: readonly TemplateDef[] = [
     "title": "Не понял ссылку. Откройте /status и укажите номер строки",
     "description": "Реплика registration",
     "variables": [],
-    "ru": "Не понял ссылку. Откройте /status и укажите номер строки",
-    "kk": "Сілтемені түсінбедім. /status ашып, жол нөмірін көрсетіңіз",
+    "ru": "Не удалось распознать ссылку. Откройте список анкет.",
+    "kk": "Сілтеме танылмады. Сауалнамалар тізімін ашыңыз.",
   },
   {
     "key": "registration.anket_dlya_ispravleniya_net_utochneniy_i_otkazov",
@@ -420,8 +420,8 @@ export const registrationTemplates: readonly TemplateDef[] = [
     "title": "Выберите номер строки из списка /add",
     "description": "Реплика registration",
     "variables": [],
-    "ru": "Выберите номер строки из списка /add",
-    "kk": "Тізімнен жол нөмірін таңдаңыз",
+    "ru": "Выберите помещение из списка.",
+    "kk": "Тізімнен үй-жайды таңдаңыз.",
   },
   {
     "key": "registration.svyaz_uzhe_obrabotana_otpravte_add_zanovo",

@@ -8,9 +8,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "scenario": "Новое обращение",
     "command": "/newrequest",
     "ru":
-      "Выберите вид обращения:\n{kinds}",
+      "Выберите вид обращения.",
     "kk":
-      "Өтініш түрін таңдаңыз:\n{kinds}",
+      "Өтініш түрін таңдаңыз.",
     "variables": [
       {
         "name": "kinds",
@@ -370,9 +370,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.fayly_prosto_prikrepite_k_sleduyuschemu_soobscheniyu",
     ],
     "ru":
-      "<b>Сохранённый черновик</b>:\n{description}\n/sendrequest — отправить; /editrequest — изменить текст; /deletedraft — удалить. Файлы — просто прикрепите к следующему сообщению.",
+      "<b>Сохранённый черновик</b>:\n{description}\nФайлы можно прикрепить следующим сообщением.",
     "kk":
-      "<b>Сақталған жоба</b>:\n{description}\n/sendrequest — жіберу; /editrequest — мәтінді өзгерту; /deletedraft — жою. Файлдарды келесі хабарламаға жабыстырыңыз.",
+      "<b>Сақталған жоба</b>:\n{description}\nФайлдарды келесі хабарламамен тіркеуге болады.",
     "variables": [
       {
         "name": "description",
@@ -663,8 +663,8 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "legacyKeys": [
       "requests.nazhmite_nomer_pomescheniya_ili",
     ],
-    "ru": "{premises}\nНажмите номер помещения или /newrequest",
-    "kk": "{premises}\nҮй-жай нөмірін басыңыз немесе /newrequest",
+    "ru": "{premises}",
+    "kk": "{premises}",
     "variables": [
       {
         "name": "premises",
@@ -900,8 +900,8 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "title": "Сначала откройте /visits НОМЕР_ОБРАЩЕНИЯ",
     "description": "Полный ответ бота в сценарии «Визиты».",
     "variables": [],
-    "ru": "Сначала откройте /visits НОМЕР_ОБРАЩЕНИЯ",
-    "kk": "Алдымен /visits НОМІР ашыңыз",
+    "ru": "Сначала откройте визиты из карточки обращения.",
+    "kk": "Алдымен өтініш карточкасынан келулерді ашыңыз.",
     "scenario": "Визиты",
     "command": "/visits",
   },
@@ -934,8 +934,8 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "title": "Личный черновик удалён. /newrequest",
     "description": "Полный ответ бота в сценарии «Новое обращение».",
     "variables": [],
-    "ru": "Личный черновик удалён. /newrequest",
-    "kk": "Жеке жоба жойылды. /newrequest",
+    "ru": "Личный черновик удалён.",
+    "kk": "Жеке жоба жойылды.",
     "scenario": "Новое обращение",
     "command": "/newrequest",
   },
@@ -1055,8 +1055,8 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "title": "Выберите номер из списка. /objects",
     "description": "Полный ответ бота в сценарии «Новое обращение».",
     "variables": [],
-    "ru": "Выберите номер из списка. /objects",
-    "kk": "Тізімнен нөмір таңдаңыз. /objects",
+    "ru": "Выберите помещение.",
+    "kk": "Үй-жайды таңдаңыз.",
     "scenario": "Новое обращение",
     "command": "/newrequest",
   },
@@ -1081,9 +1081,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "description": "Полный ответ бота в сценарии «Новое обращение».",
     "variables": [],
     "ru":
-      "Черновик сохранён. Добавьте файлы или /sendrequest. /requestcancel — выйти без удаления.",
+      "Черновик сохранён. Можно прикрепить файлы.",
     "kk":
-      "Жоба сақталды. Файл қосыңыз немесе /sendrequest. /requestcancel — жобаны сақтап шығу.",
+      "Жоба сақталды. Файлдарды тіркеуге болады.",
     "scenario": "Новое обращение",
     "command": "/newrequest",
   },
@@ -1104,8 +1104,8 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "title": "Откройте задание: /task НОМЕР, затем отправьте файл.",
     "description": "Полный ответ бота в сценарии «Файлы обращения».",
     "variables": [],
-    "ru": "Откройте задание: /task НОМЕР, затем отправьте файл.",
-    "kk": "Тапсырманы ашыңыз: /task НӨМІР, сонан кейін файлды жіберіңіз.",
+    "ru": "Сначала откройте задание, затем отправьте файл.",
+    "kk": "Алдымен тапсырманы ашып, файлды жіберіңіз.",
     "scenario": "Файлы обращения",
     "command": "/newrequest · /request · /task",
   },
@@ -1119,8 +1119,8 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "Полный ответ бота в сценарии «Обращения: ответы и подсказки».",
     "variables": [],
     "ru":
-      "Сначала создайте или откройте обращение: /newrequest, /request НОМЕР.",
-    "kk": "Алдымен өтінішті ашыңыз: /newrequest, /request НӨМІР.",
+      "Сначала откройте обращение.",
+    "kk": "Алдымен өтінішті ашыңыз.",
     "scenario": "Обращения: ответы и подсказки",
     "command": "/request",
   },
@@ -1143,9 +1143,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "description": "Полный ответ бота в сценарии «Файлы обращения».",
     "variables": [],
     "ru":
-      "Файл задания принят в очередь. Дождитесь сообщения о сохранении, затем /taskfiles.",
+      "Файл задания принят в очередь. Дождитесь сообщения о сохранении.",
     "kk":
-      "Файл кезекте. Сақталғаны туралы хабарламаны күтіңіз, содан кейін /taskfiles.",
+      "Тапсырма файлы кезекке қабылданды. Сақталу туралы хабарламаны күтіңіз.",
     "scenario": "Файлы обращения",
     "command": "/newrequest · /request · /task",
   },
@@ -1157,9 +1157,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "description": "Полный ответ бота в сценарии «Файлы обращения».",
     "variables": [],
     "ru":
-      "Файл принят в очередь, пока не сохранён. Обращение можно отправить независимо: /sendrequest.",
+      "Файл принят в очередь, пока не сохранён. Обращение можно отправить независимо.",
     "kk":
-      "Файл кезекте, әлі сақталмады. Өтінішті /sendrequest арқылы жібере аласыз.",
+      "Файл кезекке қабылданды, әлі сақталған жоқ. Өтінішті бөлек жіберуге болады.",
     "scenario": "Файлы обращения",
     "command": "/newrequest · /request · /task",
   },
@@ -1178,9 +1178,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count} {report_command}",
+      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count} {report_command}",
+      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count}",
     "variables": [
       {
         "name": "number",
@@ -1296,9 +1296,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count} {report_command}\nДействия: /result НОМЕР — отчёты; /return НОМЕР причина — доработка",
+      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count} {report_command}\nӘрекеттер: /result НОМІР — есептер; /return НОМІР себеп — түзету",
+      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count}",
     "variables": [
       {
         "name": "number",
@@ -1421,9 +1421,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count} {report_command}\nДействия: /rate НОМЕР 1–5 комментарий — оценка; /appeal НОМЕР причина",
+      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count} {report_command}\nӘрекеттер: /rate НОМІР 1–5 түсініктеме — баға; /appeal НОМІР себеп",
+      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count}",
     "variables": [
       {
         "name": "number",
@@ -1573,9 +1573,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count} {report_command}\nДействия: /appeal НОМЕР причина — апелляция; /reopen НОМЕР причина",
+      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count} {report_command}\nӘрекеттер: /appeal НОМІР себеп — шағым; /reopen НОМІР себеп",
+      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count}",
     "variables": [
       {
         "name": "number",
@@ -1690,9 +1690,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count} {report_command}",
+      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count} {report_command}",
+      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count}",
     "variables": [
       {
         "name": "number",
@@ -1808,9 +1808,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.sleduyuschiy_otchet",
     ],
     "ru":
-      "<b>{number}</b> · Отчёт {index} из {total} · задание {task_number}\n{work}\n{result}\nОграничения: {limitations}\n/result {number} {next_index} — следующий отчёт",
+      "<b>{number}</b> · Отчёт {index} из {total} · задание {task_number}\n{work}\n{result}\nОграничения: {limitations}",
     "kk":
-      "<b>{number}</b> · Есеп {index} із ішінен {total} · тапсырма {task_number}\n{work}\n{result}\nШектеулер: {limitations}\n/result {number} {next_index} — келесі есеп",
+      "<b>{number}</b> · Есеп {index} із ішінен {total} · тапсырма {task_number}\n{work}\n{result}\nШектеулер: {limitations}",
     "variables": [
       {
         "name": "number",

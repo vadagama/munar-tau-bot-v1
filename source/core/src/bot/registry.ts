@@ -8,6 +8,7 @@ import type { Actor } from "../pdp/types.ts";
 /** Контекст исполнения сценария: под чьей учётной записью действует бот. */
 export interface BotScenarioContext {
   actor?: Actor;
+  bot?: import("./bots.ts").BotKind;
   executor?: DbExecutor;
   profileId: string;
   personId: string;

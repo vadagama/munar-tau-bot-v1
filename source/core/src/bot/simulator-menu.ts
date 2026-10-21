@@ -7,10 +7,10 @@ import type { TemplateStore } from "../templates/store.ts";
 export function withSimulatorMenu(reply: BotReply, scenario: string, lang: Lang, templates: TemplateStore): BotReply {
   const scenarios: Record<string, string> = {
     "/newrequest": "requests", "/requests": "requests", "/objects": "registration",
-    "/add": "registration", "/notifications": "notifications", "/tasks": "tasks",
+    "/staffrequests":"staff-requests", "/add": "registration", "/notifications": "notifications", "/tasks": "tasks",
     "/help": scenario === "tasks" ? "tasks" : "registration",
   };
-  const menu = scenario === "tasks" ? workerMenu(lang, templates) : residentMenu(lang, templates);
+  const menu = ["tasks","staff-requests"].includes(scenario) ? workerMenu(lang, templates) : residentMenu(lang, templates);
   return {
     ...(typeof reply === "string" ? { text: replyText(reply) } : reply),
     menu: menu.map(row => row.map(text => {

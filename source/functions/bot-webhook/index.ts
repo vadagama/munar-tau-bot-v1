@@ -1,3 +1,4 @@
+import { SupabaseFileStorage } from "../../core/src/domains/requests/files.ts";
 // Функция bot-webhook — приём обновлений Telegram Bot API (LLD-01 §2, LLD-03 §6).
 // VS-2: анкета и приглашения через общий сценарий бота/эмуляции.
 //
@@ -100,6 +101,8 @@ export async function handle(
       // всплеск при параллельных обновлениях (см. комментарий в api/deps.ts).
       db: createDbClient(requireEnv(env, "SUPABASE_DB_URL"), { max: 2 }),
       audit: new SqlAuditRepo(),
+      workerBotUsername: env("TELEGRAM_WORKER_BOT_USERNAME"),
+      fileStorage: env("SUPABASE_URL") && env("SUPABASE_SERVICE_ROLE_KEY") ? new SupabaseFileStorage(env("SUPABASE_URL")!,env("SUPABASE_SERVICE_ROLE_KEY")!) : undefined,
     };
     try {
       const handled = await processInbound(actual, update, bot);

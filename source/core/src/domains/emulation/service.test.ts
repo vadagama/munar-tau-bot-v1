@@ -313,6 +313,14 @@ describe("simulate (LLD-03 §3.16, критерий среза)", () => {
     expect(result).toEqual({ scenarioId: "registration", reply: "Выберите язык", buttons });
     expect(audit.entries.at(-1)?.meta).toMatchObject({ scenario: "registration" });
   });
+  it("сохраняет worker-контекст уведомлений и отправляет общие команды визитов в задания",async()=>{
+    registry.register({id:'tasks',description:'WRK',run:async(_input,ctx)=>String(ctx.bot)});
+    registry.register({id:'notifications',description:'NTF',run:async(_input,ctx)=>String(ctx.bot)});
+    const {actor}=await emulatedPersonaActor();
+    expect(await simulate({...deps,scenarios:registry},actor,{scenarioId:'tasks',text:'/taskvisits З-1'})).toMatchObject({scenarioId:'tasks',bot:'worker',reply:'worker'});
+    expect(await simulate({...deps,scenarios:registry},actor,{scenarioId:'tasks',text:'/notifications'})).toMatchObject({scenarioId:'notifications',bot:'worker',reply:'worker'});
+    expect(await simulate({...deps,scenarios:registry},actor,{scenarioId:'notifications',bot:'worker',text:'/notifications publication'})).toMatchObject({bot:'worker',reply:'worker'});
+  });
   it("сохраняет кнопки общего сценария вместе с текстом", async () => {
     const buttons = [[{ text: "Русский", data: "ru" }]];
     registry.register({ id: "keyboard", description: "Кнопки", run: async () => ({ text: "Язык", buttons }) });

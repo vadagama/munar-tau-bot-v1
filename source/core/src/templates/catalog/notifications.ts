@@ -6,8 +6,8 @@ export const notificationsTemplates: readonly TemplateDef[] = [
     "title": "Сначала подтвердите регистрацию: /register",
     "description": "Реплика notifications",
     "variables": [],
-    "ru": "Сначала подтвердите регистрацию: /register",
-    "kk": "Алдымен тіркелуді растаңыз: /register",
+    "ru": "Сначала подтвердите регистрацию.",
+    "kk": "Алдымен тіркелуді растаңыз.",
   },
   {
     "key":

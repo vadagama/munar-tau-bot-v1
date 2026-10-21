@@ -35,4 +35,10 @@ describe("channel dialog", () => {
     await saveDialog(db, "12", "worker", { step: "report" });
     expect(await loadDialog(db, "12", "worker", "other", "session-2")).toEqual({});
   });
+ it('drops a form when leaving its scenario, without touching the other bot',async()=>{
+  const db=database();await loadDialog(db,'12','worker','p',null,'staff-requests');
+  await saveDialog(db,'12','worker',{scenario:'staff-requests',form:{secret:'draft'}});
+  expect(await loadDialog(db,'12','worker','p',null,'notifications')).toEqual({scenario:'notifications'});
+ });
+
 });

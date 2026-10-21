@@ -24,6 +24,6 @@ describe("меню симулятора", () => {
   it("для заданий показывает меню бота сотрудников", () => {
     const reply = withSimulatorMenu("Ответ", "tasks", "ru", EMPTY_TEMPLATE_STORE);
     if (typeof reply === "string") throw new Error("Ожидалось меню");
-    expect(reply.menu?.flat().map(button => button.data)).toEqual(["/tasks", "/help"]);
+    expect(reply.menu?.flat().map(button => button.data)).toEqual(["/tasks", "/staffrequests", "/notifications", "/help"]);
   });
 });

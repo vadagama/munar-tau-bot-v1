@@ -108,11 +108,12 @@ export function entryMarkup(
   kind: "request" | "task",
   number: string,
   lang: Lang,
+  bot: "resident" | "worker" = "resident",
 ): unknown {
   const label = kind === "request"
     ? pick(lang, "Открыть обращение", "Өтінішті ашу")
     : pick(lang, "Открыть задание", "Тапсырманы ашу");
   return inlineMarkup([[
-    btn(label, `${kind === "request" ? "/request" : "/task"} ${number}`),
+    btn(label, `${kind === "request" ? bot === "worker" ? "/staffrequest" : "/request" : "/task"} ${number}`),
   ]]);
 }

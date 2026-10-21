@@ -9,6 +9,7 @@ export async function loadDialog(
   bot: BotKind,
   profileId: string | null,
   contextId: string | null = null,
+  scenario?: string,
 ): Promise<Row> {
   await exec.query(
     `insert into bot_dialog_channel(telegram_user_id,profile_id,bot,context_id)
@@ -19,7 +20,13 @@ export async function loadDialog(
      profile_id=excluded.profile_id,context_id=excluded.context_id,format_version=1`,
     [telegramId, profileId, bot, contextId],
   );
-  return readDialog(exec, telegramId, bot);
+  const state = await readDialog(exec, telegramId, bot);
+  if (scenario) {
+    if (state.scenario && state.scenario !== scenario) for (const key of Object.keys(state)) delete state[key];
+    state.scenario = scenario;
+    await saveDialog(exec,telegramId,bot,state);
+  }
+  return state;
 }
 
 export async function readDialog(exec: DbExecutor, telegramId: string, bot: BotKind): Promise<Row> {

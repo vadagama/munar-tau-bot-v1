@@ -48,6 +48,8 @@ const WORKER_COMMANDS_RU: BotCommand[] = [
   { command: "start", description: "🚀 Запуск и главное меню" },
   { command: "help", description: "❓ Справка по всем командам" },
   { command: "tasks", description: "🗂 Мои задания" },
+  { command:"staffrequests",description:"📬 Обращения" },
+  { command:"notifications",description:"⚙️ Уведомления и язык" },
   { command: "task", description: "🔎 Открыть задание по номеру" },
 ];
 
@@ -55,6 +57,8 @@ const WORKER_COMMANDS_KK: BotCommand[] = [
   { command: "start", description: "🚀 Іске қосу және басты мәзір" },
   { command: "help", description: "❓ Барлық командалар туралы анықтама" },
   { command: "tasks", description: "🗂 Менің тапсырмаларым" },
+  { command:"staffrequests",description:"📬 Өтініштер" },
+  { command:"notifications",description:"⚙️ Хабарламалар мен тіл" },
   { command: "task", description: "🔎 Тапсырманы нөмір бойынша ашу" },
 ];
 

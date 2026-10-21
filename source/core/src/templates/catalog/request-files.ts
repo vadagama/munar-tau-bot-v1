@@ -6,8 +6,8 @@ export const request_filesTemplates: readonly TemplateDef[] = [
     "title": "Откройте задание: /task НОМЕР, затем отправьте файл.",
     "description": "Реплика request-files",
     "variables": [],
-    "ru": "Откройте задание: /task НОМЕР, затем отправьте файл.",
-    "kk": "Тапсырманы ашыңыз: /task НӨМІР, сонан кейін файлды жіберіңіз.",
+    "ru": "Сначала откройте задание, затем отправьте файл.",
+    "kk": "Алдымен тапсырманы ашып, файлды жіберіңіз.",
   },
   {
     "key":
@@ -18,8 +18,8 @@ export const request_filesTemplates: readonly TemplateDef[] = [
     "description": "Реплика request-files",
     "variables": [],
     "ru":
-      "Сначала создайте или откройте обращение: /newrequest, /request НОМЕР.",
-    "kk": "Алдымен өтінішті ашыңыз: /newrequest, /request НӨМІР.",
+      "Сначала откройте обращение.",
+    "kk": "Алдымен өтінішті ашыңыз.",
   },
   {
     "key": "requests.etot_vid_fayla_ne_podderzhivaetsya_otpravte_dokumentom",
@@ -38,9 +38,9 @@ export const request_filesTemplates: readonly TemplateDef[] = [
     "description": "Реплика request-files",
     "variables": [],
     "ru":
-      "Файл задания принят в очередь. Дождитесь сообщения о сохранении, затем /taskfiles.",
+      "Файл задания принят в очередь. Дождитесь сообщения о сохранении.",
     "kk":
-      "Файл кезекте. Сақталғаны туралы хабарламаны күтіңіз, содан кейін /taskfiles.",
+      "Тапсырма файлы кезекке қабылданды. Сақталу туралы хабарламаны күтіңіз.",
   },
   {
     "key": "requests.fayl_prinyat_v_ochered_poka_ne_sohranen",
@@ -50,8 +50,8 @@ export const request_filesTemplates: readonly TemplateDef[] = [
     "description": "Реплика request-files",
     "variables": [],
     "ru":
-      "Файл принят в очередь, пока не сохранён. Обращение можно отправить независимо: /sendrequest.",
+      "Файл принят в очередь, пока не сохранён. Обращение можно отправить независимо.",
     "kk":
-      "Файл кезекте, әлі сақталмады. Өтінішті /sendrequest арқылы жібере аласыз.",
+      "Файл кезекке қабылданды, әлі сақталған жоқ. Өтінішті бөлек жіберуге болады.",
   },
 ];

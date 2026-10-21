@@ -1,3 +1,6 @@
+import { visitFlow, VISIT_COMMANDS } from "./visits.ts";
+import { inputFormReply, type BotInput } from "./input-form.ts";
+import { parseVisitWhen } from "./visit-time.ts";
 import { loadDialog, saveDialog } from "./dialog.ts";
 import { BotTemplateError } from "./bot-errors.ts";
 import { message, messageButton, safeBlock } from "../templates/message.ts";
@@ -25,6 +28,8 @@ import { submitTaskReport } from "../domains/tasks/reports.ts";
 import { TASK_STATE_TEXT } from "../locales/tasks.ts";
 import { type BotReply, btn, type InlineButton } from "./keyboard.ts";
 export const TASK_COMMANDS = [
+  ...VISIT_COMMANDS,
+  "/taskinput", "/taskevidence",
   "/pausetask",
   "/problem",
   "/tasks",
@@ -66,15 +71,14 @@ function taskButtons(
     case "awaiting_acceptance":
       return [[
         btn(messageButton(store, lang, key, "accept"), `/accepttask ${n}`),
+        btn(messageButton(store,lang,"bot.controls","decline"),`/declinetask ${n}`),
       ]];
     case "accepted":
       return [[
         btn(messageButton(store, lang, key, "start"), `/starttask ${n}`),
       ]];
     case "suspended":
-      return [[
-        btn(messageButton(store, lang, key, "resume"), `/starttask ${n}`),
-      ]];
+      return [];
     case "rework":
       return [[
         btn(messageButton(store, lang, key, "continue"), `/starttask ${n}`),
@@ -82,7 +86,8 @@ function taskButtons(
     case "in_progress":
       return [[
         btn(messageButton(store, lang, key, "report"), `/reporttask ${n}`),
-      ]];
+        btn(messageButton(store,lang,"bot.controls","pause"),`/pausetask ${n}`),
+      ],[btn(messageButton(store,lang,"bot.controls","problem"),`/problem ${n}`),btn(messageButton(store,lang,"bot.controls","files"),"/taskfiles")]];
     default:
       return [];
   }
@@ -108,10 +113,17 @@ export async function taskStep(
     if (!actor) throw new ApiError("FORBIDDEN");
     const L = actor.profile.language;
     const bot = deps.bot ?? "worker";
-    const state = await loadDialog(exec, telegramId, bot, actor?.profile.id ?? null, actor?.emulation?.sessionId ?? null);
+    const state = await loadDialog(exec, telegramId, bot, actor?.profile.id ?? null, actor?.emulation?.sessionId ?? null, "tasks");
     const save = async (reply: BotReply) => {
       state.scenario = "tasks";
       await saveDialog(exec, telegramId, bot, state);
+      const report=state.report as Row|undefined;
+      if(report?.step==='limitations')return {...(typeof reply==='string'?{text:reply}:reply),buttons:[[btn(messageButton(deps.templates,L,'bot.controls','none'),'нет')]]};
+      if(report?.step==='evidence'&&state.task_id){
+        const task=await getTask(d,actor,String(state.task_id));
+        const files=(task.pending_files??[]) as Row[];
+        return {...(typeof reply==='string'?{text:reply}:reply),buttons:[...files.flatMap((file,i)=>file.status==='complete'?[[btn(String(file.filename),String(i+1))]]:[]),[btn(messageButton(deps.templates,L,'bot.controls','no_evidence'),'/taskevidence')]]};
+      }
       return reply;
     };
     const [command, number, ...args] = input.trim().split(/\s+/);
@@ -134,6 +146,26 @@ export async function taskStep(
       if (!t) throw new ApiError("NOT_FOUND");
       return getTask(d, actor, t.id);
     };
+    if(VISIT_COMMANDS.includes(command??'')){delete state.report;delete state.input_form;}
+    const visitReply=await visitFlow(d,actor,state,input,true);
+    if(visitReply)return save(visitReply);
+    const pending = state.input_form as BotInput | undefined;
+    if (command === "/taskinput" && pending) {
+      if (number !== pending.token || pending.index !== pending.fields.length) throw new ApiError("VALIDATION_FAILED");
+      const t = await getTask(d,actor,pending.object_id);
+      if (pending.command === "/problem") await reportProblem(d,actor,pending.object_id,{location:pending.values[0],description:pending.values[1],attachment_ids:pending.attachment_ids??[]},`worker:input:${pending.token}`);
+      else await transitionTask(d,actor,pending.object_id,{action:pending.command === "/declinetask"?"decline":"request_pause",version:pending.version,reason:pending.values[0]},`worker:input:${pending.token}`);
+      delete state.input_form;
+      return taskStep(d,telegramId,`/task ${t.number}`,actor);
+    }
+    if (pending && !input.startsWith("/")) {
+      if (pending.index < pending.fields.length) {
+        if (!input.trim() || input.length>10000) throw new ApiError("VALIDATION_FAILED");
+        pending.values.push(input.trim()); pending.index++;
+      }
+      return save(inputFormReply(pending,L,deps.templates));
+    }
+    if (["/task","/tasks","/reporttask"].includes(command??"")) delete state.input_form;
     if (command === "/registration") {
       await saveDialog(exec, telegramId, bot, {});
       return registrationStep(d, telegramId, "/registration");
@@ -189,7 +221,7 @@ export async function taskStep(
           ),
           due_at: fmtDate(t.due_at),
         }),
-        buttons: taskButtons(t, L, deps.templates, cardKey),
+        buttons: [...taskButtons(t, L, deps.templates, cardKey),[btn(messageButton(deps.templates,L,"bot.controls","visits"),`/taskvisits ${t.number}`),btn(messageButton(deps.templates,L,"bot.controls","emergency"),`/danger ${t.number}`)]],
       });
     }
     const action = ({
@@ -200,6 +232,12 @@ export async function taskStep(
     } as Record<string, string>)[command ?? ""];
     if (action) {
       const t = await find();
+      delete state.report;delete state.input_form;
+      if (["decline","request_pause"].includes(action) && !args.length) {
+        state.task_id=t.id;
+        state.input_form={token:crypto.randomUUID(),command:command!,object_id:String(t.id),number:String(t.number),version:Number(t.version),title:messageButton(deps.templates,L,"bot.controls",action==='decline'?'decline':'pause'),fields:['reason'],values:[],index:0,confirm_command:'/taskinput',cancel_command:`/task ${t.number}`} satisfies BotInput;
+        return save(inputFormReply(state.input_form as BotInput,L,deps.templates));
+      }
       const changed = await transitionTask(d, actor, String(t.id), {
         action,
         version: t.version,
@@ -225,6 +263,7 @@ export async function taskStep(
       }
       state.task_id = t.id;
       state.report = {
+        task_id:t.id,token:crypto.randomUUID(),
         version: t.version,
         evidence: [],
         step: "performed_work",
@@ -235,6 +274,12 @@ export async function taskStep(
     }
     if (command === "/problem") {
       const t = await find();
+      delete state.report;delete state.input_form;
+      if (!args.length) {
+        state.task_id=t.id;
+        state.input_form={token:crypto.randomUUID(),command:command!,object_id:String(t.id),number:String(t.number),version:Number(t.version),title:messageButton(deps.templates,L,"bot.controls","problem"),fields:['location','problem'],values:[],index:0,confirm_command:'/taskinput',cancel_command:`/task ${t.number}`} satisfies BotInput;
+        return save(inputFormReply(state.input_form as BotInput,L,deps.templates));
+      }
       const [location, description, numbers] = args.join(" ").split("|").map(
         (x) => x.trim(),
       );
@@ -265,6 +310,7 @@ export async function taskStep(
           message(deps.templates, L, "tasks.snachala_otkroyte_zadanie"),
         );
       }
+      if(report?.task_id && report.task_id!==state.task_id)throw new ApiError("VALIDATION_FAILED");
       return getTask(d, actor, state.task_id);
     };
     const filesText = (t: Row) =>
@@ -285,7 +331,7 @@ export async function taskStep(
       );
     }
     if (command === "/submitreport") {
-      if (!report || report.step !== "ready") {
+      if (!report || report.step !== "ready" || (report.task_id && report.task_id!==state.task_id) || (number && report.token!==number)) {
         throw new BotTemplateError(
           "VALIDATION_FAILED",
           message(deps.templates, L, "tasks.zapolnite_otchet_reporttask_nomer"),
@@ -315,6 +361,10 @@ export async function taskStep(
         ),
       });
     }
+    if(command==='/taskevidence'&&report?.step==='evidence') {
+      report.step='evidence_missing'; return save(message(deps.templates,L,'bot.reason'));
+    }
+    if(report?.step==='evidence_missing'&&!input.startsWith('/')) { report.step='evidence'; input='нет '+input; }
     if (report && !input.startsWith("/")) {
       const t = await current();
       if (!t.can_execute || t.state !== "in_progress") {
@@ -337,7 +387,8 @@ export async function taskStep(
         );
       }
       if (report.step === "performed_at") {
-        if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(input)) {
+        const date=parseVisitWhen(input);
+        if (!date) {
           return save(
             message(
               deps.templates,
@@ -346,7 +397,7 @@ export async function taskStep(
             ),
           );
         }
-        report.performed_at = input.replace(" ", "T") + ":00+05:00";
+        report.performed_at = date.start;
         report.step = "result";
         return save(message(deps.templates, L, "tasks.opishite_rezultat"));
       }
@@ -416,7 +467,7 @@ export async function taskStep(
               "tasks.otchet_podgotovlen_submitreport_otpravit_na_proverku",
               "submit",
             ),
-            "/submitreport",
+            `/submitreport ${report.token??""}`.trim(),
           ),
         ]],
       });

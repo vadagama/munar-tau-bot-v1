@@ -828,8 +828,8 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
     const h = harness();
     const reply = await registrationStep(h.deps, "100", "/start");
     const text = replyText(reply);
-    expect(text).toContain("/register");
-    expect(text).toContain("/help");
+    expect(text).toContain("зарегистрироваться");
+    expect(text).not.toContain("/help");
     // Полная справка остаётся на /help: там раздел «Обращения».
     expect(text).not.toContain("Доступы собственника");
   });
@@ -837,7 +837,7 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
   it("/help — полная справка", async () => {
     const h = harness();
     expect(replyText(await registrationStep(h.deps, "100", "/help"))).toContain(
-      "Доступы собственника",
+      "Регистрация, помещения, обращения и уведомления.",
     );
   });
 

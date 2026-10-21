@@ -123,8 +123,8 @@ describe("processInbound: callback_query (срез UX B)", () => {
     expect(bot).toBe("resident");
     // Меню главных действий прикрепляется к /help — как и для текста команды;
     // подписи кнопок — с иконками (map в help.ts резолвит их в команды).
-    const parsed = JSON.parse(markup!) as { keyboard: { text: string }[][] };
-    expect(parsed.keyboard.flat().map((b) => b.text)).toContain("🆕 Новое обращение");
+    const parsed = JSON.parse(markup!) as { inline_keyboard: { text: string;callback_data:string }[][] };
+    expect(parsed.inline_keyboard.flat().map((b) => b.callback_data)).toContain("/newrequest");
   });
 
   it("кнопка reply-меню исполняется как её команда («Мои помещения» → /objects)", async () => {
@@ -158,7 +158,7 @@ describe("processInbound: callback_query (срез UX B)", () => {
     expect(h.notifications.length).toBe(1);
     expect(h.notifications[0]!.params![1]).toContain("Недостаточно прав");
     // Меню на команду /requests не прикрепляется — разметки нет.
-    expect(h.notifications[0]!.params![4]).toBeNull();
+    expect(JSON.parse(String(h.notifications[0]!.params![4])).inline_keyboard.flat().some((b:{callback_data:string})=>b.callback_data==="/register")).toBe(true);
   });
 
   it("обычное сообщение без команды-меню уходит без разметки", async () => {
@@ -174,7 +174,7 @@ describe("processInbound: callback_query (срез UX B)", () => {
     expect(await processInbound(h.deps, update, "resident")).toBe(true);
     expect(h.notifications.length).toBe(1);
     expect(h.notifications[0]!.params![1]).toContain("Анкет пока нет");
-    expect(h.notifications[0]!.params![4]).toBeNull();
+    expect(JSON.parse(String(h.notifications[0]!.params![4])).inline_keyboard.flat().some((b:{callback_data:string})=>b.callback_data==="/register")).toBe(true);
   });
 
   it("повторная доставка update не отвечает второй раз (дедуп по паре bot+update_id)", async () => {
@@ -239,7 +239,7 @@ describe("processInbound: команды не глотаются активны�
     expect(await processInbound(h.deps, textUpdate(12, "/cancel"), "resident")).toBe(true);
     expect(replyOf(h)).toContain("ОСИ ЖК «Мунар Тау»");
     // Анкета сохраняет копию состояния — проверяем сохранённое, а не ссылку.
-    const saved = JSON.parse(h.dialogSaves[0]!.params![1] as string) as Row;
+    const saved = JSON.parse(h.dialogSaves.at(-1)!.params![1] as string) as Row;
     expect(saved).toEqual({});
   });
 
@@ -304,7 +304,7 @@ describe("processInbound: маршрутизация инцидентов и п�
   it("/emergency без аргументов отвечает подсказкой даже без профиля", async () => {
     const h = harness();
     expect(await processInbound(h.deps, textUpdate(31, "/emergency"), "resident")).toBe(true);
-    expect(replyOf(h)).toContain("/emergency");
+    expect(replyOf(h)).toContain("Укажите код дома");
   });
 
   it("/signals доступен в боте сотрудников (дежурство)", async () => {
