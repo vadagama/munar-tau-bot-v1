@@ -97,3 +97,13 @@ it("показывает форматирование ответа вместо 
   expect((await screen.findByText("З-26-00011")).tagName).toBe("STRONG");
   expect(screen.getByText("Вы: <b>Мой текст</b>")).toBeInTheDocument();
 });
+
+it("открывает номер обращения своей служебной ссылкой в текущем симуляторе",async()=>{
+ const id='00000000-0000-4000-8000-000000000001';
+ vi.mocked(apiFetch).mockResolvedValueOnce({reply:`<a href="https://t.me/munar_tau_worker_bot?start=sreq_${id}">З-26-1</a>`}).mockResolvedValueOnce({reply:'Карточка обращения'});
+ render(<RegistrationSimulator active />);
+ fireEvent.click(screen.getByRole('button',{name:'Начать анкету'}));
+ fireEvent.click(await screen.findByRole('link',{name:'З-26-1'}));
+ await waitFor(()=>expect(apiFetch).toHaveBeenLastCalledWith('/v1/emulation/simulate',{method:'POST',body:{scenario:'staff-requests',input:`/start sreq_${id}`}}));
+ expect(await screen.findByText('Карточка обращения')).toBeInTheDocument();
+});

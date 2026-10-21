@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, expect, it } from "vitest";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
 import { TelegramText } from "./telegram-text";
 afterEach(cleanup);
 it("форматирует номер обращения и сохраняет текст и переносы ответа", () => {
@@ -43,4 +43,11 @@ it("при некорректной разметке безопасно сохр
 it("не принимает имена свойств прототипа за разрешённые теги", () => {
   const { container } = render(<TelegramText text={'<constructor>Текст</constructor><toString>Ещё текст</toString>'} />);
   expect(container.textContent).toBe("ТекстЕщё текст");
+});
+
+it("routes own bot links internally while preserving ordinary links", () => {
+  const open = vi.fn().mockReturnValue(true);
+  render(<TelegramText text={'<a href="https://t.me/munar_tau_worker_bot?start=sreq_00000000-0000-4000-8000-000000000001">№123</a>'} onBotLink={open} />);
+  fireEvent.click(screen.getByRole('link',{name:'№123'}));
+  expect(open).toHaveBeenCalledWith('https://t.me/munar_tau_worker_bot?start=sreq_00000000-0000-4000-8000-000000000001');
 });
