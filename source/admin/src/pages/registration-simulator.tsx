@@ -61,32 +61,34 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
           />
         )}
         {error && <Alert showIcon type="error" message={error} />}
-        <Space wrap>
-          <Button
-            disabled={!active || busy}
-            onClick={() => void send("/register", "registration")}
-          >
-            Начать анкету
-          </Button>
-          <Button
-            disabled={!active || busy}
-            onClick={() => void send("/status", "registration")}
-          >
-            Статус
-          </Button>
-          <Button
-            disabled={!active || busy}
-            onClick={() => void send("/objects", "registration")}
-          >
-            Мои объекты
-          </Button>
-          <Button
-            disabled={!active || busy}
-            onClick={() => void send("/cancel")}
-          >
-            Отменить диалог
-          </Button>
-        </Space>
+        {scenario === "registration" && (
+          <Space wrap>
+            <Button
+              disabled={!active || busy}
+              onClick={() => void send("/register", "registration")}
+            >
+              Начать анкету
+            </Button>
+            <Button
+              disabled={!active || busy}
+              onClick={() => void send("/status", "registration")}
+            >
+              Статус
+            </Button>
+            <Button
+              disabled={!active || busy}
+              onClick={() => void send("/objects", "registration")}
+            >
+              Мои объекты
+            </Button>
+          </Space>
+        )}
+        <Button
+          disabled={!active || busy}
+          onClick={() => void send("/cancel")}
+        >
+          Отменить диалог
+        </Button>
         <div
           role="log"
           aria-live="polite"
