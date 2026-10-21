@@ -173,7 +173,7 @@ function queueFixture(dialogState: Row) {
         return Promise.resolve([] as T[]);
       if (sql.startsWith("select state from bot_dialog"))
         return Promise.resolve([{ state: dialog }] as T[]);
-      if (sql.startsWith("update bot_dialog set state=")) {
+      if (sql.startsWith("update bot_dialog_channel set state=")) {
         dialog = JSON.parse(String(params![1])) as Row;
         return Promise.resolve([] as T[]);
       }

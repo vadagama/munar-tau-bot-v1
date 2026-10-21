@@ -1,3 +1,4 @@
+import { loadDialog, saveDialog } from "./dialog.ts";
 import { withSimulatorMenu } from "./simulator-menu.ts";
 import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
@@ -125,23 +126,13 @@ export async function registrationStep(
   return deps.db.transaction(async (exec) => {
     const d = scopedDeps(deps, exec);
     const actor = providedActor ?? (await actorForTelegram(d, telegramId));
-    await exec.query(
-      "insert into bot_dialog(telegram_user_id,profile_id) values ($1,$2) on conflict do nothing",
-      [telegramId, actor?.profile.id ?? null],
-    );
-    const [dialog] = await exec.query<{ state: Row }>(
-      "select state from bot_dialog where telegram_user_id=$1 for update",
-      [telegramId],
-    );
-    const state = { ...jsonValue<Row>(dialog!.state) };
+    const bot = deps.bot ?? "resident";
+    const state = await loadDialog(exec, telegramId, bot, actor?.profile.id ?? null, actor?.emulation?.sessionId ?? null);
     // Язык подачи: выбранный в диалоге, иначе язык профиля, иначе русский.
     const L: Lang = langOf(state.language ?? actor?.profile.language);
     const help = () => registrationHelp(L, deps.templates);
     const save = async (reply: BotReply) => {
-      await exec.query(
-        "update bot_dialog set state=$2::text::jsonb,updated_at=now() where telegram_user_id=$1",
-        [telegramId, JSON.stringify(state)],
-      );
+      await saveDialog(exec, telegramId, bot, state);
       return reply;
     };
     const parts = input.trim().split(/\s+/),

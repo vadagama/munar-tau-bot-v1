@@ -40,6 +40,7 @@ export function botScenarios(deps: RegistryDeps) {
         : id === "incidents"
         ? incidentStep
         : taskStep;
+      d.bot = id === "tasks" ? "worker" : "resident";
       const templates = await loadTemplateStore(ctx.executor ?? deps.db);
       const reply = id === "tasks" && ["/help", "/start"].includes(input.trim())
         ? workerHelp(ctx.actor.profile.language, templates)

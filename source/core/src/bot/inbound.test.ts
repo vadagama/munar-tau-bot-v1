@@ -37,7 +37,7 @@ function harness(opts: { profile?: boolean } = {}) {
         notifications.push({ sql, params });
         return Promise.resolve([] as T[]);
       }
-      if (sql.startsWith("update bot_dialog set state")) {
+      if (sql.startsWith("update bot_dialog_channel set state")) {
         dialogSaves.push({ sql, params });
         return Promise.resolve([] as T[]);
       }

@@ -1,3 +1,4 @@
+import { loadDialog, saveDialog } from "./dialog.ts";
 import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
 import { t as templateText } from "../templates/store.ts";
@@ -14,7 +15,7 @@ import { registrationHelp } from "./help.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { ApiError } from "../errors/api.ts";
-import { jsonValue, type Row } from "../domains/registry/validation.ts";
+import { type Row } from "../domains/registry/validation.ts";
 import { actorForTelegram } from "./registration.ts";
 import { type BotReply, btn } from "./keyboard.ts";
 import {
@@ -113,20 +114,10 @@ export async function requestStep(
       throw new ApiError("FORBIDDEN");
     }
     const L = actor.profile.language;
-    await exec.query(
-      "insert into bot_dialog(telegram_user_id,profile_id) values ($1,$2) on conflict do nothing",
-      [telegramId, actor.profile.id],
-    );
-    const [dialog] = await exec.query<{ state: unknown }>(
-      "select state from bot_dialog where telegram_user_id=$1 for update",
-      [telegramId],
-    );
-    const state = jsonValue<Row>(dialog!.state);
+    const bot = deps.bot ?? "resident";
+    const state = await loadDialog(exec, telegramId, bot, actor?.profile.id ?? null, actor?.emulation?.sessionId ?? null);
     const save = async (reply: BotReply) => {
-      await exec.query(
-        "update bot_dialog set state=$2::text::jsonb,updated_at=now() where telegram_user_id=$1",
-        [telegramId, JSON.stringify(state)],
-      );
+      await saveDialog(exec, telegramId, bot, state);
       return reply;
     };
     const [command, number, ...args] = input.trim().split(/\s+/);

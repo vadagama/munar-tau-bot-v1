@@ -1,3 +1,4 @@
+import { loadDialog, saveDialog } from "./dialog.ts";
 import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
 import { t as templateText } from "../templates/store.ts";
@@ -18,7 +19,7 @@ import {
   listPublications,
 } from "../domains/publications/service.ts";
 import { publicationProblem } from "../domains/publications/problems.ts";
-import { jsonValue, type Row } from "../domains/registry/validation.ts";
+import { type Row } from "../domains/registry/validation.ts";
 import { type BotReply, btn } from "./keyboard.ts";
 export const INCIDENT_COMMANDS = [
   "/emergency",
@@ -285,11 +286,7 @@ async function incidentPlainStep(
     );
   }
   // Продолжение /workproblem: дом и описание одним сообщением.
-  const [dialog] = await deps.db.query<{ state: unknown }>(
-    "select state from bot_dialog where telegram_user_id=$1",
-    [telegramId],
-  );
-  const state = jsonValue<Row>(dialog?.state ?? {});
+  const state = await loadDialog(deps.db, telegramId, deps.bot ?? "resident", actor.profile.id, actor.emulation?.sessionId ?? null);
   if (
     state.scenario === "incidents" && typeof state.workproblem_id === "string"
   ) {
@@ -367,14 +364,9 @@ async function saveIncidentState(
   actor: Actor,
   state: Row,
 ): Promise<void> {
-  await deps.db.query(
-    "insert into bot_dialog(telegram_user_id,profile_id) values ($1,$2) on conflict do nothing",
-    [telegramId, actor.profile.id],
-  );
-  await deps.db.query(
-    "update bot_dialog set state=$2::text::jsonb,updated_at=now() where telegram_user_id=$1",
-    [telegramId, JSON.stringify(state)],
-  );
+  const bot = deps.bot ?? "resident";
+  await loadDialog(deps.db, telegramId, bot, actor.profile.id, actor.emulation?.sessionId ?? null);
+  await saveDialog(deps.db, telegramId, bot, state);
 }
 
 /**

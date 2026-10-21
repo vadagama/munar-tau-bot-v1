@@ -1,10 +1,10 @@
+import { loadDialog, saveDialog } from "./dialog.ts";
 import { templateNotice } from "../templates/notice.ts";
 import { t as templateText } from "../templates/store.ts";
 import { messageButton } from "../templates/message.ts";
 import { type BotReply, btn } from "./keyboard.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import type { Row } from "../domains/registry/validation.ts";
-import { jsonValue } from "../domains/registry/validation.ts";
 import { actorForTelegram } from "./registration.ts";
 import type { BotKind } from "./bots.ts";
 import {
@@ -28,11 +28,7 @@ export async function queueRequestFile(
   const actor = await actorForTelegram(deps, telegramId);
   if (!actor) throw new ApiError("FORBIDDEN");
   const L: Lang = actor.profile.language ?? "ru";
-  const [dialog] = await deps.db.query<{ state: unknown }>(
-    "select state from bot_dialog where telegram_user_id=$1",
-    [telegramId],
-  );
-  const state = dialog ? jsonValue<Row>(dialog.state) : {};
+  const state = await loadDialog(deps.db, telegramId, bot, actor.profile.id, actor.emulation?.sessionId ?? null);
   const taskFile = state.scenario === "tasks";
   const requestId = taskFile ? state.task_id : state.draft_id ?? state.request_id;
   if (!requestId) {
@@ -83,10 +79,7 @@ export async function queueRequestFile(
     )
   ) {
     state.step = "attachments";
-    await deps.db.query(
-      "update bot_dialog set state=$2::text::jsonb,updated_at=now() where telegram_user_id=$1",
-      [telegramId, JSON.stringify(state)],
-    );
+    await saveDialog(deps.db, telegramId, bot, state);
     return {
       text: templateText(deps.templates, L, "message.requests.attachments_more"),
       buttons: [[

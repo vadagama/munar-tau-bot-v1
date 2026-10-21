@@ -19,6 +19,7 @@ import {
 } from "./validation.ts";
 
 export interface RegistryDeps {
+  bot?: import("../../bot/bots.ts").BotKind;
   templates?: TemplateStore;
   db: DbClient;
   audit: AuditRepo;
