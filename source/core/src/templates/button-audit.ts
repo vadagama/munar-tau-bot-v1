@@ -10,11 +10,10 @@ export function auditButtonTemplates(store?: TemplateStore) {
     )
   ) {
     for (const language of ["ru", "kk"] as const) {
-      if (
-        /(^|[^<])\/[a-z][a-z_]{2,}(?:\s|$)/.test(
-          effectiveText(store, def, language),
-        )
-      ) {
+      const context = effectiveText(store, def, language)
+        .replace(/<[^>]+>/g, " ")
+        .replace(/https?:\/\/[^\s<>"']+/g, " ");
+      if (/(^|[^a-z0-9_])\/[a-z][a-z0-9_]{0,31}(?![a-z0-9_])/i.test(context)) {
         issues.push({
           key: def.key,
           language,
