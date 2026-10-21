@@ -15,9 +15,15 @@
 ## Решение
 
 Два бота с общим ядром: `resident` — бот жителей (`TELEGRAM_BOT_TOKEN`,
-`@munar_tau_bot`), `worker` — бот сотрудников (`TELEGRAM_WORKER_BOT_TOKEN`,
+`@munar_tau_user_bot`), `worker` — бот сотрудников (`TELEGRAM_WORKER_BOT_TOKEN`,
 `@munar_tau_worker_bot`). Бизнес-домены, PDP и аудит общие; разделяются только
 канал доставки и сценарии бота.
+
+> Примечание (22.10.2026): фактически созданный бот жителя имеет username
+> `@munar_tau_user_bot` (имя отображения — «Munar Tau Bot»); ранее документ
+> ошибочно называл `@munar_tau_bot`, такого аккаунта нет. Глубокие ссылки
+> списков обращений берут username из `TELEGRAM_BOT_USERNAME` с фолбэком
+> `munar_tau_user_bot` (см. `source/core/src/bot/request-text.ts`).
 
 - **Маршрут webhook** — по суффиксу пути: `/functions/v1/bot-webhook/resident`
   и `/functions/v1/bot-webhook/worker`. Базовый путь без суффикса продолжает
