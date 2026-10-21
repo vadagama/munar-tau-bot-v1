@@ -128,3 +128,47 @@ it("очистка очереди существующего здания отп
     method: "PATCH", body: expect.objectContaining({ code: "ДОМ-ИЗМЕНЁН", construction_phase: null }),
   })));
 });
+
+it("удаление помещения: подтверждение с последствиями, DELETE и перечитывание", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/premises")
+    ? [{ id: "p1", kind: "apartment", number: "1", status: "active" }] : [] }));
+  render(<RegistryPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
+  const popover = await screen.findByRole("tooltip");
+  expect(within(popover).getByText(/Удалятся связи, приглашения и анкеты помещения/)).toBeInTheDocument();
+  expect(within(popover).getByText(/Обращения сохранятся без привязки/)).toBeInTheDocument();
+  fireEvent.click(within(popover).getByRole("button", { name: "Удалить" }));
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registry/premises/p1", { method: "DELETE" }));
+  await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());
+});
+
+it("ошибка удаления помещения видна в общей ошибке страницы", async () => {
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => {
+    if (options?.method === "DELETE") throw new Error("У здания есть аварийные сигналы — удаление запрещено");
+    return { items: path.endsWith("/premises") ? [{ id: "p1", kind: "apartment", number: "1" }] : [] };
+  });
+  render(<RegistryPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
+  const popover = await screen.findByRole("tooltip");
+  fireEvent.click(within(popover).getByRole("button", { name: "Удалить" }));
+  expect(await screen.findByText("У здания есть аварийные сигналы — удаление запрещено")).toBeInTheDocument();
+});
+
+it("у зданий подтверждение предупреждает о каскаде и аварийных сигналах", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings")
+    ? [{ id: "b1", code: "ДОМ-1", construction_phase: 1 }] : [] }));
+  render(<RegistryPage />);
+  fireEvent.click(screen.getByRole("tab", { name: "Здания" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
+  const popover = await screen.findByRole("tooltip");
+  expect(within(popover).getByText(/Удалится дом вместе со всеми помещениями, связями, приглашениями и анкетами/)).toBeInTheDocument();
+  expect(within(popover).getByText(/недоступно при активных аварийных сигналах/)).toBeInTheDocument();
+});
+
+it("жители и сотрудники без кнопки удаления", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/persons")
+    ? [{ id: "n1", full_name: "Иван Петров", phone_e164: "+77010000000" }] : [] }));
+  render(<RegistryPage users="residents" />);
+  expect(await screen.findByText("Иван Петров")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Удалить" })).toBeNull();
+});

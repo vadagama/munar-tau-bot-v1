@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Popconfirm,
   Select,
   Space,
   Table,
@@ -77,6 +78,7 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
     [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Row | null | undefined>(undefined),
     [saving, setSaving] = useState(false),
+    [deleting, setDeleting] = useState<string | null>(null),
     [buildings, setBuildings] = useState<Row[]>([]),
     [premises, setPremises] = useState<Row[]>([]),
     [persons, setPersons] = useState<Row[]>([]);
@@ -191,6 +193,22 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
         : entity === "persons"
           ? ["full_name", "phone_e164", "comment"]
           : ["full_name", "kind", "number", "role", "basis", "status"];
+  const remove = async (row: Row) => {
+    try {
+      setDeleting(String(row.id));
+      setError(null);
+      await apiFetch(`/v1/registry/${entity}/${row.id}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      if (e instanceof Error) setError(e.message);
+    } finally {
+      setDeleting(null);
+    }
+  };
+  const canDelete = entity === "buildings" || entity === "premises";
+  const deleteHint = entity === "buildings"
+    ? "Удалится дом вместе со всеми помещениями, связями, приглашениями и анкетами. Обращения сохранятся без привязки. Удаление недоступно при активных аварийных сигналах."
+    : "Удалятся связи, приглашения и анкеты помещения. Обращения сохранятся без привязки.";
   const columns = [
     ...(users === "staff" ? [{ title: "Роли", dataIndex: "staff_roles", render: (roles: string[]) => roles.map(role => ROLE_LABELS[role] ?? role).join(", ") }] : []),
     ...keys.map((key) => ({
@@ -220,6 +238,18 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
             <Button onClick={() => void openRecovery(row)}>
               Восстановить Telegram
             </Button>
+          )}
+          {canDelete && (
+            <Popconfirm
+              title="Удалить без возможности восстановления?"
+              description={deleteHint}
+              okText="Удалить"
+              cancelText="Отмена"
+              okButtonProps={{ danger: true, loading: deleting === String(row.id) }}
+              onConfirm={() => void remove(row)}
+            >
+              <Button danger size="small">Удалить</Button>
+            </Popconfirm>
           )}
         </Space>
       ),
