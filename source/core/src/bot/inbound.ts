@@ -1,10 +1,12 @@
+import { navigationReply } from "./navigation.ts";
+import { STAFF_REQUEST_COMMANDS, staffRequestStep } from "./staff-requests.ts";
+import { readDialog, saveDialog } from "./dialog.ts";
 import { t as templateText } from "../templates/store.ts";
 import { loadTemplateStore } from "../templates/store.ts";
 import { TASK_COMMANDS, taskStep } from "./tasks.ts";
 import { queueRequestFile } from "./request-files.ts";
 import { REQUEST_COMMANDS, requestStep } from "./requests.ts";
 import { INCIDENT_COMMANDS, incidentStep } from "./incidents.ts";
-import { jsonValue } from "../domains/registry/validation.ts";
 import { ApiError } from "../errors/api.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { registrationStep } from "./registration.ts";
@@ -71,16 +73,20 @@ async function routeStep(
     );
   }
   if (bot === "worker") {
+    if (command === "/notifications") return notificationStep(deps,telegramId,text);
+    if (STAFF_REQUEST_COMMANDS.includes(command) ||
+      (command === "/start" && (startPayload?.startsWith("sreq_") || startPayload?.startsWith("stsk_"))) ||
+      (state.scenario === "staff-requests" && !isCommand)) {
+      return staffRequestStep(deps, telegramId, text);
+    }
     if (command === "/cancel") {
       // Сотрудник отменил сценарий; у жителя то же делает registrationStep.
-      await deps.db.query(
-        "update bot_dialog set state='{}'::text::jsonb,updated_at=now() where telegram_user_id=$1",
-        [telegramId],
-      );
+      await saveDialog(deps.db, telegramId, bot, {});
       return workerHelp(await profileLang(deps.db, telegramId), deps.templates);
     }
     // Справка и старт доступны из любого сценария — глобальные выходы.
     if (command === "/help" || command === "/start") {
+      await saveDialog(deps.db,telegramId,bot,{});
       return workerHelp(await profileLang(deps.db, telegramId), deps.templates);
     }
     // workerHelp() в fallback: язык профиля, а не всегда русский.
@@ -181,19 +187,15 @@ export async function processInbound(
           query: exec.query.bind(exec),
           transaction: <T>(fn: (e: typeof exec) => Promise<T>) => fn(exec),
         };
-        const [dialog] = await exec.query<{ state: unknown }>(
-          "select state from bot_dialog where telegram_user_id=$1",
-          [from.id],
-        );
-        const state = dialog ? jsonValue<Row>(dialog.state) : {};
+        const state = await readDialog(exec, String(from.id), bot);
         reply = await routeStep(
-          { ...deps, db, templates },
+          { ...deps, db, templates, bot },
           bot,
           String(from.id),
           { ...message, text },
           state,
           command,
-          `telegram:${update.update_id}`,
+          `telegram:${bot}:${update.update_id}`,
           update.update_id,
         );
       } catch (error) {
@@ -212,6 +214,8 @@ export async function processInbound(
           );
         } else throw error;
       }
+      const currentState = await readDialog(exec,String(from.id),bot);
+      reply = navigationReply(reply,String(currentState.scenario ?? (bot === "worker" ? "tasks" : "registration")),await profileLang(exec,String(from.id)),templates,text);
       // Reply-меню прикрепляется к справке: постоянная клавиатура ставится
       // один раз и остаётся, пока пользователь её не скроет. Кнопки — подписи
       // на языке профиля; их тексты резолвятся в команды в processInbound.

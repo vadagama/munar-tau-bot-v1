@@ -8,11 +8,11 @@ import { requireTask } from "./access.ts";
 import { createTaskInTransaction, dateInput } from "./service.ts";
 
 /** Задание, переход и outbox фиксируются вместе, включая защиту от повторов. */
-export async function startRequestWork(
-  deps: RegistryDeps, actor: Actor, id: string, input: Row, key: unknown,
+async function startWork(
+  deps: RegistryDeps, actor: Actor, id: string, input: Row, key: unknown, action: "start_work" | "plan_rework",
 ): Promise<Row> {
   return deps.db.transaction(exec => idempotent(
-    exec, actor, `requests/${id}/start-work`, key, input,
+    exec, actor, `requests/${id}/${action === "start_work" ? "start-work" : "plan-rework"}`, key, input,
     async () => {
       const request = await requireRequest(exec, actor, id, "request.manage", true);
       checkVersion(request.version, input.expected_version);
@@ -27,7 +27,7 @@ export async function startRequestWork(
       const task = await createTaskInTransaction(deps, exec, actor, {
         request_id: id,
         title: `Обращение ${request.number}`,
-        instruction: `${place?.label || "Общая территория"}\n\n${instruction}`,
+        instruction: `${place?.label || request.location_text || "Общая территория"}\n\n${instruction}`,
         assignee_person_id: assignee,
         due_at: due,
         is_required: true,
@@ -35,7 +35,7 @@ export async function startRequestWork(
       // Вопрос/жалоба с обязательным заданием тоже требует принятого результата.
       await exec.query("update request set work_execution_required=true where id=$1", [id]);
       const next = await transitionRequestInTransaction(deps, exec, actor, id, {
-        action: "start_work", expected_version: input.expected_version,
+        action, expected_version: input.expected_version,
         payload: { plan: instruction, task_id: task.id },
       });
       return { request: next, task };
@@ -45,4 +45,11 @@ export async function startRequestWork(
       await requireTask(exec, actor, String((response.task as Row).id), "task.manage");
     },
   ));
+}
+
+export function startRequestWork(deps: RegistryDeps, actor: Actor, id: string, input: Row, key: unknown) {
+  return startWork(deps,actor,id,input,key,"start_work");
+}
+export function planRequestRework(deps: RegistryDeps, actor: Actor, id: string, input: Row, key: unknown) {
+  return startWork(deps,actor,id,input,key,"plan_rework");
 }

@@ -1,3 +1,7 @@
+import { getTask } from "../domains/tasks/service.ts";
+import { getRequest } from "../domains/requests/service.ts";
+import { inputFormReply, type BotInput } from "./input-form.ts";
+import { loadDialog, saveDialog } from "./dialog.ts";
 import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
 import { t as templateText } from "../templates/store.ts";
@@ -18,9 +22,10 @@ import {
   listPublications,
 } from "../domains/publications/service.ts";
 import { publicationProblem } from "../domains/publications/problems.ts";
-import { jsonValue, type Row } from "../domains/registry/validation.ts";
+import { type Row } from "../domains/registry/validation.ts";
 import { type BotReply, btn } from "./keyboard.ts";
 export const INCIDENT_COMMANDS = [
+  "/signalinput", "/emergencyrequest",
   "/emergency",
   "/danger",
   "/incidents",
@@ -42,14 +47,44 @@ async function incidentPlainStep(
     actor = providedActor ?? await actorForTelegram(deps, telegramId),
     key = operationId ?? crypto.randomUUID(),
     L: "ru" | "kk" = actor?.profile.language ?? "ru";
+  const bot=deps.bot??'resident';
+  const dialog=await loadDialog(deps.db,telegramId,bot,actor?.profile.id??null,actor?.emulation?.sessionId??null,'incidents');
+  const save=async(reply:BotReply)=>{await saveDialog(deps.db,telegramId,bot,dialog);return reply;};
+  if(dialog.emergency_house&&!input.startsWith('/')) {
+    delete dialog.emergency_house;
+    await saveDialog(deps.db,telegramId,bot,dialog);
+    return incidentPlainStep(deps,telegramId,`/emergency ${input.trim()}`,providedActor,operationId);
+  }
+  const pending=dialog.signal_form as BotInput|undefined;
+  if(pending&&!input.startsWith('/')){
+    if(pending.index<pending.fields.length){if(!input.trim()||input.length>10000)throw new ApiError('VALIDATION_FAILED');pending.values.push(input.trim());pending.index++;}
+    return save(inputFormReply(pending,L,deps.templates));
+  }
+  if(command==='/signalinput'){
+    if(!actor||!pending||pending.token!==id||pending.index!==pending.fields.length)throw new ApiError('VALIDATION_FAILED');
+    const task=pending.command==='/danger';
+    const [house]=task?await deps.db.query<Row>('select id from building where code=$1',[pending.values[0]]):[{id:pending.building_id}];
+    if(!house?.id)throw new ApiError('NOT_FOUND');
+    const signal=await signalEmergency(deps,actor,{[pending.command==='/danger'?'task_id':'request_id']:pending.object_id,building_id:house.id,expected_version:pending.version,description:pending.values[task?1:0]},`signal:${pending.token}`);
+    delete dialog.signal_form;
+    return save(message(deps.templates,L,`messages.incidents.sent_${signal.contact.on_duty?'on':'off'}_${signal.contact.phone?'phone':'no_phone'}`,{phone:signal.contact.phone??''}));
+  }
+  if(command?.startsWith('/')){delete dialog.signal_form;delete dialog.workproblem_id;delete dialog.emergency_house;await saveDialog(deps.db,telegramId,bot,dialog);}
+  if((command==='/danger'||command==='/emergencyrequest')&&id&&!args.length){
+    if(!actor)throw new ApiError('FORBIDDEN');
+    const task=command==='/danger';
+    const [object]=await deps.db.query<Row>(`select id from ${task?'task':'request'} where number=$1 or id::text=lower($1)`,[id]);
+    if(!object)throw new ApiError('NOT_FOUND');
+    const current=task?await getTask(deps,actor,String(object.id)):await getRequest(deps,actor,String(object.id));
+    if(!task&&!current.building_id)throw new ApiError('VALIDATION_FAILED');
+    dialog.signal_form={token:crypto.randomUUID(),command,object_id:String(object.id),number:id,version:Number(current.version),building_id:current.building_id,title:messageButton(deps.templates,L,'bot.controls','emergency'),fields:task?['building','problem']:['problem'],values:[],index:0,confirm_command:'/signalinput',cancel_command:task?`/task ${id}`:`/request ${id}`} satisfies BotInput;
+    return save(inputFormReply(dialog.signal_form as BotInput,L,deps.templates));
+  }
   // Кнопки вместо UUID в тексте: callback_data — точная команда (лимит 64 байта).
   if (command === "/emergency" && !args.length) {
     if (!id) {
-      return templateText(
-        deps.templates,
-        L,
-        "incidents.opasnost_avariya_napishite_emergency_nomer_obrascheniya_chto",
-      );
+      dialog.emergency_house=true;
+      return save(templateText(deps.templates,L,"incidents.opasnost_avariya_napishite_emergency_nomer_obrascheniya_chto"));
     }
     const [building] = await deps.db.query<{ id: string }>(
       "select id from building where code=$1",
@@ -79,11 +114,11 @@ async function incidentPlainStep(
   if (command === "/incidents") {
     const items = await listIncidents(deps, actor);
     return items.length
-      ? message(deps.templates, L, "messages.incidents.list", {
+      ? {text:message(deps.templates, L, "messages.incidents.list", {
         items: safeBlock(
           items.map((r) => `${esc(r.number)}: ${esc(r.title)}`).join("\n"),
         ),
-      })
+      }),buttons:items.map(r=>[btn(`${r.number} · ${r.title}`,`/incident ${r.number}`)])}
       : templateText(deps.templates, L, "incidents.net_dostupnyh_avariy");
   }
   if (command === "/incident") {
@@ -285,11 +320,7 @@ async function incidentPlainStep(
     );
   }
   // Продолжение /workproblem: дом и описание одним сообщением.
-  const [dialog] = await deps.db.query<{ state: unknown }>(
-    "select state from bot_dialog where telegram_user_id=$1",
-    [telegramId],
-  );
-  const state = jsonValue<Row>(dialog?.state ?? {});
+  const state = await loadDialog(deps.db, telegramId, deps.bot ?? "resident", actor.profile.id, actor.emulation?.sessionId ?? null, "incidents");
   if (
     state.scenario === "incidents" && typeof state.workproblem_id === "string"
   ) {
@@ -367,14 +398,9 @@ async function saveIncidentState(
   actor: Actor,
   state: Row,
 ): Promise<void> {
-  await deps.db.query(
-    "insert into bot_dialog(telegram_user_id,profile_id) values ($1,$2) on conflict do nothing",
-    [telegramId, actor.profile.id],
-  );
-  await deps.db.query(
-    "update bot_dialog set state=$2::text::jsonb,updated_at=now() where telegram_user_id=$1",
-    [telegramId, JSON.stringify(state)],
-  );
+  const bot = deps.bot ?? "resident";
+  await loadDialog(deps.db, telegramId, bot, actor.profile.id, actor.emulation?.sessionId ?? null, "incidents");
+  await saveDialog(deps.db, telegramId, bot, state);
 }
 
 /**

@@ -105,8 +105,8 @@ export const requestsTemplates: readonly TemplateDef[] = [
     "title": "Сначала откройте /visits НОМЕР_ОБРАЩЕНИЯ",
     "description": "Реплика requests",
     "variables": [],
-    "ru": "Сначала откройте /visits НОМЕР_ОБРАЩЕНИЯ",
-    "kk": "Алдымен /visits НОМІР ашыңыз",
+    "ru": "Сначала откройте визиты из карточки обращения.",
+    "kk": "Алдымен өтініш карточкасынан келулерді ашыңыз.",
   },
   {
     "key": "requests.vizit_soglasovan",
@@ -151,8 +151,8 @@ export const requestsTemplates: readonly TemplateDef[] = [
     "title": "Личный черновик удалён. /newrequest",
     "description": "Реплика requests",
     "variables": [],
-    "ru": "Личный черновик удалён. /newrequest",
-    "kk": "Жеке жоба жойылды. /newrequest",
+    "ru": "Личный черновик удалён.",
+    "kk": "Жеке жоба жойылды.",
   },
   {
     "key": "requests.vvedite_novyy_tekst_chernovika",
@@ -355,8 +355,8 @@ export const requestsTemplates: readonly TemplateDef[] = [
     "title": "Выберите номер из списка. /objects",
     "description": "Реплика requests",
     "variables": [],
-    "ru": "Выберите номер из списка. /objects",
-    "kk": "Тізімнен нөмір таңдаңыз. /objects",
+    "ru": "Выберите помещение.",
+    "kk": "Үй-жайды таңдаңыз.",
   },
   {
     "key": "requests.opishite_problemu_svoimi_slovami_kategoriya_ne_nuzhna",
@@ -418,8 +418,8 @@ export const requestsTemplates: readonly TemplateDef[] = [
     "description": "Реплика requests",
     "variables": [],
     "ru":
-      "Черновик сохранён. Добавьте файлы или /sendrequest. /requestcancel — выйти без удаления.",
+      "Черновик сохранён. Можно прикрепить файлы.",
     "kk":
-      "Жоба сақталды. Файл қосыңыз немесе /sendrequest. /requestcancel — жобаны сақтап шығу.",
+      "Жоба сақталды. Файлдарды тіркеуге болады.",
   },
 ];

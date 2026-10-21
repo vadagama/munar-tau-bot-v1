@@ -1,3 +1,4 @@
+import { STAFF_REQUEST_COMMANDS } from "../../bot/staff-requests.ts";
 import { INCIDENT_COMMANDS } from "../../bot/incidents.ts";
 import { REQUEST_COMMANDS } from "../../bot/requests.ts";
 import { TASK_COMMANDS } from "../../bot/tasks.ts";
@@ -247,6 +248,7 @@ export async function endEmulation(
 }
 
 export interface SimulateResult {
+  bot?: "worker";
   scenarioId: string;
   reply: string;
   buttons?: InlineButton[][];
@@ -261,7 +263,7 @@ export interface SimulateResult {
 export async function simulate(
   deps: EmulationServiceDeps & { scenarios: ScenarioRegistry },
   actor: Actor,
-  input: { scenarioId: string; text?: string },
+  input: { scenarioId: string; text?: string; bot?: string },
 ): Promise<SimulateResult> {
   if (!actor.emulation) {
     throw new ApiError("VALIDATION_FAILED", "Симулятор доступен только в режиме эмуляции (HLD 10.8)");
@@ -273,12 +275,16 @@ export async function simulate(
   // Как в Telegram: команда выбирает сценарий, обычный ответ продолжает
   // выбранный. Иначе /register на шаге выбора помещения съедается как номер.
   const command = (input.text ?? "").trim().split(/\s+/)[0] ?? "";
+  if(input.bot && !['resident','worker'].includes(input.bot))throw new ApiError('VALIDATION_FAILED');
+  const bot=['tasks','staff-requests'].includes(selectedScenario)?'worker':['registration','requests'].includes(selectedScenario)?'resident':input.bot==='worker'?'worker':'resident';
   const scenarioId = !command.startsWith("/") ? selectedScenario
-    : REQUEST_COMMANDS.includes(command) ? "requests"
+    : STAFF_REQUEST_COMMANDS.includes(command) || (command==="/start" && /(?:sreq_|stsk_)/.test(input.text??"")) ? "staff-requests"
+    : bot==="worker" && TASK_COMMANDS.includes(command) ? "tasks"
+    : REQUEST_COMMANDS.includes(command) && bot!=="worker" ? "requests"
     : INCIDENT_COMMANDS.includes(command) ? "incidents"
     : TASK_COMMANDS.includes(command) ? "tasks"
     : command === "/notifications" ? "notifications"
-    : selectedScenario === "tasks" && ["/help", "/start"].includes(command) ? "tasks"
+    : bot==="worker" ? "tasks"
     : "registration";
   const scenario = deps.scenarios.get(scenarioId);
   if (!scenario) {
@@ -287,6 +293,7 @@ export async function simulate(
   return deps.tx.transaction(async (exec) => {
     const reply = await scenario.run(input.text ?? "", {
       actor,
+      bot,
       executor: exec,
       profileId: actor.profile.id,
       personId: actor.person.id,
@@ -298,6 +305,6 @@ export async function simulate(
       entityId: actor.emulation?.sessionId,
       meta: { scenario: scenarioId },
     }));
-    return { scenarioId, reply: replyText(reply), ...(typeof reply === "string" ? {} : { buttons: reply.buttons, menu: reply.menu }) };
+    return { scenarioId, ...(bot==='worker'?{bot}:{}), reply: replyText(reply), ...(typeof reply === "string" ? {} : { buttons: reply.buttons, menu: reply.menu }) };
   });
 }

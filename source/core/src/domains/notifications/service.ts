@@ -355,10 +355,10 @@ export async function dispatchNotices(
                           n.template,
                           "request",
                         ),
-                        `/request ${r.number}`,
+                        `${n.bot === "worker" ? "/staffrequest" : "/request"} ${r.number}`,
                       ),
                     ]])
-                    : entryMarkup("request", r.number, actor.profile.language);
+                    : entryMarkup("request", r.number, actor.profile.language, n.bot);
               }
             } else if (n.taskId) {
               const [t] = await exec.query<{ number: string }>(

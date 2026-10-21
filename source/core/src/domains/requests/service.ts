@@ -468,7 +468,7 @@ export async function getRequest(
       `select
       (select full_name from person where id=$3) author_name,
       (select concat_ws(', ',b.name,case p.kind when 'apartment' then 'квартира' when 'commercial' then 'коммерческое помещение' when 'parking_slot' then 'парковочное место' when 'storage' then 'кладовка' end,p.number) from building b left join premises p on p.id=$2 where b.id=$1) label,
-      exists(select 1 from connection where person_id=$3 and status='active' and ($2::uuid is null or premises_id=$2)) active_author,exists(select 1 from premises where id=$2 and kind='apartment') is_apartment`,
+      case when $2::uuid is null then exists(select 1 from profile pr join person n on n.id=pr.person_id where pr.person_id=$3 and pr.archived_at is null and n.status='active') else exists(select 1 from connection where person_id=$3 and status='active' and premises_id=$2) end active_author,exists(select 1 from premises where id=$2 and kind='apartment') is_apartment`,
       [row.building_id, row.premises_id, row.author_person_id],
     );
     row.author_name = place?.author_name ?? null;

@@ -520,10 +520,11 @@ async function handleEmulationSimulate(ctx: RouteContext): Promise<RouteResult> 
     actor,
     {
       scenarioId: requireString(body, "scenario"),
+      bot: optionalString(body,"bot"),
       text: optionalString(body, "input"),
     },
   );
-  return { body: { scenario_id: result.scenarioId, reply: result.reply, buttons: result.buttons, menu: result.menu } };
+  return { body: { scenario_id: result.scenarioId, bot:result.bot, reply: result.reply, buttons: result.buttons, menu: result.menu } };
 }
 
 // ── Таблица маршрутов VS-1 ─────────────────────────────────────────────────

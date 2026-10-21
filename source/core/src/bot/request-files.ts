@@ -1,10 +1,10 @@
+import { loadDialog, saveDialog } from "./dialog.ts";
 import { templateNotice } from "../templates/notice.ts";
 import { t as templateText } from "../templates/store.ts";
 import { messageButton } from "../templates/message.ts";
 import { type BotReply, btn } from "./keyboard.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import type { Row } from "../domains/registry/validation.ts";
-import { jsonValue } from "../domains/registry/validation.ts";
 import { actorForTelegram } from "./registration.ts";
 import type { BotKind } from "./bots.ts";
 import {
@@ -28,13 +28,19 @@ export async function queueRequestFile(
   const actor = await actorForTelegram(deps, telegramId);
   if (!actor) throw new ApiError("FORBIDDEN");
   const L: Lang = actor.profile.language ?? "ru";
-  const [dialog] = await deps.db.query<{ state: unknown }>(
-    "select state from bot_dialog where telegram_user_id=$1",
-    [telegramId],
-  );
-  const state = dialog ? jsonValue<Row>(dialog.state) : {};
+  const state = await loadDialog(deps.db, telegramId, bot, actor.profile.id, actor.emulation?.sessionId ?? null);
+  const textForm=(state.input_form??state.visit_form??state.visit_context??state.share_form) as Row|undefined;
+  if(textForm && (bot==='resident'||textForm.command!=='/problem')) return {text:templateText(deps.templates,L,'bot.text_only'),buttons:[[btn(messageButton(deps.templates,L,'bot.controls','back'),String(textForm.cancel_command??textForm.back??`/request ${textForm.request_id}`))]]};
   const taskFile = state.scenario === "tasks";
-  const requestId = taskFile ? state.task_id : state.draft_id ?? state.request_id;
+  const form = state.form as Row | undefined;
+  const staffCompose = bot === "worker" && state.scenario === "staff-requests" &&
+    form && ["answer", "note"].includes(String(form.action));
+  if (bot === "worker" && !taskFile && !staffCompose) {
+    return { text: templateText(deps.templates,L,"staff.open_compose"), buttons: [[btn(messageButton(deps.templates,L,"staff.controls","back"),"/staffrequests")]] };
+  }
+  if (textForm?.command==='/problem' && ((textForm.attachment_ids??[]) as unknown[]).length>=10)throw new ApiError('FILE_LIMIT');
+  if (staffCompose && (form!.attachment_ids as unknown[]).length >= 10) throw new ApiError("FILE_LIMIT");
+  const requestId = taskFile ? textForm?.command==='/problem'?textForm.object_id:state.task_id : state.draft_id ?? state.request_id;
   if (!requestId) {
     // У сотрудника файлы прикрепляются к открытому заданию (ADR-009).
     return bot === "worker"
@@ -57,9 +63,9 @@ export async function queueRequestFile(
     filename,
     size: item.file_size,
     mime,
-    bucket: taskFile ? "internal" : "resident",
+    bucket: taskFile ? "internal" : staffCompose ? String(form!.channel) : "resident",
   });
-  if (!taskFile && !state.draft_id) {
+  if (!taskFile && !staffCompose && !state.draft_id) {
     await addMessage(deps, actor, String(requestId), {
       text: typeof message.caption === "string" ? message.caption : "",
       attachments: [f.attachment_id],
@@ -71,6 +77,20 @@ export async function queueRequestFile(
     "insert into request_upload_job(attachment_id,telegram_file_id,person_id,bot) values ($1,$2,$3,$4) on conflict do nothing",
     [f.attachment_id, item.file_id, actor.person.id, bot],
   );
+  if (staffCompose) {
+    (form!.attachment_ids as string[]).push(String(f.attachment_id));
+    const values = form!.values as Row;
+    if (!values.text && typeof message.caption === "string") values.text = message.caption;
+    form!.step = (form!.fields as unknown[]).length;
+    await saveDialog(deps.db,telegramId,bot,state);
+    return { text: templateText(deps.templates,L,"staff.upload_queued"),
+      buttons: [[btn(messageButton(deps.templates,L,"staff.controls","next"),`/sr ${state.token} review`)]] };
+  }
+  if(taskFile&&textForm?.command==='/problem'){
+    textForm.attachment_ids=[...((textForm.attachment_ids??[]) as string[]),String(f.attachment_id)];
+    textForm.file_names=[...((textForm.file_names??[]) as string[]),filename];
+    await saveDialog(deps.db,telegramId,bot,state);
+  }
   if (taskFile) {
     return templateText(deps.templates, L, "requests.fayl_zadaniya_prinyat_v_ochered_dozhdites_soobscheniya");
   }
@@ -83,10 +103,7 @@ export async function queueRequestFile(
     )
   ) {
     state.step = "attachments";
-    await deps.db.query(
-      "update bot_dialog set state=$2::text::jsonb,updated_at=now() where telegram_user_id=$1",
-      [telegramId, JSON.stringify(state)],
-    );
+    await saveDialog(deps.db, telegramId, bot, state);
     return {
       text: templateText(deps.templates, L, "message.requests.attachments_more"),
       buttons: [[

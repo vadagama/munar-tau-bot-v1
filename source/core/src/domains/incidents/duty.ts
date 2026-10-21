@@ -177,6 +177,7 @@ export async function signalEmergency(
           !r.building_id ||
           ["closed", "canceled", "rejected", "draft"].includes(r.state)
         ) invalid("Нужно открытое обращение с объектом");
+        if(input.expected_version!==undefined)checkVersion(r.version,input.expected_version);
         building = r.building_id;
       } else if (input.task_id && !input.request_id) {
         const t = await requireTask(
@@ -186,6 +187,7 @@ export async function signalEmergency(
           "task.execute",
           true,
         );
+        if(input.expected_version!==undefined)checkVersion(t.version,input.expected_version);
         building = content(input.building_id);
         if (!t.building_ids.includes(building)) invalid("Объект вне задания");
       } else invalid("Укажите обращение или задание");

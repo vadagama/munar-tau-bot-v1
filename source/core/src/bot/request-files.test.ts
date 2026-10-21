@@ -173,7 +173,7 @@ function queueFixture(dialogState: Row) {
         return Promise.resolve([] as T[]);
       if (sql.startsWith("select state from bot_dialog"))
         return Promise.resolve([{ state: dialog }] as T[]);
-      if (sql.startsWith("update bot_dialog set state=")) {
+      if (sql.startsWith("update bot_dialog_channel set state=")) {
         dialog = JSON.parse(String(params![1])) as Row;
         return Promise.resolve([] as T[]);
       }
@@ -247,4 +247,19 @@ it("медиа вне файлового диалога отвечает пре�
   expect(replyText(reply)).toBe(
     templateText(undefined, "ru", "requests.fayl_prinyat_v_ochered_poka_ne_sohranen"),
   );
+});
+it.each(['input_form','visit_form','visit_context','share_form'])('media inside %s cannot publish to a previously opened request',async(formType)=>{
+ const f=queueFixture({scenario:'requests',request_id:'wrong-request',draft_id:'old-draft',[formType]:{command:'/say',object_id:'correct-request',number:'З-1',cancel_command:'/request З-1'}});
+ const query=vi.spyOn(f.deps.db,'query');
+ const reply=await queueRequestFile(f.deps,'100',{photo:[{file_id:'f',file_size:100}]},3);
+ expect(replyText(reply)).toContain('Введите текст сообщения');
+ expect(query.mock.calls.some(([sql])=>sql.startsWith('insert into attachment')||sql.startsWith('insert into message')||sql.startsWith('insert into request_upload_job'))).toBe(false);
+});
+
+it.each(['input_form','visit_form','visit_context'])('worker media inside %s cannot attach to an old task',async(formType)=>{
+ const f=queueFixture({scenario:'tasks',task_id:'wrong-task',[formType]:{command:'no_access',object_id:'correct-task',cancel_command:'/task З-2'}});
+ const query=vi.spyOn(f.deps.db,'query');
+ const reply=await queueRequestFile(f.deps,'100',{photo:[{file_id:'f',file_size:100}]},4,'worker');
+ expect(replyText(reply)).toContain('Введите текст сообщения');
+ expect(query.mock.calls.some(([sql])=>sql.startsWith('insert into attachment')||sql.startsWith('insert into request_upload_job'))).toBe(false);
 });

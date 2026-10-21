@@ -57,8 +57,8 @@ export function t(
   const def = getTemplate(key);
   if (!def) {
     return lang === "kk"
-      ? "Хабарлама қолжетімсіз. /help"
-      : "Сообщение недоступно. /help";
+      ? "Хабарлама қолжетімсіз."
+      : "Сообщение недоступно.";
   }
   return renderTemplate(effectiveText(store, def, lang), vars);
 }

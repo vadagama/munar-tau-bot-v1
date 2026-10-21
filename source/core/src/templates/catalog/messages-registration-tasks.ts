@@ -28,6 +28,12 @@ const taskButtons: MessageButton[] = [
   { id: "resume", ru: "Возобновить", kk: "Жалғастыру" },
   { id: "continue", ru: "Продолжить", kk: "Жалғастыру" },
   { id: "report", ru: "Заполнить отчёт", kk: "Есеп толтыру" },
+  { id:"decline",ru:"Не могу выполнить",kk:"Орындай алмаймын" },
+  { id:"pause",ru:"Запросить остановку",kk:"Тоқтатуды сұрау" },
+  { id:"problem",ru:"Сообщить о проблеме",kk:"Мәселе туралы хабарлау" },
+  { id:"files",ru:"Файлы",kk:"Файлдар" },
+  { id:"visits",ru:"Визиты",kk:"Келулер" },
+  {id:"emergency",ru:"Аварийная служба",kk:"Апаттық қызмет"},
 ];
 const values: Record<string, [string, string]> = {
   registrations: [
@@ -408,8 +414,8 @@ const defs: TemplateDef[] = [
     [R + "vyberite_zdanie"],
     (l) =>
       l === "kk"
-        ? "Үйіңіздің нөмірін жазыңыз (мысалы, 107/2).\n/cancel — артқа."
-        : "Напишите номер вашего дома (например, 107/2).\n/cancel — назад.",
+        ? "Үйіңіздің нөмірін жазыңыз (мысалы, 107/2)."
+        : "Напишите номер вашего дома (например, 107/2).",
     [],
   ),
   def(
@@ -703,13 +709,14 @@ const completeDefs = defs.flatMap((d) => {
     const actionKey = actionKeys[state];
     const ru = d.ru.replace(
       "{actions}",
-      actionKey ? "\n" + old(actionKey, "ru") : "",
+      state === "on_review" ? "\n" + old(actionKey!, "ru") : "",
     );
     const kk = d.kk.replace(
       "{actions}",
-      actionKey ? "\n" + old(actionKey, "kk") : "",
+      state === "on_review" ? "\n" + old(actionKey!, "kk") : "",
     );
-    const buttons = d.buttons?.filter((b) => b.id === stateButton[state]) ?? [];
+    const rows=state==='awaiting_acceptance'?[['accept','decline'],['visits','emergency']]:state==='in_progress'?[['report','pause'],['problem','files'],['visits','emergency']]:state==='suspended'?[['visits','emergency']]:[[stateButton[state]].filter((id):id is string=>!!id),['visits','emergency']].filter(row=>row.length);
+    const buttons = taskButtons.filter(b=>rows.flat().includes(b.id));
     return {
       ...d,
       key: d.key + (state ? "." + state : ""),
@@ -736,7 +743,7 @@ const completeDefs = defs.flatMap((d) => {
           ),
           state: TASK_STATE_TEXT[state]?.kk ?? e.kk.state ?? "",
         },
-        buttons: buttons.length ? [buttons.map((b) => ({ id: b.id }))] : [],
+        buttons: rows.map(row=>row.map(id=>({id}))),
       })),
     };
   });

@@ -1,3 +1,5 @@
+import { botUiTemplates } from "./bot-ui.ts";
+import { staffRequestTemplates } from "./staff-requests.ts";
 import { staffTemplates } from "./staff.ts";
 import { requestsMessageTemplates } from "./messages-requests.ts";
 import { registrationTasksMessageTemplates } from "./messages-registration-tasks.ts";
@@ -40,6 +42,8 @@ const legacyCatalog: readonly TemplateDef[] = [
   },
 ];
 const messages = [
+  ...staffRequestTemplates,
+  ...botUiTemplates,
   ...requestsMessageTemplates,
   ...registrationTasksMessageTemplates,
   ...otherMessageTemplates,

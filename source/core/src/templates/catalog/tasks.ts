@@ -140,8 +140,8 @@ export const tasksTemplates: readonly TemplateDef[] = [
     "title": "Сначала откройте /task НОМЕР",
     "description": "Реплика tasks",
     "variables": [],
-    "ru": "Сначала откройте /task НОМЕР",
-    "kk": "Алдымен /task НОМІР ашыңыз",
+    "ru": "Сначала откройте задание.",
+    "kk": "Алдымен тапсырманы ашыңыз.",
   },
   {
     "key": "tasks.vizit_ne_nayden",
@@ -215,8 +215,8 @@ export const tasksTemplates: readonly TemplateDef[] = [
     "title": "Заполните отчёт: /reporttask НОМЕР",
     "description": "Реплика tasks",
     "variables": [],
-    "ru": "Заполните отчёт: /reporttask НОМЕР",
-    "kk": "Есепті толтырыңыз: /reporttask НОМІР",
+    "ru": "Сначала заполните отчёт.",
+    "kk": "Алдымен есепті толтырыңыз.",
   },
   {
     "key": "tasks.vremya_vypolneniya_gggg_mm_dd_chch_mm",
@@ -226,9 +226,9 @@ export const tasksTemplates: readonly TemplateDef[] = [
     "description": "Реплика tasks",
     "variables": [],
     "ru":
-      "Время выполнения: ГГГГ-ММ-ДД ЧЧ:ММ (Алматы). Например 2026-10-17 15:30.",
+      "Укажите время выполнения: ДД.ММ.ГГГГ ЧЧ:ММ (Алматы).",
     "kk":
-      "Орындалу уақыты: ЖЖЖЖ-АА-КК СС:ММ (Алматы). Мысалы 2026-10-17 15:30.",
+      "Орындалған уақытты көрсетіңіз: КК.АА.ЖЖЖЖ СС:ММ (Алматы).",
   },
   {
     "key": "tasks.vvedite_vremya_v_formate_gggg_mm_dd",
@@ -236,8 +236,8 @@ export const tasksTemplates: readonly TemplateDef[] = [
     "title": "Введите время в формате ГГГГ-ММ-ДД ЧЧ:ММ",
     "description": "Реплика tasks",
     "variables": [],
-    "ru": "Введите время в формате ГГГГ-ММ-ДД ЧЧ:ММ",
-    "kk": "Уақытты ЖЖЖЖ-АА-КК СС:ММ форматында енгізіңіз",
+    "ru": "Укажите время: ДД.ММ.ГГГГ ЧЧ:ММ (Алматы).",
+    "kk": "Уақытты көрсетіңіз: КК.АА.ЖЖЖЖ СС:ММ (Алматы).",
   },
   {
     "key": "tasks.opishite_rezultat",
@@ -254,8 +254,8 @@ export const tasksTemplates: readonly TemplateDef[] = [
     "title": "Оставшиеся ограничения? Напишите «нет», если их нет.",
     "description": "Реплика tasks",
     "variables": [],
-    "ru": "Оставшиеся ограничения? Напишите «нет», если их нет.",
-    "kk": "Қалған шектеулер бар ма? Жоқ болса «жоқ» деп жазыңыз.",
+    "ru": "Опишите оставшиеся ограничения.",
+    "kk": "Қалған шектеулерді сипаттаңыз.",
   },
   {
     "key": "tasks.vyberite_nomera_sohranennyh_faylov_cherez_zapyatuyu_ili",
@@ -289,9 +289,9 @@ export const tasksTemplates: readonly TemplateDef[] = [
       },
     ],
     "ru":
-      "Доказательство {number_report_index_1} из {requirements_length}. Отправьте файл, дождитесь сохранения (/taskfiles), затем введите его номер. Если доказательства нет — нет причина.\n",
+      "Доказательство {number_report_index_1} из {requirements_length}. Прикрепите файл и дождитесь сохранения.\n",
     "kk":
-      "Дәлел {number_report_index_1} / {requirements_length}. Файл жіберіп, сақталуын күтіңіз (/taskfiles), содан кейін нөмірін жазыңыз. Дәлел жоқ болса — жоқ себеп.\n",
+      "Дәлел {number_report_index_1}, барлығы {requirements_length}. Файлды тіркеп, сақталуын күтіңіз.\n",
   },
   {
     "key": "tasks.otchet_podgotovlen_submitreport_otpravit_na_proverku",
@@ -299,7 +299,7 @@ export const tasksTemplates: readonly TemplateDef[] = [
     "title": "Отчёт подготовлен. /submitreport — отправить на проверку.",
     "description": "Реплика tasks",
     "variables": [],
-    "ru": "Отчёт подготовлен. /submitreport — отправить на проверку.",
-    "kk": "Есеп дайын. /submitreport — тексеруге жіберу.",
+    "ru": "Отчёт подготовлен. Проверьте данные перед отправкой.",
+    "kk": "Есеп дайын. Жібермес бұрын деректерді тексеріңіз.",
   },
 ];

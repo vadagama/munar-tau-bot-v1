@@ -1,3 +1,6 @@
+import { visitFlow, VISIT_COMMANDS } from "./visits.ts";
+import { inputFormReply, type BotInput } from "./input-form.ts";
+import { loadDialog, saveDialog } from "./dialog.ts";
 import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
 import { t as templateText } from "../templates/store.ts";
@@ -14,7 +17,7 @@ import { registrationHelp } from "./help.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { ApiError } from "../errors/api.ts";
-import { jsonValue, type Row } from "../domains/registry/validation.ts";
+import { type Row } from "../domains/registry/validation.ts";
 import { actorForTelegram } from "./registration.ts";
 import { type BotReply, btn } from "./keyboard.ts";
 import {
@@ -34,6 +37,8 @@ import {
 /** Полная справка по обращениям — только для /help (в реплики не вклеивается). */
 
 export const REQUEST_COMMANDS = [
+  ...VISIT_COMMANDS,
+  "/rinput", "/rskip", "/sharepick",
   "/result",
   "/newrequest",
   "/editrequest",
@@ -113,20 +118,10 @@ export async function requestStep(
       throw new ApiError("FORBIDDEN");
     }
     const L = actor.profile.language;
-    await exec.query(
-      "insert into bot_dialog(telegram_user_id,profile_id) values ($1,$2) on conflict do nothing",
-      [telegramId, actor.profile.id],
-    );
-    const [dialog] = await exec.query<{ state: unknown }>(
-      "select state from bot_dialog where telegram_user_id=$1 for update",
-      [telegramId],
-    );
-    const state = jsonValue<Row>(dialog!.state);
+    const bot = deps.bot ?? "resident";
+    const state = await loadDialog(exec, telegramId, bot, actor?.profile.id ?? null, actor?.emulation?.sessionId ?? null, "requests");
     const save = async (reply: BotReply) => {
-      await exec.query(
-        "update bot_dialog set state=$2::text::jsonb,updated_at=now() where telegram_user_id=$1",
-        [telegramId, JSON.stringify(state)],
-      );
+      await saveDialog(exec, telegramId, bot, state);
       return reply;
     };
     const [command, number, ...args] = input.trim().split(/\s+/);
@@ -152,8 +147,51 @@ export async function requestStep(
         [number],
       );
       if (!r) throw new ApiError("NOT_FOUND");
-      return getRequest(d, actor, r.id);
+      const current=await getRequest(d, actor, r.id);
+      state.request_id=current.id;delete state.draft_id;
+      await saveDialog(exec,telegramId,bot,state);
+      return current;
     };
+    if(input.startsWith('/')) {
+      if(!['/rinput','/rskip'].includes(command??''))delete state.input_form;
+      if(command!=='/sharepick')delete state.share_form;
+      await saveDialog(exec,telegramId,bot,state);
+    }
+    const visitReply=await visitFlow(d,actor,state,input,false);
+    if(visitReply)return save(visitReply);
+    const actions: Record<string,string> = {"/confirm":"confirm_result","/return":"return_result","/cancelrequest":"cancel_request","/appeal":"appeal_reject","/reopen":"reopen"};
+    const pending = state.input_form as BotInput | undefined;
+    if (command === "/rinput" && pending) {
+      if(number!==pending.token || pending.index!==pending.fields.length) throw new ApiError("VALIDATION_FAILED");
+      if(pending.command==='/say') await addMessage(d,actor,pending.object_id,{text:pending.values[0],channel:'resident',source:'bot'},`resident:input:${pending.token}`);
+      else if(pending.command==='/rate')await rateRequest(d,actor,pending.object_id,{value:pending.value,comment:pending.values[0]});
+      else await transitionRequest(d,actor,pending.object_id,{action:actions[pending.command],expected_version:pending.version,reason:pending.values[0]},`resident:input:${pending.token}`);
+      delete state.input_form;
+      return save(requestCardText(await getRequest(d,actor,pending.object_id),L,deps.templates));
+    }
+    if(command==='/rskip'&&pending?.command==='/rate'&&pending.index===0&&number===pending.token){pending.values=[''];pending.index=1;return save(inputFormReply(pending,L,deps.templates));}
+    if(pending && !input.startsWith('/')) {
+      if(pending.index<pending.fields.length) {
+        if(!input.trim()||input.length>10000)throw new ApiError('VALIDATION_FAILED');
+        pending.values.push(input.trim());pending.index++;
+      }
+      return save(inputFormReply(pending,L,deps.templates));
+    }
+    if(['/request','/requests','/newrequest','/requestcancel'].includes(command??'')) {delete state.input_form;delete state.share_form;}
+    if(command==='/sharepick') {
+      const form=state.share_form as Row|undefined;
+      const choice=(form?.choices as string[]|undefined)?.[Number(args[0])];
+      if(!form||number!==form.token||!choice)throw new ApiError('VALIDATION_FAILED');
+      await shareRequest(d,actor,String(form.request_id),choice,form.revoke===true);
+      delete state.share_form;
+      return save(requestCardText(await getRequest(d,actor,String(form.request_id)),L,deps.templates));
+    }
+    if(command && ['/say','/return','/cancelrequest','/appeal','/reopen'].includes(command)&&!args.length) {
+      const row=await find();
+      state.request_id=row.id;delete state.draft_id;delete state.step;
+      state.input_form={token:crypto.randomUUID(),command,object_id:String(row.id),number:String(row.number),version:Number(row.version),title:messageButton(deps.templates,L,'bot.controls',command.slice(1)),fields:[command==='/say'?'text':'reason'],values:[],index:0,confirm_command:'/rinput',cancel_command:`/request ${row.number}`} satisfies BotInput;
+      return save(inputFormReply(state.input_form as BotInput,L,deps.templates));
+    }
     if (command === "/result") {
       const r = await find(),
         snapshot = (r.confirmation as Row | undefined)?.payload as
@@ -175,7 +213,7 @@ export async function requestStep(
           "requests.rezultat_esche_ne_peredan",
         );
       }
-      return message(
+      return {text:message(
         deps.templates,
         L,
         index + 1 < reports.length
@@ -193,7 +231,7 @@ export async function requestStep(
             : safeBlock(templateText(deps.templates, L, "requests.net")),
           next_index: index + 2,
         },
-      );
+      ),buttons:[...(index+1<reports.length?[[btn(messageButton(deps.templates,L,'bot.controls','next'),`/result ${r.number} ${index+2}`)]]:[]),[btn(messageButton(deps.templates,L,'bot.controls','back'),`/request ${r.number}`)]]};
     }
     const places = async () =>
       exec.query<Row>(
@@ -546,6 +584,15 @@ export async function requestStep(
     }
     if (command === "/share" || command === "/unshare") {
       const row = await find();
+      if(!args.length) {
+        if(!row.can_share)throw new ApiError('FORBIDDEN');
+        const choices=command==='/unshare'
+          ? await exec.query<Row>("select n.id,n.full_name from request_participant p join person n on n.id=p.person_id where p.request_id=$1 and p.revoked_at is null and p.role='participant' order by n.full_name",[row.id])
+          : await exec.query<Row>("select distinct n.id,n.full_name from connection c join person n on n.id=c.person_id where c.premises_id=$1 and c.status='active' and n.status='active' and n.is_test=$2 and n.id<>$3 and exists(select 1 from profile p where p.person_id=n.id and p.archived_at is null) order by n.full_name",[row.premises_id,actor.person.isTest,actor.person.id]);
+        const token=crypto.randomUUID().slice(0,12);
+        state.share_form={token,request_id:row.id,choices:choices.map(c=>c.id),revoke:command==='/unshare'};
+        return save({text:message(deps.templates,L,'bot.select'),buttons:[...choices.map((c,i)=>[btn(String(c.full_name),`/sharepick ${token} ${i}`)]),[btn(messageButton(deps.templates,L,'bot.controls','back'),`/request ${row.number}`)]]});
+      }
       await shareRequest(
         d,
         actor,
@@ -557,19 +604,17 @@ export async function requestStep(
     }
     if (command === "/rate") {
       const row = await find();
+      if(args.length===1){
+        const value=Number(args[0]);if(!Number.isInteger(value)||value<1||value>5)throw new ApiError('VALIDATION_FAILED');
+        state.input_form={token:crypto.randomUUID(),command:'/rate',object_id:String(row.id),number:String(row.number),version:Number(row.version),value,title:messageButton(deps.templates,L,'bot.controls','rate')+` ${value}/5`,fields:['rating_comment'],values:[],index:0,confirm_command:'/rinput',cancel_command:`/request ${row.number}`} satisfies BotInput;
+        return save(inputFormReply(state.input_form as BotInput,L,deps.templates));
+      }
       await rateRequest(d, actor, String(row.id), {
         value: Number(args[0]),
         comment: args.slice(1).join(" "),
       });
       return templateText(deps.templates, L, "requests.otsenka_sohranena");
     }
-    const actions: Record<string, string> = {
-      "/confirm": "confirm_result",
-      "/return": "return_result",
-      "/cancelrequest": "cancel_request",
-      "/appeal": "appeal_reject",
-      "/reopen": "reopen",
-    };
     if (command && actions[command]) {
       const row = await find();
       await transitionRequest(d, actor, String(row.id), {

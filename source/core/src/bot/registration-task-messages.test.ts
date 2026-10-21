@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registrationStep } from "./registration.ts";
 import { taskStep } from "./tasks.ts";
-import { taskActions } from "./help.ts";
 import { TASK_STATE_TEXT } from "../locales/tasks.ts";
 import { replyText } from "./keyboard.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
@@ -174,12 +173,7 @@ describe("Полные сообщения регистрации и задани
     expect(replyText(result)).toBe(
       "<b>Свет</b>\n&lt;i&gt;Проверить&lt;/i&gt;\nСрок: 20.10.2026 15:00",
     );
-    expect(result).toMatchObject({
-      buttons: [[{
-        text: "Подготовить результат",
-        data: "/reporttask З-26-1",
-      }]],
-    });
+    expect(typeof result!=='string'&&result.buttons?.flat()).toContainEqual({text:"Подготовить результат",data:"/reporttask З-26-1"});
   });
   it.each([
     "awaiting_acceptance",
@@ -204,7 +198,7 @@ describe("Полные сообщения регистрации и задани
       expect(replyText(result)).toBe(
         `<b>З-26-1</b> — Свет\n${
           TASK_STATE_TEXT[state]?.ru
-        }\nПроверить\nСрок: 20.10.2026 15:00\n${taskActions(state, "ru")}`,
+        }\nПроверить\nСрок: 20.10.2026 15:00${state === "on_review" ? "\nОтчёт на проверке у администратора." : ""}`,
       );
       const preview = messagePreview(
         undefined,

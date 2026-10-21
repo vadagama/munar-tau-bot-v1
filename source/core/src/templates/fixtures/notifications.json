@@ -2,8 +2,8 @@
   {
     "key": "notifications.snachala_podtverdite_registratsiyu_register",
     "source": "notifications",
-    "ru": "Сначала подтвердите регистрацию: /register",
-    "kk": "Алдымен тіркелуді растаңыз: /register"
+    "ru": "Сначала подтвердите регистрацию.",
+    "kk": "Алдымен тіркелуді растаңыз."
   },
   {
     "key": "notifications.primer_izmeneniya_notifications_novosti_svodka_ru_vidy",

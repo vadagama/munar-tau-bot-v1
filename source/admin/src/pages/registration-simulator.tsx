@@ -4,14 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Card, Input, Space, Typography, Select } from "antd";
 import { apiFetch } from "../lib/api";
 interface SimulatorReply {
+  bot?: "worker";
   scenario_id?: string;
   reply: string;
   buttons?: InlineButton[][];
 }
 export function RegistrationSimulator({ active }: { active: boolean }) {
   const [scenario,setScenario]=useState("registration");
+  const [bot,setBot]=useState<"worker"|undefined>();
   const [input, setInput] = useState(""),
-    [history, setHistory] = useState<{ input: string; reply: string; buttons?: InlineButton[][]; scenario: string }[]>([]),
+    [history, setHistory] = useState<{ input: string; reply: string; buttons?: InlineButton[][]; scenario: string;bot?:"worker" }[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null);
   const latestMessage = useRef<HTMLDivElement>(null);
@@ -21,21 +23,22 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
     message.focus({ preventScroll: true });
     message.scrollIntoView({ block: "start", inline: "nearest" });
   }, [history.length]);
-  const send = async (text: string, targetScenario = scenario) => {
+  const send = async (text: string, targetScenario = scenario,targetBot=bot) => {
     if (!active || busy || !text.trim()) return;
     setBusy(true);
     setError(null);
     try {
       const result = await apiFetch<SimulatorReply>(
         "/v1/emulation/simulate",
-        { method: "POST", body: { scenario: targetScenario, input: text } },
+        { method: "POST", body: { scenario: targetScenario, input: text,...(targetBot&&!["registration","requests"].includes(targetScenario)?{bot:targetBot}:{}) } },
       );
       const resolvedScenario = result.scenario_id ?? targetScenario;
       setHistory((previous) => [
         ...previous,
-        { input: text, reply: result.reply, buttons: result.buttons, scenario: resolvedScenario },
+        { input: text, reply: result.reply, buttons: result.buttons, scenario: resolvedScenario,bot:result.bot },
       ]);
       setScenario(resolvedScenario);
+      setBot(result.bot);
       setInput("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка симулятора");
@@ -46,8 +49,9 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
   return (
     <Card title="Симулятор бота" style={{ marginBottom: 16 }}>
       <Space direction="vertical" style={{ width: "100%" }}>
-        <Select aria-label="Сценарий симулятора" value={scenario} onChange={setScenario} options={[{value:"registration",label:"Регистрация"},{value:"requests",label:"Обращения"},{value:"tasks",label:"Задания"},{value:"notifications",label:"Уведомления"},{value:"incidents",label:"Аварии и публикации"}]} />
+        <Select aria-label="Сценарий симулятора" value={scenario} onChange={setScenario} options={[{value:"registration",label:"Регистрация"},{value:"requests",label:"Обращения"},{value:"tasks",label:"Задания"},{value:"staff-requests",label:"Обращения сотрудников"},{value:"notifications",label:"Уведомления"},{value:"incidents",label:"Аварии и публикации"}]} />
         {scenario === "notifications" && <Button disabled={!active || busy} onClick={()=>void send("/notifications")}>Настройки уведомлений</Button>}
+        {scenario === "staff-requests" && <Button disabled={!active || busy} onClick={()=>void send("/staffrequests")}>Обращения сотрудников</Button>}
         {scenario === "tasks" && <Button disabled={!active || busy} onClick={()=>void send("/tasks")}>Мои задания</Button>}
         {scenario === "requests" && <Space wrap><Button disabled={!active || busy} onClick={()=>void send("/newrequest")}>Новое обращение</Button><Button disabled={!active || busy} onClick={()=>void send("/requests")}>Мои обращения</Button></Space>}
         {!active && (
@@ -109,13 +113,25 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
                   marginBottom: 0,
                 }}
               >
-                <TelegramText text={entry.reply} />
+                <TelegramText text={entry.reply} onBotLink={href => {
+                  try {
+                    const url = new URL(href), payload = url.searchParams.get("start") ?? "";
+                    const match = /^(sreq|stsk|req|wrk)_([0-9a-f-]{36})$/i.exec(payload);
+                    if (url.protocol !== "https:" || url.hostname !== "t.me" || url.username || url.password || !match) return false;
+                    const worker = ["sreq", "stsk", "wrk"].includes(match[1]!);
+                    if (url.pathname !== (worker ? "/munar_tau_worker_bot" : "/munar_tau_bot")) return false;
+                    const target = match[1] === "req" ? "requests" : match[1] === "wrk" ? "tasks" : "staff-requests";
+                    const command = match[1] === "req" ? `/request ${match[2]}` : match[1] === "wrk" ? `/task ${match[2]}` : `/start ${payload}`;
+                    void send(command, target);
+                    return true;
+                  } catch { return false; }
+                }} />
               </Typography.Paragraph>
               {entry.buttons?.map((row, rowIndex) => (
                 <Space key={rowIndex} wrap style={{ display: "flex", marginTop: 8 }}>
                   {row.map((button, buttonIndex) => (
                     <Button key={buttonIndex} disabled={!active || busy}
-                      onClick={() => void send(button.data, entry.scenario)}>{button.text}</Button>
+                      onClick={() => void send(button.data, entry.scenario,entry.bot)}>{button.text}</Button>
                   ))}
                 </Space>
               ))}

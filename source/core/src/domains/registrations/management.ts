@@ -199,6 +199,10 @@ export async function manageRegistration(
           "delete from bot_dialog where telegram_user_id=$1 or profile_id in (select id from profile where person_id=$2)",
           [row.telegram_user_id, row.person_id],
         );
+        await exec.query(
+          "delete from bot_dialog_channel where telegram_user_id=$1 or profile_id in (select id from profile where person_id=$2)",
+          [row.telegram_user_id, row.person_id],
+        );
         await recordAudit(
           deps,
           exec,
@@ -255,6 +259,7 @@ export async function withdrawUnconfirmedRegistration(
       "update notification set state='failed',last_error='REGISTRATION_DELETED' where telegram_user_id=$1 and state='queued'",
       [telegramId],
     );
+    await exec.query("delete from bot_dialog_channel where telegram_user_id=$1", [telegramId]);
     await exec.query("delete from bot_dialog where telegram_user_id=$1", [
       telegramId,
     ]);

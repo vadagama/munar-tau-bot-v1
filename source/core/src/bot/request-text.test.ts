@@ -57,8 +57,8 @@ it("карточка показывает действия по состояни
   expect(text).toContain("&lt;b&gt;разметкой&lt;/b&gt;");
   expect(text).not.toContain("<b>разметкой");
   // Версия подтверждения несёт только кнопка; в тексте — отчёты и доработка.
-  expect(text).toContain("/result");
-  expect(text).toContain("Действия");
+  expect(text).not.toContain("/result");
+  expect(text).not.toContain("Действия");
   expect(text).not.toContain("/confirm");
   // Кнопка подтверждения — точная команда с версией результата.
   expect(
