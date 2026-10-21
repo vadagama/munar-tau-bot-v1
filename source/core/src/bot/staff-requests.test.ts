@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   listStaffRequests: vi.fn(),
   transitionRequest: vi.fn(),
   startRequestWork: vi.fn(),
+  staffTimeline: vi.fn(),
 }));
 vi.mock(
   "../domains/requests/access.ts",
@@ -31,6 +32,10 @@ vi.mock(
   "../domains/tasks/start-request-work.ts",
   () => ({ startRequestWork: mocks.startRequestWork }),
 );
+vi.mock("../domains/requests/staff-timeline.ts", async (original) => ({
+  ...await original<typeof import("../domains/requests/staff-timeline.ts")>(),
+  staffTimeline: mocks.staffTimeline,
+}));
 const actor = {
   person: { id: "p", isTest: true, status: "active" },
   profile: { id: "profile", language: "ru" },
@@ -171,3 +176,110 @@ it("accepts the explicit no-premises choice and advances to location", async () 
     false,
   );
 });
+
+it.each(
+  [
+    ["ru", "Сохранён", "Не сохранён", "Назад"],
+    ["kk", "Сақталды", "Сақталмады", "Артқа"],
+  ] as const,
+)(
+  "localizes file states and preserves file controls in %s",
+  async (language, complete, incomplete, back) => {
+    const h = harness();
+    const localizedActor = {
+      ...actor,
+      profile: { ...actor.profile, language },
+    };
+    mocks.staffTimeline.mockResolvedValue({
+      items: [
+        { id: "saved", filename: "<акт>.pdf", status: "complete" },
+        { id: "waiting", filename: "фото.jpg", status: "incomplete" },
+      ],
+      has_more: false,
+    });
+    let reply = await staffRequestStep(
+      h.deps,
+      "1",
+      "/staffrequest З-1",
+      localizedActor,
+    );
+    const files = reply.buttons.flat().find((b) =>
+      b.data.endsWith("section files")
+    )!;
+    reply = await staffRequestStep(h.deps, "1", files.data, localizedActor);
+    expect(reply.text).toContain(`&lt;акт&gt;.pdf · ${complete}`);
+    expect(reply.text).toContain(`фото.jpg · ${incomplete}`);
+    expect(reply.text).not.toMatch(/complete|incomplete/);
+    expect(reply.buttons.flat().map((b) => b.text)).toEqual([
+      "<акт>.pdf",
+      "фото.jpg",
+      back,
+    ]);
+    for (const button of reply.buttons.flat()) {
+      expect(new TextEncoder().encode(button.data).length).toBeLessThanOrEqual(
+        64,
+      );
+    }
+  },
+);
+
+it.each(
+  [
+    ["ru", "Без заданий", "Далее", "Предыдущая"],
+    ["kk", "Тапсырмасыз", "Келесі", "Алдыңғы"],
+  ] as const,
+)(
+  "navigates request pages using links and buttons in %s",
+  async (language, queue, next, previous) => {
+    const h = harness();
+    const localizedActor = {
+      ...actor,
+      profile: { ...actor.profile, language },
+    };
+    const item = {
+      id: "request-1",
+      number: "З-1",
+      description: "<Описание>",
+      state: "new",
+    };
+    mocks.listStaffRequests
+      .mockResolvedValueOnce({ items: [item], next_cursor: "second-page" })
+      .mockResolvedValueOnce({
+        items: [{ ...item, id: "request-2", number: "З-2" }],
+        next_cursor: null,
+      })
+      .mockResolvedValueOnce({ items: [item], next_cursor: "second-page" });
+    let reply = await staffRequestStep(
+      h.deps,
+      "1",
+      "/staffrequests",
+      localizedActor,
+    );
+    const press = async (label: string) => {
+      const button = reply.buttons.flat().find((b) => b.text === label);
+      expect(button, label).toBeDefined();
+      reply = await staffRequestStep(h.deps, "1", button!.data, localizedActor);
+    };
+    await press(queue);
+    expect(reply.text).toContain(
+      'href="https://t.me/munar_tau_worker_bot?start=sreq_request-1">З-1</a>',
+    );
+    expect(reply.text).toContain("&lt;Описание&gt;");
+    expect(reply.buttons.flat().some((b) => b.text === previous)).toBe(false);
+    await press(next);
+    expect(mocks.listStaffRequests).toHaveBeenLastCalledWith(
+      expect.anything(),
+      localizedActor,
+      { queue: "unassigned", cursor: "second-page" },
+    );
+    expect(reply.text).toContain(">З-2</a>");
+    expect(reply.buttons.flat().some((b) => b.text === next)).toBe(false);
+    await press(previous);
+    expect(mocks.listStaffRequests).toHaveBeenLastCalledWith(
+      expect.anything(),
+      localizedActor,
+      { queue: "unassigned", cursor: null },
+    );
+    expect(reply.text).toContain(">З-1</a>");
+  },
+);
