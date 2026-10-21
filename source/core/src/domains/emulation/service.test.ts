@@ -382,7 +382,7 @@ describe("revokeTestPersonRole (снятие роли тестовой перс�
       scopeBuildingIds: [],
       assignedBy: null,
       revokedBy: null,
-      createdAt: T0,
+      createdAt: T0.toISOString(),
     });
     admin.scopes.set(input.id, []);
   }

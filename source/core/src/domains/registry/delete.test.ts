@@ -1,7 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { deleteRegistry, type RegistryDeps } from "./service.ts";
 import type { Actor } from "../../pdp/types.ts";
-import type { DbExecutor } from "../../db/client.ts";
 
 // Удаление зданий и помещений (жёсткий DELETE с каскадом — по прецеденту
 // миграции remove_parking_buildings): связи, приглашения и анкеты помещения
@@ -23,14 +22,17 @@ const administrator: Actor = {
 
 function setup(responses: Record<string, Record<string, unknown>[]>) {
   const calls: { sql: string; params: readonly unknown[] | undefined }[] = [];
-  const query = vi.fn(async (sql: string, params?: readonly unknown[]) => {
+  const query = async <T = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<T[]> => {
     calls.push({ sql, params });
     const pattern = Object.keys(responses).find((key) => sql.includes(key));
-    return pattern ? responses[pattern]! : [];
-  });
+    return (pattern ? responses[pattern]! : []) as unknown as T[];
+  };
   const append = vi.fn();
   const deps: RegistryDeps = {
-    db: { query, close: vi.fn(), transaction: async (fn) => fn({ query } as unknown as DbExecutor) },
+    db: { query, close: vi.fn(), transaction: async (fn) => fn({ query }) },
     audit: { append, list: vi.fn() },
   };
   return { deps, calls, append };
