@@ -124,7 +124,7 @@ export function AppLayout() {
             </Typography.Text>
             {identity?.me.emulation && <EmulationRoleSelect
               key={identity.me.profile.id} profileId={identity.me.profile.id}
-              onSwitched={() => window.location.assign("/")} />}
+              onSwitched={refreshIdentity} />}
             <Button size="small" onClick={() => logout()}>
               Выйти
             </Button>
@@ -132,7 +132,7 @@ export function AppLayout() {
         </Header>
         <Content style={{ margin: 24 }}>
           <EmulationBanner />
-          <Outlet />
+          <Outlet key={location.pathname === "/emulation" ? "emulation" : identity?.me.profile.id} />
         </Content>
       </Layout>
     </Layout>
