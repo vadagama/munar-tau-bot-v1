@@ -140,14 +140,6 @@ export function EmulationPage() {
     >
       {error !== null && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
       {notice !== null && <Alert type="success" showIcon message={notice} style={{ marginBottom: 16 }} />}
-      <Alert
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-        message="Эмуляция доступна только под тестовыми персонами (is_test). Все действия журналируются с реальным актором и эмулируемой персоной; привилегированные действия недоступны."
-      />
-      <Alert type="info" showIcon style={{ marginBottom: 16 }}
-        message="Житель — тестовая персона без служебных назначений. Доступ к помещениям появляется после подтверждения связи через регистрацию. Служебные роли назначает председатель." />
       <Select aria-label="Роль тестовой персоны" value={role} onChange={setRole}
         style={{ minWidth: 200, marginBottom: 16 }}
         options={[{ value: "all", label: "Все роли" }, ...Object.entries(EMULATION_ROLE_LABELS).map(([value, label]) => ({ value, label }))]} />
