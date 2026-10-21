@@ -37,6 +37,7 @@ import {
 import {
   createTestPerson,
   endEmulation,
+  revokeTestPersonRole,
   simulate,
   startEmulation,
 } from "../../core/src/domains/emulation/service.ts";
@@ -493,6 +494,17 @@ async function handleEmulationEnd(ctx: RouteContext): Promise<RouteResult> {
   return { body: { session: serializeEmulationSession(session) } };
 }
 
+async function handleEmulationAssignmentRevoke(ctx: RouteContext): Promise<RouteResult> {
+  const { deps, realActor, body, params } = ctx;
+  const revoked = await revokeTestPersonRole(
+    { admin: deps.admin, emulation: deps.emulation, audit: deps.audit, tx: deps.db },
+    realActor,
+    params.id!,
+    requireString(body, "reason"),
+  );
+  return { body: { assignment: serializeAssignment(revoked) } };
+}
+
 async function handleEmulationSimulate(ctx: RouteContext): Promise<RouteResult> {
   const { deps, actor, body } = ctx;
   // Шаг исполняется под эффективным актором (персоной); PDP проверил роль
@@ -625,6 +637,13 @@ export const ROUTES: readonly Route[] = [
     action: "emulation.session.start",
     evaluateAs: "real",
     handler: handleEmulationStart,
+  },
+  {
+    method: "POST",
+    path: "/v1/emulation/assignments/:id/revoke",
+    action: "emulation.person.role.revoke",
+    evaluateAs: "real",
+    handler: handleEmulationAssignmentRevoke,
   },
   {
     method: "DELETE",

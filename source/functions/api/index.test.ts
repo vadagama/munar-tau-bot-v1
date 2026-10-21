@@ -21,6 +21,7 @@ import { revokeAssignment } from "../../core/src/domains/admin/service.ts";
 import type { TestPersonRecord } from "../../core/src/domains/emulation/port.ts";
 import { ScenarioRegistry } from "../../core/src/bot/registry.ts";
 import { handle, handleWithDeps, type ApiDeps } from "./index.ts";
+import { matchRoute } from "./handlers.ts";
 
 const T0 = "2026-10-16T10:00:00.000Z";
 
@@ -352,6 +353,21 @@ Deno.test("неизвестный маршрут с валидным токен�
   assertEquals((await response.json()).error.code, "NOT_FOUND");
 });
 
+Deno.test("маршруты удаления реестра и снятия роли зарегистрированы (PDP-акции верны)", () => {
+  const building = matchRoute("DELETE", "/v1/registry/buildings/11111111-1111-1111-1111-111111111111");
+  assertEquals(building?.route.action, "registry.write");
+  assertEquals(building?.route.evaluateAs, "effective");
+  const premises = matchRoute("DELETE", "/v1/registry/premises/11111111-1111-1111-1111-111111111111");
+  assertEquals(premises?.route.action, "registry.write");
+  const revoke = matchRoute("POST", "/v1/emulation/assignments/a-1/revoke");
+  assertEquals(revoke?.route.action, "emulation.person.role.revoke");
+  assertEquals(revoke?.route.evaluateAs, "real");
+  assertEquals(revoke?.params.id, "a-1");
+  // Лица и связи удалению не подлежат — маршрута нет.
+  assertEquals(matchRoute("DELETE", "/v1/registry/persons/x"), null);
+  assertEquals(matchRoute("DELETE", "/v1/registry/connections/x"), null);
+});
+
 // ── Назначения (ROL-02) ────────────────────────────────────────────────────
 
 Deno.test("председатель создаёт назначение — 201, запись в журнале", async () => {
@@ -619,6 +635,62 @@ Deno.test("симулятор жителя возвращает текст, inli
   });
   assertEquals(response.status, 200);
   assertEquals(await response.json(), { scenario_id: "registration", reply: "Язык", buttons, menu });
+});
+
+Deno.test("эмуляция: техадмин снимает роль тестовой персоны — назначение отозвано, аудит и уведомление", async () => {
+  const { deps, admin, audit, emulation } = makeDeps();
+  const tech = seedTechAdmin(admin);
+  seedTestPersona({ admin, emulation }, {});
+  const techJwt = await token({ sub: tech.sub, sessionId: tech.sessionId });
+
+  const response = await call(deps, "/v1/emulation/assignments/a-persona/revoke", {
+    token: techJwt,
+    method: "POST",
+    body: { reason: "Роль больше не нужна" },
+  });
+  assertEquals(response.status, 200);
+  const body = await response.json();
+  assertEquals(body.assignment.status, "revoked");
+  assertEquals(admin.assignments.get("a-persona")?.status, "revoked");
+
+  const entry = audit.entries.find((e) => e.action === "emulation.person.role.revoke");
+  assertExists(entry);
+  assertEquals(entry.entityId, "a-persona");
+  assertEquals(entry.actorPersonId, "p-tech");
+  assertEquals(entry.after, { roles: [] });
+
+  // Уведомление о смене полномочий поставлено в outbox той же транзакцией.
+  assertExists((deps.db as MemoryDb).outbox.find((params) =>
+    JSON.stringify(params).includes("emulation:a-persona:revoke"),
+  ));
+});
+
+Deno.test("эмуляция: снятие роли без техадмина — 403, без причины — 400", async () => {
+  const { deps, admin, emulation } = makeDeps();
+  const tech = seedTechAdmin(admin);
+  seedTestPersona({ admin, emulation }, {});
+  const techJwt = await token({ sub: tech.sub, sessionId: tech.sessionId });
+
+  const noReason = await call(deps, "/v1/emulation/assignments/a-persona/revoke", {
+    token: techJwt,
+    method: "POST",
+    body: { reason: "   " },
+  });
+  assertEquals(noReason.status, 400);
+  assertEquals((await noReason.json()).error.code, "VALIDATION_FAILED");
+  assertEquals(admin.assignments.get("a-persona")?.status, "active");
+
+  // Не техадмин: PDP-отказ по реальному актору.
+  const executor = makeTestActor("executor", [B1], { personId: "p-exec" });
+  seedIdentity(admin, { sub: "sub-exec", sessionId: "s-exec", personId: executor.person.id, profileId: executor.profile.id, actor: executor });
+  const execJwt = await token({ sub: "sub-exec", sessionId: "s-exec" });
+  const forbidden = await call(deps, "/v1/emulation/assignments/a-persona/revoke", {
+    token: execJwt,
+    method: "POST",
+    body: { reason: "Причина" },
+  });
+  assertEquals(forbidden.status, 403);
+  assertEquals(admin.assignments.get("a-persona")?.status, "active");
 });
 
 // ── CORS и заголовки приватности ───────────────────────────────────────────

@@ -4,6 +4,7 @@ import {
   listRegistry,
   listStaff,
   mutateRegistry,
+  deleteRegistry,
   recordAudit,
   type RegistryEntity,
 } from "../../core/src/domains/registry/service.ts";
@@ -150,6 +151,28 @@ for (const entity of [
     }),
   });
 }
+// Жёсткое удаление (каскад по связям/приглашениям/анкетам; обращения
+// отвязываются): здание — только председатель, помещение — по области.
+routes.push(
+  {
+    method: "DELETE",
+    path: "/v1/registry/buildings/:id",
+    action: "registry.write",
+    evaluateAs: "effective",
+    handler: async (ctx) => ({
+      body: await deleteRegistry(deps(ctx), ctx.actor, "buildings", ctx.params.id!),
+    }),
+  },
+  {
+    method: "DELETE",
+    path: "/v1/registry/premises/:id",
+    action: "registry.write",
+    evaluateAs: "effective",
+    handler: async (ctx) => ({
+      body: await deleteRegistry(deps(ctx), ctx.actor, "premises", ctx.params.id!),
+    }),
+  },
+);
 routes.push(
   {
     method: "GET",

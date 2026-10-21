@@ -67,6 +67,7 @@ describe("реестр действий", () => {
       "audit.read",
       "emulation.person.create",
       "emulation.person.list",
+      "emulation.person.role.revoke",
       "emulation.session.end",
       "emulation.session.start",
       "emulation.simulate",

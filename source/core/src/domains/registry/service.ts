@@ -371,6 +371,117 @@ export async function mutateRegistry(
   });
 }
 
+/** Итог каскадного удаления: что удалилось и сколько обращений отвязано. */
+export interface DeleteRegistryResult {
+  connections: number;
+  invites: number;
+  registrations: number;
+  requests_detached: number;
+}
+
+/**
+ * Каскад внутри одного помещения: связи, приглашения и анкеты удаляются
+ * (FK обязательны), обращения сохраняются без привязки к помещению
+ * (прецедент — миграция remove_parking_buildings).
+ */
+async function deletePremisesCascade(
+  exec: DbExecutor,
+  premisesId: string,
+): Promise<DeleteRegistryResult> {
+  const connections = (await exec.query<Row>("delete from connection where premises_id=$1 returning id", [premisesId])).length;
+  const invites = (await exec.query<Row>("delete from invite where premises_id=$1 returning id", [premisesId])).length;
+  const registrations = (await exec.query<Row>("delete from registration where premises_id=$1 returning id", [premisesId])).length;
+  const requests_detached = (await exec.query<Row>("update request set premises_id=null where premises_id=$1 returning id", [premisesId])).length;
+  await exec.query("delete from premises where id=$1", [premisesId]);
+  return { connections, invites, registrations, requests_detached };
+}
+
+/**
+ * Жёсткое удаление записи реестра (здание или помещение). Для помещений —
+ * с обычными правами registry.write по области дома и тестовому домену,
+ * доступно и в эмуляции; здание — только председатель вне эмуляции, при
+ * активных аварийных сигналах запрещено (журнал аварий append-only).
+ */
+export async function deleteRegistry(
+  deps: RegistryDeps,
+  actor: Actor,
+  entity: RegistryEntity,
+  id: string,
+): Promise<DeleteRegistryResult> {
+  if (entity !== "buildings" && entity !== "premises") {
+    throw new ApiError("VALIDATION_FAILED", "Удаление доступно только для зданий и помещений");
+  }
+  return deps.db.transaction(async (exec) => {
+    if (entity === "premises") {
+      const [premises] = await exec.query<Row>("select * from premises where id=$1 for update", [id]);
+      if (!premises) throw new ApiError("NOT_FOUND");
+      if (premises.is_test !== actor.person.isTest) throw new ApiError("NOT_FOUND");
+      const buildingId = String(premises.building_id);
+      requireBuilding(actor, buildingId);
+      const counts = await deletePremisesCascade(exec, id);
+      await recordAudit(
+        deps,
+        exec,
+        actor,
+        "registry.premises.delete",
+        "premises",
+        id,
+        [buildingId],
+        premises,
+        { deleted: true, ...counts },
+      );
+      return counts;
+    }
+    const [building] = await exec.query<Row>("select * from building where id=$1 for update", [id]);
+    if (!building) throw new ApiError("NOT_FOUND");
+    if (actor.emulation) {
+      throw new ApiError("FORBIDDEN", "Общая структура зданий не изменяется в эмуляции");
+    }
+    if (!actor.assignments.some((a) => a.role === "chairman")) {
+      throw new ApiError("FORBIDDEN", "Структуру зданий задаёт председатель");
+    }
+    const [signal] = await exec.query<Row>(
+      "select 1 from emergency_signal where building_id=$1 limit 1",
+      [id],
+    );
+    if (signal) {
+      throw new ApiError(
+        "INVALID_TRANSITION",
+        "У здания есть аварийные сигналы — удаление запрещено (журнал аварий не удаляется)",
+      );
+    }
+    const totals: DeleteRegistryResult = { connections: 0, invites: 0, registrations: 0, requests_detached: 0 };
+    const premises = await exec.query<Row>("select id from premises where building_id=$1", [id]);
+    for (const row of premises) {
+      const counts = await deletePremisesCascade(exec, String(row.id));
+      totals.connections += counts.connections;
+      totals.invites += counts.invites;
+      totals.registrations += counts.registrations;
+      totals.requests_detached += counts.requests_detached;
+    }
+    totals.requests_detached += (await exec.query<Row>(
+      "update request set building_id=null where building_id=$1 returning id",
+      [id],
+    )).length;
+    for (const table of ["duty_shift", "incident_scope", "publication_scope", "staff_scope"]) {
+      await exec.query(`delete from ${table} where building_id=$1`, [id]);
+    }
+    await exec.query("delete from building where id=$1", [id]);
+    await recordAudit(
+      deps,
+      exec,
+      actor,
+      "registry.buildings.delete",
+      "building",
+      id,
+      [id],
+      building,
+      { deleted: true, ...totals },
+    );
+    return totals;
+  });
+}
+
 export async function revokeOwnerDependents(
   exec: DbExecutor,
   personId: string,

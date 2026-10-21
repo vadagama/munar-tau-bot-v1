@@ -42,6 +42,7 @@ export type ActionKey =
   | "admin.session.revoke"
   | "emulation.person.list"
   | "emulation.person.create"
+  | "emulation.person.role.revoke"
   | "emulation.session.start"
   | "emulation.session.end"
   | "emulation.simulate";
@@ -113,6 +114,9 @@ export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
   // Эмуляция — только техадмин, только тестовые персоны (HLD 10.8).
   "emulation.person.list": { privileged: false, roles: ["tech_admin"] },
   "emulation.person.create": { privileged: false, roles: ["tech_admin"] },
+  // Снятие роли с тестовой персоны — управление пилотом эмуляции реальным
+  // техадмином (не эмулированной персоной); выдача ролей остаётся у председателя.
+  "emulation.person.role.revoke": { privileged: false, roles: ["tech_admin"] },
   "emulation.session.start": { privileged: false, roles: ["tech_admin"] },
   "emulation.session.end": { privileged: false, roles: ["tech_admin"] },
   "emulation.simulate": { privileged: false, roles: ["tech_admin"] },
