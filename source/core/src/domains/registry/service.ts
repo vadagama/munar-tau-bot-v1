@@ -21,6 +21,7 @@ import {
 export interface RegistryDeps {
   bot?: import("../../bot/bots.ts").BotKind;
   workerBotUsername?: string;
+  residentBotUsername?: string;
   fileStorage?: import("../requests/files.ts").FileStorage;
   templates?: TemplateStore;
   db: DbClient;
