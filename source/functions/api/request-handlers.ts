@@ -1,3 +1,5 @@
+import { listStaffRequests } from "../../core/src/domains/requests/staff-queries.ts";
+import { staffTimeline, markStaffRead, type TimelineSection } from "../../core/src/domains/requests/staff-timeline.ts";
 import type { Route, RouteContext } from "./handlers.ts";
 import { requireRequest } from "../../core/src/domains/requests/access.ts";
 import { ApiError } from "../../core/src/errors/api.ts";
@@ -54,6 +56,12 @@ function route(
   };
 }
 export const REQUEST_ROUTES: Route[] = [
+  route("POST", "/v1/requests/staff/search", async ctx => ({body: await listStaffRequests(ctx.deps.db,ctx.actor,ctx.body)})),
+  route("GET", "/v1/requests/:id/timeline/:section", async ctx => ({body: await staffTimeline(ctx.deps.db,ctx.actor,ctx.params.id!,ctx.params.section as TimelineSection,Number(ctx.url.searchParams.get("page")??0))})),
+  route("POST", "/v1/requests/:id/read", async ctx => {
+    await ctx.deps.db.transaction(exec => markStaffRead(exec,ctx.actor,ctx.params.id!,ctx.body.message_ids));
+    return {body:{ok:true}};
+  }),
   route("GET", "/v1/requests/context", async (ctx) => ({
     body: {
       premises: await ctx.deps.db.query(
