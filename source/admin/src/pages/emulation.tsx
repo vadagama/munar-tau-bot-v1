@@ -10,7 +10,6 @@ import {
   Form,
   Input,
   Modal,
-  Select,
   Space,
   Spin,
   Table,
@@ -31,7 +30,6 @@ export function EmulationPage() {
   const { identity, refreshIdentity } = useCabinetIdentity();
   const pending = useRef(false);
   const [switching, setSwitching] = useState(false);
-  const [role, setRole] = useState<string>("all");
   const [persons, setPersons] = useState<EmulationPersonJson[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,14 +138,11 @@ export function EmulationPage() {
     >
       {error !== null && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
       {notice !== null && <Alert type="success" showIcon message={notice} style={{ marginBottom: 16 }} />}
-      <Select aria-label="Роль тестовой персоны" value={role} onChange={setRole}
-        style={{ minWidth: 200, marginBottom: 16 }}
-        options={[{ value: "all", label: "Все роли" }, ...Object.entries(EMULATION_ROLE_LABELS).map(([value, label]) => ({ value, label }))]} />
       <RegistrationSimulator key={identity?.me.emulation?.session_id ?? "inactive"} active={!!identity?.me.emulation && !switching}/>
       {loading ? (
         <Spin size="large" style={{ display: "block", margin: "60px auto" }} />
       ) : (
-        <Table rowKey={(record) => record.person.id} size="small" columns={columns} scroll={{ x: 600 }} dataSource={persons.filter(person => role === "all" || (role === "resident" ? person.assignments.length === 0 : person.assignments.some(assignment => assignment.role === role)))} pagination={false} />
+        <Table rowKey={(record) => record.person.id} size="small" columns={columns} scroll={{ x: 600 }} dataSource={persons} pagination={false} />
       )}
       <Modal
         title="Новая тестовая персона"
