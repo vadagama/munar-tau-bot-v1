@@ -13,7 +13,8 @@ import { replyText, type InlineButton } from "../../bot/keyboard.ts";
 import { ApiError } from "../../errors/api.ts";
 import type { DbExecutor, DbTransactionRunner } from "../../db/client.ts";
 import { buildActorForProfile } from "../admin/actor-service.ts";
-import type { AdminRepo } from "../admin/port.ts";
+import type { AdminRepo, AssignmentListRecord } from "../admin/port.ts";
+import { notifyRoleChange } from "../admin/staff-notice.ts";
 import { buildAuditInput } from "../audit/entry.ts";
 import type { AuditRepo } from "../audit/port.ts";
 import { ScenarioRegistry } from "../../bot/registry.ts";
@@ -132,6 +133,89 @@ export async function startEmulation(
       },
     }));
     return session;
+  });
+}
+
+/**
+ * Снятие роли с тестовой персоны (управление пилотом эмуляции, HLD 10.8):
+ * только реальный техадмин вне эмуляции и только для is_test-персоны.
+ * Действие повторяет отзыв назначения (ROL-03/04): при сокращении набора
+ * ролей закрываются сеансы персоны, ставится уведомление об изменении
+ * полномочий (для тестовой персоны — в канал симулятора), пишется аудит.
+ * Выдача ролей остаётся у председателя через обычный маршрут назначений.
+ */
+export async function revokeTestPersonRole(
+  deps: EmulationServiceDeps,
+  actor: Actor,
+  assignmentId: string,
+  reason: string,
+): Promise<AssignmentListRecord> {
+  const trimmed = reason.trim();
+  if (trimmed === "") {
+    throw new ApiError("VALIDATION_FAILED", "Укажите причину снятия роли");
+  }
+  if (actor.emulation) {
+    throw new ApiError("FORBIDDEN", "Управление ролями недоступно в эмуляции");
+  }
+  return deps.tx.transaction(async (exec) => {
+    const assignment = await deps.admin.getAssignment(exec, assignmentId);
+    if (!assignment) {
+      throw new ApiError("NOT_FOUND", "Назначение не найдено");
+    }
+    if (assignment.status !== "active") {
+      throw new ApiError("INVALID_TRANSITION", "Назначение уже отозвано");
+    }
+    const person = await deps.admin.getPerson(exec, assignment.personId);
+    if (!person) {
+      throw new ApiError("NOT_FOUND", "Персона не найдена");
+    }
+    if (!person.isTest) {
+      throw new ApiError("FORBIDDEN", "Роли удаляются только у тестовых персон");
+    }
+    if (person.status !== "active") {
+      throw new ApiError("INVALID_TRANSITION", "Персона не активна");
+    }
+    const activeRoles = async () =>
+      [...new Set(
+        (await deps.admin.listAssignments(exec, {
+          personId: assignment.personId,
+          activeOnly: true,
+          limit: 500,
+        })).map((row) => row.role),
+      )];
+    const before = await activeRoles();
+    const revoked = await deps.admin.revokeAssignment(exec, assignmentId, actor.person.id);
+    if (!revoked) {
+      throw new ApiError("INVALID_TRANSITION", "Назначение уже отозвано");
+    }
+    const after = await activeRoles();
+    if (after.length < before.length) {
+      await deps.admin.revokeSessionsForPerson(exec, assignment.personId, trimmed, new Date());
+    }
+    await notifyRoleChange(
+      exec,
+      actor,
+      assignment.personId,
+      before,
+      after,
+      trimmed,
+      `emulation:${assignmentId}:revoke`,
+      person.isTest,
+    );
+    await deps.audit.append(exec, buildAuditInput(actor, {
+      action: "emulation.person.role.revoke",
+      entityType: "staff_assignment",
+      entityId: assignmentId,
+      before: { roles: before },
+      after: { roles: after },
+      reason: trimmed,
+      buildingIds: assignment.scopeBuildingIds,
+    }));
+    const updated = await deps.admin.getAssignment(exec, assignmentId);
+    if (!updated) {
+      throw new ApiError("INTERNAL", "Назначение не найдено после отзыва");
+    }
+    return updated;
   });
 }
 
