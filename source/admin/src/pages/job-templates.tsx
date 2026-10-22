@@ -1,3 +1,4 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import type { ReactNode } from "react";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -16,7 +17,6 @@ import {
   List,
   Select,
   Space,
-  Table,
   Typography,
   theme,
 } from "antd";
@@ -176,7 +176,7 @@ export function JobTemplates(
           ),
         }]}
       />
-      <Table
+      <ConfigurableTable storageKey="columns.job-templates" settingsPlacement="page"
         rowKey="id"
         loading={busy}
         dataSource={rows}

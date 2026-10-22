@@ -1,3 +1,4 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import "./templates.css";
@@ -11,7 +12,6 @@ import {
   Input,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
 } from "antd";
@@ -370,7 +370,7 @@ export function TemplatesPage() {
                 key: scenario,
                 label: scenario,
                 children: (
-                  <Table
+                  <ConfigurableTable storageKey={`columns.templates.${id}.${scenario}`} settingsPlacement="inline"
                     size="small"
                     pagination={false}
                     rowKey="key"
@@ -524,7 +524,7 @@ export function TemplatesPage() {
                 />
                 {selected.variables.length > 0
                   ? (
-                    <Table
+                    <ConfigurableTable storageKey="columns.template-variables" settingsPlacement="inline"
                       size="small"
                       pagination={false}
                       rowKey="name"

@@ -1,3 +1,4 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import { CardDrawer } from "./card-drawer";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -10,7 +11,6 @@ import {
   Modal,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
 } from "antd";
@@ -255,7 +255,7 @@ export function RegistrationsPage() {
           }}
         />
       ) : (
-        <Table
+        <ConfigurableTable storageKey="columns.registrations" settingsPlacement="page"
           rowKey="id"
           loading={busy}
           dataSource={visible}

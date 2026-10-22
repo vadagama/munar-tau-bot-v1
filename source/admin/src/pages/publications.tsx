@@ -1,3 +1,4 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
@@ -14,7 +15,6 @@ import {
   List,
   Select,
   Space,
-  Table,
   Typography,
 } from "antd";
 import { apiFetch } from "../lib/api";
@@ -189,7 +189,7 @@ export function PublicationsPage() {
 
       {error && !card && !action && <Alert type="error" message={error} showIcon />}
 
-      <Table
+      <ConfigurableTable storageKey="columns.publications" settingsPlacement="page"
         rowKey="id"
         dataSource={rows}
         loading={busy}

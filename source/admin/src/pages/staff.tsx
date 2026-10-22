@@ -1,3 +1,4 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import { StaffRoleForm } from "./staff-form";
 import { StaffDetails } from "./staff-details";
 import type { StaffCard, StaffList, StaffRow } from "./staff-types";
@@ -9,7 +10,6 @@ import {
   Input,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
 } from "antd";
@@ -234,7 +234,7 @@ export function StaffPage() {
       }
     >
       {error && <Alert type="error" message={error} showIcon />}
-      <Table
+      <ConfigurableTable storageKey="columns.staff" settingsPlacement="page"
         rowKey="id"
         dataSource={rows}
         loading={busy}

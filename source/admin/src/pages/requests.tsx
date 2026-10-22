@@ -1,4 +1,5 @@
-import { useTableColumns } from "../components/table-columns";
+import { ConfigurableTable } from "../components/configurable-table";
+import type { TableColumnsType } from "antd";
 import { taskAssigneeOptions } from "./task-assignees";
 import { REQUEST_ACTION_ICONS } from "./request-action-icons";
 import { TASK_STATE_TEXT } from "../../../core/src/locales/tasks";
@@ -25,7 +26,6 @@ import {
   Select,
   Space,
   Spin,
-  Table,
   Tabs,
   Tag,
   Typography,
@@ -116,6 +116,7 @@ export function RequestsPage() {
   const [buildingFilter, setBuildingFilter] = useState<string>(),
     [from, setFrom] = useState(""),
     [to, setTo] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [search, setSearch] = useState(""),
     [state, setState] = useState<string>(),
     [channel, setChannel] = useState("resident"),
@@ -155,7 +156,9 @@ export function RequestsPage() {
   }, [action, card?.id]);
   const messageKey = useRef(crypto.randomUUID()),
     createKey = useRef(crypto.randomUUID());
+  const listEpoch = useRef(0);
   const load = async (cursor?: string) => {
+    const epoch = ++listEpoch.current;
     setBusy(true);
     setError(null);
     try {
@@ -164,20 +167,21 @@ export function RequestsPage() {
       >("/v1/requests/search", {
         method: "POST",
         body: {
-          search,
+          search: appliedSearch,
           state,
           cursor,
           building_id: buildingFilter,
           from: from ? `${from}T00:00:00+05:00` : undefined,
-          to: to ? `${to}T23:59:59+05:00` : undefined,
+          to: to ? `${to}T23:59:59.999+05:00` : undefined,
         },
       });
+      if (epoch !== listEpoch.current) return;
       setRows(result.items);
       setNextCursor(result.next_cursor ?? null);
     } catch (e) {
-      setError(errorText(e));
+      if (epoch === listEpoch.current) setError(errorText(e));
     } finally {
-      setBusy(false);
+      if (epoch === listEpoch.current) setBusy(false);
     }
   };
   const open = async (id: string) => {
@@ -228,6 +232,15 @@ export function RequestsPage() {
   };
   usePageRefresh(() => load(), !busy && !saving);
   useEffect(() => {
+    // Фильтры выбора применяются сразу, набор текста — после короткой паузы.
+    const timer = window.setTimeout(() => setAppliedSearch(search), 250);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+  useEffect(() => {
+    void load();
+    return () => { listEpoch.current++; };
+  }, [appliedSearch, state, buildingFilter, from, to, staff, identity?.me.person.id]);
+  useEffect(() => {
     if (staff) {
       void Promise.all([
         apiFetch<{ items: Row[] }>("/v1/registry/persons"),
@@ -235,7 +248,6 @@ export function RequestsPage() {
       ]).then(([p, r]) => setRegistry({ persons: p.items, premises: r.items }))
         .catch((e) => setError(errorText(e)));
     }
-    void load();
     void apiFetch<{ items: Row[] }>("/v1/request-categories").then((r) =>
       setCategories(r.items)
     ).catch((e) => setError(errorText(e)));
@@ -406,7 +418,7 @@ export function RequestsPage() {
       ? ["approve_cancel", "reject_cancel"]
       : []),
   ];
-  const tableColumns = useTableColumns<Row>("columns.requests", [
+  const tableColumns: TableColumnsType<Row> = [
     {
       title: "Номер",
       key: "number", dataIndex: "number",
@@ -433,10 +445,10 @@ export function RequestsPage() {
       render: (v) =>
         v ? new Date(String(v)).toLocaleString("ru-RU") : "—",
     },
-  ]);
+  ];
   return (
     <PageLayout title="Обращения"
-      extra={<Space>{view === "table" && tableColumns.settings}<ViewToggle kind={view} onChange={setView} /></Space>}
+      extra={<ViewToggle kind={view} onChange={setView} />}
       actions={<Space wrap>
         <Button type="primary" onClick={() => { form.resetFields(); createKey.current = crypto.randomUUID(); setCreate(true); }}>
           Новое обращение
@@ -448,7 +460,7 @@ export function RequestsPage() {
           placeholder="Номер или описание"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          onSearch={() => void load()}
+          onSearch={() => setAppliedSearch(search)}
           style={{ width: 280 }}
         />
         <Select
@@ -489,7 +501,6 @@ export function RequestsPage() {
           onChange={(e) => setTo(e.target.value)}
           style={{ width: 155 }}
         />
-        <Button onClick={() => void load()}>Применить</Button>
       </Space>}>
 
       {error && !card && !create && (
@@ -541,13 +552,13 @@ export function RequestsPage() {
           )}
         />
       ) : (
-        <Table<Row>
+        <ConfigurableTable<Row> storageKey="columns.requests" settingsPlacement="page"
           rowKey="id"
           loading={busy}
           dataSource={rows}
           locale={{ emptyText: <Empty description="Обращений пока нет" /> }}
           scroll={{ x: 650 }}
-          columns={tableColumns.columns}
+          columns={tableColumns}
         />
       )}
       {nextCursor && (

@@ -1,3 +1,4 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { ActionPanel } from "./action-panel";
@@ -12,7 +13,6 @@ import {
   Popconfirm,
   Select,
   Space,
-  Table,
   Tabs,
   Tag,
   Typography,
@@ -305,7 +305,7 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
         />
       )}
 
-      <Table
+      <ConfigurableTable storageKey={`columns.registry.${users ?? "registry"}.${entity}`} settingsPlacement="page"
         rowKey="id"
         loading={busy}
         dataSource={entity === "buildings" && constructionPhase !== "all"

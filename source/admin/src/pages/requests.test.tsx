@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -231,13 +232,11 @@ it("фильтр здания отправляет выбранное здани
   const filter = screen.getByRole("combobox", { name: "Фильтр по зданию" });
   fireEvent.mouseDown(filter);
   fireEvent.click(await screen.findByText("Дом 1", { selector: ".ant-select-item-option-content" }));
-  fireEvent.click(await findButton("Применить"));
   await waitFor(() => expect(apiFetch).toHaveBeenLastCalledWith(
     "/v1/requests/search",
     expect.objectContaining({ body: expect.objectContaining({ building_id: "b1" }) }),
   ));
   fireEvent.mouseDown(filter.closest(".ant-select")!.querySelector(".ant-select-clear")!);
-  fireEvent.click(await findButton("Применить"));
   await waitFor(() => expect(apiFetch).toHaveBeenLastCalledWith(
     "/v1/requests/search",
     expect.objectContaining({ body: expect.objectContaining({ building_id: undefined }) }),
@@ -456,4 +455,44 @@ it("выбор колонок обращений скрывает описани
   expect(screen.queryByRole("columnheader", { name: "Описание" })).not.toBeInTheDocument();
   expect(JSON.parse(localStorage.getItem("columns.requests")!)).toEqual(["description"]);
   expect(JSON.parse(localStorage.getItem("columns.tasks")!)).toEqual(["assignee_name"]);
+});
+
+
+it("поиск, состояние и период применяются автоматически без кнопки Применить", async () => {
+  setup();
+  render(<RequestsPage />);
+  await findButton("З-26-00001");
+  expect(screen.queryByRole("button", { name: "Применить" })).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Поиск обращений"), { target: { value: "кран" } });
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/requests/search",
+    expect.objectContaining({ body: expect.objectContaining({ search: "кран", cursor: undefined }) })));
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "Статус обращения" }));
+  fireEvent.click(await screen.findByText("В работе", { selector: ".ant-select-item-option-content" }));
+  fireEvent.change(screen.getByLabelText("Период с"), { target: { value: "2026-10-20" } });
+  fireEvent.change(screen.getByLabelText("Период по"), { target: { value: "2026-10-22" } });
+  await waitFor(() => expect(apiFetch).toHaveBeenLastCalledWith("/v1/requests/search",
+    expect.objectContaining({ body: expect.objectContaining({ search: "кран", state: "in_work",
+      from: "2026-10-20T00:00:00+05:00", to: "2026-10-22T23:59:59.999+05:00" }) })));
+});
+
+it("запоздавший ответ предыдущего фильтра не заменяет новые обращения", async () => {
+  setup();
+  const original = vi.mocked(apiFetch).getMockImplementation()!;
+  let resolveOld!: (value: unknown) => void;
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => {
+    if (path === "/v1/requests/search" && (options?.body as { state?: string } | undefined)?.state === "in_work") {
+      return new Promise(resolve => { resolveOld = resolve; });
+    }
+    return original(path, options);
+  });
+  render(<RequestsPage />);
+  await findButton("З-26-00001");
+  const stateFilter = screen.getByRole("combobox", { name: "Статус обращения" });
+  fireEvent.mouseDown(stateFilter);
+  fireEvent.click(await screen.findByText("В работе", { selector: ".ant-select-item-option-content" }));
+  await waitFor(() => expect(resolveOld).toBeDefined());
+  fireEvent.mouseDown(stateFilter.closest(".ant-select")!.querySelector(".ant-select-clear")!);
+  await findButton("З-26-00001");
+  await act(async () => { resolveOld({ items: [] }); });
+  await waitFor(() => expect(screen.getByText("З-26-00001", { selector: "button > span" })).toBeInTheDocument());
 });

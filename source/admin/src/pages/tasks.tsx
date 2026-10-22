@@ -1,4 +1,5 @@
-import { useTableColumns } from "../components/table-columns";
+import { ConfigurableTable } from "../components/configurable-table";
+import type { TableColumnsType } from "antd";
 import { taskAssigneeOptions } from "./task-assignees";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -19,7 +20,6 @@ import {
   List,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
   theme,
@@ -376,7 +376,7 @@ export function TasksPage() {
       (!stateFilter || task.state === stateFilter) &&
       (fromTime === null || created >= fromTime) && (toTime === null || created <= toTime);
   });
-  const tableColumns = useTableColumns<Task>("columns.tasks", [
+  const tableColumns: TableColumnsType<Task> = [
     {
       title: "Номер",
       key: "number", dataIndex: "number",
@@ -415,10 +415,10 @@ export function TasksPage() {
       key: "due_at", dataIndex: "due_at",
       render: (v: string) => new Date(v).toLocaleString("ru-RU"),
     },
-  ]);
+  ];
   return (
     <PageLayout title="Задания"
-      extra={<Space>{view === "table" && tableColumns.settings}<ViewToggle kind={view} onChange={setView} /></Space>}
+      extra={<ViewToggle kind={view} onChange={setView} />}
       actions={manager ? <>
         <Button type="primary" onClick={() => void newTask()}>Создать задание</Button>
         <Button href="/common-works">Общие работы</Button>
@@ -483,13 +483,13 @@ export function TasksPage() {
           )}
         />
       ) : (
-        <Table<Task>
+        <ConfigurableTable<Task> storageKey="columns.tasks" settingsPlacement="page"
           loading={loading}
           rowKey="id"
           dataSource={visibleRows}
           locale={{ emptyText: "Доступных заданий нет" }}
           scroll={{ x: 650 }}
-          columns={tableColumns.columns}
+          columns={tableColumns}
         />
       )}
       <CardDrawer

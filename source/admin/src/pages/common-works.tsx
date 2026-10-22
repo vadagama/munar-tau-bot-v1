@@ -1,3 +1,4 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import type { ReactNode } from "react";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -14,7 +15,6 @@ import {
   List,
   Select,
   Space,
-  Table,
   Typography,
   theme,
 } from "antd";
@@ -151,7 +151,7 @@ export function CommonWorks({ onTask, navigation }: { onTask: (id: string) => vo
       actions={<><Button type="primary" onClick={() => void begin("create")} disabled={busy}>Создать общую работу</Button>{navigation}</>}>
       {error && !card && !action && <Alert type="error" message={error} />}
 
-      <Table
+      <ConfigurableTable storageKey="columns.common-works" settingsPlacement="page"
         rowKey="id"
         dataSource={rows}
         loading={busy}

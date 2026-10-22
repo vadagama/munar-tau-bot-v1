@@ -1,3 +1,4 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
@@ -15,7 +16,6 @@ import {
   List,
   Select,
   Space,
-  Table,
   Tabs,
   Typography,
 } from "antd";
@@ -291,7 +291,7 @@ export function IncidentsPage() {
                     )}
                   />
                 ) : (
-                  <Table
+                  <ConfigurableTable storageKey="columns.incidents" settingsPlacement={activeTab === "incidents" ? "page" : "inline"}
                     rowKey="id"
                     dataSource={rows}
                     loading={busy}
@@ -321,7 +321,7 @@ export function IncidentsPage() {
             key: "signals",
             label: "Срочные сигналы",
             children: (
-              <Table
+              <ConfigurableTable storageKey="columns.emergency-signals" settingsPlacement={activeTab === "signals" ? "page" : "inline"}
                 rowKey="id"
                 dataSource={signals}
                 scroll={{ x: 650 }}
@@ -372,7 +372,7 @@ export function IncidentsPage() {
               children: (
                 <>
 
-                  <Table
+                  <ConfigurableTable storageKey="columns.duty-shifts" settingsPlacement={activeTab === "duty" ? "page" : "inline"}
                     rowKey="id"
                     dataSource={shifts}
                     scroll={{ x: 650 }}

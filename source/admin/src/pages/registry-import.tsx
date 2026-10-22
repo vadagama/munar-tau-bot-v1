@@ -1,3 +1,4 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { useState } from "react";
@@ -7,7 +8,6 @@ import {
   Card,
   Space,
   Statistic,
-  Table,
   Tag,
   Typography,
   Upload,
@@ -187,7 +187,7 @@ export function RegistryImportPage() {
                   showIcon
                   message="Ни одна запись не сохранена. Исправьте все ошибки и загрузите файл заново."
                 />
-                <Table
+                <ConfigurableTable storageKey="columns.registry-import-errors" settingsPlacement="inline"
                   rowKey={(_, i) => String(i)}
                   dataSource={batch.errors}
                   scroll={{ x: 900 }}

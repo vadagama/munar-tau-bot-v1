@@ -1,3 +1,4 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import { taskAssigneeOptions } from "./task-assignees";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
@@ -11,7 +12,6 @@ import {
   InputNumber,
   Select,
   Space,
-  Table,
   Typography,
 } from "antd";
 import { apiFetch } from "../lib/api";
@@ -162,7 +162,7 @@ export function JobSchedule(
           Сохранить расписание
         </Button>
       </Form>
-      <Table
+      <ConfigurableTable storageKey="columns.job-runs" settingsPlacement="inline"
         rowKey="id"
         dataSource={data?.runs ?? []}
         pagination={{ pageSize: 10 }}
