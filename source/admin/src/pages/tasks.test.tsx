@@ -263,3 +263,140 @@ it("карточка задания содержит обратную ссылк
   fireEvent.click(await screen.findByText("ЗД-1", { selector: "button > span" }));
   expect(await screen.findByRole("link", { name: "З-42" })).toHaveAttribute("href", "/requests?request=r");
 });
+
+
+it("исполнитель виден в таблице и подписан на доске, отсутствие назначения явно указано", async () => {
+  const assigned = { ...task, assignee_person_id: "worker", assignee_name: "Мастер ОСИ" };
+  const unassigned = { ...task, id: "t2", number: "ЗД-2", assignee_person_id: null, assignee_name: null };
+  vi.mocked(apiFetch).mockResolvedValue({ items: [assigned, unassigned] });
+  render(<TasksPage />);
+  expect(await screen.findByRole("columnheader", { name: "Исполнитель" })).toBeInTheDocument();
+  expect(await screen.findByRole("cell", { name: "Мастер ОСИ" })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "Не назначен" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("radio", { name: "Доска" }));
+  expect(await screen.findByText("Исполнитель: Мастер ОСИ")).toBeInTheDocument();
+  expect(screen.getByText("Исполнитель: не назначен")).toBeInTheDocument();
+});
+
+it("фильтр исполнителя работает в таблице и на доске, поддерживает отсутствие назначения и сброс", async () => {
+  vi.mocked(apiFetch).mockResolvedValue({ items: [
+    { ...task, assignee_person_id: "worker", assignee_name: "Мастер ОСИ" },
+    { ...task, id: "t2", number: "ЗД-2", assignee_person_id: "other", assignee_name: "Другой мастер" },
+    { ...task, id: "t3", number: "ЗД-3", assignee_person_id: null, assignee_name: null },
+  ] });
+  render(<TasksPage />);
+  await screen.findByText("ЗД-3", { selector: "button > span" });
+  const filter = screen.getByRole("combobox", { name: "Фильтр по исполнителю" });
+  fireEvent.mouseDown(filter);
+  fireEvent.click(await screen.findByText("Мастер ОСИ", { selector: ".ant-select-item-option-content" }));
+  expect(screen.getByText("ЗД-1", { selector: "button > span" })).toBeInTheDocument();
+  expect(screen.queryByText("ЗД-2", { selector: "button > span" })).not.toBeInTheDocument();
+  expect(screen.queryByText("ЗД-3", { selector: "button > span" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("radio", { name: "Доска" }));
+  expect(await screen.findByText("ЗД-1")).toBeInTheDocument();
+  expect(screen.queryByText("ЗД-2")).not.toBeInTheDocument();
+  fireEvent.mouseDown(filter);
+  fireEvent.click(await screen.findByText("Без исполнителя", { selector: ".ant-select-item-option-content" }));
+  expect(screen.getByText("ЗД-3")).toBeInTheDocument();
+  expect(screen.queryByText("ЗД-1")).not.toBeInTheDocument();
+  fireEvent.mouseDown(filter.closest(".ant-select")!.querySelector(".ant-select-clear")!);
+  expect(screen.getByText("ЗД-1")).toBeInTheDocument();
+  expect(screen.getByText("ЗД-2")).toBeInTheDocument();
+  expect(screen.getByText("ЗД-3")).toBeInTheDocument();
+});
+
+it("поиск, состояние и даты создания совместно фильтруют таблицу и доску", async () => {
+  vi.mocked(apiFetch).mockResolvedValue({ items: [
+    { ...task, id: "a", number: "ЗД-100", title: "Кран", instruction: "Устранить течь", created_at: "2026-10-20T19:00:00Z" },
+    { ...task, id: "b", number: "ЗД-101", title: "Кран", instruction: "Устранить течь", created_at: "2026-10-21T18:59:59.999Z", state: "accepted" },
+    { ...task, id: "c", number: "ЗД-102", title: "Кран", instruction: "Устранить течь", created_at: "2026-10-21T19:00:00Z" },
+  ] });
+  render(<TasksPage />);
+  await screen.findByText("ЗД-100", { selector: "button > span" });
+  fireEvent.change(screen.getByLabelText("Поиск заданий"), { target: { value: "течь" } });
+  fireEvent.change(screen.getByLabelText("Дата создания с"), { target: { value: "2026-10-21" } });
+  fireEvent.change(screen.getByLabelText("Дата создания по"), { target: { value: "2026-10-21" } });
+  expect(screen.getByText("ЗД-100", { selector: "button > span" })).toBeInTheDocument();
+  expect(screen.getByText("ЗД-101", { selector: "button > span" })).toBeInTheDocument();
+  expect(screen.queryByText("ЗД-102", { selector: "button > span" })).not.toBeInTheDocument();
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "Состояние задания" }));
+  fireEvent.click(await screen.findByText("Принято", { selector: ".ant-select-item-option-content" }));
+  expect(screen.queryByText("ЗД-100", { selector: "button > span" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("radio", { name: "Доска" }));
+  expect(screen.getByText("ЗД-101")).toBeInTheDocument();
+  expect(screen.queryByText("ЗД-100")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Поиск заданий"), { target: { value: "ЗД-101" } });
+  expect(screen.getByText("ЗД-101")).toBeInTheDocument();
+});
+
+it("колонка обращения показывает только разрешённую сервером ссылку", async () => {
+  vi.mocked(apiFetch).mockResolvedValue({ items: [
+    { ...task, linked_request: { id: "r", number: "З-26-42" } },
+    { ...task, id: "t2", number: "ЗД-2", request_id: "hidden", linked_request: null },
+  ] });
+  render(<TasksPage />);
+  expect(await screen.findByText("З-26-42", {selector:"a"})).toHaveAttribute("href", "/requests?request=r");
+  fireEvent.click(screen.getByLabelText("Колонки", {selector:"button"}));
+  const settings = await screen.findByLabelText("Видимые колонки", {selector:'[role="group"]'});
+  const table = screen.getByText("З-26-42", {selector:"a"}).closest("table")!;
+  fireEvent.click(within(settings).getByLabelText("Обращение", {selector:"input"}));
+  expect(within(table).queryByText("Обращение", {selector:"th, th *"})).not.toBeInTheDocument();
+});
+
+
+it("показывает только последнюю ошибку доставки вверху карточки задания", async () => {
+ const card = {...task, delivery_failures: [
+  {id:"latest",last_error:"BLOCKED_BY_USER",followup_state:"done"},
+  {id:"older",last_error:"DISPATCH_FAILED",followup_state:"pending"},
+  {id:"oldest",last_error:"UNKNOWN",followup_state:"pending"},
+ ]};
+ vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? {items:[card]} : card);
+ render(<TasksPage/>);
+ fireEvent.click(await screen.findByText("ЗД-1", {selector:"button > span"}));
+ const instruction = await screen.findByText("Проверить герметичность");
+ const notice = screen.getByRole("alert", {name:"Ошибка доставки уведомления"});
+ expect(within(screen.getByRole("dialog")).getAllByRole("alert")).toHaveLength(1);
+ expect(within(notice).getByText("Бот заблокирован получателем")).toBeInTheDocument();
+ expect(within(notice).getByText(/результат записан/)).toBeInTheDocument();
+ expect(screen.queryByText("Не удалось подготовить уведомление")).toBeNull();
+ expect(screen.queryByText("Доставка не удалась")).toBeNull();
+ expect(notice.compareDocumentPosition(instruction) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it("не показывает ошибку доставки при пустом списке уведомлений", async () => {
+ const card = {...task,delivery_failures:[]};
+ vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? {items:[card]} : card);
+ render(<TasksPage/>);
+ fireEvent.click(await screen.findByText("ЗД-1", {selector:"button > span"}));
+ await screen.findByText("Проверить герметичность");
+ expect(screen.queryByRole("alert", {name:"Ошибка доставки уведомления"})).toBeNull();
+});
+
+
+it("при проверке сначала показывает отчёт и решение, затем инструкцию", async () => {
+ const card = {...task,state:"on_review",can_execute:false,can_manage:true,can_approve:true,reports:[{version:1,performed_work:"Первый отчёт",result:"Требовал исправлений",evidence:[]},{version:2,performed_work:"Проверено",result:"Течь устранена",evidence:[]}]};
+ vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? {items:[card]} : card);
+ render(<TasksPage/>);
+ fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
+ const report=await screen.findByRole("region",{name:"Отчёты"});
+ const information=screen.getByRole("region",{name:"Информация о задании"});
+ expect(report.compareDocumentPosition(information) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+ expect(within(report).getByText(/Первый отчёт/).closest("details")).not.toHaveAttribute("open");
+ expect(within(report).getByText(/Текущий отчёт · версия/)).toHaveTextContent("2");
+ expect(within(report).getByRole("button",{name:"Принять результат"})).toHaveClass("ant-btn-primary");
+ expect(screen.getByRole("region",{name:"Сейчас по процессу"})).toHaveTextContent("Нужно проверить отчёт");
+ expect(screen.getByText("Показать историю").closest("details")).not.toHaveAttribute("open");
+});
+
+it("управляющему показывает ожидание принятия без действия вместо исполнителя", async () => {
+ const card={...task,can_execute:false,can_manage:true,assignee_name:"Мастер"};
+ vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? {items:[card]} : card);
+ render(<TasksPage/>);
+ fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
+ const process=await screen.findByRole("region",{name:"Сейчас по процессу"});
+ expect(process).toHaveTextContent("Ожидаем принятия задания");
+ expect(within(process).queryByRole("button",{name:"Принять"})).toBeNull();
+ expect(within(process).queryByRole("button",{name:"Отменить"})).toBeNull();
+ fireEvent.click(within(process).getByRole("button",{name:"Другие действия"}));
+ expect(within(process).getByRole("button",{name:"Отменить"})).toBeVisible();
+});

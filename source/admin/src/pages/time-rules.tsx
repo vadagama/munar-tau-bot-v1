@@ -1,3 +1,4 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect, useState } from "react";
@@ -10,7 +11,6 @@ import {
   Modal,
   Select,
   Space,
-  Table,
   Typography,
 } from "antd";
 import { apiFetch } from "../lib/api";
@@ -114,7 +114,7 @@ export function TimeRulesPage() {
         message="Новая версия действует для новых сроков. Уже запущенные таймеры сохраняют прежнюю версию. Изменения требуют права управления регламентами и записываются в журнал."
       />
       {error && <Alert type="error" message={error} showIcon />}
-      <Table
+      <ConfigurableTable storageKey="columns.time-rules" settingsPlacement="page"
         rowKey="key"
         dataSource={rules}
         loading={busy}

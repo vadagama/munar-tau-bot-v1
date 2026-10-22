@@ -1,3 +1,4 @@
+import { ProcessHistory } from "../components/process-card";
 import { Descriptions, List, Space, Typography } from "antd";
 import { DetailSection } from "../components/detail-section";
 import { ROLE_LABELS } from "../../../core/src/pdp/roles";
@@ -31,7 +32,7 @@ export function StaffDetails({ card }: { card: StaffCard }) {
           {card.workload.requests}; расписания: {card.workload.schedules}.
         </Typography.Paragraph>
       </DetailSection>
-      <DetailSection title="История">
+      <ProcessHistory>
         <List
           dataSource={card.history}
           locale={{ emptyText: "Изменений ролей пока нет" }}
@@ -61,7 +62,7 @@ export function StaffDetails({ card }: { card: StaffCard }) {
             ).join("; ")}
           </Typography.Paragraph>
         )}
-      </DetailSection>
+      </ProcessHistory>
     </>
   );
 }

@@ -1,3 +1,7 @@
+import { ProcessOverview, ProcessActions } from "../components/process-card";
+import { requestGuidance, processActionHint } from "../components/process-guidance";
+import { ConfigurableTable } from "../components/configurable-table";
+import type { TableColumnsType } from "antd";
 import { taskAssigneeOptions } from "./task-assignees";
 import { REQUEST_ACTION_ICONS } from "./request-action-icons";
 import { TASK_STATE_TEXT } from "../../../core/src/locales/tasks";
@@ -24,7 +28,6 @@ import {
   Select,
   Space,
   Spin,
-  Table,
   Tabs,
   Tag,
   Typography,
@@ -115,6 +118,7 @@ export function RequestsPage() {
   const [buildingFilter, setBuildingFilter] = useState<string>(),
     [from, setFrom] = useState(""),
     [to, setTo] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [search, setSearch] = useState(""),
     [state, setState] = useState<string>(),
     [channel, setChannel] = useState("resident"),
@@ -154,7 +158,9 @@ export function RequestsPage() {
   }, [action, card?.id]);
   const messageKey = useRef(crypto.randomUUID()),
     createKey = useRef(crypto.randomUUID());
+  const listEpoch = useRef(0);
   const load = async (cursor?: string) => {
+    const epoch = ++listEpoch.current;
     setBusy(true);
     setError(null);
     try {
@@ -163,20 +169,21 @@ export function RequestsPage() {
       >("/v1/requests/search", {
         method: "POST",
         body: {
-          search,
+          search: appliedSearch,
           state,
           cursor,
           building_id: buildingFilter,
           from: from ? `${from}T00:00:00+05:00` : undefined,
-          to: to ? `${to}T23:59:59+05:00` : undefined,
+          to: to ? `${to}T23:59:59.999+05:00` : undefined,
         },
       });
+      if (epoch !== listEpoch.current) return;
       setRows(result.items);
       setNextCursor(result.next_cursor ?? null);
     } catch (e) {
-      setError(errorText(e));
+      if (epoch === listEpoch.current) setError(errorText(e));
     } finally {
-      setBusy(false);
+      if (epoch === listEpoch.current) setBusy(false);
     }
   };
   const open = async (id: string) => {
@@ -227,6 +234,15 @@ export function RequestsPage() {
   };
   usePageRefresh(() => load(), !busy && !saving);
   useEffect(() => {
+    // Фильтры выбора применяются сразу, набор текста — после короткой паузы.
+    const timer = window.setTimeout(() => setAppliedSearch(search), 250);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+  useEffect(() => {
+    void load();
+    return () => { listEpoch.current++; };
+  }, [appliedSearch, state, buildingFilter, from, to, staff, identity?.me.person.id]);
+  useEffect(() => {
     if (staff) {
       void Promise.all([
         apiFetch<{ items: Row[] }>("/v1/registry/persons"),
@@ -234,7 +250,6 @@ export function RequestsPage() {
       ]).then(([p, r]) => setRegistry({ persons: p.items, premises: r.items }))
         .catch((e) => setError(errorText(e)));
     }
-    void load();
     void apiFetch<{ items: Row[] }>("/v1/request-categories").then((r) =>
       setCategories(r.items)
     ).catch((e) => setError(errorText(e)));
@@ -405,6 +420,34 @@ export function RequestsPage() {
       ? ["approve_cancel", "reject_cancel"]
       : []),
   ];
+  const tableColumns: TableColumnsType<Row> = [
+    {
+      title: "Номер",
+      key: "number", dataIndex: "number",
+      render: (v, r) => (
+        <Button
+          type="link"
+          disabled={saving || fileBusy}
+          onClick={() => void open(String(r.id))}
+        >
+          {String(v ?? "Черновик")}
+        </Button>
+      ),
+    },
+    { title: "Описание", key: "description", dataIndex: "description", ellipsis: true },
+    { title: "Вид", key: "kind", dataIndex: "kind", render: (v) => KINDS[String(v)] },
+    {
+      title: "Статус",
+      key: "state", dataIndex: "state",
+      render: (v) => <Tag>{REQUEST_STATES[String(v)]}</Tag>,
+    },
+    {
+      title: "Первый ответ до",
+      key: "first_response_due_at", dataIndex: "first_response_due_at",
+      render: (v) =>
+        v ? new Date(String(v)).toLocaleString("ru-RU") : "—",
+    },
+  ];
   return (
     <PageLayout title="Обращения"
       extra={<ViewToggle kind={view} onChange={setView} />}
@@ -419,7 +462,7 @@ export function RequestsPage() {
           placeholder="Номер или описание"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          onSearch={() => void load()}
+          onSearch={() => setAppliedSearch(search)}
           style={{ width: 280 }}
         />
         <Select
@@ -460,7 +503,6 @@ export function RequestsPage() {
           onChange={(e) => setTo(e.target.value)}
           style={{ width: 155 }}
         />
-        <Button onClick={() => void load()}>Применить</Button>
       </Space>}>
 
       {error && !card && !create && (
@@ -512,40 +554,13 @@ export function RequestsPage() {
           )}
         />
       ) : (
-        <Table<Row>
+        <ConfigurableTable<Row> storageKey="columns.requests" settingsPlacement="page"
           rowKey="id"
           loading={busy}
           dataSource={rows}
           locale={{ emptyText: <Empty description="Обращений пока нет" /> }}
           scroll={{ x: 650 }}
-          columns={[
-            {
-              title: "Номер",
-              dataIndex: "number",
-              render: (v, r) => (
-                <Button
-                  type="link"
-                  disabled={saving || fileBusy}
-                  onClick={() => void open(String(r.id))}
-                >
-                  {String(v ?? "Черновик")}
-                </Button>
-              ),
-            },
-            { title: "Описание", dataIndex: "description", ellipsis: true },
-            { title: "Вид", dataIndex: "kind", render: (v) => KINDS[String(v)] },
-            {
-              title: "Статус",
-              dataIndex: "state",
-              render: (v) => <Tag>{REQUEST_STATES[String(v)]}</Tag>,
-            },
-            {
-              title: "Первый ответ до",
-              dataIndex: "first_response_due_at",
-              render: (v) =>
-                v ? new Date(String(v)).toLocaleString("ru-RU") : "—",
-            },
-          ]}
+          columns={tableColumns}
         />
       )}
       {nextCursor && (
@@ -572,7 +587,7 @@ export function RequestsPage() {
       >
         {error && card && !action && !placeEdit && !create && !restricting && <Alert role="alert" type="error" showIcon message={error} />}
         {card && (
-          <Space direction="vertical" size="large" style={{ width: "100%" }}>
+          <Space key={String(card.id)} direction="vertical" size="large" style={{ width: "100%" }}>
             {requestOverdue(card) && (
               <Alert
                 role="alert"
@@ -587,6 +602,35 @@ export function RequestsPage() {
                 }
               />
             )}
+            <ProcessOverview guidance={requestGuidance(card, manage, own)} state={REQUEST_STATES[stateName]}
+              due={["closed", "canceled", "rejected", "awaiting_confirmation"].includes(stateName) ? undefined : !card.first_response_at ? card.first_response_due_at : card.due_at} dueLabel={!card.first_response_at ? "Первый ответ до" : "Выполнение до"}>
+              <section aria-label="Действия по процессу">
+                {manage && stateName === "in_work" && !requestGuidance(card, manage, own).primary &&
+                  <Button type="primary" href="#request-tasks">Проверить связанные задания</Button>}
+                <ProcessActions primary={requestGuidance(card, manage, own).primary} secondary={["ask_clarification", "return_result", "reject_cancel"]}>
+                  {[...new Set(actions)].map((a) => (
+                    <Button
+                      key={a}
+                      icon={REQUEST_ACTION_ICONS[a]}
+                      onClick={() => {
+                        actionForm.resetFields();
+                        if (a === "start_work") {
+                          startWorkKey.current = crypto.randomUUID();
+                          actionForm.setFieldsValue({ plan: card.kind === "request"
+                            ? String(card.description ?? "")
+                            : `Подготовить ответ по обращению ${card.number}` });
+                        }
+                        setAction(a);
+                      }}
+                    >
+                      {ACTIONS[a]}
+                    </Button>
+                  ))}
+                </ProcessActions>
+                {own && stateName === "closed" && card.close_method === "author" &&
+                  <RatingEditor id={String(card.id)} onError={setError} />}
+              </section>
+            </ProcessOverview>
             <DetailSection title="Информация об обращении">
               <Descriptions
                 column={{ xs: 1, sm: 2 }}
@@ -774,6 +818,7 @@ export function RequestsPage() {
                 )}
             </DetailSection>
             {manage && <DetailSection title="Связанные задания">
+              <div id="request-tasks" />
               <List dataSource={(card.tasks as Row[] | undefined) ?? []}
                 locale={{ emptyText: "Связанных заданий пока нет" }}
                 renderItem={task => <List.Item key={String(task.id)}>
@@ -785,32 +830,6 @@ export function RequestsPage() {
                 </List.Item>} />
             </DetailSection>}
 
-            {(actions.length > 0 || card.kind === "request" || (own && stateName === "closed" && card.close_method === "author")) && (
-              <DetailSection title="Действия по процессу">
-                <Space wrap>
-                  {[...new Set(actions)].map((a) => (
-                    <Button
-                      key={a}
-                      icon={REQUEST_ACTION_ICONS[a]}
-                      onClick={() => {
-                        actionForm.resetFields();
-                        if (a === "start_work") {
-                          startWorkKey.current = crypto.randomUUID();
-                          actionForm.setFieldsValue({ plan: card.kind === "request"
-                            ? String(card.description ?? "")
-                            : `Подготовить ответ по обращению ${card.number}` });
-                        }
-                        setAction(a);
-                      }}
-                    >
-                      {ACTIONS[a]}
-                    </Button>
-                  ))}
-                </Space>
-                {own && stateName === "closed" && card.close_method === "author" &&
-                  <RatingEditor id={String(card.id)} onError={setError} />}
-              </DetailSection>
-            )}
             <DetailSection title="Переписка">
               <Tabs
                 activeKey={channel}
@@ -1181,6 +1200,7 @@ export function RequestsPage() {
         </Form>
       </ActionPanel>
       <ActionPanel
+        description={processActionHint("request", action)}
         form={actionForm}
         error={error}
 

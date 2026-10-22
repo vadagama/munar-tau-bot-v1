@@ -1,3 +1,4 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import { EMULATION_ROLE_LABELS } from "../lib/emulation-roles";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -12,7 +13,6 @@ import {
   Modal,
   Space,
   Spin,
-  Table,
   Tag,
   Typography,
 } from "antd";
@@ -184,7 +184,7 @@ export function EmulationPage() {
       {loading ? (
         <Spin size="large" style={{ display: "block", margin: "60px auto" }} />
       ) : (
-        <Table rowKey={(record) => record.person.id} size="small" columns={columns} scroll={{ x: 600 }} dataSource={persons} pagination={false} />
+        <ConfigurableTable storageKey="columns.emulation" settingsPlacement="page" rowKey={(record) => record.person.id} size="small" columns={columns} scroll={{ x: 600 }} dataSource={persons} pagination={false} />
       )}
       <Modal
         title="Новая тестовая персона"

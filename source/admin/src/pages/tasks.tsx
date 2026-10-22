@@ -1,3 +1,8 @@
+import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
+import { taskGuidance, processActionHint } from "../components/process-guidance";
+import { DetailSection } from "../components/detail-section";
+import { ConfigurableTable } from "../components/configurable-table";
+import type { TableColumnsType } from "antd";
 import { taskAssigneeOptions } from "./task-assignees";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -18,7 +23,6 @@ import {
   List,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
   theme,
@@ -38,10 +42,13 @@ interface Task extends Row {
   state: string;
   version: number;
   due_at: string;
+  created_at?: string;
+  linked_request?: { id: string; number: string } | null;
   request_id: string;
   can_manage?: boolean;
   can_approve?: boolean;
   can_execute?: boolean;
+  assignee_person_id?: string | null;
   assignee_name?: string | null;
   log?: Row[];
   delivery_failures?: {id:string;last_error:string;followup_state:string}[];
@@ -65,6 +72,11 @@ export function TasksPage() {
   const manager = roles.some((r) =>
     ["chairman", "administrator", "deputy"].includes(r)
   );
+  const [assigneeFilter, setAssigneeFilter] = useState<string>();
+  const [search, setSearch] = useState("");
+  const [stateFilter, setStateFilter] = useState<string>();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [rows, setRows] = useState<Task[]>([]),
     [card, setCard] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false),
@@ -106,6 +118,11 @@ export function TasksPage() {
   }
   usePageRefresh(() => refresh(true), !loading && !saving && !actionLoading && !reportBusy);
   useEffect(() => {
+    setAssigneeFilter(undefined);
+    setSearch("");
+    setStateFilter(undefined);
+    setFrom("");
+    setTo("");
     setCreating(false);
     setAction(null);
     setReporting(false);
@@ -337,6 +354,8 @@ export function TasksPage() {
     );
   const reports = (card?.reports as Row[]) ?? [];
   const latestReport = reports[reports.length - 1];
+  // API возвращает ошибки доставки от новых к старым.
+  const latestDeliveryFailure = card?.delivery_failures?.[0];
   if (card?.can_manage && card.state === "on_review") {
     if (card.can_approve === true) adminActions.push("approve");
     adminActions.push("return");
@@ -344,138 +363,68 @@ export function TasksPage() {
   if (card?.can_manage && card.state === "accepted_admin") {
     adminActions.push("return");
   }
-  return (
-    <PageLayout title="Задания"
-      extra={<ViewToggle kind={view} onChange={setView} />}
-      actions={manager ? <>
-        <Button type="primary" onClick={() => void newTask()}>Создать задание</Button>
-        <Button href="/common-works">Общие работы</Button>
-        <Button href="/job-templates">Шаблоны заданий</Button>
-      </> : null}>
-
-      {error && !card && !creating && <Alert type="error" showIcon message={error} />}
-
-      {view === "board" ? (
-        <BoardView
-          columns={BOARD_COLUMNS}
-          rows={rows}
-          stateOf={(t) => t.state}
-          onOpen={(t) => void open(t.id)}
-          selectedId={card ? card.id : null}
-          loading={loading}
-          emptyText="Доступных заданий нет"
-          renderCard={(t) => (
-            <>
-              <Typography.Text strong>{t.number}</Typography.Text>
-              <Typography.Paragraph
-                ellipsis={{ rows: 2 }}
-                style={{ marginBottom: 4 }}
-              >
-                {t.title}
-              </Typography.Paragraph>
-              {!!t.assignee_name && (
-                <Typography.Text type="secondary">
-                  {t.assignee_name}
-                </Typography.Text>
-              )}
-              <Typography.Text
-                type={overdue(t) ? "danger" : "secondary"}
-                style={{ display: "block" }}
-              >
-                {`Срок: ${new Date(t.due_at).toLocaleString("ru-RU")}`}
-              </Typography.Text>
-            </>
-          )}
-        />
-      ) : (
-        <Table<Task>
-          loading={loading}
-          rowKey="id"
-          dataSource={rows}
-          locale={{ emptyText: "Доступных заданий нет" }}
-          scroll={{ x: 650 }}
-          columns={[
-            {
-              title: "Номер",
-              dataIndex: "number",
-              render: (n: string, r: Task) => (
-                <Button
-                  type="link"
-                  onClick={() => void open(r.id)}
-                >
-                  {n}
-                </Button>
-              ),
-            },
-            { title: "Работа", dataIndex: "title" },
-            {
-              title: "Состояние",
-              dataIndex: "state",
-              render: (s: string) => <Tag>{TASK_STATE_TEXT[s]?.ru ?? s}</Tag>,
-            },
-            {
-              title: "Срок",
-              dataIndex: "due_at",
-              render: (v: string) => new Date(v).toLocaleString("ru-RU"),
-            },
-          ]}
-        />
-      )}
-      <CardDrawer
-        open={!!card || creating || !!action || reporting}
-        title={card ? `${card.number} — ${card.title}` : "Новое задание"}
-        closeDisabled={saving || reportBusy || actionLoading}
-        onClose={() => {
-          // Отзыв закрывает карточку окончательно: незавершённый open() её не вернёт.
-          generation.current++;
-          setCard(null);
-          setCreating(false);
-        }}
-      >
-        {error && card && !action && !creating && !reporting && <Alert role="alert" type="error" showIcon message={error} />}
-        {card && (
-          <>
-          {!!card.linked_request && <Typography.Paragraph>
-            Обращение: <Typography.Link href={`/requests?request=${encodeURIComponent(String((card.linked_request as Row).id))}`}>
-              {String((card.linked_request as Row).number)}
-            </Typography.Link>
-          </Typography.Paragraph>}
-          <Descriptions
-            column={1}
-            items={[{
-              key: "state",
-              label: "Состояние",
-              children: TASK_STATE_TEXT[card.state]?.ru,
-            }, {
-              key: "instruction",
-              label: "Инструкция",
-              children: (
-                <>
-                  {card.instruction}
-                  {!!card.methodology && (
-                    <p>
-                      Методичка, версия{" "}
-                      {String((card.methodology as Row).version)};{" "}
-                      {String((card.methodology as Row).author_name)};{" "}
-                      {new Date(String((card.methodology as Row).created_at))
-                        .toLocaleDateString()}
-                    </p>
-                  )}
-                </>
-              ),
-            }, {
-              key: "due",
-              label: "Срок",
-              children: new Date(card.due_at).toLocaleString("ru-RU"),
-            }]}
-          />
-          {!!card.overdue_at && <Alert type="warning" showIcon message={`Срок нарушен с ${new Date(String(card.overdue_at)).toLocaleString("ru-RU")}`} />}
-          {!!card.acceptance_due_at && card.state === "awaiting_acceptance" && <p>Ожидаем принятия до {new Date(String(card.acceptance_due_at)).toLocaleString("ru-RU")}</p>}
-          {card.delivery_failures?.map(f => <Alert key={f.id} type="error" showIcon message={f.last_error === "BLOCKED_BY_USER" ? "Бот заблокирован получателем" : f.last_error === "DISPATCH_FAILED" ? "Не удалось подготовить уведомление" : "Доставка не удалась"} description={`Связь: ${f.followup_state === "done" ? "результат записан" : "требуется связаться"}. Подробности — в разделе «Уведомления».`} />)}
-          <TaskProblems task={card} onSaved={() => open(card.id, true)} />
-          <Space wrap>
+  const assignees = new Map<string, string>();
+  for (const task of rows) {
+    if (task.assignee_person_id) assignees.set(task.assignee_person_id, task.assignee_name ?? "Имя не указано");
+  }
+  const assigneeOptions = [...assignees].map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, "ru"));
+  const query = search.trim().toLocaleLowerCase("ru");
+  const fromTime = from ? Date.parse(`${from}T00:00:00+05:00`) : null;
+  const toTime = to ? Date.parse(`${to}T23:59:59.999+05:00`) : null;
+  const invalidPeriod = !!(from && to && from > to);
+  const visibleRows = rows.filter(task => {
+    const created = Date.parse(task.created_at ?? "");
+    return !invalidPeriod &&
+      (!query || [task.number, task.title, task.instruction].some(value => value?.toLocaleLowerCase("ru").includes(query))) &&
+      (!assigneeFilter || (assigneeFilter === "unassigned" ? !task.assignee_person_id : task.assignee_person_id === assigneeFilter)) &&
+      (!stateFilter || task.state === stateFilter) &&
+      (fromTime === null || created >= fromTime) && (toTime === null || created <= toTime);
+  });
+  const tableColumns: TableColumnsType<Task> = [
+    {
+      title: "Номер",
+      key: "number", dataIndex: "number",
+      render: (n: string, r: Task) => (
+        <Button
+          type="link"
+          onClick={() => void open(r.id)}
+        >
+          {n}
+        </Button>
+      ),
+    },
+    {
+      key: "request", title: "Обращение",
+      render: (_, task) => task.linked_request
+        ? <Typography.Link href={`/requests?request=${encodeURIComponent(task.linked_request.id)}`}>{task.linked_request.number}</Typography.Link>
+        : "—",
+    },
+    { title: "Работа", key: "title", dataIndex: "title" },
+    { title: "Исполнитель", key: "assignee_name", dataIndex: "assignee_name", render: (name: string | null) => name ?? "Не назначен" },
+    {
+      title: "Состояние",
+      key: "state", dataIndex: "state",
+      render: (s: string) => <Tag>{TASK_STATE_TEXT[s]?.ru ?? s}</Tag>,
+    },
+    {
+      title: "Дата создания",
+      key: "created_at", dataIndex: "created_at",
+      render: (value?: string) => value ? new Date(value).toLocaleString("ru-RU", {
+        timeZone: "Asia/Almaty", year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit",
+      }) : "—",
+    },
+    {
+      title: "Срок",
+      key: "due_at", dataIndex: "due_at",
+      render: (v: string) => new Date(v).toLocaleString("ru-RU"),
+    },
+  ];
+  const taskActions = card && (
+          <ProcessActions primary={taskGuidance(card).primary} secondary={["decline", "request_pause", "return", "problem"]}>
             {card.can_execute && card.state === "in_progress" && (
-              <Button
+              <Button key="problem"
                 onClick={() => {
                   setReportDirty(false);
                   setProblemReporting(true);
@@ -486,7 +435,7 @@ export function TasksPage() {
               </Button>
             )}
             {card.can_execute && card.state === "in_progress" && (
-              <Button
+              <Button key="report"
                 onClick={() => {
                   setReportDirty(false);
                   setProblemReporting(false);
@@ -504,16 +453,13 @@ export function TasksPage() {
                 {TASK_ACTION_TEXT[a]}
               </Button>
             ))}
-          </Space>
-          <Typography.Title level={3}>Отчёты</Typography.Title>
-          <List
-            dataSource={reports}
-            locale={{ emptyText: "Отчётов пока нет" }}
-            renderItem={(r) => (
+          </ProcessActions>
+  );
+  const renderTaskReport = (r: Row) => (
               <List.Item>
                 <Space direction="vertical">
                   <Typography.Text strong>
-                    Версия {String(r.version)}
+                    {r === latestReport ? "Текущий отчёт · версия " : "Предыдущий отчёт · версия "}{String(r.version)}
                   </Typography.Text>
                   <Typography.Text>
                     {String(r.performed_work)} — {String(r.result)}
@@ -548,9 +494,160 @@ export function TasksPage() {
                   ))}
                 </Space>
               </List.Item>
-            )}
+  );
+  const taskReports = card && (
+          <DetailSection title="Отчёты"><div id="task-reports">
+          <List
+            dataSource={latestReport ? [latestReport] : []}
+            locale={{ emptyText: "Отчётов пока нет" }}
+            renderItem={renderTaskReport}
           />
-          <Typography.Title level={3}>История задания</Typography.Title>
+          </div>
+          {card.state === "on_review" && taskActions}
+          {reports.length > 1 && <details><summary>Предыдущие отчёты ({reports.length - 1})</summary>
+            <List dataSource={reports.slice(0, -1).reverse()} renderItem={renderTaskReport} />
+          </details>}
+          </DetailSection>
+  );
+  return (
+    <PageLayout title="Все задания"
+      extra={<ViewToggle kind={view} onChange={setView} />}
+      actions={manager ? <Button type="primary" onClick={() => void newTask()}>Создать задание</Button> : null}
+      filters={<Space wrap>
+        <Input.Search aria-label="Поиск заданий" placeholder="Номер или описание"
+          value={search} onChange={event => setSearch(event.target.value)} style={{ width: 280, maxWidth: "100%" }} />
+        <Select
+          aria-label="Фильтр по исполнителю"
+          placeholder="Все исполнители"
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          value={assigneeFilter}
+          onChange={setAssigneeFilter}
+          options={[{ value: "unassigned", label: "Без исполнителя" }, ...assigneeOptions]}
+          style={{ width: 280, maxWidth: "100%" }}
+        />
+        <Select aria-label="Состояние задания" placeholder="Все состояния" allowClear
+          value={stateFilter} onChange={setStateFilter} options={BOARD_COLUMNS} style={{ width: 230 }} />
+        <Space wrap>
+        <Typography.Text type="secondary">Дата создания:</Typography.Text>
+        <Input aria-label="Дата создания с" title="Дата создания с (Алматы)" type="date"
+          value={from} onChange={event => setFrom(event.target.value)} style={{ width: 155 }} />
+        <Input aria-label="Дата создания по" title="Дата создания по (Алматы)" type="date"
+          value={to} onChange={event => setTo(event.target.value)} style={{ width: 155 }} />
+        </Space>
+      </Space>}>
+
+      {invalidPeriod && <Alert type="warning" showIcon message="Дата начала периода позже даты окончания" />}
+      {error && !card && !creating && <Alert type="error" showIcon message={error} />}
+
+      {view === "board" ? (
+        <BoardView
+          columns={BOARD_COLUMNS}
+          rows={visibleRows}
+          stateOf={(t) => t.state}
+          onOpen={(t) => void open(t.id)}
+          selectedId={card ? card.id : null}
+          loading={loading}
+          emptyText="Доступных заданий нет"
+          renderCard={(t) => (
+            <>
+              <Typography.Text strong>{t.number}</Typography.Text>
+              <Typography.Paragraph
+                ellipsis={{ rows: 2 }}
+                style={{ marginBottom: 4 }}
+              >
+                {t.title}
+              </Typography.Paragraph>
+              <Typography.Text type="secondary" style={{ display: "block" }}>
+                Исполнитель: {t.assignee_name ?? "не назначен"}
+              </Typography.Text>
+              <Typography.Text
+                type={overdue(t) ? "danger" : "secondary"}
+                style={{ display: "block" }}
+              >
+                {`Срок: ${new Date(t.due_at).toLocaleString("ru-RU")}`}
+              </Typography.Text>
+            </>
+          )}
+        />
+      ) : (
+        <ConfigurableTable<Task> storageKey="columns.tasks" settingsPlacement="page"
+          loading={loading}
+          rowKey="id"
+          dataSource={visibleRows}
+          locale={{ emptyText: "Доступных заданий нет" }}
+          scroll={{ x: 650 }}
+          columns={tableColumns}
+        />
+      )}
+      <CardDrawer
+        open={!!card || creating || !!action || reporting}
+        title={card ? `${card.number} — ${card.title}` : "Новое задание"}
+        closeDisabled={saving || reportBusy || actionLoading}
+        onClose={() => {
+          // Отзыв закрывает карточку окончательно: незавершённый open() её не вернёт.
+          generation.current++;
+          setCard(null);
+          setCreating(false);
+        }}
+      >
+        {error && card && !action && !creating && !reporting && <Alert role="alert" type="error" showIcon message={error} />}
+        {card && (
+          <div key={String(card.id)} className="process-card-content">
+          {latestDeliveryFailure && (
+            <Alert
+              role="alert"
+              aria-label="Ошибка доставки уведомления"
+              type="error"
+              showIcon
+              message={<Space wrap><span>{latestDeliveryFailure.last_error === "BLOCKED_BY_USER"
+                ? "Бот заблокирован получателем"
+                : latestDeliveryFailure.last_error === "DISPATCH_FAILED"
+                ? "Не удалось подготовить уведомление"
+                : "Доставка не удалась"}</span>
+                <Typography.Text type="secondary">{latestDeliveryFailure.followup_state === "done" ? "Связь: результат записан" : "Связь: требуется связаться"}</Typography.Text>
+                <Typography.Link href="/notifications/failures">Журнал доставки</Typography.Link>
+              </Space>}
+            />
+          )}
+          {!!card.overdue_at && overdue(card) && <Alert type="warning" showIcon message={`Срок нарушен с ${new Date(String(card.overdue_at)).toLocaleString("ru-RU")}`} />}
+          <ProcessOverview participant={card.assignee_name} guidance={taskGuidance(card)} state={TASK_STATE_TEXT[card.state]?.ru}
+            due={card.state === "awaiting_acceptance" ? card.acceptance_due_at ?? card.due_at : card.due_at}>
+            {card.state === "on_review"
+              ? <Button type="link" href="#task-reports">Перейти к отчёту</Button>
+              : taskActions}
+          </ProcessOverview>
+          {card.state === "on_review" && taskReports}
+          <DetailSection title="Информация о задании">
+          {!!card.linked_request && <Typography.Paragraph>
+            Обращение: <Typography.Link href={`/requests?request=${encodeURIComponent(String((card.linked_request as Row).id))}`}>
+              {String((card.linked_request as Row).number)}
+            </Typography.Link>
+          </Typography.Paragraph>}
+          <Descriptions
+            column={1}
+            items={[{
+              key: "created",
+              label: "Дата создания",
+              children: card.created_at ? new Date(card.created_at).toLocaleString("ru-RU", {timeZone:"Asia/Almaty"}) : "Не указана",
+            }, {
+              key: "required",
+              label: "Объём",
+              children: card.is_required === true ? "Обязательное задание" : card.is_required === false ? "Дополнительное задание" : "Не указан",
+            }]}
+          />
+          {!!card.acceptance_due_at && card.state === "awaiting_acceptance" && <p>Ожидаем принятия до {new Date(String(card.acceptance_due_at)).toLocaleString("ru-RU")}</p>}
+          </DetailSection>
+          <DetailSection title="Инструкция">
+            <Typography.Paragraph style={{whiteSpace:"pre-wrap"}}>{card.instruction}</Typography.Paragraph>
+            {!!card.methodology && <Typography.Text type="secondary">
+              Методичка, версия {String((card.methodology as Row).version)} · {String((card.methodology as Row).author_name)} · {new Date(String((card.methodology as Row).created_at)).toLocaleDateString("ru-RU",{timeZone:"Asia/Almaty"})}
+            </Typography.Text>}
+          </DetailSection>
+          <TaskProblems task={card} onSaved={() => open(card.id, true)} />
+          {card.state !== "on_review" && taskReports}
+          <ProcessHistory title="История задания">
           <List
             dataSource={card.log ?? []}
             locale={{ emptyText: "Событий пока нет" }}
@@ -562,13 +659,15 @@ export function TasksPage() {
               </List.Item>
             )}
           />
-          </>
+          </ProcessHistory>
+          </div>
         )}
       <ActionPanel
         hasUnsavedChanges={() => reportDirty}
         busy={reportBusy}
         full
         error={error}
+        description={problemReporting ? "Проблема будет сохранена с местом и материалами. Управляющий отдельно определит дальнейшее задание." : "Отчёт с доказательствами будет отправлен на проверку. Завершение исполнения не означает приёмку управляющим."}
         title={problemReporting ? "Найденная проблема" : "Отчёт исполнителя"}
         open={reporting}
         onCancel={() => setReporting(false)}
@@ -715,6 +814,7 @@ export function TasksPage() {
         </Form>
       </ActionPanel>
       <ActionPanel
+        description={processActionHint("task", action)}
         form={actionForm}
         error={error}
         busy={saving || actionLoading}

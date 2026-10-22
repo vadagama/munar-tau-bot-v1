@@ -1,3 +1,7 @@
+import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
+import { incidentGuidance, processActionHint } from "../components/process-guidance";
+import { DetailSection } from "../components/detail-section";
+import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
@@ -15,7 +19,6 @@ import {
   List,
   Select,
   Space,
-  Table,
   Tabs,
   Typography,
 } from "antd";
@@ -291,7 +294,7 @@ export function IncidentsPage() {
                     )}
                   />
                 ) : (
-                  <Table
+                  <ConfigurableTable storageKey="columns.incidents" settingsPlacement={activeTab === "incidents" ? "page" : "inline"}
                     rowKey="id"
                     dataSource={rows}
                     loading={busy}
@@ -321,12 +324,13 @@ export function IncidentsPage() {
             key: "signals",
             label: "Срочные сигналы",
             children: (
-              <Table
+              <ConfigurableTable storageKey="columns.emergency-signals" settingsPlacement={activeTab === "signals" ? "page" : "inline"}
                 rowKey="id"
                 dataSource={signals}
                 scroll={{ x: 650 }}
                 columns={[{ title: "Описание", dataIndex: "description" }, {
                   title: "Принятие",
+                  dataIndex: "accepted_at",
                   render: (_, r) => (
                     <Space>
                       {manager && (
@@ -372,7 +376,7 @@ export function IncidentsPage() {
               children: (
                 <>
 
-                  <Table
+                  <ConfigurableTable storageKey="columns.duty-shifts" settingsPlacement={activeTab === "duty" ? "page" : "inline"}
                     rowKey="id"
                     dataSource={shifts}
                     scroll={{ x: 650 }}
@@ -400,7 +404,35 @@ export function IncidentsPage() {
       >
         {error && card && !action && <Alert role="alert" type="error" showIcon message={error} />}
         {card && typeof card.number === "string" && (
-          <>
+          <div key={String(card.id)} className="process-card-content">
+          <ProcessOverview guidance={incidentGuidance(card)} state={INCIDENT_STATES[String(card.state)]} due={card.next_update_at} dueLabel="Следующее обновление до">
+          <ProcessActions primary={incidentGuidance(card).primary} secondary={["mark_unconfirmed", "fail_check", "update"]}>
+            {((card.actions as string[] | undefined) ?? []).map((a) => (
+              <Button
+                key={a}
+                onClick={() => void begin(a)}
+              >
+                {names[a]}
+              </Button>
+            ))}
+            {(card.actions as string[] | undefined)?.length
+              ? <Button key="update" onClick={() => void begin("update")}>Обновление</Button>
+              : null}
+            {manager && (
+              <>
+                <Button key="link" onClick={() => void begin("link")}>
+                  Связать обращение / работу
+                </Button>
+                {card.state === "completed" && (
+                  <Button key="distribute" onClick={() => void begin("distribute")}>
+                    Передать итог обращениям
+                  </Button>
+                )}
+              </>
+            )}
+          </ProcessActions>
+          </ProcessOverview>
+          <DetailSection title="Сведения об аварии">
           <Typography.Paragraph>
             {String(
               card.public_text ?? "Публичное обновление пока не опубликовано",
@@ -420,31 +452,7 @@ export function IncidentsPage() {
               </List.Item>
             )}
           />
-          <Space wrap>
-            {((card.actions as string[] | undefined) ?? []).map((a) => (
-              <Button
-                key={a}
-                onClick={() => void begin(a)}
-              >
-                {names[a]}
-              </Button>
-            ))}
-            {(card.actions as string[] | undefined)?.length
-              ? <Button onClick={() => void begin("update")}>Обновление</Button>
-              : null}
-            {manager && (
-              <>
-                <Button onClick={() => void begin("link")}>
-                  Связать обращение / работу
-                </Button>
-                {card.state === "completed" && (
-                  <Button onClick={() => void begin("distribute")}>
-                    Передать итог обращениям
-                  </Button>
-                )}
-              </>
-            )}
-          </Space>
+          </DetailSection>
           {distribution.length > 0 && (
             <List
               header="Передача результата обращениям"
@@ -456,16 +464,18 @@ export function IncidentsPage() {
               )}
             />
           )}
+          <ProcessHistory>
           <List
-            header="История"
             dataSource={(card.history as Row[]) ?? []}
             renderItem={(h) => (
               <List.Item>{String(h.at)} — {String(h.reason)}</List.Item>
             )}
           />
-          </>
+          </ProcessHistory>
+          </div>
         )}
       <ActionPanel
+        description={processActionHint("incident", action)}
         form={form}
         full
         error={error}

@@ -1,3 +1,4 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -7,7 +8,6 @@ import {
   Input,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
   Alert,
@@ -167,7 +167,7 @@ export function AuditPage() {
       </Space>}>
       {error !== null && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
 
-      <Table
+      <ConfigurableTable storageKey="columns.audit" settingsPlacement="page"
         rowKey="id"
         size="small"
         columns={columns}

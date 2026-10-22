@@ -1,3 +1,5 @@
+import { ProcessOverview } from "../components/process-card";
+import { ConfigurableTable } from "../components/configurable-table";
 import { CardDrawer } from "./card-drawer";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -10,7 +12,6 @@ import {
   Modal,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
 } from "antd";
@@ -255,7 +256,7 @@ export function RegistrationsPage() {
           }}
         />
       ) : (
-        <Table
+        <ConfigurableTable storageKey="columns.registrations" settingsPlacement="page"
           rowKey="id"
           loading={busy}
           dataSource={visible}
@@ -294,6 +295,7 @@ export function RegistrationsPage() {
             },
             {
               title: "Срок",
+              dataIndex: "stage_due_at",
               render: (_, r) => (
                 <>
                   {r.stage_due_at
@@ -317,6 +319,11 @@ export function RegistrationsPage() {
         footer={<Button type="primary" danger={management?.operation === "delete"} loading={saving} onClick={() => void saveManagement()}>
           {management?.operation === "delete" ? "Удалить анкету" : "Отправить на проверку"}
         </Button>}>
+        {management && <ProcessOverview state={STATES[String(management.row.state)]} guidance={{
+          title: management.operation === "delete" ? "Нужно подтвердить прекращение доступа" : "Нужно подготовить исправления анкеты",
+          description: management.operation === "delete" ? "Проверьте человека и основание удаления. Сохранение прекратит доступ, роли и связи; обращения и история сохранятся." : "Проверьте имя, телефон и язык, укажите основание. Изменения вступят в силу после проверки ОСИ; прежний доступ пока сохранится.",
+          waitingFor: "Управляющий",
+        }} />}
         {managementError && <Alert type="error" message={managementError} />}
         {management?.operation === "delete" ? <Alert showIcon type="warning" message="Доступ к боту и кабинету закроется. Связи с помещениями и служебные роли прекратятся. История обращений и операций сохранится." />
           : <Typography.Paragraph>Исправления проверит ОСИ. До одобрения действуют прежние сведения и доступ.</Typography.Paragraph>}
@@ -345,6 +352,11 @@ export function RegistrationsPage() {
         }
         cancelText="Отмена"
       >
+        {action && <ProcessOverview state={STATES[String(action.row.state)]} due={action.row.stage_due_at} guidance={{
+          title: action.decision === "approve" ? "Нужно проверить данные перед подтверждением" : action.decision === "clarify" ? "Нужно запросить недостающие сведения" : action.decision === "dispute" ? "Нужно указать основание спора" : "Нужно обосновать отказ",
+          description: action.decision === "approve" ? "Сверьте анкету и совпадения в реестре. Подтверждение изменит доступ заявителя; исправление основной анкеты сохранит действующие связи и роли." : action.decision === "clarify" ? "Сформулируйте конкретный вопрос. После сохранения заявитель получит запрос уточнения." : "Проверьте сведения и укажите причину решения. Решение сохраняется в истории, заявитель получает уведомление.",
+          waitingFor: "Проверяющий",
+        }} />}
         <Form name="registration-decision" form={form} layout="vertical">
           {action?.decision === "approve" ? (
             <>

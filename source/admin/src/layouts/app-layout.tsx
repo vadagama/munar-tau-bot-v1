@@ -70,7 +70,13 @@ export function AppLayout() {
   const items = [
     { key: "/", label: "Главная" },
     { key: "/requests", label: "Обращения" },
-    ...(canSeeTasks(roles) ? [{ key: "/tasks", label: "Задания" }] : []),
+    ...(canSeeTasks(roles) ? [{ key: "tasks", label: "Задания", children: [
+      { key: "/tasks", label: "Все задания" },
+      ...(manager ? [
+        { key: "/common-works", label: "Общие работы" },
+        { key: "/job-templates", label: "Шаблоны заданий" },
+      ] : []),
+    ] }] : []),
     { key: "/incidents", label: "Аварии" },
     { key: "/publications", label: "Публикации" },
     ...(manager ? [

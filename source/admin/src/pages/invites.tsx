@@ -1,7 +1,8 @@
+import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect, useState } from "react";
-import { Alert, Table, Typography } from "antd";
+import { Alert, Typography } from "antd";
 import { apiFetch } from "../lib/api";
 import { displayKind, displayRole } from "./registry";
 type Row = Record<string, unknown>;
@@ -34,7 +35,7 @@ export function InvitesPage() {
         собственника.
       </Typography.Paragraph>
       {error && <Alert showIcon type="error" message={error} />}
-      <Table
+      <ConfigurableTable storageKey="columns.invites" settingsPlacement="page"
         rowKey="id"
         loading={busy}
         dataSource={rows}

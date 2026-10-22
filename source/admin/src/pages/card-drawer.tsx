@@ -24,6 +24,7 @@ export function CardDrawer(props: {
   const [editor, setEditor] = useState<Editor | null>(null);
   useEffect(() => { props.onEditingChange?.(!!editor); }, [editor, props.onEditingChange]);
   const [discard, setDiscard] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const close = () => {
     if (props.closeDisabled || editor?.busy()) return;
     if (editor) return editor.cancel();
@@ -31,10 +32,10 @@ export function CardDrawer(props: {
     else props.onClose();
   };
   return (
-    <Drawer open={props.open} title={props.title} width={CARD_DRAWER_WIDTH}
+    <Drawer open={props.open} title={props.title} width={expanded ? "100vw" : CARD_DRAWER_WIDTH}
       onClose={close} keyboard={!props.closeDisabled} maskClosable={!props.closeDisabled}
       afterOpenChange={(open) => { if (!open) setDiscard(false); }}
-      extra={editor ? null : <Button disabled={props.closeDisabled} onClick={close}>Закрыть карточку</Button>} footer={typeof props.footer === "function" ? props.footer(close) : props.footer}>
+      extra={editor ? null : <Space><Button aria-label={expanded ? "Свернуть карточку" : "Развернуть карточку"} onClick={() => setExpanded(!expanded)}>{expanded ? "Свернуть" : "Развернуть"}</Button><Button disabled={props.closeDisabled} onClick={close}>Закрыть карточку</Button></Space>} footer={typeof props.footer === "function" ? props.footer(close) : props.footer}>
       <DrawerActionContext.Provider value={{ host, editor, setEditor }}>
         {discard && <Alert type="warning" showIcon message="Остались несохранённые изменения"
           action={<Space wrap>

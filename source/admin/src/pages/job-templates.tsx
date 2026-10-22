@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { ProcessOverview } from "../components/process-card";
+import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
@@ -16,7 +17,6 @@ import {
   List,
   Select,
   Space,
-  Table,
   Typography,
   theme,
 } from "antd";
@@ -25,9 +25,13 @@ import { OSI_PRESETS, type TemplatePreset } from "./job-template-presets";
 type Row = Record<string, unknown>;
 const required = [{ required: true, message: "Заполните поле" }];
 export function JobTemplates(
-  { onCreated, navigation }: { onCreated: (taskId: string) => void; navigation?: ReactNode },
+  { onCreated }: { onCreated: (taskId: string) => void },
 ) {
   const { token } = theme.useToken();
+  const [search, setSearch] = useState("");
+  const [stateFilter, setStateFilter] = useState<string>();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [rows, setRows] = useState<Row[]>([]),
     [buildings, setBuildings] = useState<Row[]>([]),
     [versions, setVersions] = useState<Row[]>([]),
@@ -140,9 +144,35 @@ export function JobTemplates(
       setBusy(false);
     }
   }
+  const query = search.trim().toLocaleLowerCase("ru");
+  const fromTime = from ? Date.parse(`${from}T00:00:00+05:00`) : null;
+  const toTime = to ? Date.parse(`${to}T23:59:59.999+05:00`) : null;
+  const invalidPeriod = !!(from && to && from > to);
+  const filteredRows = rows.filter(row => {
+    const created = Date.parse(String(row.created_at ?? ""));
+    return !invalidPeriod && (!query || [row.name, (row.blueprint as Row | undefined)?.title, (row.blueprint as Row | undefined)?.instruction]
+      .some(value => String(value ?? "").toLocaleLowerCase("ru").includes(query))) &&
+      (!stateFilter || row.active === (stateFilter === "active")) &&
+      (fromTime === null || created >= fromTime) && (toTime === null || created <= toTime);
+  });
   return (
     <PageLayout title="Шаблоны заданий"
-      actions={<><Button type="primary" disabled={busy} onClick={() => begin("create", null)}>Создать шаблон</Button>{navigation}</>}>
+      filters={<Space wrap>
+        <Input.Search aria-label="Поиск шаблонов заданий" placeholder="Название или описание"
+          value={search} onChange={event => setSearch(event.target.value)} style={{ width: 280, maxWidth: "100%" }} />
+        <Select aria-label="Состояние шаблона" placeholder="Все состояния" allowClear
+          value={stateFilter} onChange={setStateFilter} style={{ width: 230 }}
+          options={[{ value: "active", label: "Действующие" }, { value: "inactive", label: "Неактивные" }]} />
+        <Space wrap>
+          <Typography.Text type="secondary">Дата создания:</Typography.Text>
+          <Input aria-label="Дата создания с" title="Дата создания с (Алматы)" type="date"
+            value={from} onChange={event => setFrom(event.target.value)} style={{ width: 155 }} />
+          <Input aria-label="Дата создания по" title="Дата создания по (Алматы)" type="date"
+            value={to} onChange={event => setTo(event.target.value)} style={{ width: 155 }} />
+        </Space>
+      </Space>}
+      actions={<><Button type="primary" disabled={busy} onClick={() => begin("create", null)}>Создать шаблон</Button></>}>
+      {invalidPeriod && <Alert type="warning" showIcon message="Дата начала периода позже даты окончания" />}
       {error && !action && <Alert type="error" message={error} />}
 
       <Collapse
@@ -176,10 +206,10 @@ export function JobTemplates(
           ),
         }]}
       />
-      <Table
+      <ConfigurableTable storageKey="columns.job-templates" settingsPlacement="page"
         rowKey="id"
         loading={busy}
-        dataSource={rows}
+        dataSource={filteredRows}
         scroll={{ x: 600 }}
         columns={[{ title: "Шаблон", dataIndex: "name" }, {
           title: "Версия",
@@ -235,6 +265,11 @@ export function JobTemplates(
         error={error}
         onCancel={() => !busy && setAction(null)}
       >
+        <ProcessOverview guidance={{
+          title: action === "run" ? "Нужно проверить условия запуска задания" : "Нужно подготовить методичку задания",
+          description: action === "run" ? "Укажите срок выполнения. Запуск создаст отдельную общую работу и задание по выбранному шаблону; предыдущие задания сохранятся." : "Проверьте объём, инструкцию, требования к доказательствам и область. Сохранение создаёт версию шаблона; начатые задания сами не меняются.",
+          waitingFor: "Управляющий",
+        }} />
         <Form
           form={form}
           layout="vertical"

@@ -1,3 +1,5 @@
+import { ProcessOverview } from "../components/process-card";
+import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { useCallback, useEffect, useState } from "react";
@@ -10,7 +12,6 @@ import {
   Modal,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
 } from "antd";
@@ -199,7 +200,7 @@ export function NotificationsPage({ section = "preferences" }: { section?: "pref
             связаться с получателем. Запишите фактический результат попытки;
             закрытие задачи не подтверждает согласие жителя.
           </Typography.Paragraph>
-          <Table
+          <ConfigurableTable storageKey="columns.notification-failures" settingsPlacement="page"
             rowKey="id"
             loading={busy}
             dataSource={failures}
@@ -262,6 +263,11 @@ export function NotificationsPage({ section = "preferences" }: { section?: "pref
         onOk={() => void complete()}
         confirmLoading={busy}
       >
+        {active && <ProcessOverview state="Требуется связаться" guidance={{
+          title: "Нужно записать результат связи с получателем",
+          description: "Свяжитесь с получателем доступным способом и зафиксируйте итог. Сохранение завершит задачу контакта, но не подтвердит прочтение уведомления или согласие с результатом работ.",
+          waitingFor: "Ответственный сотрудник",
+        }} />}
         <Form form={form} layout="vertical">
           <Form.Item
             name="result"

@@ -8,6 +8,7 @@ export interface TaskRow extends Row {
   id: string; request_id: string | null; common_work_id: string | null;
   building_ids: string[]; assignee_person_id: string | null;
   assignee_name?: string | null;
+  linked_request?: { id: string; number: string } | null;
   state: TaskState; prev_state: TaskState | null; is_test: boolean; version: number;
   created_by: string; number: string; started_at: string | null;
   depends_on_task_id: string | null; access_required: boolean; is_required: boolean;

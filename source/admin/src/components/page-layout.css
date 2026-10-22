@@ -39,10 +39,33 @@
   min-width: 0;
 }
 
-.cabinet-page__filters > .ant-tabs {
+.cabinet-page__filters > .ant-tabs,
+.cabinet-page__filter-fields > .ant-tabs {
   width: 100%;
 }
 
 .cabinet-page__workspace > .ant-typography {
   margin-bottom: 0;
+}
+
+.cabinet-page__filter-fields {
+  display: flex;
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.cabinet-page__table-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.table-settings-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }

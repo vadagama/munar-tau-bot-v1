@@ -66,3 +66,14 @@ it("подтверждение выхода не закрывает карточ
   fireEvent.click(screen.getByRole("button", { name: "Выйти без сохранения" }));
   expect(onClose).not.toHaveBeenCalled();
 });
+
+
+it("разворачивает карточку и сохраняет заполненную форму", () => {
+ render(<CardDrawer open title="Задание" onClose={() => {}}><input aria-label="Черновик" defaultValue="Материалы" /></CardDrawer>);
+ fireEvent.change(screen.getByLabelText("Черновик"),{target:{value:"Изменённый отчёт"}});
+ fireEvent.click(screen.getByRole("button",{name:"Развернуть карточку"}));
+ expect(screen.getByRole("button",{name:"Свернуть карточку"})).toBeInTheDocument();
+ expect(screen.getByLabelText("Черновик")).toHaveValue("Изменённый отчёт");
+ fireEvent.click(screen.getByRole("button",{name:"Свернуть карточку"}));
+ expect(screen.getByLabelText("Черновик")).toHaveValue("Изменённый отчёт");
+});

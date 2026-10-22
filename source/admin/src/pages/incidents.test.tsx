@@ -164,3 +164,17 @@ it("редактирование публикации использует ту 
   expect(within(drawer).getByText("Сообщение жителям")).toBeInTheDocument();
   expect(vi.mocked(apiFetch).mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(false);
 }, 15000);
+
+
+it("согласованный финансовый отчёт предлагает публикацию вместо повторного согласования", async () => {
+ const card={id:"p",title:"Отчёт за месяц",body:"Доходы и расходы",kind:"financial_report",state:"draft",approved_by:"chairman",files:[],history:[]};
+ vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/publications" ? {items:[card]} : card);
+ render(<PublicationsPage/>);
+ fireEvent.click(await screen.findByText("Открыть"));
+ const process=await screen.findByRole("region",{name:"Сейчас по процессу"});
+ expect(within(process).getByRole("button",{name:"Опубликовать"})).toHaveClass("ant-btn-primary");
+ expect(within(process).queryByRole("button",{name:"На согласование председателю"})).toBeNull();
+ fireEvent.click(within(process).getByRole("button",{name:"Опубликовать"}));
+ expect(await screen.findByText(/Материал станет доступен выбранной аудитории/)).toBeInTheDocument();
+ expect(vi.mocked(apiFetch).mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(false);
+});

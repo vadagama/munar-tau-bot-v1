@@ -73,3 +73,21 @@ it("только в эмуляции показывает выбор роли с
   expect(select.compareDocumentPosition(screen.getByRole("button", { name: "Выйти" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/emulation/persons"));
 });
+
+it.each([
+  ["/tasks", "Все задания"], ["/common-works", "Общие работы"], ["/job-templates", "Шаблоны заданий"],
+])("%s раскрывает группу Задания и выделяет свой пункт", (path, label) => {
+  state.roles = ["chairman"];
+  show(path);
+  expect(screen.getByRole("menuitem", { name: label })).toHaveClass("ant-menu-item-selected");
+  expect(screen.getByRole("menuitem", { name: "Все задания" })).toBeVisible();
+  expect(screen.getByRole("menuitem", { name: "Общие работы" })).toBeVisible();
+  expect(screen.getByRole("menuitem", { name: "Шаблоны заданий" })).toBeVisible();
+});
+it("исполнитель видит в группе только Все задания", () => {
+  state.roles = ["executor"];
+  show("/tasks");
+  expect(screen.getByRole("menuitem", { name: "Все задания" })).toBeVisible();
+  expect(screen.queryByRole("menuitem", { name: "Общие работы" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("menuitem", { name: "Шаблоны заданий" })).not.toBeInTheDocument();
+});

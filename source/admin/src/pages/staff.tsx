@@ -1,3 +1,5 @@
+import { ProcessOverview, ProcessActions } from "../components/process-card";
+import { ConfigurableTable } from "../components/configurable-table";
 import { StaffRoleForm } from "./staff-form";
 import { StaffDetails } from "./staff-details";
 import type { StaffCard, StaffList, StaffRow } from "./staff-types";
@@ -9,7 +11,6 @@ import {
   Input,
   Select,
   Space,
-  Table,
   Tag,
   Typography,
 } from "antd";
@@ -234,7 +235,7 @@ export function StaffPage() {
       }
     >
       {error && <Alert type="error" message={error} showIcon />}
-      <Table
+      <ConfigurableTable storageKey="columns.staff" settingsPlacement="page"
         rowKey="id"
         dataSource={rows}
         loading={busy}
@@ -314,20 +315,26 @@ export function StaffPage() {
           />
         </ActionPanel>
         {card && (
-          <Space direction="vertical" style={{ width: "100%" }}>
+          <Space key={card.id} direction="vertical" style={{ width: "100%" }}>
+            <ProcessOverview guidance={{
+              title: "Проверьте полномочия и открытые обязанности",
+              description: "Изменения ролей требуют основания. Прекращение полномочий не передаёт открытые задания, обращения и расписания автоматически: их нужно передать явно.",
+              waitingFor: "Управляющий — при изменении полномочий",
+            }}>
             {card.can_edit && (
-              <Space wrap>
-                <Button onClick={() => begin("edit")}>Изменить роли</Button>
+              <ProcessActions primary="edit">
+                <Button key="edit" onClick={() => begin("edit")}>Изменить роли</Button>
                 {(card.can_remove ?? !!card.roles.length) && (
-                  <Button
+                  <Button key="remove"
                     danger
                     onClick={() => begin("remove")}
                   >
                     Прекратить полномочия
                   </Button>
                 )}
-              </Space>
+              </ProcessActions>
             )}
+            </ProcessOverview>
             <StaffDetails card={card} />
           </Space>
         )}
