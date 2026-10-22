@@ -18,19 +18,20 @@ export function navigationReply(
   if (scenario === "staff-requests" && typeof reply !== "string") return reply;
   const b = (id: string, cmd: string) =>
     btn(messageButton(store, lang, "bot.controls", id), cmd);
-  const rows: InlineButton[][] = existing.length ? existing : [
+  const mainMenu = ["/start", "/cancel"].includes(command);
+  const rows: InlineButton[][] = existing.length ? existing : command === "/help" ? [[b("start", "/start")]] : mainMenu ? [
     scenario === "tasks"
       ? [
         b("back", "/tasks"),
         b("staffrequests", "/staffrequests"),
         b("settings", "/notifications"),
       ]
-      : command === "/help" ? [b("start", "/start")] : [
+      : [
         b("status", "/status"),
         b("register", "/register"),
         b("help", "/help"),
       ],
-  ];
+  ] : [];
   if (
     scenario === "registration" && !existing.length &&
     ["/start", "/cancel"].includes(command)

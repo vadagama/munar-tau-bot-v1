@@ -37,7 +37,7 @@ function harness(
       state = JSON.parse(String(params?.[1]));
       return [];
     }
-    if (sql.startsWith("select id,code from building")) {
+    if (sql.startsWith("select id,code")) {
       return [{ id: "b", code: "Дом <1>" }] as T[];
     }
     if (sql.startsWith("select id from premises")) return [{ id: "p" }] as T[];
@@ -103,13 +103,13 @@ describe("Полные сообщения регистрации и задани
       buttons: [[{ text: "Уточнить", data: "/edit 1" }], [{ text: "Удалить анкету", data: "/delete" }]],
     });
   });
-  it("building step asks for the house code as plain text (REG-11)", async () => {
+  it("building step asks for the house code with only cancel (REG-11)", async () => {
     const h = harness(undefined, { step: "phone", full_name: "Алия" });
     const result = await registrationStep(h.deps, "1", "+77001234567", actor);
     expect(replyText(result)).toBe(
       message(undefined, "ru", "message.registration.building"),
     );
-    expect(result).not.toHaveProperty("buttons");
+    expect(result).toHaveProperty("buttons", [[{ text: "Отменить", data: "/cancel" }]]);
   });
   it("consent summary escapes profile values and preserves confirmation action", async () => {
     const h = harness(

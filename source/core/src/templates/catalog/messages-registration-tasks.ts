@@ -46,6 +46,7 @@ const values: Record<string, [string, string]> = {
     "Список помещений и связей жителя",
     "1. Квартира 1/4 — Собственник",
   ],
+  phase: ["Очередь строительства", "1"],
   buildings: ["Список доступных зданий", "1. Дом 1"],
   kinds: [
     "Типы помещений",
@@ -147,7 +148,7 @@ function def(
   if ("accesses" in sample) {
     sample.accesses = "1. <b>Алия Омарова</b>: Квартира 4";
   }
-  const blocks = ["registrations", "tasks", "accesses"].filter((name) =>
+  const blocks = ["registrations", "tasks", "accesses", "buildings"].filter((name) =>
     name in sample
   );
   const sampleKk = { ...sample };
@@ -163,6 +164,11 @@ function def(
   }
   if ("accesses" in sampleKk) {
     sampleKk.accesses = "1. <b>Алия Омарова</b>: Пәтер 4";
+  }
+  if (key === "message.registration.building_unknown") {
+    const link = '<a href="https://t.me/munar_tau_bot?start=house_00000000-0000-4000-8000-000000000001_123456abcdef">102/1</a>';
+    sample.buildings = "<b>Очередь 1</b>\n" + link;
+    sampleKk.buildings = "<b>1-кезек</b>\n" + link;
   }
   let buttonRows: MessageExample["buttons"] = buttons?.length
     ? [
@@ -415,6 +421,16 @@ const defs: TemplateDef[] = [
       old(R + "vopros_administratora", l) + ": {reason}\n" +
       old(R + "vvedite_imya_i_familiyu_ili_tochku_chtoby", l),
   ),
+  def("message.registration.building_unknown", "Неверный номер дома — список по очередям", "/add", [],
+    l => l === "kk" ? "Үй табылмады. Өз үйіңізді таңдаңыз:\n{buildings}" : "Дом не найден. Выберите свой дом:\n{buildings}"),
+  def("message.registration.building_phase", "Очередь в подсказке домов", "/add", [],
+    l => l === "kk" ? "{phase}-кезек" : "Очередь {phase}"),
+  def("message.registration.building_unassigned", "Дома без очереди", "/add", [],
+    l => l === "kk" ? "Кезек көрсетілмеген" : "Очередь не указана"),
+  def("message.registration.buildings_empty", "Нет домов для выбора", "/add", [],
+    l => l === "kk" ? "Үйлер әлі қосылмаған. Кейінірек қайталап көріңіз." : "Дома пока не добавлены. Попробуйте позже."),
+  def("message.registration.building_choice_expired", "Устаревшая ссылка выбора дома", "/add", [],
+    l => l === "kk" ? "Бұл үйді таңдау енді белсенді емес. Ағымдағы диалогты жалғастырыңыз." : "Этот выбор дома уже неактивен. Продолжите текущий диалог."),
   def(
     "message.registration.building",
     "Регистрация — номер дома текстом",
@@ -424,7 +440,7 @@ const defs: TemplateDef[] = [
       l === "kk"
         ? "Үйіңіздің нөмірін жазыңыз (мысалы, 107/2)."
         : "Напишите номер вашего дома (например, 107/2).",
-    [],
+    [{ id: "cancel", ru: "Отменить", kk: "Болдырмау" }],
   ),
   def(
     "message.registration.kind",
