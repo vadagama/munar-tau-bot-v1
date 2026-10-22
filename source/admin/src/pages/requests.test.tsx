@@ -508,7 +508,7 @@ it("показывает инициатора, сортирует по имен�
     ] } : original(path, options));
   render(<RequestsPage />);
   await screen.findByText("Яков Петров");
-  const header = screen.getByRole("columnheader", { name: /Инициатор обращения/ });
+  const header = screen.getByRole("columnheader", { name: /Инициатор/ });
   const names = () => screen.getAllByRole("row").slice(1).map(row => row.textContent);
   fireEvent.click(header);
   expect(names()[0]).toContain("Анна Соколова");

@@ -434,7 +434,7 @@ export function RequestsPage() {
         </Button>
       ),
     },
-    { title: "Инициатор обращения", key: "author_name", dataIndex: "author_name", render: (v) => String(v ?? "Не указан") },
+    { title: "Инициатор", key: "author_name", dataIndex: "author_name", render: (v) => String(v ?? "Не указан") },
     { title: "Описание", key: "description", dataIndex: "description", ellipsis: true },
     { title: "Вид", key: "kind", dataIndex: "kind", render: (v) => KINDS[String(v)] },
     {
