@@ -327,6 +327,7 @@ export function IncidentsPage() {
                 scroll={{ x: 650 }}
                 columns={[{ title: "Описание", dataIndex: "description" }, {
                   title: "Принятие",
+                  dataIndex: "accepted_at",
                   render: (_, r) => (
                     <Space>
                       {manager && (

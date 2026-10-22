@@ -397,6 +397,7 @@ export function TemplatesPage() {
                       ),
                     }, {
                       title: "Изменена",
+                      dataIndex: ["active", "created_at"],
                       render: (_, row) =>
                         row.active
                           ? new Date(row.active.created_at).toLocaleString(

@@ -294,6 +294,7 @@ export function RegistrationsPage() {
             },
             {
               title: "Срок",
+              dataIndex: "stage_due_at",
               render: (_, r) => (
                 <>
                   {r.stage_due_at

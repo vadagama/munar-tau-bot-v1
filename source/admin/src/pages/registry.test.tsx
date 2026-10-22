@@ -95,8 +95,8 @@ it("сохраняет выбранную очередь здания и явн�
   render(<RegistryPage />);
   fireEvent.click(screen.getByRole("tab", { name: "Здания" }));
   fireEvent.click(screen.getByRole("button", { name: "Добавить запись" }));
-  fireEvent.change(screen.getByLabelText("Обозначение"), { target: { value: "НОВЫЙ-1" } });
-  fireEvent.mouseDown(screen.getByLabelText("Очередь строительства"));
+  fireEvent.change(screen.getByRole("textbox", { name: "Обозначение" }), { target: { value: "НОВЫЙ-1" } });
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "Очередь строительства" }));
   fireEvent.click(await screen.findByText("5-я очередь", { selector: ".ant-select-item-option-content" }));
   fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registry/buildings", expect.objectContaining({
@@ -104,7 +104,7 @@ it("сохраняет выбранную очередь здания и явн�
   })));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   fireEvent.click(screen.getByRole("button", { name: "Добавить запись" }));
-  fireEvent.change(screen.getByLabelText("Обозначение"), { target: { value: "НОВЫЙ-2" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Обозначение" }), { target: { value: "НОВЫЙ-2" } });
   fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registry/buildings", expect.objectContaining({
     method: "POST", body: expect.objectContaining({ code: "НОВЫЙ-2", construction_phase: null }),
@@ -118,11 +118,11 @@ it("очистка очереди существующего здания отп
   render(<RegistryPage />);
   fireEvent.click(screen.getByRole("tab", { name: "Здания" }));
   fireEvent.click(await screen.findByRole("button", { name: "Изменить" }));
-  fireEvent.change(screen.getByLabelText("Обозначение"), { target: { value: "ДОМ-ИЗМЕНЁН" } });
-  const phase = screen.getByLabelText("Очередь строительства");
+  fireEvent.change(screen.getByRole("textbox", { name: "Обозначение" }), { target: { value: "ДОМ-ИЗМЕНЁН" } });
+  const phase = screen.getByRole("combobox", { name: "Очередь строительства" });
   fireEvent.mouseDown(phase.closest(".ant-select")!.querySelector(".ant-select-clear")!);
   fireEvent(window, new Event("cabinet:refresh-page"));
-  await waitFor(() => expect(screen.getByLabelText("Обозначение")).toHaveValue("ДОМ-ИЗМЕНЁН"));
+  await waitFor(() => expect(screen.getByRole("textbox", { name: "Обозначение" })).toHaveValue("ДОМ-ИЗМЕНЁН"));
   fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registry/buildings/b1", expect.objectContaining({
     method: "PATCH", body: expect.objectContaining({ code: "ДОМ-ИЗМЕНЁН", construction_phase: null }),

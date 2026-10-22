@@ -2,6 +2,7 @@ import { useContext, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Table, type TableProps } from "antd";
 import { TableSettingsContext } from "./table-settings-context";
+import { withColumnSorting } from "./table-sorting";
 import { useTableColumns } from "./table-columns";
 
 type Props<T extends object> = TableProps<T> & {
@@ -25,9 +26,10 @@ function ConfiguredTable<T extends object>({ storageKey, settingsPlacement = "in
     const dataIndex = "dataIndex" in column ? column.dataIndex : undefined;
     const key = column.key ?? (Array.isArray(dataIndex) ? dataIndex.join(".") : dataIndex)
       ?? (typeof column.title === "string" ? column.title || "actions" : `column-${index}`);
-    return { ...column, key: String(key) };
+    const keyed = { ...column, key: String(key) };
+    return "children" in keyed ? keyed : withColumnSorting<T>(keyed);
   });
-  const configured = useTableColumns(storageKey, keyedColumns);
+  const configured = useTableColumns<T>(storageKey, keyedColumns);
   return <>
     {pageSettings
       ? host.target && createPortal(configured.settings, host.target)
