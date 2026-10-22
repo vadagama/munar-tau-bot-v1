@@ -99,7 +99,24 @@ export async function listRegistry(
       );
     case "persons":
       return deps.db.query<Row>(
-        `select distinct n.*, array(select distinct a.role::text from staff_assignment a where a.person_id=n.id and a.status='active' and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())) as staff_roles from person n left join connection c on c.person_id=n.id left join premises p on p.id=c.premises_id left join building b on b.id=p.building_id where ${filter} and n.is_test=$2 order by n.full_name`,
+        `select n.*,
+          array(select distinct a.role::text from staff_assignment a where a.person_id=n.id and a.status='active' and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())) as staff_roles,
+          registration.state as registration_state, registration.created_at as registered_at,
+          coalesce((select jsonb_agg(jsonb_build_object(
+            'id',p.id,'building_id',b.id,'building_code',b.code,'building_name',b.name,
+            'kind',p.kind,'number',p.number,'role',c.role) order by b.code,p.kind,p.number)
+            from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id
+            where c.person_id=n.id and c.status='active' and p.is_test=$2 and ${filter}), '[]'::jsonb) as linked_premises
+        from person n
+        left join lateral (
+          select r.state,r.created_at from registration r
+          where r.person_id=n.id and r.is_test=$2 and r.superseded_by is null
+          order by (r.premises_id is null) desc,(r.state<>'withdrawn') desc,r.created_at desc,r.id desc limit 1
+        ) registration on true
+        where n.is_test=$2 and ($1::uuid[] is null or exists (
+          select 1 from connection c join premises p on p.id=c.premises_id
+          where c.person_id=n.id and p.building_id=any($1::uuid[])
+        )) order by n.full_name`,
         [...params, actor.person.isTest],
       );
   }

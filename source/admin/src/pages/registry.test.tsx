@@ -176,3 +176,60 @@ it("жители и сотрудники без кнопки удаления", 
   expect(await screen.findByText("Иван Петров")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Удалить" })).toBeNull();
 });
+
+async function renderResidentDirectory() {
+  vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/persons") ? [
+    { id: "r1", full_name: "Анна Соколова", phone_e164: "+77011111111", registration_state: "approved", registered_at: "2026-10-20T20:00:00Z",
+      linked_premises: [{ id: "p1", building_id: "b1", building_code: "107-1", building_name: "Улица Мира, 107/1", kind: "apartment", number: "4", role: "owner" }] },
+    { id: "r2", full_name: "Борис Петров", registration_state: "pending_review", registered_at: "2026-10-19T08:00:00Z", linked_premises: [] },
+    { id: "r3", full_name: "Вера Иванова", registration_state: null, registered_at: null, linked_premises: [] },
+  ] : path.endsWith("/buildings") ? [{ id: "b1", code: "107-1", name: "Улица Мира, 107/1" }] : [] }));
+  render(<RegistryPage users="residents" />);
+  expect(await screen.findByText("Анна Соколова")).toBeInTheDocument();
+}
+
+it("жители: адрес, статус основной анкеты и привязанные помещения", async () => {
+  await renderResidentDirectory();
+  expect(screen.getByRole("columnheader", { name: /Адрес/ })).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: /Статус регистрации/ })).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: /Привязанные помещения/ })).toBeInTheDocument();
+  expect(screen.getByText("Улица Мира, 107/1 (107-1)")).toBeInTheDocument();
+  expect(screen.getByText("107-1 · Квартира 4 · Собственник")).toBeInTheDocument();
+  expect(screen.getByText("Нет анкеты")).toBeInTheDocument();
+});
+
+it("жители: автоматический поиск по ФИО, телефону, адресу и помещению", async () => {
+  await renderResidentDirectory();
+  const search = screen.getByLabelText("Поиск жителей");
+  for (const term of ["соколова", "77011111111", "Мира", "Квартира 4"]) {
+    fireEvent.change(search, { target: { value: term } });
+    expect(screen.getByText("Анна Соколова")).toBeInTheDocument();
+    expect(screen.queryByText("Борис Петров")).not.toBeInTheDocument();
+  }
+  expect(screen.queryByRole("button", { name: "Применить" })).not.toBeInTheDocument();
+});
+
+it("жители: фильтры наличия помещений, здания и регистрации сочетаются", async () => {
+  await renderResidentDirectory();
+  const choose = async (label: string, option: string) => {
+    fireEvent.mouseDown(screen.getByLabelText(label, { selector: "input" }));
+    fireEvent.click(await screen.findByText(option, { selector: ".ant-select-item-option-content" }));
+  };
+  await choose("Наличие помещений", "Без помещений");
+  expect(screen.queryByText("Анна Соколова")).not.toBeInTheDocument();
+  expect(screen.getByText("Борис Петров")).toBeInTheDocument();
+  await choose("Наличие помещений", "Есть помещения");
+  await choose("Фильтр по зданию", "Улица Мира, 107/1");
+  await choose("Статус регистрации", "Зарегистрирован");
+  expect(screen.getByText("Анна Соколова")).toBeInTheDocument();
+});
+
+it("жители: период регистрации включает весь день по времени Алматы", async () => {
+  await renderResidentDirectory();
+  fireEvent.change(screen.getByLabelText("Период регистрации с"), { target: { value: "2026-10-21" } });
+  fireEvent.change(screen.getByLabelText("Период регистрации по"), { target: { value: "2026-10-21" } });
+  expect(screen.getByText("Анна Соколова")).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Период регистрации с"), { target: { value: "2026-10-22" } });
+  expect(screen.queryByText("Анна Соколова")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Применить" })).not.toBeInTheDocument();
+});
