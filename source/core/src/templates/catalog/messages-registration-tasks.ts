@@ -174,6 +174,9 @@ function def(
       })),
     ]
     : [];
+  if (["already_registered", "already_applied", "already_registered_without_premises"].some(name => key === "message.registration." + name)) {
+    buttonRows = buttons?.map(button => [{ id: button.id }]) ?? [];
+  }
   if (key === "message.registration.add_select") {
     buttonRows = [[{ id: "premise", vars: { code: "1", number: "4" } }], [{
       id: "manual",

@@ -552,6 +552,8 @@ describe("бот: /register при существующей анкете (guard)
     expect(replyText(reply)).toBe(language === "ru"
       ? "&lt;Евгений&gt;, Вы зарегистрированы 21.10.2026 03:30, помещения пока не прикреплены к анкете.\nПовторная регистрация не нужна."
       : "&lt;Евгений&gt;, Сіз 21.10.2026 03:30 күні тіркелдіңіз, сауалнамаға үй-жайлар әлі байланыстырылмаған.\nҚайта тіркелудің қажеті жоқ.");
+    expect(typeof reply !== "string" && reply.buttons?.map(row => row.map(button => button.data)))
+      .toEqual([["/status"], ["/fix"], ["/add"], ["/delete"]]);
   });
 
   it("не сообщает об отсутствии помещений при действующей привязке", async () => {
@@ -606,9 +608,9 @@ describe("бот: /register при существующей анкете (guard)
     expect(text).toContain("У вас уже есть анкета. Повторная регистрация не нужна.");
     expect(reply).toMatchObject({
       buttons: [[
-        { text: "Статус регистрации", data: "/status" },
-        { text: "Исправить анкету", data: "/fix" },
-        { text: "Добавить помещение", data: "/add" },
+        { text: "Статус регистрации", data: "/status" }], [
+        { text: "Исправить анкету", data: "/fix" }], [
+        { text: "Добавить помещение", data: "/add" }], [
         { text: "Удалить анкету", data: "/delete" },
       ]],
     });

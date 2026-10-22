@@ -246,3 +246,11 @@ describe("Полные сообщения регистрации и задани
     },
   );
 });
+
+
+it.each(["already_registered", "already_applied", "already_registered_without_premises"])("превью /register: каждая кнопка отдельной строкой (%s)", name => {
+  const preview = messagePreview(undefined, getTemplate("message.registration." + name)!);
+  for (const language of ["ru", "kk"] as const) {
+    expect(preview[language].buttons?.map(row => row.length)).toEqual([1, 1, 1, 1]);
+  }
+});
