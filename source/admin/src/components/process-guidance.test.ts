@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { requestGuidance, taskGuidance, incidentGuidance, publicationGuidance } from "./process-guidance";
+import { requestGuidance, taskGuidance, incidentGuidance, publicationGuidance, processActionHint } from "./process-guidance";
 
 describe("подсказки процесса", () => {
  it("для заявки предлагает работу, для вопроса — ответ", () => {
@@ -29,6 +29,19 @@ describe("подсказки процесса", () => {
  it("финансовый отчёт ожидает председателя", () => {
   expect(publicationGuidance({state:"pending_approval"},true,false).primary).toBeUndefined();
   expect(publicationGuidance({state:"pending_approval"},true,true).primary).toBe("approve");
+ });
+ it("после согласования финансового отчёта предлагает публикацию", () => {
+  expect(publicationGuidance({state:"draft",kind:"financial_report",approved_by:"chairman"},true,false).primary).toBe("publish");
+  expect(publicationGuidance({state:"draft",kind:"financial_report",approved_by:null},true,false).primary).toBe("submit_approval");
+ });
+ it("исполнитель ожидает проверку, житель — рассмотрение ОСИ", () => {
+  expect(taskGuidance({state:"on_review",can_execute:true}).title).toBe("Отчёт отправлен на проверку");
+  expect(requestGuidance({state:"reviewing",kind:"request"},false,true).title).toBe("Обращение на рассмотрении");
+ });
+ it("подтверждение объясняет последствия без автоматической приёмки обращения", () => {
+  expect(processActionHint("task","approve")).toContain("обращение закрывается отдельно");
+  expect(processActionHint("request","start_work")).toContain("должен отдельно принять");
+  expect(processActionHint("incident","unknown")).toBeUndefined();
  });
  it("неизвестное состояние не получает выдуманное действие", () => {
   expect(taskGuidance({state:"future",can_execute:true}).primary).toBeUndefined();

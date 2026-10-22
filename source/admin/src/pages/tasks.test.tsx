@@ -370,3 +370,32 @@ it("не показывает ошибку доставки при пустом 
  await screen.findByText("Проверить герметичность");
  expect(screen.queryByRole("alert", {name:"Ошибка доставки уведомления"})).toBeNull();
 });
+
+
+it("при проверке сначала показывает отчёт и решение, затем инструкцию", async () => {
+ const card = {...task,state:"on_review",can_execute:false,can_manage:true,can_approve:true,reports:[{version:1,performed_work:"Первый отчёт",result:"Требовал исправлений",evidence:[]},{version:2,performed_work:"Проверено",result:"Течь устранена",evidence:[]}]};
+ vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? {items:[card]} : card);
+ render(<TasksPage/>);
+ fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
+ const report=await screen.findByRole("region",{name:"Отчёты"});
+ const information=screen.getByRole("region",{name:"Информация о задании"});
+ expect(report.compareDocumentPosition(information) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+ expect(within(report).getByText(/Первый отчёт/).closest("details")).not.toHaveAttribute("open");
+ expect(within(report).getByText(/Текущий отчёт · версия/)).toHaveTextContent("2");
+ expect(within(report).getByRole("button",{name:"Принять результат"})).toHaveClass("ant-btn-primary");
+ expect(screen.getByRole("region",{name:"Сейчас по процессу"})).toHaveTextContent("Нужно проверить отчёт");
+ expect(screen.getByText("Показать историю").closest("details")).not.toHaveAttribute("open");
+});
+
+it("управляющему показывает ожидание принятия без действия вместо исполнителя", async () => {
+ const card={...task,can_execute:false,can_manage:true,assignee_name:"Мастер"};
+ vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? {items:[card]} : card);
+ render(<TasksPage/>);
+ fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
+ const process=await screen.findByRole("region",{name:"Сейчас по процессу"});
+ expect(process).toHaveTextContent("Ожидаем принятия задания");
+ expect(within(process).queryByRole("button",{name:"Принять"})).toBeNull();
+ expect(within(process).queryByRole("button",{name:"Отменить"})).toBeNull();
+ fireEvent.click(within(process).getByRole("button",{name:"Другие действия"}));
+ expect(within(process).getByRole("button",{name:"Отменить"})).toBeVisible();
+});

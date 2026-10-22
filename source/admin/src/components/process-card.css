@@ -8,8 +8,12 @@
 .process-overview .ant-typography { margin: 0; }
 .process-overview__heading h3.ant-typography { font-size: 16px; }
 .process-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; }
-.process-actions__other summary, .detail-section summary { cursor: pointer; padding-block: 4px; }
-.process-actions__other[open] > .ant-space { margin-block-start: 8px; }
+.detail-section summary { cursor: pointer; padding-block: 4px; }
+.process-actions__other > div { padding-block-start: 8px; }
 .process-card-content { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
 .process-card-content .ant-list-item { overflow-wrap: anywhere; }
 @media (max-width: 600px) { .process-overview { padding: 12px; } .process-actions { flex-direction: column; } }
+
+.process-card-content > .process-overview { margin-block-end: 0; }
+
+.process-overview .ant-btn { white-space: normal; height: auto; min-height: 32px; }

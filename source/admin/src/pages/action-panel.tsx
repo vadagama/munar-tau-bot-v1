@@ -1,12 +1,13 @@
 import { useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Alert, Button, Card, ConfigProvider, Space, theme, type FormInstance } from "antd";
+import { Alert, Button, Card, ConfigProvider, Space, Typography, theme, type FormInstance } from "antd";
 import { DrawerActionContext } from "./card-drawer";
 
 /** Форма подзадачи в текущей шторке; поля и отправка остаются у владельца. */
 export function ActionPanel(props: {
   open: boolean;
   title: ReactNode;
+  description?: ReactNode;
   full?: boolean;
   busy?: boolean;
   error?: string | null;
@@ -66,6 +67,7 @@ export function ActionPanel(props: {
     <div role="region" className="card-action-panel" ref={root} tabIndex={-1} aria-label={typeof props.title === "string" ? props.title : "Действие"}>
       <Card title={props.title} styles={{ title: { whiteSpace: "normal", overflowWrap: "anywhere" }, header: { paddingBlock: token.paddingXS, background: token.colorPrimaryBg, borderBottomColor: token.colorPrimaryBorder } }} style={{ marginBottom: token.margin, borderColor: token.colorPrimaryBorder, borderInlineStartWidth: token.lineWidthBold * 2 }}
         extra={<Button disabled={props.busy} onClick={cancel}>Отмена</Button>}>
+        {props.description && <Typography.Paragraph role="note">{props.description}</Typography.Paragraph>}
         {props.error && <Alert role="alert" type="error" showIcon message={props.error} style={{ marginBottom: 16 }} />}
         {discard && <Alert type="warning" showIcon message="Выйти без сохранения введённых данных?"
           action={<Space wrap>
