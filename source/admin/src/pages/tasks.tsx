@@ -42,6 +42,7 @@ interface Task extends Row {
   can_manage?: boolean;
   can_approve?: boolean;
   can_execute?: boolean;
+  assignee_person_id?: string | null;
   assignee_name?: string | null;
   log?: Row[];
   delivery_failures?: {id:string;last_error:string;followup_state:string}[];
@@ -65,6 +66,7 @@ export function TasksPage() {
   const manager = roles.some((r) =>
     ["chairman", "administrator", "deputy"].includes(r)
   );
+  const [assigneeFilter, setAssigneeFilter] = useState<string>();
   const [rows, setRows] = useState<Task[]>([]),
     [card, setCard] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false),
@@ -106,6 +108,7 @@ export function TasksPage() {
   }
   usePageRefresh(() => refresh(true), !loading && !saving && !actionLoading && !reportBusy);
   useEffect(() => {
+    setAssigneeFilter(undefined);
     setCreating(false);
     setAction(null);
     setReporting(false);
@@ -344,6 +347,14 @@ export function TasksPage() {
   if (card?.can_manage && card.state === "accepted_admin") {
     adminActions.push("return");
   }
+  const assignees = new Map<string, string>();
+  for (const task of rows) {
+    if (task.assignee_person_id) assignees.set(task.assignee_person_id, task.assignee_name ?? "Имя не указано");
+  }
+  const assigneeOptions = [...assignees].map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, "ru"));
+  const visibleRows = assigneeFilter === undefined ? rows : rows.filter(task =>
+    assigneeFilter === "unassigned" ? !task.assignee_person_id : task.assignee_person_id === assigneeFilter);
   return (
     <PageLayout title="Задания"
       extra={<ViewToggle kind={view} onChange={setView} />}
@@ -351,14 +362,25 @@ export function TasksPage() {
         <Button type="primary" onClick={() => void newTask()}>Создать задание</Button>
         <Button href="/common-works">Общие работы</Button>
         <Button href="/job-templates">Шаблоны заданий</Button>
-      </> : null}>
+      </> : null}
+      filters={<Select
+        aria-label="Фильтр по исполнителю"
+        placeholder="Все исполнители"
+        allowClear
+        showSearch
+        optionFilterProp="label"
+        value={assigneeFilter}
+        onChange={setAssigneeFilter}
+        options={[{ value: "unassigned", label: "Без исполнителя" }, ...assigneeOptions]}
+        style={{ width: 280, maxWidth: "100%" }}
+      />}>
 
       {error && !card && !creating && <Alert type="error" showIcon message={error} />}
 
       {view === "board" ? (
         <BoardView
           columns={BOARD_COLUMNS}
-          rows={rows}
+          rows={visibleRows}
           stateOf={(t) => t.state}
           onOpen={(t) => void open(t.id)}
           selectedId={card ? card.id : null}
@@ -373,11 +395,9 @@ export function TasksPage() {
               >
                 {t.title}
               </Typography.Paragraph>
-              {!!t.assignee_name && (
-                <Typography.Text type="secondary">
-                  {t.assignee_name}
-                </Typography.Text>
-              )}
+              <Typography.Text type="secondary" style={{ display: "block" }}>
+                Исполнитель: {t.assignee_name ?? "не назначен"}
+              </Typography.Text>
               <Typography.Text
                 type={overdue(t) ? "danger" : "secondary"}
                 style={{ display: "block" }}
@@ -391,7 +411,7 @@ export function TasksPage() {
         <Table<Task>
           loading={loading}
           rowKey="id"
-          dataSource={rows}
+          dataSource={visibleRows}
           locale={{ emptyText: "Доступных заданий нет" }}
           scroll={{ x: 650 }}
           columns={[
@@ -408,6 +428,7 @@ export function TasksPage() {
               ),
             },
             { title: "Работа", dataIndex: "title" },
+            { title: "Исполнитель", dataIndex: "assignee_name", render: (name: string | null) => name ?? "Не назначен" },
             {
               title: "Состояние",
               dataIndex: "state",

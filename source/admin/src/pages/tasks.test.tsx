@@ -263,3 +263,44 @@ it("карточка задания содержит обратную ссылк
   fireEvent.click(await screen.findByText("ЗД-1", { selector: "button > span" }));
   expect(await screen.findByRole("link", { name: "З-42" })).toHaveAttribute("href", "/requests?request=r");
 });
+
+
+it("исполнитель виден в таблице и подписан на доске, отсутствие назначения явно указано", async () => {
+  const assigned = { ...task, assignee_person_id: "worker", assignee_name: "Мастер ОСИ" };
+  const unassigned = { ...task, id: "t2", number: "ЗД-2", assignee_person_id: null, assignee_name: null };
+  vi.mocked(apiFetch).mockResolvedValue({ items: [assigned, unassigned] });
+  render(<TasksPage />);
+  expect(await screen.findByRole("columnheader", { name: "Исполнитель" })).toBeInTheDocument();
+  expect(await screen.findByRole("cell", { name: "Мастер ОСИ" })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "Не назначен" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("radio", { name: "Доска" }));
+  expect(await screen.findByText("Исполнитель: Мастер ОСИ")).toBeInTheDocument();
+  expect(screen.getByText("Исполнитель: не назначен")).toBeInTheDocument();
+});
+
+it("фильтр исполнителя работает в таблице и на доске, поддерживает отсутствие назначения и сброс", async () => {
+  vi.mocked(apiFetch).mockResolvedValue({ items: [
+    { ...task, assignee_person_id: "worker", assignee_name: "Мастер ОСИ" },
+    { ...task, id: "t2", number: "ЗД-2", assignee_person_id: "other", assignee_name: "Другой мастер" },
+    { ...task, id: "t3", number: "ЗД-3", assignee_person_id: null, assignee_name: null },
+  ] });
+  render(<TasksPage />);
+  await screen.findByText("ЗД-3", { selector: "button > span" });
+  const filter = screen.getByRole("combobox", { name: "Фильтр по исполнителю" });
+  fireEvent.mouseDown(filter);
+  fireEvent.click(await screen.findByText("Мастер ОСИ", { selector: ".ant-select-item-option-content" }));
+  expect(screen.getByText("ЗД-1", { selector: "button > span" })).toBeInTheDocument();
+  expect(screen.queryByText("ЗД-2", { selector: "button > span" })).not.toBeInTheDocument();
+  expect(screen.queryByText("ЗД-3", { selector: "button > span" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("radio", { name: "Доска" }));
+  expect(await screen.findByText("ЗД-1")).toBeInTheDocument();
+  expect(screen.queryByText("ЗД-2")).not.toBeInTheDocument();
+  fireEvent.mouseDown(filter);
+  fireEvent.click(await screen.findByText("Без исполнителя", { selector: ".ant-select-item-option-content" }));
+  expect(screen.getByText("ЗД-3")).toBeInTheDocument();
+  expect(screen.queryByText("ЗД-1")).not.toBeInTheDocument();
+  fireEvent.mouseDown(filter.closest(".ant-select")!.querySelector(".ant-select-clear")!);
+  expect(screen.getByText("ЗД-1")).toBeInTheDocument();
+  expect(screen.getByText("ЗД-2")).toBeInTheDocument();
+  expect(screen.getByText("ЗД-3")).toBeInTheDocument();
+});
