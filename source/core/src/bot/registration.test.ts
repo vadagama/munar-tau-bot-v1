@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { registrationStep } from "./registration.ts";
+import { actorForTelegram, registrationStep } from "./registration.ts";
 import { navigationReply } from "./navigation.ts";
 import { replyText } from "./keyboard.ts";
 import type { DbClient, DbExecutor } from "../db/client.ts";
@@ -654,6 +654,45 @@ describe("бот: /register при существующей анкете (guard)
 });
 
 describe("бот: анкета без помещения (/status, /fix)", () => {
+  it("архивный Telegram-аккаунт и контекст симулятора получают одинаковый итог для отозванных анкет", async () => {
+    const registrations = [
+      { id: REG_ID, state: "withdrawn", draft, premises_id: "p1" },
+      { id: REG_ID_2, state: "withdrawn", draft, premises_id: "p1" },
+    ];
+    const telegram = harness({ registrations });
+    const simulator = harness({ profile: true, registrations });
+    const actor = await actorForTelegram(simulator.deps, "100");
+    if (!actor) throw new Error("Ожидалась тестовая персона");
+    actor.emulation = { sessionId: "emulation", realPersonId: "real-person", realProfileId: "real-profile" };
+    const realReply = await registrationStep(telegram.deps, "100", "/status");
+    const simulatedReply = await registrationStep(simulator.deps, "100", "/status", actor);
+    expect(realReply).toEqual(simulatedReply);
+    expect(replyText(realReply)).toBe("<b>Статус анкеты:</b> Регистрация отозвана.");
+  });
+
+  it.each(["ru", "kk"] as const)("две отозванные анкеты дают один итоговый статус (%s)", async language => {
+    const h = harness({ profile: true, profileLanguage: language, registrations: [
+      { id: REG_ID, state: "withdrawn", draft, premises_id: "p1", role: "owner" },
+      { id: REG_ID_2, state: "withdrawn", draft, premises_id: "p1", role: "owner" },
+    ] });
+    const reply = await registrationStep(h.deps, "100", "/status");
+    expect(replyText(reply)).toBe(language === "ru"
+      ? "<b>Статус анкеты:</b> Регистрация отозвана."
+      : "<b>Сауалнама күйі:</b> Тіркелу кері қайтарылды.");
+    expect(h.state.status_options).toEqual([]);
+    expect(h.queries.some(sql => /^(update|delete from) registration/.test(sql))).toBe(false);
+  });
+  it("историческая отозванная анкета не попадает в текущий статус и нумерацию действий", async () => {
+    const h = harness({ registrations: [
+      { id: REG_ID_2, state: "withdrawn", draft: { full_name: "Старое имя" }, premises_id: "p1" },
+      { id: REG_ID, state: "approved", draft, premises_id: null, has_active_premises: false },
+    ] });
+    const reply = await registrationStep(h.deps, "100", "/status");
+    expect(replyText(reply)).toBe("<b>Статус анкеты:</b> Пользователь зарегистрирован, помещения не прикреплены к анкете");
+    expect(h.state.status_options).toEqual([REG_ID]);
+    expect(reply).toMatchObject({ buttons: expect.arrayContaining([[expect.objectContaining({ data: "/edit 1" })]]) });
+  });
+
   it.each(["ru", "kk"] as const)("пустой список помещений предлагает только добавление и отмену (%s)", async language => {
     const h = harness({ profile: true, profileLanguage: language });
     const reply = await registrationStep(h.deps, "100", "/objects");

@@ -235,6 +235,19 @@ function def(
 const R = "registration.";
 const defs: TemplateDef[] = [
   def(
+    "message.registration.status_withdrawn",
+    "Статус отозванной регистрации",
+    "/status",
+    [],
+    l => l === "kk"
+      ? "<b>Сауалнама күйі:</b> Тіркелу кері қайтарылды."
+      : "<b>Статус анкеты:</b> Регистрация отозвана.",
+    [
+      { id: "register", ru: "Зарегистрироваться", kk: "Тіркелу" },
+      { id: "cancel", ru: "Отменить", kk: "Болдырмау" },
+    ],
+  ),
+  def(
     "message.registration.status_registered_without_premises",
     "Статус подтверждённой регистрации без помещений",
     "/status",

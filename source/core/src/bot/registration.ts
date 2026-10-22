@@ -148,16 +148,29 @@ export async function registrationStep(
       return save(welcomeText(L, deps.templates));
     }
     if (cmd === "/status") {
-      const rows = await exec.query<Row>(
+      let rows = await exec.query<Row>(
         `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code,
         exists(select 1 from connection c where c.person_id=r.person_id and c.status='active') as has_active_premises
         from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
-        where (r.telegram_user_id=$1 or r.person_id=$2) and r.superseded_by is null order by r.created_at desc limit 20`,
+        where (r.telegram_user_id=$1 or r.person_id=$2) and r.superseded_by is null order by (r.state='withdrawn') asc, r.created_at desc limit 20`,
         [telegramId, actor?.person.id ?? null],
       );
       if (!rows.length) {
         return message(deps.templates, L, "registration.anket_poka_net");
       }
+      const current = rows.filter(row => row.state !== "withdrawn");
+      if (!current.length) {
+        state.status_options = [];
+        const key = "message.registration.status_withdrawn";
+        return save({
+          text: message(deps.templates, L, key),
+          buttons: [[
+            btn(messageButton(deps.templates, L, key, "register"), "/register"),
+            btn(messageButton(deps.templates, L, key, "cancel"), "/cancel"),
+          ]],
+        });
+      }
+      rows = current;
       state.status_options = rows.map((r) => String(r.id));
       const registeredWithoutPremises = rows.length === 1 && rows[0]!.state === "approved" &&
         rows[0]!.premises_id === null && !rows[0]!.has_active_premises;
