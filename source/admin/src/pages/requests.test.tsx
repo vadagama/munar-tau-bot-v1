@@ -496,3 +496,27 @@ it("запоздавший ответ предыдущего фильтра не
   await act(async () => { resolveOld({ items: [] }); });
   await waitFor(() => expect(screen.getByText("З-26-00001", { selector: "button > span" })).toBeInTheDocument());
 });
+
+it("показывает инициатора, сортирует по имени и отправляет поиск на сервер", async () => {
+  setup();
+  const original = vi.mocked(apiFetch).getMockImplementation()!;
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => path === "/v1/requests/search"
+    ? { items: [
+      { id: "r-z", number: "З-26-00002", description: "Второе", kind: "question", state: "new", author_name: "Яков Петров" },
+      { id: "r-a", number: "З-26-00001", description: "Первое", kind: "question", state: "new", author_name: "Анна Соколова" },
+      { id: "r-n", number: "З-26-00003", description: "Третье", kind: "question", state: "new", author_name: null },
+    ] } : original(path, options));
+  render(<RequestsPage />);
+  await screen.findByText("Яков Петров");
+  const header = screen.getByRole("columnheader", { name: /Инициатор обращения/ });
+  const names = () => screen.getAllByRole("row").slice(1).map(row => row.textContent);
+  fireEvent.click(header);
+  expect(names()[0]).toContain("Анна Соколова");
+  expect(names()[2]).toContain("Не указан");
+  fireEvent.click(header);
+  expect(names()[0]).toContain("Яков Петров");
+  expect(names()[2]).toContain("Не указан");
+  fireEvent.change(screen.getByLabelText("Поиск обращений"), { target: { value: "Соколова" } });
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/requests/search",
+    expect.objectContaining({ body: expect.objectContaining({ search: "Соколова", cursor: undefined }) })));
+});

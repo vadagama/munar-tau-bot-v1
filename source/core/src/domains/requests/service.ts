@@ -394,7 +394,7 @@ export async function listRequests(
   actor: Actor,
   filter: Row = {},
 ): Promise<Row[]> {
-  // Серверная область в SQL до пагинации; поиск только по доступному описанию/номеру.
+  // Серверная область в SQL до пагинации; поиск по доступному обращению и его автору.
   let offset = 0;
   if (filter.cursor) {
     try {
@@ -411,10 +411,12 @@ export async function listRequests(
     ["administrator", "deputy"].includes(a.role)
   ).flatMap((a) => a.scopeBuildingIds ?? []);
   const rows = await deps.db.query<RequestRow>(
-    `select r.* from request r where r.is_test=$1 and
+    `select r.*,initiator.full_name as author_name from request r
+ left join person initiator on initiator.id=r.author_person_id and initiator.is_test=r.is_test
+ where r.is_test=$1 and
  (r.author_person_id=$2 or (r.state<>'draft' and (r.complaint_subject_person_id is distinct from $2::uuid) and ($3 or (r.complaint_route<>'chairman' and (r.building_id is null or r.building_id=any($4::uuid[]))))) or
  (r.state<>'draft' and exists(select 1 from request_participant p join connection c on c.person_id=p.person_id and c.premises_id=r.premises_id and c.status='active' where p.request_id=r.id and p.person_id=$2 and p.role='participant' and p.revoked_at is null)))
- and ($5::text is null or r.state=$5) and ($6::text is null or r.number ilike '%'||$6||'%' or r.description ilike '%'||$6||'%' or exists(select 1 from message m where m.request_id=r.id and m.channel='resident' and m.restricted_at is null and m.text ilike '%'||$6||'%'))
+ and ($5::text is null or r.state=$5) and ($6::text is null or r.number ilike '%'||$6||'%' or r.description ilike '%'||$6||'%' or initiator.full_name ilike '%'||$6||'%' or exists(select 1 from message m where m.request_id=r.id and m.channel='resident' and m.restricted_at is null and m.text ilike '%'||$6||'%'))
  and ($7::uuid is null or r.premises_id=$7) and ($8::timestamptz is null or r.created_at>=$8) and ($9::timestamptz is null or r.created_at<=$9)
  and ($11::uuid is null or r.building_id=$11)
  order by case when r.state in ('need_clarification','awaiting_confirmation') then 0 else 1 end,r.created_at desc,r.id desc limit 100 offset $10`,
