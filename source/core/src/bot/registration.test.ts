@@ -653,6 +653,23 @@ describe("бот: /register при существующей анкете (guard)
 });
 
 describe("бот: анкета без помещения (/status, /fix)", () => {
+  it.each(["ru", "kk"] as const)("краткий статус подтверждённой регистрации без помещений (%s)", language => {
+    const h = harness({ profile: true, profileLanguage: language, registrations: [{
+      id: REG_ID, state: "approved", draft, premises_id: null, has_active_premises: false,
+    }] });
+    return registrationStep(h.deps, "100", "/status").then(reply => {
+      expect(replyText(reply)).toBe(language === "ru"
+        ? "<b>Статус анкеты:</b> Пользователь зарегистрирован, помещения не прикреплены к анкете"
+        : "<b>Сауалнама күйі:</b> Пайдаланушы тіркелген, үй-жайлар сауалнамаға байланыстырылмаған");
+      expect(reply).toMatchObject({ buttons: [[expect.objectContaining({ data: "/edit 1" })], [expect.objectContaining({ data: "/delete" })]] });
+    });
+  });
+  it("действующая привязка не получает сообщение об отсутствии помещений", async () => {
+    const h = harness({ registrations: [{ id: REG_ID, state: "approved", draft,
+      premises_id: null, has_active_premises: true }] });
+    expect(replyText(await registrationStep(h.deps, "100", "/status"))).not.toContain("помещения не прикреплены к анкете");
+  });
+
   it("подтверждённая основная анкета: /register → /status → /fix открывает исправление той же анкеты", async () => {
     const h = harness({
       registrations: [{
@@ -669,7 +686,7 @@ describe("бот: анкета без помещения (/status, /fix)", () =>
     expect(replyText(registered)).toContain("Вы зарегистрированы");
     expect(h.state.step).toBeUndefined();
     const status = await registrationStep(h.deps, "100", "/status");
-    expect(replyText(status)).toContain("Доступ подтверждён");
+    expect(replyText(status)).toContain("Пользователь зарегистрирован, помещения не прикреплены к анкете");
 
     const fix = await registrationStep(h.deps, "100", "/fix");
     expect(replyText(fix)).toContain("имя и фамилию");

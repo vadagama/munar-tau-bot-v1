@@ -149,7 +149,8 @@ export async function registrationStep(
     }
     if (cmd === "/status") {
       const rows = await exec.query<Row>(
-        `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
+        `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code,
+        exists(select 1 from connection c where c.person_id=r.person_id and c.status='active') as has_active_premises
         from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
         where (r.telegram_user_id=$1 or r.person_id=$2) and r.superseded_by is null order by r.created_at desc limit 20`,
         [telegramId, actor?.person.id ?? null],
@@ -186,7 +187,11 @@ export async function registrationStep(
         btn(messageButton(deps.templates, L, "message.registration.status", "delete"), "/delete"),
       ]);
       return save({
-        text: message(deps.templates, L, "message.registration.status", {
+        text: message(deps.templates, L,
+          rows.length === 1 && rows[0]!.state === "approved" &&
+              rows[0]!.premises_id === null && !rows[0]!.has_active_premises
+            ? "message.registration.status_registered_without_premises"
+            : "message.registration.status", {
           registrations: safeBlock(
             numbered(registrationLines(rows, L, deps.templates)),
           ),

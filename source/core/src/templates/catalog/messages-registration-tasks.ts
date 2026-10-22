@@ -235,6 +235,15 @@ function def(
 const R = "registration.";
 const defs: TemplateDef[] = [
   def(
+    "message.registration.status_registered_without_premises",
+    "Статус подтверждённой регистрации без помещений",
+    "/status",
+    [],
+    l => l === "kk"
+      ? "<b>Сауалнама күйі:</b> Пайдаланушы тіркелген, үй-жайлар сауалнамаға байланыстырылмаған"
+      : "<b>Статус анкеты:</b> Пользователь зарегистрирован, помещения не прикреплены к анкете",
+  ),
+  def(
     "message.registration.status",
     "Статус регистрации",
     "/status",
