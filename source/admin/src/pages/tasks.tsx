@@ -403,6 +403,14 @@ export function TasksPage() {
       render: (s: string) => <Tag>{TASK_STATE_TEXT[s]?.ru ?? s}</Tag>,
     },
     {
+      title: "Дата создания",
+      key: "created_at", dataIndex: "created_at",
+      render: (value?: string) => value ? new Date(value).toLocaleString("ru-RU", {
+        timeZone: "Asia/Almaty", year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit",
+      }) : "—",
+    },
+    {
       title: "Срок",
       key: "due_at", dataIndex: "due_at",
       render: (v: string) => new Date(v).toLocaleString("ru-RU"),
