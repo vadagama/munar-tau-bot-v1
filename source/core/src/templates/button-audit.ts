@@ -6,7 +6,9 @@ export function auditButtonTemplates(store?: TemplateStore) {
   const issues: { key: string; language: string; reason: string }[] = [];
   for (
     const def of TEMPLATE_CATALOG.filter((d) =>
-      !d.deprecated && d.section !== "notices"
+      !d.deprecated && d.section !== "notices" &&
+      // Справка описывает команды; обычные диалоги управляются кнопками.
+      !["help.registration_help", "help.worker_help"].includes(d.key)
     )
   ) {
     for (const language of ["ru", "kk"] as const) {
