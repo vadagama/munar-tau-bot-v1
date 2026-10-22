@@ -1,3 +1,4 @@
+import { useTableColumns } from "../components/table-columns";
 import { taskAssigneeOptions } from "./task-assignees";
 import { REQUEST_ACTION_ICONS } from "./request-action-icons";
 import { TASK_STATE_TEXT } from "../../../core/src/locales/tasks";
@@ -405,9 +406,37 @@ export function RequestsPage() {
       ? ["approve_cancel", "reject_cancel"]
       : []),
   ];
+  const tableColumns = useTableColumns<Row>("columns.requests", [
+    {
+      title: "Номер",
+      key: "number", dataIndex: "number",
+      render: (v, r) => (
+        <Button
+          type="link"
+          disabled={saving || fileBusy}
+          onClick={() => void open(String(r.id))}
+        >
+          {String(v ?? "Черновик")}
+        </Button>
+      ),
+    },
+    { title: "Описание", key: "description", dataIndex: "description", ellipsis: true },
+    { title: "Вид", key: "kind", dataIndex: "kind", render: (v) => KINDS[String(v)] },
+    {
+      title: "Статус",
+      key: "state", dataIndex: "state",
+      render: (v) => <Tag>{REQUEST_STATES[String(v)]}</Tag>,
+    },
+    {
+      title: "Первый ответ до",
+      key: "first_response_due_at", dataIndex: "first_response_due_at",
+      render: (v) =>
+        v ? new Date(String(v)).toLocaleString("ru-RU") : "—",
+    },
+  ]);
   return (
     <PageLayout title="Обращения"
-      extra={<ViewToggle kind={view} onChange={setView} />}
+      extra={<Space>{view === "table" && tableColumns.settings}<ViewToggle kind={view} onChange={setView} /></Space>}
       actions={<Space wrap>
         <Button type="primary" onClick={() => { form.resetFields(); createKey.current = crypto.randomUUID(); setCreate(true); }}>
           Новое обращение
@@ -518,34 +547,7 @@ export function RequestsPage() {
           dataSource={rows}
           locale={{ emptyText: <Empty description="Обращений пока нет" /> }}
           scroll={{ x: 650 }}
-          columns={[
-            {
-              title: "Номер",
-              dataIndex: "number",
-              render: (v, r) => (
-                <Button
-                  type="link"
-                  disabled={saving || fileBusy}
-                  onClick={() => void open(String(r.id))}
-                >
-                  {String(v ?? "Черновик")}
-                </Button>
-              ),
-            },
-            { title: "Описание", dataIndex: "description", ellipsis: true },
-            { title: "Вид", dataIndex: "kind", render: (v) => KINDS[String(v)] },
-            {
-              title: "Статус",
-              dataIndex: "state",
-              render: (v) => <Tag>{REQUEST_STATES[String(v)]}</Tag>,
-            },
-            {
-              title: "Первый ответ до",
-              dataIndex: "first_response_due_at",
-              render: (v) =>
-                v ? new Date(String(v)).toLocaleString("ru-RU") : "—",
-            },
-          ]}
+          columns={tableColumns.columns}
         />
       )}
       {nextCursor && (

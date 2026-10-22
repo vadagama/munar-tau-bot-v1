@@ -14,7 +14,7 @@ import { ApiError } from "../../errors/api.ts";
 import { can } from "../../pdp/evaluate.ts";
 import { recordAudit, type RegistryDeps } from "../registry/service.ts";
 import { invalid, jsonValue, type Row } from "../registry/validation.ts";
-import { isManager, requireRequest } from "../requests/access.ts";
+import { isManager, requireRequest, type RequestRow } from "../requests/access.ts";
 import { content, idempotent } from "../requests/service.ts";
 import { checkVersion, CLOSED_STATES } from "../requests/fsm.ts";
 import { notifyPerson } from "../registrations/notifications.ts";
@@ -395,7 +395,22 @@ export async function listTasks(
       staff,
     ],
   );
-  return rows.filter((row) => can(actor, "task.read", taskResource(row)).allow);
+  const visible = rows.filter((row) => can(actor, "task.read", taskResource(row)).allow);
+  const requestIds = [...new Set(visible.flatMap(row => row.request_id ? [row.request_id] : []))];
+  const references = new Map<string, { id: string; number: string }>();
+  if (requestIds.length) {
+    const requests = await deps.db.query<RequestRow>(
+      "select * from request where id=any($1::uuid[])", [requestIds],
+    );
+    for (const request of requests) {
+      // Та же политика, что у linked_request в getTask: назначение само по себе
+      // не открывает исходное обращение, жалобы и черновики проверяются отдельно.
+      if (await isManager(deps.db, actor, request)) {
+        references.set(request.id, { id: request.id, number: String(request.number) });
+      }
+    }
+  }
+  return visible.map(row => ({ ...row, linked_request: references.get(row.request_id ?? "") ?? null }));
 }
 
 async function startConditions(exec: DbExecutor, row: TaskRow) {

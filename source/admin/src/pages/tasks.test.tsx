@@ -304,3 +304,40 @@ it("фильтр исполнителя работает в таблице и н
   expect(screen.getByText("ЗД-2")).toBeInTheDocument();
   expect(screen.getByText("ЗД-3")).toBeInTheDocument();
 });
+
+it("поиск, состояние и даты создания совместно фильтруют таблицу и доску", async () => {
+  vi.mocked(apiFetch).mockResolvedValue({ items: [
+    { ...task, id: "a", number: "ЗД-100", title: "Кран", instruction: "Устранить течь", created_at: "2026-10-20T19:00:00Z" },
+    { ...task, id: "b", number: "ЗД-101", title: "Кран", instruction: "Устранить течь", created_at: "2026-10-21T18:59:59.999Z", state: "accepted" },
+    { ...task, id: "c", number: "ЗД-102", title: "Кран", instruction: "Устранить течь", created_at: "2026-10-21T19:00:00Z" },
+  ] });
+  render(<TasksPage />);
+  await screen.findByText("ЗД-100", { selector: "button > span" });
+  fireEvent.change(screen.getByLabelText("Поиск заданий"), { target: { value: "течь" } });
+  fireEvent.change(screen.getByLabelText("Дата создания с"), { target: { value: "2026-10-21" } });
+  fireEvent.change(screen.getByLabelText("Дата создания по"), { target: { value: "2026-10-21" } });
+  expect(screen.getByText("ЗД-100", { selector: "button > span" })).toBeInTheDocument();
+  expect(screen.getByText("ЗД-101", { selector: "button > span" })).toBeInTheDocument();
+  expect(screen.queryByText("ЗД-102", { selector: "button > span" })).not.toBeInTheDocument();
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "Состояние задания" }));
+  fireEvent.click(await screen.findByText("Принято", { selector: ".ant-select-item-option-content" }));
+  expect(screen.queryByText("ЗД-100", { selector: "button > span" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("radio", { name: "Доска" }));
+  expect(screen.getByText("ЗД-101")).toBeInTheDocument();
+  expect(screen.queryByText("ЗД-100")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Поиск заданий"), { target: { value: "ЗД-101" } });
+  expect(screen.getByText("ЗД-101")).toBeInTheDocument();
+});
+
+it("колонка обращения показывает только разрешённую сервером ссылку", async () => {
+  vi.mocked(apiFetch).mockResolvedValue({ items: [
+    { ...task, linked_request: { id: "r", number: "З-26-42" } },
+    { ...task, id: "t2", number: "ЗД-2", request_id: "hidden", linked_request: null },
+  ] });
+  render(<TasksPage />);
+  expect(await screen.findByRole("link", { name: "З-26-42" })).toHaveAttribute("href", "/requests?request=r");
+  fireEvent.click(screen.getByRole("button", { name: "Колонки" }));
+  const settings = await screen.findByRole("group", { name: "Видимые колонки" });
+  fireEvent.click(within(settings).getByRole("checkbox", { name: "Обращение" }));
+  expect(screen.queryByRole("columnheader", { name: "Обращение" })).not.toBeInTheDocument();
+});

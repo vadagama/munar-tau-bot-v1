@@ -1,3 +1,4 @@
+import { useTableColumns } from "../components/table-columns";
 import { taskAssigneeOptions } from "./task-assignees";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -38,6 +39,8 @@ interface Task extends Row {
   state: string;
   version: number;
   due_at: string;
+  created_at?: string;
+  linked_request?: { id: string; number: string } | null;
   request_id: string;
   can_manage?: boolean;
   can_approve?: boolean;
@@ -67,6 +70,10 @@ export function TasksPage() {
     ["chairman", "administrator", "deputy"].includes(r)
   );
   const [assigneeFilter, setAssigneeFilter] = useState<string>();
+  const [search, setSearch] = useState("");
+  const [stateFilter, setStateFilter] = useState<string>();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [rows, setRows] = useState<Task[]>([]),
     [card, setCard] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false),
@@ -109,6 +116,10 @@ export function TasksPage() {
   usePageRefresh(() => refresh(true), !loading && !saving && !actionLoading && !reportBusy);
   useEffect(() => {
     setAssigneeFilter(undefined);
+    setSearch("");
+    setStateFilter(undefined);
+    setFrom("");
+    setTo("");
     setCreating(false);
     setAction(null);
     setReporting(false);
@@ -353,28 +364,84 @@ export function TasksPage() {
   }
   const assigneeOptions = [...assignees].map(([value, label]) => ({ value, label }))
     .sort((a, b) => a.label.localeCompare(b.label, "ru"));
-  const visibleRows = assigneeFilter === undefined ? rows : rows.filter(task =>
-    assigneeFilter === "unassigned" ? !task.assignee_person_id : task.assignee_person_id === assigneeFilter);
+  const query = search.trim().toLocaleLowerCase("ru");
+  const fromTime = from ? Date.parse(`${from}T00:00:00+05:00`) : null;
+  const toTime = to ? Date.parse(`${to}T23:59:59.999+05:00`) : null;
+  const invalidPeriod = !!(from && to && from > to);
+  const visibleRows = rows.filter(task => {
+    const created = Date.parse(task.created_at ?? "");
+    return !invalidPeriod &&
+      (!query || [task.number, task.title, task.instruction].some(value => value?.toLocaleLowerCase("ru").includes(query))) &&
+      (!assigneeFilter || (assigneeFilter === "unassigned" ? !task.assignee_person_id : task.assignee_person_id === assigneeFilter)) &&
+      (!stateFilter || task.state === stateFilter) &&
+      (fromTime === null || created >= fromTime) && (toTime === null || created <= toTime);
+  });
+  const tableColumns = useTableColumns<Task>("columns.tasks", [
+    {
+      title: "Номер",
+      key: "number", dataIndex: "number",
+      render: (n: string, r: Task) => (
+        <Button
+          type="link"
+          onClick={() => void open(r.id)}
+        >
+          {n}
+        </Button>
+      ),
+    },
+    {
+      key: "request", title: "Обращение",
+      render: (_, task) => task.linked_request
+        ? <Typography.Link href={`/requests?request=${encodeURIComponent(task.linked_request.id)}`}>{task.linked_request.number}</Typography.Link>
+        : "—",
+    },
+    { title: "Работа", key: "title", dataIndex: "title" },
+    { title: "Исполнитель", key: "assignee_name", dataIndex: "assignee_name", render: (name: string | null) => name ?? "Не назначен" },
+    {
+      title: "Состояние",
+      key: "state", dataIndex: "state",
+      render: (s: string) => <Tag>{TASK_STATE_TEXT[s]?.ru ?? s}</Tag>,
+    },
+    {
+      title: "Срок",
+      key: "due_at", dataIndex: "due_at",
+      render: (v: string) => new Date(v).toLocaleString("ru-RU"),
+    },
+  ]);
   return (
     <PageLayout title="Задания"
-      extra={<ViewToggle kind={view} onChange={setView} />}
+      extra={<Space>{view === "table" && tableColumns.settings}<ViewToggle kind={view} onChange={setView} /></Space>}
       actions={manager ? <>
         <Button type="primary" onClick={() => void newTask()}>Создать задание</Button>
         <Button href="/common-works">Общие работы</Button>
         <Button href="/job-templates">Шаблоны заданий</Button>
       </> : null}
-      filters={<Select
-        aria-label="Фильтр по исполнителю"
-        placeholder="Все исполнители"
-        allowClear
-        showSearch
-        optionFilterProp="label"
-        value={assigneeFilter}
-        onChange={setAssigneeFilter}
-        options={[{ value: "unassigned", label: "Без исполнителя" }, ...assigneeOptions]}
-        style={{ width: 280, maxWidth: "100%" }}
-      />}>
+      filters={<Space wrap>
+        <Input.Search aria-label="Поиск заданий" placeholder="Номер или описание"
+          value={search} onChange={event => setSearch(event.target.value)} style={{ width: 280, maxWidth: "100%" }} />
+        <Select
+          aria-label="Фильтр по исполнителю"
+          placeholder="Все исполнители"
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          value={assigneeFilter}
+          onChange={setAssigneeFilter}
+          options={[{ value: "unassigned", label: "Без исполнителя" }, ...assigneeOptions]}
+          style={{ width: 280, maxWidth: "100%" }}
+        />
+        <Select aria-label="Состояние задания" placeholder="Все состояния" allowClear
+          value={stateFilter} onChange={setStateFilter} options={BOARD_COLUMNS} style={{ width: 230 }} />
+        <Space wrap>
+        <Typography.Text type="secondary">Дата создания:</Typography.Text>
+        <Input aria-label="Дата создания с" title="Дата создания с (Алматы)" type="date"
+          value={from} onChange={event => setFrom(event.target.value)} style={{ width: 155 }} />
+        <Input aria-label="Дата создания по" title="Дата создания по (Алматы)" type="date"
+          value={to} onChange={event => setTo(event.target.value)} style={{ width: 155 }} />
+        </Space>
+      </Space>}>
 
+      {invalidPeriod && <Alert type="warning" showIcon message="Дата начала периода позже даты окончания" />}
       {error && !card && !creating && <Alert type="error" showIcon message={error} />}
 
       {view === "board" ? (
@@ -414,32 +481,7 @@ export function TasksPage() {
           dataSource={visibleRows}
           locale={{ emptyText: "Доступных заданий нет" }}
           scroll={{ x: 650 }}
-          columns={[
-            {
-              title: "Номер",
-              dataIndex: "number",
-              render: (n: string, r: Task) => (
-                <Button
-                  type="link"
-                  onClick={() => void open(r.id)}
-                >
-                  {n}
-                </Button>
-              ),
-            },
-            { title: "Работа", dataIndex: "title" },
-            { title: "Исполнитель", dataIndex: "assignee_name", render: (name: string | null) => name ?? "Не назначен" },
-            {
-              title: "Состояние",
-              dataIndex: "state",
-              render: (s: string) => <Tag>{TASK_STATE_TEXT[s]?.ru ?? s}</Tag>,
-            },
-            {
-              title: "Срок",
-              dataIndex: "due_at",
-              render: (v: string) => new Date(v).toLocaleString("ru-RU"),
-            },
-          ]}
+          columns={tableColumns.columns}
         />
       )}
       <CardDrawer

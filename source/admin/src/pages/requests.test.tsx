@@ -443,3 +443,17 @@ it("связанные задания показывают ссылку, исп�
   expect(await screen.findByRole("link", { name: "ЗД-42" })).toHaveAttribute("href", "/tasks?task=task-id");
   expect(screen.getByText(/Исполнитель дома · Ожидает принятия/)).toBeInTheDocument();
 });
+
+
+it("выбор колонок обращений скрывает описание и сохраняется отдельно от заданий", async () => {
+  setup();
+  localStorage.setItem("columns.tasks", JSON.stringify(["assignee_name"]));
+  render(<RequestsPage />);
+  await findButton("З-26-00001");
+  fireEvent.click(screen.getByRole("button", { name: "Колонки" }));
+  const settings = await screen.findByRole("group", { name: "Видимые колонки" });
+  fireEvent.click(within(settings).getByRole("checkbox", { name: "Описание" }));
+  expect(screen.queryByRole("columnheader", { name: "Описание" })).not.toBeInTheDocument();
+  expect(JSON.parse(localStorage.getItem("columns.requests")!)).toEqual(["description"]);
+  expect(JSON.parse(localStorage.getItem("columns.tasks")!)).toEqual(["assignee_name"]);
+});
