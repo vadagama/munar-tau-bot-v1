@@ -855,7 +855,10 @@ export async function registrationStep(
         }
         state.full_name = input.trim();
         state.step = "phone";
-        return save(message(deps.templates, L, "registration.telefon_7"));
+        return save({
+          text: message(deps.templates, L, "registration.telefon_7"),
+          buttons: [[btn(messageButton(deps.templates, L, "bot.controls", "cancel"), "/cancel")]],
+        });
       case "phone": {
         state.phone_e164 = normalizePhone(input);
         if (state.invite) {

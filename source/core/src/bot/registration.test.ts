@@ -862,6 +862,20 @@ describe("бот: /add — добавление помещения", () => {
 });
 
 describe("бот: короткий /start и шаги анкеты (UX-фиксы)", () => {
+  it("ввод телефона после имени оставляет только Отменить", async () => {
+    const h = harness();
+    await registrationStep(h.deps, "100", "/register");
+    await registrationStep(h.deps, "100", "ru");
+    const reply = await registrationStep(h.deps, "100", "Евгений Панасенков");
+    expect(replyText(reply)).toContain("Телефон");
+    expect(navigationReply(reply, "registration", "ru", undefined, "Евгений Панасенков")).toMatchObject({
+      buttons: [[{ text: "Отменить", data: "/cancel" }]],
+    });
+    expect(h.state.step).toBe("phone");
+    await registrationStep(h.deps, "100", "/cancel");
+    expect(h.state).toEqual({});
+  });
+
   it("ввод имени после выбора языка оставляет только Отменить", async () => {
     const h = harness();
     await registrationStep(h.deps, "100", "/register");
