@@ -335,11 +335,12 @@ it("колонка обращения показывает только разр
     { ...task, id: "t2", number: "ЗД-2", request_id: "hidden", linked_request: null },
   ] });
   render(<TasksPage />);
-  expect(await screen.findByRole("link", { name: "З-26-42" })).toHaveAttribute("href", "/requests?request=r");
-  fireEvent.click(screen.getByRole("button", { name: "Колонки" }));
-  const settings = await screen.findByRole("group", { name: "Видимые колонки" });
-  fireEvent.click(within(settings).getByRole("checkbox", { name: "Обращение" }));
-  expect(screen.queryByRole("columnheader", { name: "Обращение" })).not.toBeInTheDocument();
+  expect(await screen.findByText("З-26-42", {selector:"a"})).toHaveAttribute("href", "/requests?request=r");
+  fireEvent.click(screen.getByLabelText("Колонки", {selector:"button"}));
+  const settings = await screen.findByLabelText("Видимые колонки", {selector:'[role="group"]'});
+  const table = screen.getByText("З-26-42", {selector:"a"}).closest("table")!;
+  fireEvent.click(within(settings).getByLabelText("Обращение", {selector:"input"}));
+  expect(within(table).queryByText("Обращение", {selector:"th, th *"})).not.toBeInTheDocument();
 });
 
 

@@ -121,7 +121,7 @@ it("прекращение полномочий показывает обяза�
   setup();
   render(<StaffPage />);
   fireEvent.click(await findButton("Иван Тестов"));
-  fireEvent.click(await screen.findByRole("button",{name:"Другие действия"}));
+  fireEvent.click(await findButton("Другие действия"));
   fireEvent.click(
     await findButton("Прекратить полномочия"),
   );
