@@ -673,7 +673,11 @@ describe("бот: анкета без помещения (/status, /fix)", () =>
       expect(replyText(reply)).toBe(language === "ru"
         ? "<b>Статус анкеты:</b> Пользователь зарегистрирован, помещения не прикреплены к анкете"
         : "<b>Сауалнама күйі:</b> Пайдаланушы тіркелген, үй-жайлар сауалнамаға байланыстырылмаған");
-      expect(reply).toMatchObject({ buttons: [[expect.objectContaining({ data: "/edit 1" })], [expect.objectContaining({ data: "/delete" })]] });
+      expect(reply).toMatchObject({ buttons: [
+        [{ text: language === "ru" ? "Добавить помещение" : "Үй-жай қосу", data: "/add" }],
+        [expect.objectContaining({ data: "/edit 1" })],
+        [expect.objectContaining({ data: "/delete" })],
+      ] });
     });
   });
   it("действующая привязка не получает сообщение об отсутствии помещений", async () => {

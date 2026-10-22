@@ -159,6 +159,8 @@ export async function registrationStep(
         return message(deps.templates, L, "registration.anket_poka_net");
       }
       state.status_options = rows.map((r) => String(r.id));
+      const registeredWithoutPremises = rows.length === 1 && rows[0]!.state === "approved" &&
+        rows[0]!.premises_id === null && !rows[0]!.has_active_premises;
       // Кнопка доступна только редактируемым анкетам: /edit проверит и ответит.
       const editable = new Set([
         "pending_review",
@@ -186,10 +188,12 @@ export async function registrationStep(
       if (rows.some(r => r.state !== "withdrawn")) buttons.push([
         btn(messageButton(deps.templates, L, "message.registration.status", "delete"), "/delete"),
       ]);
+      if (registeredWithoutPremises) buttons.unshift([
+        btn(messageButton(deps.templates, L, "message.registration.status_registered_without_premises", "add"), "/add"),
+      ]);
       return save({
         text: message(deps.templates, L,
-          rows.length === 1 && rows[0]!.state === "approved" &&
-              rows[0]!.premises_id === null && !rows[0]!.has_active_premises
+          registeredWithoutPremises
             ? "message.registration.status_registered_without_premises"
             : "message.registration.status", {
           registrations: safeBlock(
