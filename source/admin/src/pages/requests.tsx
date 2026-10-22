@@ -434,6 +434,7 @@ export function RequestsPage() {
         </Button>
       ),
     },
+    { title: "Инициатор", key: "author_name", dataIndex: "author_name", render: (v) => String(v ?? "Не указан") },
     { title: "Описание", key: "description", dataIndex: "description", ellipsis: true },
     { title: "Вид", key: "kind", dataIndex: "kind", render: (v) => KINDS[String(v)] },
     {
@@ -459,7 +460,7 @@ export function RequestsPage() {
       filters={<Space wrap>
         <Input.Search
           aria-label="Поиск обращений"
-          placeholder="Номер или описание"
+          placeholder="Номер, описание или инициатор"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onSearch={() => setAppliedSearch(search)}
@@ -559,7 +560,7 @@ export function RequestsPage() {
           loading={busy}
           dataSource={rows}
           locale={{ emptyText: <Empty description="Обращений пока нет" /> }}
-          scroll={{ x: 650 }}
+          scroll={{ x: 900 }}
           columns={tableColumns}
         />
       )}
