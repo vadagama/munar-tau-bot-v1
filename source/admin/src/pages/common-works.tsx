@@ -1,5 +1,4 @@
 import { ConfigurableTable } from "../components/configurable-table";
-import type { ReactNode } from "react";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
@@ -28,8 +27,12 @@ const labels: Record<string, string> = {
   completed: "Завершена",
   canceled: "Отменена",
 };
-export function CommonWorks({ onTask, navigation }: { onTask: (id: string) => void; navigation?: ReactNode }) {
+export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
   const { token } = theme.useToken();
+  const [search, setSearch] = useState("");
+  const [stateFilter, setStateFilter] = useState<string>();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [rows, setRows] = useState<Row[]>([]),
     [card, setCard] = useState<Row | null>(null),
     [buildings, setBuildings] = useState<Row[]>([]),
@@ -146,14 +149,40 @@ export function CommonWorks({ onTask, navigation }: { onTask: (id: string) => vo
       setBusy(false);
     }
   }
+  const query = search.trim().toLocaleLowerCase("ru");
+  const fromTime = from ? Date.parse(`${from}T00:00:00+05:00`) : null;
+  const toTime = to ? Date.parse(`${to}T23:59:59.999+05:00`) : null;
+  const invalidPeriod = !!(from && to && from > to);
+  const filteredRows = rows.filter(row => {
+    const created = Date.parse(String(row.created_at ?? ""));
+    return !invalidPeriod && (!query || [row.number, row.title, row.description, row.plan]
+      .some(value => String(value ?? "").toLocaleLowerCase("ru").includes(query))) &&
+      (!stateFilter || row.state === stateFilter) &&
+      (fromTime === null || created >= fromTime) && (toTime === null || created <= toTime);
+  });
   return (
     <PageLayout title="Общие работы"
-      actions={<><Button type="primary" onClick={() => void begin("create")} disabled={busy}>Создать общую работу</Button>{navigation}</>}>
+      filters={<Space wrap>
+        <Input.Search aria-label="Поиск общих работ" placeholder="Номер или описание"
+          value={search} onChange={event => setSearch(event.target.value)} style={{ width: 280, maxWidth: "100%" }} />
+        <Select aria-label="Состояние общей работы" placeholder="Все состояния" allowClear
+          value={stateFilter} onChange={setStateFilter} style={{ width: 230 }}
+          options={Object.entries(labels).map(([value, label]) => ({ value, label }))} />
+        <Space wrap>
+          <Typography.Text type="secondary">Дата создания:</Typography.Text>
+          <Input aria-label="Дата создания с" title="Дата создания с (Алматы)" type="date"
+            value={from} onChange={event => setFrom(event.target.value)} style={{ width: 155 }} />
+          <Input aria-label="Дата создания по" title="Дата создания по (Алматы)" type="date"
+            value={to} onChange={event => setTo(event.target.value)} style={{ width: 155 }} />
+        </Space>
+      </Space>}
+      actions={<><Button type="primary" onClick={() => void begin("create")} disabled={busy}>Создать общую работу</Button></>}>
+      {invalidPeriod && <Alert type="warning" showIcon message="Дата начала периода позже даты окончания" />}
       {error && !card && !action && <Alert type="error" message={error} />}
 
       <ConfigurableTable storageKey="columns.common-works" settingsPlacement="page"
         rowKey="id"
-        dataSource={rows}
+        dataSource={filteredRows}
         loading={busy}
         scroll={{ x: 500 }}
         columns={[

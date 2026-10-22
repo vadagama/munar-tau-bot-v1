@@ -417,7 +417,7 @@ export function TasksPage() {
     },
   ];
   return (
-    <PageLayout title="Задания"
+    <PageLayout title="Все задания"
       extra={<ViewToggle kind={view} onChange={setView} />}
       actions={manager ? <>
         <Button type="primary" onClick={() => void newTask()}>Создать задание</Button>
