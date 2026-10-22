@@ -17,3 +17,4 @@
 .process-card-content > .process-overview { margin-block-end: 0; }
 
 .process-overview .ant-btn { white-space: normal; height: auto; min-height: 32px; }
+.process-overview > .ant-btn { align-self: flex-start; max-width: 100%; }
