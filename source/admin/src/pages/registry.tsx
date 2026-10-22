@@ -72,6 +72,18 @@ const STATUS: Record<string, string> = {
   revoked: "Прекращена",
   archived: "Архив",
 };
+const REGISTRATION_STATES: Record<string, string> = {
+  approved: "Зарегистрирован", pending_review: "Ожидает проверки", need_clarification: "Нужны уточнения",
+  rejected: "Отказано", disputed: "Спор", withdrawn: "Отозвана", none: "Нет анкеты",
+};
+const linkedPremises = (row: Row): Row[] => Array.isArray(row.linked_premises) ? row.linked_premises : [];
+const residentAddress = (row: Row): string => [...new Set(linkedPremises(row).map(p =>
+  p.building_name && p.building_name !== p.building_code
+    ? `${p.building_name} (${p.building_code})` : String(p.building_code ?? "—"),
+))].join(", ") || "Адрес не указан";
+const residentPremises = (row: Row): string => linkedPremises(row).map(p =>
+  `${p.building_code} · ${displayKind(p.kind)} ${p.number} · ${displayRole(p.role)}`,
+).join("; ") || "Помещения не привязаны";
 export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
   const [entity, setEntity] = useState<Entity>(users ? "persons" : "premises"),
     [rows, setRows] = useState<Row[]>([]),
@@ -83,6 +95,12 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
     [buildings, setBuildings] = useState<Row[]>([]),
     [premises, setPremises] = useState<Row[]>([]),
     [persons, setPersons] = useState<Row[]>([]);
+  const [residentSearch, setResidentSearch] = useState("");
+  const [registrationState, setRegistrationState] = useState<string>();
+  const [residentBuilding, setResidentBuilding] = useState<string>();
+  const [hasPremises, setHasPremises] = useState<string>();
+  const [registeredFrom, setRegisteredFrom] = useState("");
+  const [registeredTo, setRegisteredTo] = useState("");
   const [constructionPhase, setConstructionPhase] = useState<number | "all" | "unassigned">("all");
   const [form] = Form.useForm();
   const [recovery, setRecovery] = useState<Row | null>(null),
@@ -229,6 +247,12 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
           String(v ?? "—")
         ),
     })),
+    ...(users === "residents" ? [
+      { title: "Адрес", key: "address", render: (_: unknown, row: Row) => residentAddress(row) },
+      { title: "Статус регистрации", key: "registration_state", dataIndex: "registration_state",
+        render: (value: unknown) => <Tag>{REGISTRATION_STATES[String(value ?? "none")] ?? String(value)}</Tag> },
+      { title: "Привязанные помещения", key: "linked_premises", render: (_: unknown, row: Row) => residentPremises(row) },
+    ] : []),
     {
       title: "Действия",
       key: "actions",
@@ -266,10 +290,41 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
       <Input maxLength={300} />
     </Form.Item>
   );
+  const visibleRows = users === "residents" ? rows.filter(row => {
+    const links = linkedPremises(row);
+    const search = residentSearch.trim().toLocaleLowerCase("ru-RU");
+    const searchable = [row.full_name, row.phone_e164, residentAddress(row), residentPremises(row)].join(" ").toLocaleLowerCase("ru-RU");
+    const date = row.registered_at ? new Date(String(row.registered_at)).toLocaleDateString("en-CA", { timeZone: "Asia/Almaty" }) : "";
+    return (!search || searchable.includes(search))
+      && (!registrationState || (row.registration_state ?? "none") === registrationState)
+      && (!residentBuilding || links.some(p => p.building_id === residentBuilding))
+      && (!hasPremises || (hasPremises === "yes" ? links.length > 0 : links.length === 0))
+      && (!registeredFrom || !!date && date >= registeredFrom)
+      && (!registeredTo || !!date && date <= registeredTo);
+  }) : entity === "buildings" && constructionPhase !== "all"
+    ? rows.filter(row => constructionPhase === "unassigned" ? row.construction_phase == null : row.construction_phase === constructionPhase)
+    : rows;
   return (
     <PageLayout title={users === "staff" ? "Сотрудники" : users ? "Жители" : "Помещения"}
       actions={users !== "staff" ? <Button type="primary" onClick={() => open(null)}>Добавить запись</Button> : null}
-      filters={!users && <>
+      filters={users === "residents" ? <Space wrap>
+        <Input.Search aria-label="Поиск жителей" placeholder="ФИО, телефон или адрес" value={residentSearch}
+          onChange={e => setResidentSearch(e.target.value)} style={{ width: 280 }} />
+        <Select aria-label="Статус регистрации" placeholder="Все статусы" allowClear value={registrationState}
+          onChange={setRegistrationState} style={{ width: 230 }}
+          options={Object.entries(REGISTRATION_STATES).map(([value, label]) => ({ value, label }))} />
+        <Select aria-label="Фильтр по зданию" placeholder="Все здания" allowClear showSearch optionFilterProp="label"
+          value={residentBuilding} onChange={setResidentBuilding} style={{ width: 210 }}
+          options={options(buildings, b => String(b.name || b.code))} />
+        <Select aria-label="Наличие помещений" placeholder="Все привязки" allowClear value={hasPremises}
+          onChange={setHasPremises} style={{ width: 220 }} options={[
+            { value: "yes", label: "Есть помещения" }, { value: "no", label: "Без помещений" },
+          ]} />
+        <Input aria-label="Период регистрации с" type="date" value={registeredFrom}
+          onChange={e => setRegisteredFrom(e.target.value)} style={{ width: 155 }} />
+        <Input aria-label="Период регистрации по" type="date" value={registeredTo}
+          onChange={e => setRegisteredTo(e.target.value)} style={{ width: 155 }} />
+      </Space> : !users && <>
       <Tabs
         activeKey={entity}
         onChange={switchEntity}
@@ -309,13 +364,9 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
       <ConfigurableTable storageKey={`columns.registry.${users ?? "registry"}.${entity}`} settingsPlacement="page"
         rowKey="id"
         loading={busy}
-        dataSource={entity === "buildings" && constructionPhase !== "all"
-          ? rows.filter(row => constructionPhase === "unassigned"
-            ? row.construction_phase == null
-            : row.construction_phase === constructionPhase)
-          : rows}
+        dataSource={visibleRows}
         columns={columns}
-        scroll={{ x: 900 }}
+        scroll={{ x: users === "residents" ? 1500 : 900 }}
         pagination={{ pageSize: 20, showSizeChanger: true }}
         locale={{ emptyText: "Записей пока нет" }}
       />
