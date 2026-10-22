@@ -118,11 +118,12 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
                 <TelegramText text={entry.reply} onBotLink={href => {
                   try {
                     const url = new URL(href), payload = url.searchParams.get("start") ?? "";
-                    const match = /^(sreq|stsk|req|wrk)_([0-9a-f-]{36})$/i.exec(payload);
+                    const match = /^(sreq|stsk|req|wrk|house)_([0-9a-f-]{36})(?:_([0-9a-f]{12}))?$/i.exec(payload);
+                    if ((match?.[1] === "house" && !match[3]) || (match?.[1] !== "house" && !!match?.[3])) return false;
                     if (url.protocol !== "https:" || url.hostname !== "t.me" || url.username || url.password || !match) return false;
                     const worker = ["sreq", "stsk", "wrk"].includes(match[1]!);
                     if (url.pathname !== (worker ? "/munar_tau_worker_bot" : "/munar_tau_bot")) return false;
-                    const target = match[1] === "req" ? "requests" : match[1] === "wrk" ? "tasks" : "staff-requests";
+                    const target = match[1] === "house" ? "registration" : match[1] === "req" ? "requests" : match[1] === "wrk" ? "tasks" : "staff-requests";
                     const command = match[1] === "req" ? `/request ${match[2]}` : match[1] === "wrk" ? `/task ${match[2]}` : `/start ${payload}`;
                     void send(command, target);
                     return true;

@@ -26,6 +26,7 @@ const ACTIVE_STATES = [
 function harness(
   opts: {
     registrations?: Row[];
+    buildings?: Row[];
     editable?: Row | null;
     profile?: boolean;
     profileLanguage?: "ru" | "kk";
@@ -134,10 +135,10 @@ function harness(
       if (sql.startsWith("select id from privacy_request"))
         return Promise.resolve((opts.openPrivacyRequests ?? []) as T[]);
       // Мастер регистрации: список зданий для шага выбора.
-      if (sql.startsWith("select id,code from building"))
-        return Promise.resolve([
+      if (sql.startsWith("select id,code"))
+        return Promise.resolve((opts.buildings ?? [
           { id: "b1", code: "Ж1" },
-        ] as T[]);
+        ]) as T[]);
       // Шаг «номер помещения»: одно активное помещение.
       if (sql.startsWith("select id from premises"))
         return Promise.resolve([{ id: "p1" }] as T[]);
@@ -887,13 +888,13 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
     expect(typeof role === "object" && role.buttons?.flat().some(button => button.text.includes("Собственник"))).toBe(true);
   });
 
-  it("номер дома текстом: неизвестный код повторяет вопрос с примером", async () => {
+  it("номер дома текстом: неизвестный код показывает подсказку", async () => {
     const h = harness({ profile: true });
     await registrationStep(h.deps, "100", "/add manual");
     const again = await registrationStep(h.deps, "100", "999");
     expect(h.state.step).toBe("building");
     expect(h.state.building_id).toBeUndefined();
-    expect(replyText(again)).toContain("Напишите номер вашего дома");
+    expect(replyText(again)).toContain("Дом не найден. Выберите свой дом");
   });
 
   it("/register — анкета-минимум: язык → имя → телефон → согласие без помещения, подача без premises_id и роли", async () => {
@@ -1000,4 +1001,23 @@ describe("бот: /delete — удаление с подтверждением",
     expect(h.audit).toHaveLength(0);
     expect(h.queries.some(sql => sql.startsWith("update registration set state='withdrawn'"))).toBe(false);
   });
+});
+
+
+it("/add: только отмена, при ошибке — дома по очередям, ссылка выбирает дом", async () => {
+  const id="00000000-0000-4000-8000-000000000001";
+  const h=harness({profile:true,buildings:[{id,code:"102/1",construction_phase:1}]});
+  const prompt=await registrationStep(h.deps,"100","/add");
+  expect(typeof prompt!=="string"&&prompt.buttons?.flat().map(button=>button.data)).toEqual(["/cancel"]);
+  const hints=await registrationStep(h.deps,"100","999/99");
+  expect(replyText(hints)).toContain("<b>Очередь 1</b>");
+  const link=`/start house_${id}_${h.state.house_choice_token}`;
+  expect(replyText(hints)).toContain(`?start=house_${id}_${h.state.house_choice_token}`);
+  const result=await registrationStep(h.deps,"100",link);
+  expect(h.state.building_id).toBe(id);
+  expect(h.state.step).toBe("kind");
+  expect(replyText(result)).toContain("Тип помещения");
+  const stale=await registrationStep(h.deps,"100",link);
+  expect(replyText(stale)).toContain("уже неактивен");
+  expect(h.state.step).toBe("kind");
 });

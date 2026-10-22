@@ -33,6 +33,7 @@ function harness(opts: { profile?: boolean } = {}) {
       if (sql.startsWith("select state from bot_dialog")) {
         return Promise.resolve([{ state: dialogState }] as T[]);
       }
+      if (sql.startsWith("select id,code,construction_phase from building")) return Promise.resolve([{id:"00000000-0000-4000-8000-000000000001",code:"102/1",construction_phase:1}] as T[]);
       if (sql.startsWith("insert into notification")) {
         notifications.push({ sql, params });
         return Promise.resolve([] as T[]);
@@ -156,11 +157,11 @@ describe("processInbound: callback_query (срез UX B)", () => {
     expect(await processInbound(h.deps, update, "resident")).toBe(true);
     expect(h.notifications.length).toBe(1);
     expect(h.notifications[0]!.params![1]).toContain("Недостаточно прав");
-    // Меню на команду /requests не прикрепляется — разметки нет.
-    expect(JSON.parse(String(h.notifications[0]!.params![4])).inline_keyboard.flat().some((b:{callback_data:string})=>b.callback_data==="/register")).toBe(true);
+    // У ошибки остаётся только отмена, без несвязанного меню.
+    expect(JSON.parse(String(h.notifications[0]!.params![4])).inline_keyboard.flat().map((b:{callback_data:string})=>b.callback_data)).toEqual(["/cancel"]);
   });
 
-  it("обычное сообщение без команды-меню уходит без разметки", async () => {
+  it("ответ без контекстных действий получает только отмену", async () => {
     const h = harness();
     const update: Row = {
       update_id: 3,
@@ -173,7 +174,7 @@ describe("processInbound: callback_query (срез UX B)", () => {
     expect(await processInbound(h.deps, update, "resident")).toBe(true);
     expect(h.notifications.length).toBe(1);
     expect(h.notifications[0]!.params![1]).toContain("Анкет пока нет");
-    expect(JSON.parse(String(h.notifications[0]!.params![4])).inline_keyboard.flat().some((b:{callback_data:string})=>b.callback_data==="/register")).toBe(true);
+    expect(JSON.parse(String(h.notifications[0]!.params![4])).inline_keyboard.flat().map((b:{callback_data:string})=>b.callback_data)).toEqual(["/cancel"]);
   });
 
   it("повторная доставка update не отвечает второй раз (дедуп по паре bot+update_id)", async () => {
@@ -362,4 +363,23 @@ describe("processInbound: глубокие ссылки /start (срез C)", ()
     expect(await processInbound(h.deps, textUpdate(23, "/start"), "resident")).toBe(true);
     expect(replyOf(h)).toContain("ОСИ ЖК «Мунар Тау»");
   });
+});
+
+
+it("Telegram house-link выбирает дом в текущем шаге, без главного меню", async () => {
+ const h=harness({profile:true});
+ Object.assign(h.dialogState,{scenario:"registration",step:"building",house_choice_token:"123456abcdef"});
+ await processInbound(h.deps,{update_id:601,message:{text:"/start house_00000000-0000-4000-8000-000000000001_123456abcdef",from:{id:100},chat:{id:100,type:"private"}}},"resident");
+ expect(h.notifications[0]?.params?.[1]).toContain("Тип помещения");
+ const keyboard=JSON.parse(String(h.notifications[0]?.params?.[4])).inline_keyboard.flat();
+ expect(keyboard.some((button:{callback_data:string})=>button.callback_data==="/register")).toBe(false);
+ expect(h.dialogSaves.some(save=>String(save.params?.[1]).includes('"building_id":"00000000-0000-4000-8000-000000000001"'))).toBe(true);
+});
+it("устаревшая house-link не сбрасывает другой диалог",async()=>{
+ const h=harness({profile:true});
+ Object.assign(h.dialogState,{scenario:"requests",step:"description",description:"Мой черновик"});
+ await processInbound(h.deps,{update_id:602,message:{text:"/start house_00000000-0000-4000-8000-000000000001_123456abcdef",from:{id:100},chat:{id:100,type:"private"}}},"resident");
+ expect(h.notifications[0]?.params?.[1]).toContain("уже неактивен");
+ expect(h.dialogSaves).toHaveLength(0);
+ expect(h.dialogState.description).toBe("Мой черновик");
 });

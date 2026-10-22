@@ -1,5 +1,6 @@
+import { buildingHints, houseChoice, validHouseChoice } from "./building-hints.ts";
 import { navigationReply } from "./navigation.ts";
-import { loadDialog, saveDialog } from "./dialog.ts";
+import { loadDialog, readDialog, saveDialog } from "./dialog.ts";
 import { withSimulatorMenu } from "./simulator-menu.ts";
 import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
@@ -36,7 +37,6 @@ import {
   fmtDate,
   type Lang,
   langOf,
-  normalizeBuildingCode,
   numbered,
   resolveRef,
 } from "./text.ts";
@@ -128,9 +128,23 @@ export async function registrationStep(
     const d = scopedDeps(deps, exec);
     const actor = providedActor ?? (await actorForTelegram(d, telegramId));
     const bot = deps.bot ?? "resident";
+    const choiceAttempt = input.trim().startsWith("/start house_");
+    const choice = houseChoice(input);
+    const expiredChoice = (language: Lang): BotReply => ({
+      text: message(deps.templates, language, "message.registration.building_choice_expired"),
+      buttons: [[btn(messageButton(deps.templates, language, "bot.controls", "cancel"), "/cancel")]],
+    });
+    // Проверяем старую ссылку до loadDialog: она не должна переключать чужой сценарий.
+    if (choiceAttempt && !validHouseChoice(await readDialog(exec, telegramId, bot), choice)) {
+      return expiredChoice(langOf(actor?.profile.language));
+    }
     const state = await loadDialog(exec, telegramId, bot, actor?.profile.id ?? null, actor?.emulation?.sessionId ?? null, "registration");
     // Язык подачи: выбранный в диалоге, иначе язык профиля, иначе русский.
     const L: Lang = langOf(state.language ?? actor?.profile.language);
+    if (choiceAttempt) {
+      if (!validHouseChoice(state, choice)) return expiredChoice(L);
+      input = choice!.id;
+    }
     const help = () => registrationHelp(L, deps.templates);
     const save = async (reply: BotReply) => {
       await saveDialog(exec, telegramId, bot, state);
@@ -955,17 +969,15 @@ export async function registrationStep(
       }
       case "building": {
         // Номер дома текстом с автопроверкой (REG-11): «/», «-» и пробелы
-        // равнозначны; не найден — повтор с примером.
-        const code = normalizeBuildingCode(input);
-        const buildings = code
-          ? await exec.query<Row>("select id,code from building order by code")
-          : [];
+        // равнозначны; при ошибке показываем дома по очередям.
+        const buildings = await exec.query<Row>("select id,code,construction_phase from building order by construction_phase nulls last,code");
         const selected = buildings.find((b) =>
-          buildingCodeMatches(b.code, input)
+          String(b.id) === input.trim() || buildingCodeMatches(b.code, input)
         );
         if (!selected) {
-          return save(await askBuilding(exec, state, L, deps.templates));
+          return save(await askBuilding(exec, state, L, deps.templates, buildings, deps.residentBotUsername));
         }
+        delete state.house_choice_token;
         state.building_id = selected.id;
         state.step = "kind";
         return save({
@@ -1242,16 +1254,20 @@ function registerPrompt(store?: TemplateStore, L: Lang = "ru"): BotReply {
   };
 }
 
-/** Шаг выбора здания текстом (REG-11): список всех домов не выводится. */
+/** При первом вводе — краткий вопрос; после ошибки — дома по очередям. */
 async function askBuilding(
   exec: DbExecutor,
   state: Row,
   L: Lang,
   store?: TemplateStore,
+  houses?: Row[],
+  botUsername?: string,
 ): Promise<BotReply> {
+  if (state.step !== "building" || !state.house_choice_token) state.house_choice_token = crypto.randomUUID().replaceAll("-", "").slice(0, 12);
   state.step = "building";
   return {
-    text: message(store, L, "message.registration.building"),
+    text: houses ? buildingHints(houses, L, String(state.house_choice_token), store, botUsername) : message(store, L, "message.registration.building"),
+    buttons: [[btn(messageButton(store, L, "message.registration.building", "cancel"), "/cancel")]],
   };
 }
 
