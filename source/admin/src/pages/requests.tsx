@@ -1,3 +1,5 @@
+import { ProcessOverview, ProcessActions } from "../components/process-card";
+import { requestGuidance } from "../components/process-guidance";
 import { ConfigurableTable } from "../components/configurable-table";
 import type { TableColumnsType } from "antd";
 import { taskAssigneeOptions } from "./task-assignees";
@@ -600,6 +602,33 @@ export function RequestsPage() {
                 }
               />
             )}
+            <ProcessOverview guidance={requestGuidance(card, manage, own)} state={REQUEST_STATES[stateName]}
+              due={stateName === "new" && !card.first_response_at ? card.first_response_due_at : card.due_at}>
+              <section aria-label="Действия по процессу">
+                <ProcessActions primary={requestGuidance(card, manage, own).primary} secondary={["ask_clarification", "return_result", "reject_cancel"]}>
+                  {[...new Set(actions)].map((a) => (
+                    <Button
+                      key={a}
+                      icon={REQUEST_ACTION_ICONS[a]}
+                      onClick={() => {
+                        actionForm.resetFields();
+                        if (a === "start_work") {
+                          startWorkKey.current = crypto.randomUUID();
+                          actionForm.setFieldsValue({ plan: card.kind === "request"
+                            ? String(card.description ?? "")
+                            : `Подготовить ответ по обращению ${card.number}` });
+                        }
+                        setAction(a);
+                      }}
+                    >
+                      {ACTIONS[a]}
+                    </Button>
+                  ))}
+                </ProcessActions>
+                {own && stateName === "closed" && card.close_method === "author" &&
+                  <RatingEditor id={String(card.id)} onError={setError} />}
+              </section>
+            </ProcessOverview>
             <DetailSection title="Информация об обращении">
               <Descriptions
                 column={{ xs: 1, sm: 2 }}
@@ -798,32 +827,6 @@ export function RequestsPage() {
                 </List.Item>} />
             </DetailSection>}
 
-            {(actions.length > 0 || card.kind === "request" || (own && stateName === "closed" && card.close_method === "author")) && (
-              <DetailSection title="Действия по процессу">
-                <Space wrap>
-                  {[...new Set(actions)].map((a) => (
-                    <Button
-                      key={a}
-                      icon={REQUEST_ACTION_ICONS[a]}
-                      onClick={() => {
-                        actionForm.resetFields();
-                        if (a === "start_work") {
-                          startWorkKey.current = crypto.randomUUID();
-                          actionForm.setFieldsValue({ plan: card.kind === "request"
-                            ? String(card.description ?? "")
-                            : `Подготовить ответ по обращению ${card.number}` });
-                        }
-                        setAction(a);
-                      }}
-                    >
-                      {ACTIONS[a]}
-                    </Button>
-                  ))}
-                </Space>
-                {own && stateName === "closed" && card.close_method === "author" &&
-                  <RatingEditor id={String(card.id)} onError={setError} />}
-              </DetailSection>
-            )}
             <DetailSection title="Переписка">
               <Tabs
                 activeKey={channel}

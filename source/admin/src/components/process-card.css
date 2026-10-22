@@ -1,0 +1,15 @@
+.process-overview {
+ display: flex; flex-direction: column; gap: 12px; padding: 16px;
+ border: 1px solid;
+ border-inline-start: 3px solid;
+ border-radius: 8px; margin-block-end: 24px;
+}
+.process-overview__heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.process-overview .ant-typography { margin: 0; }
+.process-overview__heading h3.ant-typography { font-size: 16px; }
+.process-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; }
+.process-actions__other summary, .detail-section summary { cursor: pointer; padding-block: 4px; }
+.process-actions__other[open] > .ant-space { margin-block-start: 8px; }
+.process-card-content { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.process-card-content .ant-list-item { overflow-wrap: anywhere; }
+@media (max-width: 600px) { .process-overview { padding: 12px; } .process-actions { flex-direction: column; } }

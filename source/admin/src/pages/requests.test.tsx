@@ -270,7 +270,7 @@ it("карточка группирует информацию и показыв
   expect(warning).toHaveTextContent("Обращение просрочено");
   const delivery = within(dialog).getByRole("link", { name: "Открыть журнал доставки" });
   expect(delivery).toHaveAttribute("href", "/notifications/failures");
-  const blocks = [warning, information, process, conversation, history, delivery];
+  const blocks = [warning, process, information, conversation, history, delivery];
   blocks.slice(1).forEach((block, index) => {
     expect(blocks[index]!.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
