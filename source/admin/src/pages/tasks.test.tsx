@@ -341,3 +341,32 @@ it("колонка обращения показывает только разр
   fireEvent.click(within(settings).getByRole("checkbox", { name: "Обращение" }));
   expect(screen.queryByRole("columnheader", { name: "Обращение" })).not.toBeInTheDocument();
 });
+
+
+it("показывает только последнюю ошибку доставки вверху карточки задания", async () => {
+ const card = {...task, delivery_failures: [
+  {id:"latest",last_error:"BLOCKED_BY_USER",followup_state:"done"},
+  {id:"older",last_error:"DISPATCH_FAILED",followup_state:"pending"},
+  {id:"oldest",last_error:"UNKNOWN",followup_state:"pending"},
+ ]};
+ vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? {items:[card]} : card);
+ render(<TasksPage/>);
+ fireEvent.click(await screen.findByText("ЗД-1", {selector:"button > span"}));
+ const instruction = await screen.findByText("Проверить герметичность");
+ const notice = screen.getByRole("alert", {name:"Ошибка доставки уведомления"});
+ expect(within(screen.getByRole("dialog")).getAllByRole("alert")).toHaveLength(1);
+ expect(within(notice).getByText("Бот заблокирован получателем")).toBeInTheDocument();
+ expect(within(notice).getByText(/результат записан/)).toBeInTheDocument();
+ expect(screen.queryByText("Не удалось подготовить уведомление")).toBeNull();
+ expect(screen.queryByText("Доставка не удалась")).toBeNull();
+ expect(notice.compareDocumentPosition(instruction) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it("не показывает ошибку доставки при пустом списке уведомлений", async () => {
+ const card = {...task,delivery_failures:[]};
+ vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? {items:[card]} : card);
+ render(<TasksPage/>);
+ fireEvent.click(await screen.findByText("ЗД-1", {selector:"button > span"}));
+ await screen.findByText("Проверить герметичность");
+ expect(screen.queryByRole("alert", {name:"Ошибка доставки уведомления"})).toBeNull();
+});

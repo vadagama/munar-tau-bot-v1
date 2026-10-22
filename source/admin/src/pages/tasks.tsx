@@ -351,6 +351,8 @@ export function TasksPage() {
     );
   const reports = (card?.reports as Row[]) ?? [];
   const latestReport = reports[reports.length - 1];
+  // API возвращает ошибки доставки от новых к старым.
+  const latestDeliveryFailure = card?.delivery_failures?.[0];
   if (card?.can_manage && card.state === "on_review") {
     if (card.can_approve === true) adminActions.push("approve");
     adminActions.push("return");
@@ -506,6 +508,22 @@ export function TasksPage() {
         {error && card && !action && !creating && !reporting && <Alert role="alert" type="error" showIcon message={error} />}
         {card && (
           <>
+          {latestDeliveryFailure && (
+            <Alert
+              role="alert"
+              aria-label="Ошибка доставки уведомления"
+              type="error"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message={latestDeliveryFailure.last_error === "BLOCKED_BY_USER"
+                ? "Бот заблокирован получателем"
+                : latestDeliveryFailure.last_error === "DISPATCH_FAILED"
+                ? "Не удалось подготовить уведомление"
+                : "Доставка не удалась"}
+              description={`Связь: ${latestDeliveryFailure.followup_state === "done" ? "результат записан" : "требуется связаться"}. Подробности — в разделе «Уведомления».`}
+            />
+          )}
+          {!!card.overdue_at && <Alert type="warning" showIcon style={{ marginBottom: 16 }} message={`Срок нарушен с ${new Date(String(card.overdue_at)).toLocaleString("ru-RU")}`} />}
           {!!card.linked_request && <Typography.Paragraph>
             Обращение: <Typography.Link href={`/requests?request=${encodeURIComponent(String((card.linked_request as Row).id))}`}>
               {String((card.linked_request as Row).number)}
@@ -540,9 +558,7 @@ export function TasksPage() {
               children: new Date(card.due_at).toLocaleString("ru-RU"),
             }]}
           />
-          {!!card.overdue_at && <Alert type="warning" showIcon message={`Срок нарушен с ${new Date(String(card.overdue_at)).toLocaleString("ru-RU")}`} />}
           {!!card.acceptance_due_at && card.state === "awaiting_acceptance" && <p>Ожидаем принятия до {new Date(String(card.acceptance_due_at)).toLocaleString("ru-RU")}</p>}
-          {card.delivery_failures?.map(f => <Alert key={f.id} type="error" showIcon message={f.last_error === "BLOCKED_BY_USER" ? "Бот заблокирован получателем" : f.last_error === "DISPATCH_FAILED" ? "Не удалось подготовить уведомление" : "Доставка не удалась"} description={`Связь: ${f.followup_state === "done" ? "результат записан" : "требуется связаться"}. Подробности — в разделе «Уведомления».`} />)}
           <TaskProblems task={card} onSaved={() => open(card.id, true)} />
           <Space wrap>
             {card.can_execute && card.state === "in_progress" && (
