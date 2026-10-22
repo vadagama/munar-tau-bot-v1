@@ -1,5 +1,5 @@
 import { ProcessOverview, ProcessActions } from "../components/process-card";
-import { requestGuidance } from "../components/process-guidance";
+import { requestGuidance, processActionHint } from "../components/process-guidance";
 import { ConfigurableTable } from "../components/configurable-table";
 import type { TableColumnsType } from "antd";
 import { taskAssigneeOptions } from "./task-assignees";
@@ -587,7 +587,7 @@ export function RequestsPage() {
       >
         {error && card && !action && !placeEdit && !create && !restricting && <Alert role="alert" type="error" showIcon message={error} />}
         {card && (
-          <Space direction="vertical" size="large" style={{ width: "100%" }}>
+          <Space key={String(card.id)} direction="vertical" size="large" style={{ width: "100%" }}>
             {requestOverdue(card) && (
               <Alert
                 role="alert"
@@ -603,8 +603,10 @@ export function RequestsPage() {
               />
             )}
             <ProcessOverview guidance={requestGuidance(card, manage, own)} state={REQUEST_STATES[stateName]}
-              due={stateName === "new" && !card.first_response_at ? card.first_response_due_at : card.due_at}>
+              due={["closed", "canceled", "rejected", "awaiting_confirmation"].includes(stateName) ? undefined : !card.first_response_at ? card.first_response_due_at : card.due_at} dueLabel={!card.first_response_at ? "Первый ответ до" : "Выполнение до"}>
               <section aria-label="Действия по процессу">
+                {manage && stateName === "in_work" && !requestGuidance(card, manage, own).primary &&
+                  <Button type="primary" href="#request-tasks">Проверить связанные задания</Button>}
                 <ProcessActions primary={requestGuidance(card, manage, own).primary} secondary={["ask_clarification", "return_result", "reject_cancel"]}>
                   {[...new Set(actions)].map((a) => (
                     <Button
@@ -816,6 +818,7 @@ export function RequestsPage() {
                 )}
             </DetailSection>
             {manage && <DetailSection title="Связанные задания">
+              <div id="request-tasks" />
               <List dataSource={(card.tasks as Row[] | undefined) ?? []}
                 locale={{ emptyText: "Связанных заданий пока нет" }}
                 renderItem={task => <List.Item key={String(task.id)}>
@@ -1197,6 +1200,7 @@ export function RequestsPage() {
         </Form>
       </ActionPanel>
       <ActionPanel
+        description={processActionHint("request", action)}
         form={actionForm}
         error={error}
 

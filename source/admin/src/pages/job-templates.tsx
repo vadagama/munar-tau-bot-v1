@@ -1,3 +1,4 @@
+import { ProcessOverview } from "../components/process-card";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -264,6 +265,11 @@ export function JobTemplates(
         error={error}
         onCancel={() => !busy && setAction(null)}
       >
+        <ProcessOverview guidance={{
+          title: action === "run" ? "Нужно проверить условия запуска задания" : "Нужно подготовить методичку задания",
+          description: action === "run" ? "Укажите срок выполнения. Запуск создаст отдельную общую работу и задание по выбранному шаблону; предыдущие задания сохранятся." : "Проверьте объём, инструкцию, требования к доказательствам и область. Сохранение создаёт версию шаблона; начатые задания сами не меняются.",
+          waitingFor: "Управляющий",
+        }} />
         <Form
           form={form}
           layout="vertical"

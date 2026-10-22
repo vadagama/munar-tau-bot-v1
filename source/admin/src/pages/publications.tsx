@@ -1,3 +1,6 @@
+import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
+import { publicationGuidance, processActionHint } from "../components/process-guidance";
+import { DetailSection } from "../components/detail-section";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -218,7 +221,78 @@ export function PublicationsPage() {
       >
         {error && card && !action && <Alert role="alert" type="error" showIcon message={error} />}
         {card && (
-          <>
+          <div key={String(card.id)} className="process-card-content">
+          <ProcessOverview guidance={publicationGuidance(card, manager, roles.includes("chairman"))} state={states[String(card.state)]} due={card.publish_at} dueLabel="Публикация">
+            <ProcessActions primary={publicationGuidance(card, manager, roles.includes("chairman")).primary} secondary={["edit", "problem", "update_outage"]}>
+          {card.kind === "work_report" && card.state === "published" && (
+            <Button key="problem" onClick={() => void begin("problem")}>
+              Сообщить о проблеме с этой работой
+            </Button>
+          )}
+          {manager && (
+            <>
+              {card.state === "draft" && (
+                <>
+                  <Button key="edit" onClick={() => void begin("edit")}>
+                    Редактировать
+                  </Button>
+                  {card.kind === "work_report" && (
+                    <Button key="media" onClick={() => void begin("media")}>
+                      Выбрать фото и видео
+                    </Button>
+                  )}
+                </>
+              )}
+              {card.state === "draft" && (
+                <>
+                  {card.kind === "financial_report" && !card.approved_by
+                    ? (
+                      <Button key="submit_approval" onClick={() => void begin("submit_approval")}>
+                        На согласование председателю
+                      </Button>
+                    )
+                    : (
+                      <>
+                        <Button key="publish"
+                          type="primary"
+                          onClick={() => void begin("publish")}
+                        >
+                          Опубликовать
+                        </Button>
+                        <Button key="schedule" onClick={() => void begin("schedule")}>
+                          Запланировать
+                        </Button>
+                      </>
+                    )}
+                </>
+              )}
+              {card.state === "pending_approval" &&
+                roles.includes("chairman") && (
+                <Button key="approve" onClick={() => void begin("approve")}>
+                  Разрешить публикацию
+                </Button>
+              )}
+              {card.state === "published" && card.kind === "outage" &&
+                !card.restored_at && (
+                <>
+                  <Button key="update_outage" onClick={() => void begin("update_outage")}>
+                    Обновить план
+                  </Button>
+                  <Button key="restore"
+                    onClick={() => void begin("restore")}
+                  >
+                    Подтвердить восстановление
+                  </Button>
+                </>
+              )}
+              {["published", "scheduled"].includes(String(card.state)) && (
+                <Button key="archive" onClick={() => void begin("archive")}>В архив</Button>
+              )}
+            </>
+          )}
+            </ProcessActions>
+          </ProcessOverview>
+          <DetailSection title="Содержание публикации">
           <Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>
             {String(card.body)}
           </Typography.Paragraph>
@@ -248,82 +322,19 @@ export function PublicationsPage() {
               </List.Item>
             )}
           />
-          {card.kind === "work_report" && card.state === "published" && (
-            <Button onClick={() => void begin("problem")}>
-              Сообщить о проблеме с этой работой
-            </Button>
-          )}
-          {manager && (
-            <Space wrap style={{ marginTop: 16 }}>
-              {card.state === "draft" && (
-                <>
-                  <Button onClick={() => void begin("edit")}>
-                    Редактировать
-                  </Button>
-                  {card.kind === "work_report" && (
-                    <Button onClick={() => void begin("media")}>
-                      Выбрать фото и видео
-                    </Button>
-                  )}
-                </>
-              )}
-              {card.state === "draft" && (
-                <>
-                  {card.kind === "financial_report"
-                    ? (
-                      <Button onClick={() => void begin("submit_approval")}>
-                        На согласование председателю
-                      </Button>
-                    )
-                    : (
-                      <>
-                        <Button
-                          type="primary"
-                          onClick={() => void begin("publish")}
-                        >
-                          Опубликовать
-                        </Button>
-                        <Button onClick={() => void begin("schedule")}>
-                          Запланировать
-                        </Button>
-                      </>
-                    )}
-                </>
-              )}
-              {card.state === "pending_approval" &&
-                roles.includes("chairman") && (
-                <Button onClick={() => void begin("approve")}>
-                  Разрешить публикацию
-                </Button>
-              )}
-              {card.state === "published" && card.kind === "outage" &&
-                !card.restored_at && (
-                <>
-                  <Button onClick={() => void begin("update_outage")}>
-                    Обновить план
-                  </Button>
-                  <Button
-                    onClick={() => void begin("restore")}
-                  >
-                    Подтвердить восстановление
-                  </Button>
-                </>
-              )}
-              {["published", "scheduled"].includes(String(card.state)) && (
-                <Button onClick={() => void begin("archive")}>В архив</Button>
-              )}
-            </Space>
-          )}
+          </DetailSection>
+          <ProcessHistory>
           <List
-            header="История"
             dataSource={(card.history as Row[]) ?? []}
             renderItem={(h) => (
               <List.Item>{String(h.at)} — версия {String(h.version)}</List.Item>
             )}
           />
-          </>
+          </ProcessHistory>
+          </div>
         )}
       <ActionPanel
+        description={processActionHint("publication", action)}
         form={form}
         error={error}
         full={action === "create" || action === "edit"}

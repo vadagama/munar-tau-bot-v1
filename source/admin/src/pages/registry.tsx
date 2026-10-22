@@ -1,3 +1,4 @@
+import { ProcessOverview } from "../components/process-card";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -482,12 +483,11 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
         busy={saving}
         okText="Перенести привязку"
       >
-        <Alert
-          type="warning"
-          showIcon
-          message="Проверьте личность вне системы. Прежняя привязка и все прежние сеансы прекратят доступ. ID человека, его роли и история сохранятся."
-          style={{ marginBottom: 16 }}
-        />
+        <ProcessOverview guidance={{
+          title: "Нужно проверить личность и новую анкету",
+          description: "Проверьте личность вне системы. Выберите анкету с нового Telegram и укажите, как проверена личность. Прежняя привязка и все прежние сеансы будут отозваны. История, идентификатор человека и роли сохранятся.",
+          waitingFor: "Уполномоченный сотрудник",
+        }} />
         <Form name="registry-recovery" form={recoveryForm} layout="vertical">
           <Form.Item
             name="registration_id"

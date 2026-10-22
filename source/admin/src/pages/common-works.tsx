@@ -1,3 +1,6 @@
+import { processActionHint } from "../components/process-guidance";
+import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
+import { DetailSection } from "../components/detail-section";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -204,30 +207,40 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
       <CardDrawer open={!!card || !!action} closeDisabled={busy} onClose={() => { generation.current++; setCard(null); }} title={card ? String(card.number) + " — " + String(card.title) : "Новая общая работа"}>
       {error && card && !action && <Alert type="error" message={error} />}
       {card && (
-        <section aria-label={`${card.number} — ${card.title}`}>
-          <p>{String(card.plan)}</p>
-          <p>Срок: {new Date(String(card.due_at)).toLocaleString()}</p>
-          <p>{labels[String(card.state)]}</p>
+        <section key={String(card.id)} aria-label={`${card.number} — ${card.title}`} className="process-card-content">
+          <ProcessOverview state={labels[String(card.state)]} due={card.due_at} guidance={{
+            title: card.state === "completed" ? "Общая работа завершена" : card.state === "canceled" ? "Общая работа отменена" : card.state === "on_review" ? "Нужно проверить общий результат" : "Нужно организовать выполнение общей работы",
+            description: ["completed", "canceled"].includes(String(card.state)) ? "История сохранена. Каждое связанное обращение проходит собственную проверку результата." : "Проверьте задания и их результаты. Общая работа завершается явно после приёмки обязательного объёма; обращения подтверждаются отдельно.",
+            waitingFor: ["completed", "canceled"].includes(String(card.state)) ? "Действий по работе не требуется" : "Управляющий / исполнители",
+          }}>
+          {!!(card.tasks as Row[] | undefined)?.length && ["planned", "in_progress"].includes(String(card.state)) &&
+            <Button type="primary" href="#common-work-tasks">Проверить задания</Button>}
           {!["completed", "canceled"].includes(String(card.state)) && (
-            <Space wrap>
-              <Button
+            <ProcessActions primary={(card.tasks as Row[] | undefined)?.length ? (card.state === "on_review" ? "complete" : undefined) : "add_task"} secondary={["add_task"]}>
+              <Button key="add_task"
                 onClick={() =>
                   onTask(String(card.id))}
               >
                 Добавить задание
               </Button>
-              <Button onClick={() => void begin("link")}>
+              <Button key="link" onClick={() => void begin("link")}>
                 Связать обращение
               </Button>
-              <Button onClick={() => void begin("complete")}>
+              <Button key="complete" onClick={() => void begin("complete")}>
                 Завершить работу
               </Button>
-              <Button danger onClick={() => void begin("cancel")}>
+              <Button key="cancel" danger onClick={() => void begin("cancel")}>
                 Отменить работу
               </Button>
-            </Space>
+            </ProcessActions>
           )}
-          <Typography.Title level={4}>Связанные обращения</Typography.Title>
+          </ProcessOverview>
+          <DetailSection title="План общей работы">
+          <p>{String(card.plan)}</p>
+          <p>Срок: {new Date(String(card.due_at)).toLocaleString()}</p>
+          <p>{labels[String(card.state)]}</p>
+          </DetailSection>
+          <DetailSection title="Связанные обращения">
           <List
             dataSource={(card.request_ids as string[]) ?? []}
             renderItem={(id) => (
@@ -244,14 +257,16 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
               </List.Item>
             )}
           />
-          <Typography.Title level={4}>Задания</Typography.Title>
+          </DetailSection>
+          <DetailSection title="Задания"><div id="common-work-tasks" />
           <List
             dataSource={(card.tasks as Row[]) ?? []}
             renderItem={(t) => (
-              <List.Item>{String(t.number)} — {String(t.title)}</List.Item>
+              <List.Item>{t.id ? <Typography.Link href={`/tasks?task=${encodeURIComponent(String(t.id))}`}>{String(t.number)}</Typography.Link> : String(t.number)} — {String(t.title)}</List.Item>
             )}
           />
-          <Typography.Title level={4}>История</Typography.Title>
+          </DetailSection>
+          <ProcessHistory>
           <List
             dataSource={(card.log as Row[]) ?? []}
             renderItem={(l) => (
@@ -264,9 +279,11 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
               </List.Item>
             )}
           />
+          </ProcessHistory>
         </section>
       )}
       <ActionPanel
+        description={processActionHint("commonWork", action)}
         open={!!action}
         full={action === "create" || action === "cancel"}
         busy={busy}

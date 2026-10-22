@@ -1,3 +1,4 @@
+import { ProcessOverview } from "../components/process-card";
 import { ConfigurableTable } from "../components/configurable-table";
 import { taskAssigneeOptions } from "./task-assignees";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -113,9 +114,13 @@ export function JobSchedule(
   return (
     <Space direction="vertical" style={{ width: "100%" }}>
       {error && <Alert type="error" message={error} />}
+      <ProcessOverview state={data?.schedule?.enabled ? "Расписание включено" : "Расписание выключено"} due={data?.schedule?.enabled ? data.schedule.next_run_at : undefined} guidance={{
+        title: data?.schedule?.enabled ? "Ожидаем следующего запуска" : "Нужно настроить расписание для регулярного запуска",
+        description: "Проверьте исполнителя, дату, период и срок выполнения. Сохранение меняет расписание будущих запусков; каждый запуск создаёт отдельную общую работу и задание.",
+        waitingFor: data?.schedule?.enabled ? "Система; управляющий — при изменении расписания" : "Управляющий",
+      }} />
       <Typography.Paragraph>
-        Каждый запуск создаёт отдельную общую работу и задание. Предыдущие
-        незавершённые задания сохраняются. Период и срок — календарные часы;
+        Предыдущие незавершённые задания сохраняются. Период и срок — календарные часы;
         дата указана во времени вашего устройства.
       </Typography.Paragraph>
       <Form
