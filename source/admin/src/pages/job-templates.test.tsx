@@ -68,16 +68,19 @@ it("название и инструкция, активность и даты �
     {id:"c",name:"Поздний",version:1,active:true,blueprint:{instruction:"Проверить свет"},created_at:"2026-10-21T19:00:00Z"},
   ]} : {items:[]});
   render(<JobTemplates onCreated={() => {}} />);
-  await screen.findByRole("cell",{name:"Поздний"});
+  // Ищем содержимое ячеек внутри загруженной таблицы: глобальный byRole
+  // многократно вычисляет доступные имена/стили AntD и превышает лимит CI.
+  const lastCell = await screen.findByText("Поздний", {selector:"td"});
+  const table = within(lastCell.closest("table")!);
   fireEvent.change(screen.getByLabelText("Поиск шаблонов заданий"),{target:{value:"свет"}});
   fireEvent.change(screen.getByLabelText("Дата создания с"),{target:{value:"2026-10-21"}});
   fireEvent.change(screen.getByLabelText("Дата создания по"),{target:{value:"2026-10-21"}});
-  expect(screen.queryByRole("cell",{name:"Поздний"})).not.toBeInTheDocument();
+  expect(table.queryByText("Поздний", {selector:"td"})).not.toBeInTheDocument();
   fireEvent.mouseDown(screen.getByRole("combobox",{name:"Состояние шаблона"}));
   fireEvent.click(await screen.findByText("Действующие",{selector:".ant-select-item-option-content"}));
-  expect(screen.getByRole("cell",{name:"Освещение"})).toBeInTheDocument();
-  expect(screen.queryByRole("cell",{name:"Лампы"})).not.toBeInTheDocument();
+  expect(table.getByText("Освещение", {selector:"td"})).toBeInTheDocument();
+  expect(table.queryByText("Лампы", {selector:"td"})).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Поиск шаблонов заданий"),{target:{value:"Освещение"}});
-  expect(screen.getByRole("cell",{name:"Освещение"})).toBeInTheDocument();
-  expect(screen.queryByRole("button",{name:"К заданиям"})).not.toBeInTheDocument();
+  expect(table.getByText("Освещение", {selector:"td"})).toBeInTheDocument();
+  expect(screen.queryByText("К заданиям", {selector:"button > span, a.ant-btn > span"})).not.toBeInTheDocument();
 });
