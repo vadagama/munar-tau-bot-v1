@@ -1,3 +1,4 @@
+import { DeadlineInput } from "../components/deadline-input";
 import { processActionHint } from "../components/process-guidance";
 import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
 import { DetailSection } from "../components/detail-section";
@@ -316,7 +317,7 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
                 label="Срок (местное время)"
                 rules={required}
               >
-                <Input type="datetime-local" />
+                <DeadlineInput />
               </Form.Item>
               <Form.Item name="building_ids" label="Дома" rules={required}>
                 <Select

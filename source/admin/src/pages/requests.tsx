@@ -1,3 +1,4 @@
+import { DeadlineInput } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions } from "../components/process-card";
 import { requestGuidance, processActionHint } from "../components/process-guidance";
 import { ConfigurableTable } from "../components/configurable-table";
@@ -1251,7 +1252,7 @@ export function RequestsPage() {
               validator: (_, value) => !value || Date.parse(value) > Date.now()
                 ? Promise.resolve() : Promise.reject(new Error("Срок должен быть в будущем")),
             }]}>
-              <Input type="datetime-local" />
+              <DeadlineInput />
             </Form.Item>
           </>}
           {["start_work", "plan_rework"].includes(action ?? "") && (
@@ -1279,7 +1280,7 @@ export function RequestsPage() {
                 label="Следующее действие"
                 rules={[{ required: true }]}
               >
-                <Input type="datetime-local" />
+                <DeadlineInput />
               </Form.Item>
               <Form.Item
                 name="responsible_person_id"
