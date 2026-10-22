@@ -176,8 +176,15 @@ export async function taskStep(
       delete state.report;
       delete state.visit_when;
       const visible = tasks.slice(0, 30);
+      // Как в списках обращений: длинный перечень — текстом с кликабельным
+      // номером вместо ряда кнопок. Номера кириллические, а payload глубокой
+      // ссылки допускает только латиницу — ссылки строятся на UUID (wrk_<uuid>).
+      const username = deps.workerBotUsername ?? "munar_tau_worker_bot";
+      if (!/^[A-Za-z0-9_]+$/.test(username)) throw new ApiError("INTERNAL");
       const lines = visible.map((t) =>
-        `<b>${esc(t.number)}</b> · ${esc(String(t.title).slice(0, 100))} · ${
+        `<a href="https://t.me/${username}?start=wrk_${esc(t.id)}">${
+          esc(t.number)
+        }</a> · ${esc(String(t.title).slice(0, 100))}\n${
           esc(stateLabel(t.state, L))
         }`
       );
@@ -186,18 +193,8 @@ export async function taskStep(
           deps.templates,
           L,
           lines.length ? "message.tasks.list" : "tasks.zadaniy_net",
-          { tasks: safeBlock(numbered(lines)) },
+          { tasks: safeBlock(lines.join("\n\n")) },
         ),
-        // Кнопка в строке списка открывает карточку тем же кодом, что /task НОМЕР.
-        buttons: visible.map((t) => [
-          btn(
-            messageButton(deps.templates, L, "message.tasks.list", "open", {
-              number: t.number,
-              title: String(t.title).slice(0, 24),
-            }),
-            `/task ${t.number}`,
-          ),
-        ]),
       });
     }
     if (command === "/task") {
