@@ -67,19 +67,19 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
               disabled={!active || busy}
               onClick={() => void send("/register", "registration")}
             >
-              Начать анкету
+              Зарегистрироваться
             </Button>
             <Button
               disabled={!active || busy}
               onClick={() => void send("/status", "registration")}
             >
-              Статус
+              Статус регистрации
             </Button>
             <Button
               disabled={!active || busy}
               onClick={() => void send("/objects", "registration")}
             >
-              Мои объекты
+              Мои помещения
             </Button>
           </Space>
         )}
@@ -87,7 +87,7 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
           disabled={!active || busy}
           onClick={() => void send("/cancel")}
         >
-          Отменить диалог
+          Отменить
         </Button>
         <div
           role="log"

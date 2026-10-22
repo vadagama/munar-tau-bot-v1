@@ -16,11 +16,11 @@ beforeEach(() => { Object.defineProperty(HTMLElement.prototype, "scrollIntoView"
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 it("до включения эмуляции не отправляет шаг", () => {
   render(<RegistrationSimulator active={false} />);
-  expect(screen.getByRole("button", { name: "Начать анкету" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Зарегистрироваться" })).toBeDisabled();
 });
 it("активная персона исполняет общий сценарий registration и видит ответ", async () => {
   render(<RegistrationSimulator active />);
-  fireEvent.click(screen.getByRole("button", { name: "Начать анкету" }));
+  fireEvent.click(screen.getByRole("button", { name: "Зарегистрироваться" }));
   await waitFor(() =>
     expect(apiFetch).toHaveBeenCalledWith("/v1/emulation/simulate", {
       method: "POST",
@@ -36,7 +36,7 @@ it("показывает кнопки сценария и отправляет �
     buttons: [[{ text: "Қазақша", data: "kk" }, { text: "Русский", data: "ru" }]],
   }).mockResolvedValueOnce({ reply: "Укажите имя" });
   render(<RegistrationSimulator active />);
-  fireEvent.click(screen.getByRole("button", { name: "Начать анкету" }));
+  fireEvent.click(screen.getByRole("button", { name: "Зарегистрироваться" }));
   fireEvent.click(await screen.findByRole("button", { name: "Қазақша" }));
   await waitFor(() => expect(apiFetch).toHaveBeenLastCalledWith("/v1/emulation/simulate", {
     method: "POST", body: { scenario: "registration", input: "kk" },
@@ -49,7 +49,7 @@ it("не показывает главное меню под ответами, �
     { text: "❓ Помощь", data: "/help", scenario: "registration" },
   ]] });
   render(<RegistrationSimulator active />);
-  fireEvent.click(screen.getByRole("button", { name: "Начать анкету" }));
+  fireEvent.click(screen.getByRole("button", { name: "Зарегистрироваться" }));
   expect(await screen.findByText("Выберите язык")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "🆕 Новое обращение" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "❓ Помощь" })).not.toBeInTheDocument();
@@ -59,11 +59,11 @@ it("прокручивает к каждому новому ответу и пе
   vi.mocked(apiFetch).mockResolvedValueOnce({ reply: "Первый ответ" }).mockResolvedValueOnce({ reply: "Второй ответ" });
   render(<RegistrationSimulator active />);
   expect(scrollIntoView).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Начать анкету" }));
+  fireEvent.click(screen.getByRole("button", { name: "Зарегистрироваться" }));
   const first = await screen.findByRole("article", { name: "Ответ симулятора 1" });
   await waitFor(() => expect(first).toHaveFocus());
   expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "start", inline: "nearest" });
-  fireEvent.click(screen.getByRole("button", { name: "Статус" }));
+  fireEvent.click(screen.getByRole("button", { name: "Статус регистрации" }));
   const second = await screen.findByRole("article", { name: "Ответ симулятора 2" });
   await waitFor(() => expect(second).toHaveFocus());
   expect(scrollIntoView).toHaveBeenCalledTimes(2);
@@ -102,7 +102,7 @@ it("открывает номер обращения своей служебно
  const id='00000000-0000-4000-8000-000000000001';
  vi.mocked(apiFetch).mockResolvedValueOnce({reply:`<a href="https://t.me/munar_tau_worker_bot?start=sreq_${id}">З-26-1</a>`}).mockResolvedValueOnce({reply:'Карточка обращения'});
  render(<RegistrationSimulator active />);
- fireEvent.click(screen.getByRole('button',{name:'Начать анкету'}));
+ fireEvent.click(screen.getByRole('button',{name:'Зарегистрироваться'}));
  fireEvent.click(await screen.findByRole('link',{name:'З-26-1'}));
  await waitFor(()=>expect(apiFetch).toHaveBeenLastCalledWith('/v1/emulation/simulate',{method:'POST',body:{scenario:'staff-requests',input:`/start sreq_${id}`}}));
  expect(await screen.findByText('Карточка обращения')).toBeInTheDocument();
@@ -112,10 +112,10 @@ it("показывает кнопки регистрации только в с�
  render(<RegistrationSimulator active />);
  fireEvent.mouseDown(screen.getByRole("combobox",{name:"Сценарий симулятора"}));
  fireEvent.click(screen.getByText("Обращения",{selector:".ant-select-item-option-content"}));
- expect(screen.queryByRole("button",{name:"Начать анкету"})).not.toBeInTheDocument();
- expect(screen.queryByRole("button",{name:"Статус"})).not.toBeInTheDocument();
- expect(screen.queryByRole("button",{name:"Мои объекты"})).not.toBeInTheDocument();
- fireEvent.click(screen.getByRole("button",{name:"Отменить диалог"}));
+ expect(screen.queryByRole("button",{name:"Зарегистрироваться"})).not.toBeInTheDocument();
+ expect(screen.queryByRole("button",{name:"Статус регистрации"})).not.toBeInTheDocument();
+ expect(screen.queryByRole("button",{name:"Мои помещения"})).not.toBeInTheDocument();
+ fireEvent.click(screen.getByRole("button",{name:"Отменить"}));
  await waitFor(()=>expect(apiFetch).toHaveBeenLastCalledWith("/v1/emulation/simulate",{
    method:"POST", body:{scenario:"requests",input:"/cancel"},
  }));

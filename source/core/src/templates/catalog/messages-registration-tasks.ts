@@ -20,7 +20,7 @@ const old = (key: string, lang: "ru" | "kk") =>
   originals.find((d) => d.key === key)![lang];
 const consentButtons: MessageButton[] = [
   { id: "confirm", ru: "Согласен (да)", kk: "Келісемін (иә)" },
-  { id: "cancel", ru: "Отмена", kk: "Болдырмау" },
+  { id: "cancel", ru: "Отменить", kk: "Болдырмау" },
 ];
 const taskButtons: MessageButton[] = [
   { id: "accept", ru: "Принять", kk: "Қабылдау" },
@@ -36,6 +36,7 @@ const taskButtons: MessageButton[] = [
   {id:"emergency",ru:"Аварийная служба",kk:"Апаттық қызмет"},
 ];
 const values: Record<string, [string, string]> = {
+  registered_at: ["Дата регистрации (Алматы)", "21.10.2026 10:00"],
   registrations: [
     "Анкеты с состоянием, именем, помещением и причиной",
     "1. Ожидает проверки: Алия, Квартира 1/4, Собственник",
@@ -105,7 +106,7 @@ function scenarioFor(command: string): string {
     "/register": "Регистрация — новая анкета",
     "/fix": "Регистрация — исправление анкеты",
     "/add": "Добавление помещения",
-    "/status": "Статус анкет",
+    "/status": "Статус регистрации",
     "/pending": "Подтверждение анкет собственником",
     "/accesses": "Выданные доступы",
     "/objects": "Мои помещения",
@@ -235,7 +236,7 @@ const R = "registration.";
 const defs: TemplateDef[] = [
   def(
     "message.registration.status",
-    "Статус анкет",
+    "Статус регистрации",
     "/status",
     [R + "ispravit_anketu_posle_utochneniya"],
     (l) =>
@@ -279,7 +280,7 @@ const defs: TemplateDef[] = [
       l === "kk"
         ? "Себебін бір хабарламада көрсетіңіз."
         : "Укажите причину одним сообщением.",
-    [{ id: "cancel", ru: "Отмена", kk: "Болдырмау" }],
+    [{ id: "cancel", ru: "Отменить", kk: "Болдырмау" }],
   ),
   def(
     "message.registration.accesses",
@@ -346,24 +347,28 @@ const defs: TemplateDef[] = [
       variables: variables("{code}/{number}", ""),
     }, { id: "manual", ru: "Ввести вручную", kk: "Қолмен енгізу" }],
   ),
-  ...["already_registered", "already_applied"].map((name) =>
+  ...["already_registered", "already_applied", "already_registered_without_premises"].map((name) =>
     def(
       "message.registration." + name,
-      name === "already_registered"
+      name.startsWith("already_registered")
         ? "Повторная регистрация — доступ подтверждён"
         : "Повторная регистрация — анкета в работе",
       "/register",
-      [
+      name === "already_registered_without_premises" ? [] : [
         R + name,
         R + "status_anket",
         R + "ispravit_anketu",
         R + "dobavit_esche_obekt",
       ],
-      (l) => old(R + name, l) + "\n{registrations}",
+      (l) => name === "already_registered_without_premises"
+        ? l === "kk"
+          ? "{full_name}, Сіз {registered_at} күні тіркелдіңіз, сауалнамаға үй-жайлар әлі байланыстырылмаған.\nҚайта тіркелудің қажеті жоқ."
+          : "{full_name}, Вы зарегистрированы {registered_at}, помещения пока не прикреплены к анкете.\nПовторная регистрация не нужна."
+        : old(R + name, l) + "\n{registrations}",
       [{
         id: "status",
-        ru: "Статус анкет",
-        kk: "Өтінімдер күйі",
+        ru: "Статус регистрации",
+        kk: "Тіркелу күйі",
       }, {
         id: "fix",
         ru: "Исправить анкету",
@@ -532,7 +537,7 @@ const defs: TemplateDef[] = [
       R + "status_ankety",
     ],
     (l) => old(R + "anketa_prinyata_dostup_ozhidaet_podtverzhdeniya", l),
-    [{ id: "status", ru: "Статус анкет", kk: "Өтінімдер күйі" }],
+    [{ id: "status", ru: "Статус регистрации", kk: "Тіркелу күйі" }],
   ),
   def(
     "message.tasks.list",
@@ -657,7 +662,7 @@ const overrides: Record<string, MessageButton[]> = {
     id: "confirm",
     ru: "Подтвердить удаление",
     kk: "Жоюды растау",
-  }, { id: "cancel", ru: "Отмена", kk: "Болдырмау" }],
+  }, { id: "cancel", ru: "Отменить", kk: "Болдырмау" }],
   "tasks.kogda_predlozhite_vizit_napishite_odnim_soobscheniem_naprimer": [{
     id: "today",
     ru: "Сегодня",

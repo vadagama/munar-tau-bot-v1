@@ -215,8 +215,9 @@ export function workerMenu(
  */
 /** Current and historical labels share one routing/validation source. */
 function menuAliases(store?: TemplateStore): [string, string][] {
-  const aliases = Object.entries(MENU_COMMANDS);
+  const aliases: [string, string][] = [...Object.entries(MENU_COMMANDS), ["Старт", "/start"], ["Бастау", "/start"]];
   for (const lang of ["ru","kk"] as const) {
+    aliases.push([messageButton(store,lang,"bot.controls","start"),"/start"]);
     aliases.push([messageButton(store,lang,"staff.controls","entry"),"/staffrequests"]);
     aliases.push([messageButton(store,lang,"staff.controls","settings"),"/notifications"]);
   }

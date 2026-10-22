@@ -809,7 +809,7 @@ export const staffRequestTemplates: readonly TemplateDef[] = [
       },
       {
         "id": "cancel",
-        "ru": "Отмена",
+        "ru": "Отменить",
         "kk": "Болдырмау",
       },
       {

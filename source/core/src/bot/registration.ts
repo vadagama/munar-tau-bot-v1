@@ -28,7 +28,7 @@ import {
 } from "../domains/registrations/service.ts";
 import { manageRegistration, withdrawUnconfirmedRegistration } from "../domains/registrations/management.ts";
 import { ScenarioRegistry } from "./registry.ts";
-import { registrationHelp, welcomeText } from "./help.ts";
+import { menuCommand, registrationHelp, welcomeText } from "./help.ts";
 import { type BotReply, btn } from "./keyboard.ts";
 import {
   buildingCodeMatches,
@@ -136,11 +136,16 @@ export async function registrationStep(
       await saveDialog(exec, telegramId, bot, state);
       return reply;
     };
+    input = menuCommand(input, deps.templates) ?? input;
     const parts = input.trim().split(/\s+/),
       cmd = parts[0];
     if (cmd === "/cancel") {
       for (const key of Object.keys(state)) delete state[key];
       return save(help());
+    }
+    if (cmd === "/start" && !parts[1]?.startsWith("invite_")) {
+      for (const key of Object.keys(state)) delete state[key];
+      return save(welcomeText(L, deps.templates));
     }
     if (cmd === "/status") {
       const rows = await exec.query<Row>(
@@ -620,7 +625,8 @@ export async function registrationStep(
       // Добавление ещё одного помещения — /add, у него отдельная ветка выше.
       if (cmd === "/register") {
         const rows = await exec.query<Row>(
-          `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
+          `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code,
+          r.created_at, exists(select 1 from connection c where c.person_id=r.person_id and c.status='active') as has_active_premises
           from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
           where (r.telegram_user_id=$1 or r.person_id=$2)
           and r.superseded_by is null and r.state in ('pending_review','need_clarification','approved','rejected')
@@ -629,11 +635,20 @@ export async function registrationStep(
         );
         if (rows.length) {
           const hasApproved = rows.some((r) => r.state === "approved");
-          const key = hasApproved
+          const primary = rows.find(r => r.state === "approved" && r.premises_id === null);
+          const withoutPremises = primary && !primary.has_active_premises;
+          const key = withoutPremises
+            ? "message.registration.already_registered_without_premises"
+            : hasApproved
             ? "message.registration.already_registered"
             : "message.registration.already_applied";
+          const confirmed = primary ? jsonValue<Row>(primary.confirmed_draft ?? primary.draft) : {};
           return save({
             text: message(deps.templates, L, key, {
+              ...(withoutPremises ? {
+                full_name: confirmed.full_name ?? actor?.person.fullName ?? "—",
+                registered_at: fmtDate(primary.created_at),
+              } : {}),
               registrations: safeBlock(
                 numbered(registrationLines(rows, L, deps.templates)),
               ),
@@ -816,9 +831,7 @@ export async function registrationStep(
       for (const key of Object.keys(state)) delete state[key];
       return save(message(deps.templates, L, "registration.deleted"));
     }
-    // /start — короткое приветствие (полная справка остаётся на /help);
     // свободный текст без активного шага — полная справка, как раньше.
-    if (cmd === "/start") return welcomeText(L, deps.templates);
     if (!state.step || cmd === "/help") return help();
     switch (state.step) {
       case "language":

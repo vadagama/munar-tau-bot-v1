@@ -417,7 +417,7 @@ describe("бот: подтверждение анкет собственнико
     const reply = await registrationStep(h.deps, "100", "/reject 1");
     expect(replyText(reply)).toContain("Укажите причину одним сообщением");
     expect(reply).toMatchObject({
-      buttons: [[{ text: "Отмена", data: "/cancel" }]],
+      buttons: [[{ text: "Отменить", data: "/cancel" }]],
     });
     expect(h.state.step).toBe("reason_prompt");
     expect(h.state.reason_action).toBe("reject");
@@ -542,6 +542,26 @@ describe("бот: /edit НОМЕР после /status (регрессия)", () 
 });
 
 describe("бот: /register при существующей анкете (guard)", () => {
+  it.each(["ru", "kk"] as const)("подтверждённая регистрация без помещений: имя и дата (%s)", async (language) => {
+    const h = harness({ profile: true, profileLanguage: language, registrations: [{
+      id: REG_ID, state: "approved", draft: { full_name: "<Евгений>" },
+      created_at: "2026-10-20T22:30:00.000Z", premises_id: null,
+      has_active_premises: false,
+    }] });
+    const reply = await registrationStep(h.deps, "100", "/register");
+    expect(replyText(reply)).toBe(language === "ru"
+      ? "&lt;Евгений&gt;, Вы зарегистрированы 21.10.2026 03:30, помещения пока не прикреплены к анкете.\nПовторная регистрация не нужна."
+      : "&lt;Евгений&gt;, Сіз 21.10.2026 03:30 күні тіркелдіңіз, сауалнамаға үй-жайлар әлі байланыстырылмаған.\nҚайта тіркелудің қажеті жоқ.");
+  });
+
+  it("не сообщает об отсутствии помещений при действующей привязке", async () => {
+    const h = harness({ registrations: [{ id: REG_ID, state: "approved", draft,
+      premises_id: null, has_active_premises: true, created_at: "2026-10-20T10:00:00Z" }] });
+    const text = replyText(await registrationStep(h.deps, "100", "/register"));
+    expect(text).not.toContain("помещения пока не прикреплены");
+    expect(text).toContain("Повторная регистрация не нужна");
+  });
+
   it("approved — актуальный статус вместо мастера регистрации", async () => {
     const h = harness({
       registrations: [
@@ -586,7 +606,7 @@ describe("бот: /register при существующей анкете (guard)
     expect(text).toContain("У вас уже есть анкета. Повторная регистрация не нужна.");
     expect(reply).toMatchObject({
       buttons: [[
-        { text: "Статус анкет", data: "/status" },
+        { text: "Статус регистрации", data: "/status" },
         { text: "Исправить анкету", data: "/fix" },
         { text: "Добавить помещение", data: "/add" },
         { text: "Удалить анкету", data: "/delete" },
@@ -646,7 +666,7 @@ describe("бот: анкета без помещения (/status, /fix)", () =>
     });
 
     const registered = await registrationStep(h.deps, "100", "/register");
-    expect(replyText(registered)).toContain("Доступ подтверждён");
+    expect(replyText(registered)).toContain("Вы зарегистрированы");
     expect(h.state.step).toBeUndefined();
     const status = await registrationStep(h.deps, "100", "/status");
     expect(replyText(status)).toContain("Доступ подтверждён");
@@ -824,11 +844,21 @@ describe("бот: /add — добавление помещения", () => {
 });
 
 describe("бот: короткий /start и шаги анкеты (UX-фиксы)", () => {
+  it.each(["/start", "Старт"])("%s возвращает главное меню и закрывает временную форму", async input => {
+    const h = harness();
+    await registrationStep(h.deps, "100", "/register");
+    await registrationStep(h.deps, "100", "ru");
+    expect(h.state.step).toBe("name");
+    const reply = await registrationStep(h.deps, "100", input);
+    expect(replyText(reply)).toContain("Регистрация, помещения, обращения и уведомления.");
+    expect(h.state).toEqual({});
+  });
+
   it("/start — короткое приветствие вместо полной справки", async () => {
     const h = harness();
     const reply = await registrationStep(h.deps, "100", "/start");
     const text = replyText(reply);
-    expect(text).toContain("зарегистрироваться");
+    expect(text).toContain("Регистрация, помещения, обращения и уведомления.");
     expect(text).not.toContain("/help");
     // Полная справка остаётся на /help: там раздел «Обращения».
     expect(text).not.toContain("Доступы собственника");
@@ -837,7 +867,7 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
   it("/help — полная справка", async () => {
     const h = harness();
     expect(replyText(await registrationStep(h.deps, "100", "/help"))).toContain(
-      "Регистрация, помещения, обращения и уведомления.",
+      "📝 /register — Зарегистрироваться.",
     );
   });
 
