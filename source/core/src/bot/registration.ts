@@ -653,21 +653,9 @@ export async function registrationStep(
                 numbered(registrationLines(rows, L, deps.templates)),
               ),
             }),
-            buttons: [[
-              btn(
-                messageButton(deps.templates, L, key, "status"),
-                "/status",
-              ),
-              btn(
-                messageButton(deps.templates, L, key, "fix"),
-                "/fix",
-              ),
-              btn(
-                messageButton(deps.templates, L, key, "add"),
-                "/add",
-              ),
-              btn(messageButton(deps.templates, L, key, "delete"), "/delete"),
-            ]],
+            buttons: ["status", "fix", "add", "delete"].map((id) => [
+              btn(messageButton(deps.templates, L, key, id), "/" + id),
+            ]),
           });
         }
       }
