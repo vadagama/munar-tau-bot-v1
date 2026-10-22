@@ -662,6 +662,10 @@ promoted.push({
   examples: [{ id: "default", title: "Без вопроса", ru: {}, kk: {} }],
 });
 const overrides: Record<string, MessageButton[]> = {
+  "registration.podtverzhdennyh_obektov_net": [
+    { id: "add", ru: "Добавить помещения", kk: "Үй-жайларды қосу" },
+    { id: "cancel", ru: "Отменить", kk: "Болдырмау" },
+  ],
   "registration.language_prompt": [{
     id: "ru",
     ru: "Русский (ru)",

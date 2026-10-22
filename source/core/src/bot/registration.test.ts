@@ -654,6 +654,17 @@ describe("бот: /register при существующей анкете (guard)
 });
 
 describe("бот: анкета без помещения (/status, /fix)", () => {
+  it.each(["ru", "kk"] as const)("пустой список помещений предлагает только добавление и отмену (%s)", async language => {
+    const h = harness({ profile: true, profileLanguage: language });
+    const reply = await registrationStep(h.deps, "100", "/objects");
+    expect(navigationReply(reply, "registration", language, undefined, "/objects")).toMatchObject({
+      buttons: [[
+        { text: language === "ru" ? "Добавить помещения" : "Үй-жайларды қосу", data: "/add" },
+        { text: language === "ru" ? "Отменить" : "Болдырмау", data: "/cancel" },
+      ]],
+    });
+  });
+
   it.each(["ru", "kk"] as const)("краткий статус подтверждённой регистрации без помещений (%s)", language => {
     const h = harness({ profile: true, profileLanguage: language, registrations: [{
       id: REG_ID, state: "approved", draft, premises_id: null, has_active_premises: false,

@@ -321,11 +321,14 @@ export async function registrationStep(
         [actor.person.id],
       );
       if (!rows.length) {
-        return message(
-          deps.templates,
-          L,
-          "registration.podtverzhdennyh_obektov_net",
-        );
+        const key = "registration.podtverzhdennyh_obektov_net";
+        return save({
+          text: message(deps.templates, L, key),
+          buttons: [[
+            btn(messageButton(deps.templates, L, key, "add"), "/add"),
+            btn(messageButton(deps.templates, L, key, "cancel"), "/cancel"),
+          ]],
+        });
       }
       const seen = new Set<string>();
       state.object_options = rows.flatMap((r) => {
