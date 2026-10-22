@@ -237,7 +237,6 @@ export function RegistrationsPage() {
                     ? ` · до ${new Date(String(r.stage_due_at)).toLocaleString("ru-RU")}`
                     : ""}
                 </Typography.Text>
-                {!!r.confirmed_draft && <Tag color="blue">Исправления на проверке · прежний доступ сохранён</Tag>}
                 {r.overdue_at && <Tag color="red">Просрочено</Tag>}
                 {decisionButtons(r).length > 0 && (
                   <div
@@ -290,8 +289,7 @@ export function RegistrationsPage() {
             {
               title: "Состояние",
               dataIndex: "state",
-              render: (v, r) => <Space direction="vertical"><Tag color={v === "disputed" ? "orange" : undefined}>{STATES[String(v)]}</Tag>
-                {!!r.confirmed_draft && <Tag color="blue">Исправления на проверке · прежний доступ сохранён</Tag>}</Space>,
+              render: v => <Tag color={v === "disputed" ? "orange" : undefined}>{STATES[String(v)]}</Tag>,
             },
             {
               title: "Срок",
