@@ -1305,7 +1305,7 @@ export function registrationScenarios(deps: RegistryDeps): ScenarioRegistry {
         input,
         ctx.actor,
       );
-      return withSimulatorMenu(navigationReply(reply,"registration",ctx.actor.profile.language,templates,input), "registration", ctx.actor.profile.language, templates);
+      return withSimulatorMenu(navigationReply(reply,"registration",ctx.actor.profile.language,templates,input), "registration", ctx.actor.profile.language, templates, input);
     },
   });
   return scenarios;

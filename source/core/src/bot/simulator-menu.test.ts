@@ -27,3 +27,7 @@ describe("меню симулятора", () => {
     expect(reply.menu?.flat().map(button => button.data)).toEqual(["/tasks", "/staffrequests", "/notifications", "/help"]);
   });
 });
+
+it.each(["registration", "tasks"])("симулятор не добавляет меню к справке %s", scenario => {
+  expect(withSimulatorMenu("Справка", scenario, "ru", EMPTY_TEMPLATE_STORE, "/help")).toBe("Справка");
+});

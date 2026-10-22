@@ -121,9 +121,7 @@ describe("processInbound: callback_query (срез UX B)", () => {
     // Справка бота жителей уходит тем же ботом.
     expect(text).toContain("ОСИ ЖК «Мунар Тау»");
     expect(bot).toBe("resident");
-    // Из справки можно вернуться на главный экран через Старт.
-    const parsed = JSON.parse(markup!) as { inline_keyboard: { text: string;callback_data:string }[][] };
-    expect(parsed.inline_keyboard.flat().map((b) => b.callback_data)).toEqual(["/start", "/cancel"]);
+    expect(markup).toBeNull();
   });
 
   it("кнопка reply-меню исполняется как её команда («Мои помещения» → /objects)", async () => {
@@ -216,9 +214,9 @@ describe("processInbound: команды не глотаются активны�
     const h = harness();
     stuckInPlace(h);
     expect(await processInbound(h.deps, textUpdate(80, "❓ Помощь"), "resident")).toBe(true);
-    expect(replyOf(h)).toContain("<b>👤 Регистрация</b>");
+    expect(replyOf(h)).toContain("<b>Регистрация</b>");
     expect(replyOf(h)).toContain("📝 /register — Зарегистрироваться.");
-    expect(replyOf(h)).toContain("<b>📬 Обращения</b>");
+    expect(replyOf(h)).toContain("<b>Обращения</b>");
   });
 
   it("/help из шага выбора помещения — справка жителя, а не «Выберите номер»", async () => {
@@ -228,8 +226,8 @@ describe("processInbound: команды не глотаются активны�
     const text = replyOf(h);
     expect(text).toContain("ОСИ ЖК «Мунар Тау»");
     expect(text).not.toContain("Выберите номер");
-    // Справка прикрепляет reply-меню, как и вне сценария.
-    expect(h.notifications[0]!.params![4]).not.toBeNull();
+    // Справка отправляется без кнопок.
+    expect(h.notifications[0]!.params![4]).toBeNull();
   });
 
   it("/status из шага выбора помещения — список анкет", async () => {

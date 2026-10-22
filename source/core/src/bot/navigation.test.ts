@@ -14,9 +14,7 @@ it.each(["/start", "Старт"])("главное меню жителя откр
     ["/pending"], ["/cancel"],
   ]);
 });
-it("справка предлагает вернуться на старт", () => {
-  const reply = navigationReply("Справка", "registration", "ru", undefined, "/help");
-  if (typeof reply === "string") throw new Error("Ожидалась навигация");
-  expect(reply.buttons).toEqual([[{ text: "Старт", data: "/start" }], [{ text: "Отменить", data: "/cancel" }]]);
+it.each(["registration", "tasks"])("справка %s не содержит кнопок", scenario => {
+  expect(navigationReply("Справка", scenario, "ru", undefined, "/help")).toBe("Справка");
   expect(menuCommand("Старт")).toBe("/start");
 });

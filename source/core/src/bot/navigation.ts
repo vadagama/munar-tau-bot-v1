@@ -1,7 +1,7 @@
 import type { TemplateStore } from "../templates/store.ts";
 import { menuCommand } from "./help.ts";
 import { messageButton } from "../templates/message.ts";
-import { type BotReply, btn, type InlineButton } from "./keyboard.ts";
+import { type BotReply, btn, type InlineButton, replyText } from "./keyboard.ts";
 import type { Lang } from "./text.ts";
 /** Shared transport decoration: every plain prompt has an escape via buttons. */
 export function navigationReply(
@@ -12,6 +12,7 @@ export function navigationReply(
   input = "",
 ): BotReply {
   const command = menuCommand(input, store) ?? input.trim();
+  if (command === "/help") return replyText(reply);
   const existing = typeof reply === "string"
     ? []
     : reply.buttons?.map((row) => [...row]) ?? [];
@@ -25,7 +26,7 @@ export function navigationReply(
         b("staffrequests", "/staffrequests"),
         b("settings", "/notifications"),
       ]
-      : command === "/help" ? [b("start", "/start")] : [
+      : [
         b("status", "/status"),
         b("register", "/register"),
         b("help", "/help"),

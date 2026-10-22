@@ -216,18 +216,10 @@ export async function processInbound(
       }
       const currentState = await readDialog(exec,String(from.id),bot);
       reply = navigationReply(reply,String(currentState.scenario ?? (bot === "worker" ? "tasks" : "registration")),await profileLang(exec,String(from.id)),templates,text);
-      // Reply-меню прикрепляется к справке: постоянная клавиатура ставится
-      // один раз и остаётся, пока пользователь её не скроет. Кнопки — подписи
-      // на языке профиля; их тексты резолвятся в команды в processInbound.
-      const menu = command === "/start" || command === "/help"
-        ? await profileLang(exec, String(from.id)).then((lang) =>
-          bot === "worker" ? workerMenu(lang, templates) : residentMenu(
-            lang,
-            templates,
-            command === "/help"
-              ? "help.registration_help"
-              : "help.welcome_text",
-          )
+      // Главное меню прикрепляется только к старту; справка — без кнопок.
+      const menu = command === "/start"
+        ? await profileLang(exec, String(from.id)).then(lang =>
+          bot === "worker" ? workerMenu(lang, templates) : residentMenu(lang, templates)
         )
         : undefined;
       // Ответ уходит тем же ботом, который принял обновление.
