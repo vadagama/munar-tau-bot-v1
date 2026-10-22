@@ -512,11 +512,7 @@ export function TasksPage() {
   return (
     <PageLayout title="Все задания"
       extra={<ViewToggle kind={view} onChange={setView} />}
-      actions={manager ? <>
-        <Button type="primary" onClick={() => void newTask()}>Создать задание</Button>
-        <Button href="/common-works">Общие работы</Button>
-        <Button href="/job-templates">Шаблоны заданий</Button>
-      </> : null}
+      actions={manager ? <Button type="primary" onClick={() => void newTask()}>Создать задание</Button> : null}
       filters={<Space wrap>
         <Input.Search aria-label="Поиск заданий" placeholder="Номер или описание"
           value={search} onChange={event => setSearch(event.target.value)} style={{ width: 280, maxWidth: "100%" }} />
