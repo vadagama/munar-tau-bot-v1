@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 
 import { registrationStep } from "./registration.ts";
+import { navigationReply } from "./navigation.ts";
 import { replyText } from "./keyboard.ts";
 import type { DbClient, DbExecutor } from "../db/client.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
@@ -861,6 +862,18 @@ describe("бот: /add — добавление помещения", () => {
 });
 
 describe("бот: короткий /start и шаги анкеты (UX-фиксы)", () => {
+  it("ввод имени после выбора языка оставляет только Отменить", async () => {
+    const h = harness();
+    await registrationStep(h.deps, "100", "/register");
+    const reply = await registrationStep(h.deps, "100", "ru");
+    expect(replyText(reply)).toBe("Ваше имя и фамилия:");
+    expect(navigationReply(reply, "registration", "ru", undefined, "ru")).toMatchObject({
+      buttons: [[{ text: "Отменить", data: "/cancel" }]],
+    });
+    await registrationStep(h.deps, "100", "/cancel");
+    expect(h.state).toEqual({});
+  });
+
   it.each(["/start", "Старт"])("%s возвращает главное меню и закрывает временную форму", async input => {
     const h = harness();
     await registrationStep(h.deps, "100", "/register");

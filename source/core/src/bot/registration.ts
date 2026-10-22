@@ -845,9 +845,10 @@ export async function registrationStep(
         }
         state.language = input.trim();
         state.step = "name";
-        return save(
-          message(deps.templates, L, "registration.vashe_imya_i_familiya"),
-        );
+        return save({
+          text: message(deps.templates, L, "registration.vashe_imya_i_familiya"),
+          buttons: [[btn(messageButton(deps.templates, L, "bot.controls", "cancel"), "/cancel")]],
+        });
       case "name":
         if (!input.trim() || input.length > 300) {
           throw new ApiError("VALIDATION_FAILED");
