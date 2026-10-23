@@ -1,3 +1,4 @@
+import { PROCESS_MANAGER_ROLES } from "../components/process-guidance";
 import { DeadlineInput } from "../components/deadline-input";
 import { ProcessOverview } from "../components/process-card";
 import { ConfigurableTable } from "../components/configurable-table";
@@ -269,7 +270,7 @@ export function JobTemplates(
         <ProcessOverview guidance={{
           title: action === "run" ? "Нужно проверить условия запуска задания" : "Нужно подготовить методичку задания",
           description: action === "run" ? "Укажите срок выполнения. Запуск создаст отдельную общую работу и задание по выбранному шаблону; предыдущие задания сохранятся." : "Проверьте объём, инструкцию, требования к доказательствам и область. Сохранение создаёт версию шаблона; начатые задания сами не меняются.",
-          waitingFor: "Управляющий",
+          waitingFor: PROCESS_MANAGER_ROLES,
         }} />
         <Form
           form={form}

@@ -1,3 +1,4 @@
+import { PROCESS_MANAGER_ROLES } from "../components/process-guidance";
 import { DeadlineInput } from "../components/deadline-input";
 import { processActionHint } from "../components/process-guidance";
 import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
@@ -212,7 +213,7 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
           <ProcessOverview state={labels[String(card.state)]} due={card.due_at} guidance={{
             title: card.state === "completed" ? "Общая работа завершена" : card.state === "canceled" ? "Общая работа отменена" : card.state === "on_review" ? "Нужно проверить общий результат" : "Нужно организовать выполнение общей работы",
             description: ["completed", "canceled"].includes(String(card.state)) ? "История сохранена. Каждое связанное обращение проходит собственную проверку результата." : "Проверьте задания и их результаты. Общая работа завершается явно после приёмки обязательного объёма; обращения подтверждаются отдельно.",
-            waitingFor: ["completed", "canceled"].includes(String(card.state)) ? "Действий по работе не требуется" : "Управляющий / исполнители",
+            waitingFor: ["completed", "canceled"].includes(String(card.state)) ? "Действий по работе не требуется" : card.state === "on_review" || !(card.tasks as Row[] | undefined)?.length ? PROCESS_MANAGER_ROLES : `Исполнители заданий; ${PROCESS_MANAGER_ROLES.toLowerCase()}`,
           }}>
           {!!(card.tasks as Row[] | undefined)?.length && ["planned", "in_progress"].includes(String(card.state)) &&
             <Button type="primary" href="#common-work-tasks">Проверить задания</Button>}

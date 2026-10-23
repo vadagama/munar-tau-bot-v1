@@ -613,7 +613,7 @@ export function TasksPage() {
             />
           )}
           {!!card.overdue_at && overdue(card) && <Alert type="warning" showIcon message={`Срок нарушен с ${new Date(String(card.overdue_at)).toLocaleString("ru-RU")}`} />}
-          <ProcessOverview participant={card.assignee_name} guidance={taskGuidance(card)} state={TASK_STATE_TEXT[card.state]?.ru}
+          <ProcessOverview participantLabel="Исполнитель" participant={card.assignee_name} guidance={taskGuidance(card)} state={TASK_STATE_TEXT[card.state]?.ru}
             due={card.state === "awaiting_acceptance" ? card.acceptance_due_at ?? card.due_at : card.due_at}>
             {card.state === "on_review"
               ? <Button type="link" href="#task-reports">Перейти к отчёту</Button>
@@ -668,7 +668,7 @@ export function TasksPage() {
         busy={reportBusy}
         full
         error={error}
-        description={problemReporting ? "Проблема будет сохранена с местом и материалами. Управляющий отдельно определит дальнейшее задание." : "Отчёт с доказательствами будет отправлен на проверку. Завершение исполнения не означает приёмку управляющим."}
+        description={problemReporting ? "Проблема будет сохранена с местом и материалами. Администратор, заместитель или председатель ОСИ отдельно определит дальнейшее задание." : "Отчёт с доказательствами будет отправлен на проверку. Завершение исполнения не означает приёмку администратором, заместителем или председателем ОСИ."}
         title={problemReporting ? "Найденная проблема" : "Отчёт исполнителя"}
         open={reporting}
         onCancel={() => setReporting(false)}

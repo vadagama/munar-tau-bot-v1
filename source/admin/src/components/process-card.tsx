@@ -4,8 +4,8 @@ import { DetailSection } from "./detail-section";
 import type { ProcessGuidance } from "./process-guidance";
 import "./process-card.css";
 
-export function ProcessOverview({ guidance, state, due, dueLabel = "Срок", participant, children }: {
- guidance: ProcessGuidance; state?: string; due?: unknown; dueLabel?: string; participant?: string | null; children?: ReactNode;
+export function ProcessOverview({ guidance, state, due, dueLabel = "Срок", participant, participantLabel = "Ответственный", children }: {
+ guidance: ProcessGuidance; state?: string; due?: unknown; dueLabel?: string; participant?: string | null; participantLabel?: string; children?: ReactNode;
 }) {
  const { token } = theme.useToken();
  const date = due ? new Date(String(due)) : null;
@@ -13,8 +13,8 @@ export function ProcessOverview({ guidance, state, due, dueLabel = "Срок", p
   <div className="process-overview__heading"><Typography.Title level={3}>Сейчас по процессу</Typography.Title>{state && <Tag>{state}</Tag>}</div>
   <Typography.Text strong>{guidance.title}</Typography.Text>
   <Typography.Paragraph>{guidance.description}</Typography.Paragraph>
-  {participant && <Typography.Text>Ответственный: {participant}</Typography.Text>}
-  <Space wrap size="large"><Typography.Text type="secondary">Участник следующего шага: {guidance.waitingFor}</Typography.Text>
+  {participant && <Typography.Text>{participantLabel}: {participant}</Typography.Text>}
+  <Space wrap size="large"><Typography.Text type="secondary">Кто действует дальше: {guidance.waitingFor}</Typography.Text>
    {date && !Number.isNaN(date.getTime()) && <Typography.Text>{dueLabel}: {date.toLocaleString("ru-RU", {timeZone:"Asia/Almaty"})} (Алматы)</Typography.Text>}
   </Space>
   {children}

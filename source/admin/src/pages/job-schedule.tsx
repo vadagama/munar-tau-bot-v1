@@ -1,3 +1,4 @@
+import { PROCESS_MANAGER_ROLES } from "../components/process-guidance";
 import { ProcessOverview } from "../components/process-card";
 import { ConfigurableTable } from "../components/configurable-table";
 import { taskAssigneeOptions } from "./task-assignees";
@@ -117,7 +118,7 @@ export function JobSchedule(
       <ProcessOverview state={data?.schedule?.enabled ? "Расписание включено" : "Расписание выключено"} due={data?.schedule?.enabled ? data.schedule.next_run_at : undefined} guidance={{
         title: data?.schedule?.enabled ? "Ожидаем следующего запуска" : "Нужно настроить расписание для регулярного запуска",
         description: "Проверьте исполнителя, дату, период и срок выполнения. Сохранение меняет расписание будущих запусков; каждый запуск создаёт отдельную общую работу и задание.",
-        waitingFor: data?.schedule?.enabled ? "Система; управляющий — при изменении расписания" : "Управляющий",
+        waitingFor: data?.schedule?.enabled ? `Автоматически по расписанию; изменения — ${PROCESS_MANAGER_ROLES.toLowerCase()}` : PROCESS_MANAGER_ROLES,
       }} />
       <Typography.Paragraph>
         Предыдущие незавершённые задания сохраняются. Период и срок — календарные часы;
