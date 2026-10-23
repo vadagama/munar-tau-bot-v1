@@ -10,6 +10,7 @@ import { type DigestItem, digestText } from "./digest.ts";
 import type { RegistryDeps } from "../registry/service.ts";
 import { jsonValue, type Row } from "../registry/validation.ts";
 import type { BotKind } from "../../bot/bots.ts";
+import { REMOVE_KEYBOARD } from "../../bot/keyboard.ts";
 import {
   noticeAllowed,
   type NoticeOptions,
@@ -127,11 +128,14 @@ export async function sendNotifications(
         row.channel !== "simulator" && !row.is_test && !profile?.is_test &&
         Number(row.telegram_user_id) > 0
       ) {
+        // Сообщение без своей разметки уносит REMOVE_KEYBOARD: у клиентов со
+        // старых версий оставалось постоянное reply-меню. Когда клавиатуры нет,
+        // это no-op, поэтому безопасно для каждого сообщения.
         await send(
           String(row.telegram_user_id),
           String(row.text),
           (row.bot as BotKind) ?? "resident",
-          row.reply_markup ?? undefined,
+          row.reply_markup ?? REMOVE_KEYBOARD,
         );
         // Один jobs lease на проект; не более 20 отправок/с, личные перед сводкой.
         await new Promise((resolve) => setTimeout(resolve, 50));
