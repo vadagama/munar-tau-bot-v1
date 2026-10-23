@@ -14,6 +14,7 @@ import { queueBroadcast } from "../incidents/broadcast.ts";
 import { fmtDate, fmtInterval } from "../../bot/text.ts";
 import { responsibleInput } from "../incidents/service.ts";
 import { validatePublicationRelease } from "./policy.ts";
+import { financialArchive, publicFinancialHeads } from "./financial-access.ts";
 export interface Publication extends Row {
   id: string;
   kind: string;
@@ -49,12 +50,15 @@ export async function requirePublication(
   );
   if (!row) throw new ApiError("NOT_FOUND");
   const scope = await publicationScope(exec, id),
+    financial = row.kind === "financial_report",
+    head = financial && action === "publication.read" ? (await publicFinancialHeads(exec, actor, [id]))[0] : null,
     resource = {
       publicationAccess: {
         buildingIds: scope.map((s) => s.building_id),
         isTest: row.is_test,
-        published: row.state === "published",
-        member: action === "publication.read" &&
+        financial, owner: !!head,
+        published: financial ? !!head : row.state === "published",
+        member: !financial && action === "publication.read" &&
           await audienceMember(exec, actor, scope),
       },
     };
@@ -351,17 +355,26 @@ export async function listPublications(deps: RegistryDeps, actor: Actor) {
     [actor.person.isTest],
   );
   const items: Row[] = [];
+  const financialHeads = await publicFinancialHeads(deps.db, actor, rows.filter(r => r.kind === "financial_report").map(r => r.id));
   for (const row of rows) {
+    const financial = row.kind === "financial_report", head = financialHeads.find(h => h.publication_id === row.id);
     const scope = await publicationScope(deps.db, row.id),
       resource = {
         publicationAccess: {
           buildingIds: scope.map((s) => s.building_id),
           isTest: row.is_test,
-          published: row.state === "published",
-          member: await audienceMember(deps.db, actor, scope),
+          financial, owner: !!head,
+          published: financial ? !!head : row.state === "published",
+          member: !financial && await audienceMember(deps.db, actor, scope),
         },
       };
     if (can(actor, "publication.read", resource).allow) {
+      const internal = financial && can(actor, "publication.read", { publicationAccess: { ...resource.publicationAccess, published: false, owner: false } }).allow;
+      if (financial && !internal) {
+        if (head) items.push({ id: row.id, kind: row.kind, state: "published", title: head.title, body: head.body,
+          version: head.version, financial_version_id: head.id, building_ids: head.building_ids, needs_fix: head.needs_fix, can_manage: false });
+        continue;
+      }
       items.push({
         id: row.id,
         title: row.title,
@@ -385,6 +398,17 @@ export async function getPublication(
   id: string,
 ) {
   const { row, scope, resource } = await requirePublication(deps.db, actor, id);
+  if (row.kind === "financial_report") {
+    const archive = await financialArchive(deps.db, actor, id);
+    const internal = can(actor, "publication.read", { publicationAccess: { ...resource.publicationAccess!, published: false, owner: false } }).allow;
+    if (internal) return { ...row, building_ids: scope.map(s => s.building_id), financial_versions: archive,
+      can_manage: can(actor, "publication.manage", resource).allow, can_approve: can(actor, "publication.approve", resource).allow };
+    const current = archive.find(v => v.published_at);
+    if (!current) throw new ApiError("NOT_FOUND");
+    return { id: row.id, kind: row.kind, state: "published", title: current.title, body: current.body,
+      version: current.version, financial_version_id: current.id, building_ids: current.building_ids,
+      needs_fix: current.needs_fix, financial_versions: archive, can_manage: false, can_approve: false };
+  }
   const files = await deps.db.query(
     "select a.id,a.filename,a.mime from publication_attachment p join attachment a on a.id=p.attachment_id where p.publication_id=$1",
     [id],

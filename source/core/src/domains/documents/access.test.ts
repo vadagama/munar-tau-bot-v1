@@ -16,6 +16,10 @@ it("финансовый читатель видит версии и файлы,
   const scoped = { documentAccess: { ...resource.documentAccess, assignedTask: true, financialVersionIds: ["v1"] } };
   expect(documentVersionReadable(executor, scoped, { id: "v1", state: "approved", was_published: false })).toBe(true);
   expect(documentVersionReadable(executor, scoped, { id: "v2", state: "approved", was_published: false })).toBe(false);
+  const wider = { documentAccess: { ...scoped.documentAccess, buildingIds: [B1, "another-building"], assignedTask: false } };
+  expect(internalDocumentReader(finance, wider)).toBe(false);
+  expect(documentVersionReadable(finance, wider, { id: "v1", state: "approved", was_published: false })).toBe(true);
+  expect(documentVersionReadable(finance, wider, { id: "v2", state: "approved", was_published: false })).toBe(false);
 });
 
 it("каталог из 500 общих документов не создаёт отдельные SQL-запросы на каждую строку", async () => {

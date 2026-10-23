@@ -2,7 +2,8 @@ import type { Actor } from "../../pdp/types.ts";
 import type { RegistryDeps } from "../registry/service.ts";
 import { invalid, type Row } from "../registry/validation.ts";
 import { ApiError } from "../../errors/api.ts";
-import type { FileStorage } from "../requests/files.ts";
+import { fileUrl, type FileStorage } from "../requests/files.ts";
+import { financialArchive } from "./financial-access.ts";
 import { idempotent } from "../requests/service.ts";
 import { requireCommon } from "../tasks/common.ts";
 import {
@@ -80,7 +81,12 @@ export async function publicationFile(
   id: string,
   fileId: string,
 ) {
-  await requirePublication(deps.db, actor, id);
+  const { row } = await requirePublication(deps.db, actor, id);
+  if (row.kind === "financial_report") {
+    const versions = await financialArchive(deps.db, actor, id);
+    if (!versions.some(v => v.documents.some(d => d.attachment_id === fileId || d.signed_attachment_id === fileId))) throw new ApiError("NOT_FOUND");
+    return fileUrl(deps, storage, actor, fileId);
+  }
   const [file] = await deps.db.query<Row>(
     "select a.* from publication_attachment p join attachment a on a.id=p.attachment_id where p.publication_id=$1 and p.attachment_id=$2 and a.status='complete'",
     [id, fileId],
