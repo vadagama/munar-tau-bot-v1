@@ -1,3 +1,4 @@
+import { getButton,findButton } from "../test/buttons";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { PublicationsPage } from "./publications";
@@ -22,7 +23,7 @@ it("собирает финансовый выпуск из обязанност
     return card;
   });
   render(<PublicationsPage />);
-  fireEvent.click(screen.getByRole("button", { name: "Создать публикацию" }));
+  fireEvent.click(getButton("Создать публикацию"));
   const editor = within(await screen.findByRole("region", { name: "Новая публикация" }));
   fireEvent.mouseDown(editor.getByLabelText("Вид"));
   fireEvent.click(await screen.findByText("Финансовый отчёт"));
@@ -43,7 +44,7 @@ it("фоновое обновление списка не отменяет от�
   vi.spyOn(document, "hidden", "get").mockReturnValue(false);
   vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/publications" ? { items: [card] } : new Promise(resolve => { finish = resolve; }));
   render(<PublicationsPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
+  fireEvent.click(await findButton("Открыть"));
   await act(async () => window.dispatchEvent(new Event(PAGE_REFRESH_EVENT)));
   await vi.waitFor(() => expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path === "/v1/publications")).toHaveLength(2));
   await act(async () => finish(card));
@@ -52,7 +53,7 @@ it("фоновое обновление списка не отменяет от�
 it("серверные разрешения финансовой карточки ограничивают служебные действия", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/publications" ? { items: [card] } : { ...card, can_manage: false, can_approve: false });
   render(<PublicationsPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
+  fireEvent.click(await findButton("Открыть"));
   expect(await screen.findByText("Комплект ещё не подготовлен.")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Разрешить/ })).not.toBeInTheDocument();
 });
@@ -63,8 +64,8 @@ it("конфликт разрешения сохраняет служебную 
     return path === "/v1/publications" ? { items: [card] } : { ...card, version };
   });
   render(<PublicationsPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
-  fireEvent.click(await screen.findByRole("button", { name: "Разрешить финансовый выпуск" }));
+  fireEvent.click(await findButton("Открыть"));
+  fireEvent.click(await findButton("Разрешить финансовый выпуск"));
   fireEvent.change(screen.getByLabelText("Основание внешних согласований"), { target: { value: "Решение совета проверено" } });
   fireEvent.change(screen.getByLabelText("Служебная причина"), { target: { value: "Выпуск за сентябрь" } });
   fireEvent.click(within(screen.getByRole("region", { name: "Разрешить финансовый выпуск" })).getByRole("button", { name: "Разрешить финансовый выпуск" }));
@@ -83,16 +84,16 @@ it("редактирование обычной публикации восст�
     return { items: [], has_more: false };
   });
   render(<PublicationsPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
-  fireEvent.click(await screen.findByRole("button", { name: "Редактировать" }));
+  fireEvent.click(await findButton("Открыть"));
+  fireEvent.click(await findButton("Редактировать"));
   const editor = within(await screen.findByRole("region", { name: "Редактирование публикации" }));
   expect(await editor.findByText("Утверждённые правила · версия 2")).toBeInTheDocument();
   fireEvent.change(editor.getByLabelText("Служебная причина"), { target: { value: "Уточнение текста" } });
-  fireEvent.click(editor.getByRole("button", { name: "Сохранить изменения" }));
+  fireEvent.click(getButton("Сохранить изменения",editor));
   expect(await screen.findByText("Подтвердите замену недоступных оснований")).toBeInTheDocument();
   expect(vi.mocked(apiFetch).mock.calls.some(([, request]) => request?.method)).toBe(false);
   fireEvent.click(editor.getByLabelText("Заменить недоступные основания выбранным комплектом"));
-  fireEvent.click(editor.getByRole("button", { name: "Сохранить изменения" }));
+  fireEvent.click(getButton("Сохранить изменения",editor));
   await vi.waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/publications/pub", expect.objectContaining({ body: expect.objectContaining({ document_version_ids: ["basis"], reason: "Уточнение текста" }) })));
   const body = vi.mocked(apiFetch).mock.calls.find(([, request]) => request?.method)?.[1]?.body as Record<string, unknown>;
   expect(body).not.toHaveProperty("replace_unavailable_documents");
@@ -109,13 +110,13 @@ it("недействительное закреплённое основание
     return { items: [], has_more: false };
   });
   render(<PublicationsPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
-  fireEvent.click(await screen.findByRole("button", { name: "Редактировать" }));
+  fireEvent.click(await findButton("Открыть"));
+  fireEvent.click(await findButton("Редактировать"));
   const editor = within(await screen.findByRole("region", { name: "Редактирование публикации" }));
-  fireEvent.click(await editor.findByRole("button", { name: "Убрать недействительное основание: Старое основание · версия 1" }));
+  fireEvent.click(await findButton("Убрать недействительное основание: Старое основание · версия 1",editor));
   fireEvent.mouseDown(editor.getByLabelText("Проверенные документальные основания"));
   fireEvent.click(await screen.findByText("Новое основание · версия 2"));
   fireEvent.change(editor.getByLabelText("Служебная причина"), { target: { value: "Заменено основание" } });
-  fireEvent.click(editor.getByRole("button", { name: "Сохранить изменения" }));
+  fireEvent.click(getButton("Сохранить изменения",editor));
   await vi.waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/publications/pub", expect.objectContaining({ body: expect.objectContaining({ document_version_ids: ["new"] }) })));
 }, 15000);
