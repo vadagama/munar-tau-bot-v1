@@ -67,12 +67,20 @@ export function audienceContinuous(intervals: readonly AudienceInterval[], answe
   return micros(answeredAt) <= micros(at) && intervals.some((interval) => interval.from <= micros(answeredAt) && micros(at) < interval.until);
 }
 
+/** Открытый период заканчивается перед closes_at. Отзыв ровно на границе
+ * уже не относится к открытому периоду и не меняет ранее данный голос. */
+export function audienceContinuousBefore(intervals:readonly AudienceInterval[],answeredAt:AudienceInstant,closesAt:AudienceInstant):boolean {
+  return micros(answeredAt)<micros(closesAt) && intervals.some(interval=>interval.from<=micros(answeredAt) && micros(closesAt)<=interval.until);
+}
+
 /** Только серверный расчёт POL, не DTO кабинета или экспорта. Gate вызывается
  * владельцем транзакции до чтения/записи опроса (ADR-019). */
-export async function loadAudienceIntervals(
+export async function loadAudienceBatch(
   exec: import("../../db/client.ts").DbExecutor,
-  scope: Omit<AudienceScope, "startsAt">,
-): Promise<AudienceInterval[]> {
+  scope: Pick<AudienceScope,"isTest"|"buildingIds">,
+  personIds: readonly string[],
+): Promise<Map<string,AudienceInterval[]>> {
+  if(!personIds.length)return new Map();
   const [meta] = await exec.query<{ starts_at: string }>("select (extract(epoch from starts_at)*1000000)::bigint as starts_at from audience_history_meta where singleton");
   if (!meta) throw new Error("История аудитории не инициализирована");
   const rows = await exec.query<{
@@ -83,11 +91,18 @@ export async function loadAudienceIntervals(
     (extract(epoch from e.valid_from)*1000000)::bigint as valid_from,
     (extract(epoch from e.valid_until)*1000000)::bigint as valid_until
     from audience_connection_event e where e.connection_id in
-    (select connection_id from audience_connection_event where person_id=$1)
-    order by e.connection_id,e.effective_at,e.id`, [scope.personId]);
-  return audienceIntervals(rows.map(row => ({
+    (select connection_id from audience_connection_event where person_id=any($1::uuid[]))
+    order by e.connection_id,e.effective_at,e.id`, [personIds]);
+  const events=rows.map(row => ({
     id: Number(row.id), connectionId: row.connection_id, personId: row.person_id,
     buildingId: row.building_id, isTest: row.is_test, enabled: row.enabled,
     effectiveAt: Number(row.effective_at), validFrom: row.valid_from === null ? null : Number(row.valid_from), validUntil: row.valid_until === null ? null : Number(row.valid_until),
-  })), { ...scope, startsAt: Number(meta.starts_at) });
+  }));
+  return new Map(personIds.map(personId=>[personId,audienceIntervals(events,{...scope,personId,startsAt:Number(meta.starts_at)})]));
+}
+export async function loadAudienceIntervals(
+  exec: import("../../db/client.ts").DbExecutor,
+  scope: Omit<AudienceScope, "startsAt">,
+): Promise<AudienceInterval[]> {
+  return (await loadAudienceBatch(exec,scope,[scope.personId])).get(scope.personId)??[];
 }

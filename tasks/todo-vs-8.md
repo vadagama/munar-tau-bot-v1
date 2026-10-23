@@ -222,18 +222,18 @@
 
 ## P03. Зафиксировать итоги и отмену
 
-- [ ] **P03 выполнена**
+- [x] **P03 выполнена**
 - Критерий: Закрытие использует историю на closes_at, создаёт один неизменяемый итог; новые ответы по истёкшему сроку запрещены независимо от jobs.
 - Критерий: Отмена с причиной сохраняет историю/ответы, скрывает любое распределение, уведомляет участников и не переносит ответы.
-- Проверка: npm test -w core -- src/domains/polls; тест двух соединений сохранён.
+- Проверка: npm test -w core -- src/domains/polls; 3 SQL-сценария прошли на разрешённом Sydney, включая два соединения и приватность доставки.
 - Зависимости: P02. Объём: M (5 основных файлов).
-- Файлы: `source/core/src/domains/polls/jobs.ts`, `source/core/src/domains/polls/results.ts`, `source/core/src/domains/polls/results.test.ts`, `source/core/src/domains/polls/jobs.test.ts`, `source/core/tests/integration/polls.test.ts`.
+- Файлы: `source/core/src/domains/polls/jobs.ts`, `source/core/src/domains/polls/results.ts`, `source/core/src/domains/polls/results.test.ts`, `source/core/src/domains/polls/jobs.test.ts`, `source/core/tests/integration/poll-results.test.ts`, `source/db/migrations/20261023103000_vs8_poll_results.sql`.
 
 ### Контрольная точка: Опросы: время, аудитория и итоги
 
-- [ ] Новые тесты и затронутая регрессия проходят; типы/lint проверены.
-- [ ] Diff просмотрен, проверенный инкремент сохранён отдельным коммитом.
-- [ ] Сценарии этапа воспроизведены; ограничения записаны, непройденные проверки не отмечены как успешные.
+- [x] Новые тесты и затронутая регрессия проходят; типы/lint проверены.
+- [x] Diff просмотрен, проверенный инкремент сохранён отдельным коммитом.
+- [x] Сценарии этапа воспроизведены; ограничения записаны, непройденные проверки не отмечены как успешные.
 
 ## P04. Связать действия опросов с PDP и API
 

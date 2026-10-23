@@ -27,8 +27,9 @@ export async function pollResource(exec:DbExecutor,actor:Actor,row:PollRow,now:n
   if(row.is_test!==actor.person.isTest) throw new ApiError("NOT_FOUND");
   const intervals=await loadAudienceIntervals(exec,{personId:actor.person.id,isTest:actor.person.isTest,buildingIds:row.building_ids});
   const own=await exec.query("select 1 from poll_answer where poll_id=$1 and person_id=$2",[row.id,actor.person.id]);
+  const finalParticipant=row.state==="closed" && (await exec.query("select 1 from poll_result_participant where poll_id=$1 and person_id=$2",[row.id,actor.person.id])).length>0;
   return {pollAccess:{buildingIds:row.building_ids,isTest:row.is_test,state:row.state,
-    member:audienceEligible(intervals,now),participant:own.length>0,finalParticipant:false,
+    member:audienceEligible(intervals,now),participant:own.length>0,finalParticipant,
     answerOpen:row.state==="open" && now<Number(row.closes_us)}};
 }
 export async function requirePoll(exec:DbExecutor,actor:Actor,id:string,action:"poll.read"|"poll.manage"|"poll.answer"|"poll.results"="poll.read",lock=false) {

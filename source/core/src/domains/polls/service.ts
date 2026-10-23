@@ -7,7 +7,7 @@ import { checkVersion } from "../requests/fsm.ts";
 import { invalid, type Row } from "../registry/validation.ts";
 import { recordAudit, type RegistryDeps } from "../registry/service.ts";
 import { lockAudience } from "../registry/audience-lock.ts";
-import { audienceContinuous, loadAudienceIntervals } from "../registry/audience-history.ts";
+import { audienceContinuous, audienceContinuousBefore, loadAudienceIntervals } from "../registry/audience-history.ts";
 import { pollInput, answerInput } from "./input.ts";
 import { pollCard, pollResource, pollRow, requirePoll, serverClock, type PollRow } from "./access.ts";
 
@@ -57,7 +57,9 @@ export async function ownAnswer(exec:DbExecutor,actor:Actor,row:PollRow,at:numbe
     from poll_answer where poll_id=$1 and person_id=$2`,[row.id,actor.person.id]);
   if(!answer)return null;
   const intervals=await loadAudienceIntervals(exec,{personId:actor.person.id,isTest:actor.person.isTest,buildingIds:row.building_ids});
-  const included=audienceContinuous(intervals,Number(answer.answered_us),Math.min(at,Number(row.closes_us)));
+  const included=row.state!=="canceled" && (at>=Number(row.closes_us)
+    ? audienceContinuousBefore(intervals,Number(answer.answered_us),Number(row.closes_us))
+    : audienceContinuous(intervals,Number(answer.answered_us),at));
   return {option_key:answer.option_key,version:answer.version,answered_at:answer.answered_at,included};
 }
 export async function getPoll(deps:RegistryDeps,actor:Actor,id:string) {
