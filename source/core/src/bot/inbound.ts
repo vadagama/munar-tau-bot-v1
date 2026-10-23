@@ -1,4 +1,10 @@
+import { REPORT_COMMANDS,reportStep } from "./reports.ts";
+import { queueInitiativePhoto } from "./initiative-files.ts";
+import { INITIATIVE_COMMANDS,initiativeStep } from "./initiatives.ts";
+import { lockAudience } from "../domains/registry/audience-lock.ts";
 import { navigationReply } from "./navigation.ts";
+import { POLL_COMMANDS, pollStep } from "./polls.ts";
+import { DOCUMENT_COMMANDS, documentStep, queueDocumentFile } from "./documents.ts";
 import { STAFF_REQUEST_COMMANDS, staffRequestStep } from "./staff-requests.ts";
 import { readDialog, saveDialog } from "./dialog.ts";
 import { t as templateText } from "../templates/store.ts";
@@ -43,6 +49,10 @@ async function routeStep(
   updateId: unknown,
 ): Promise<BotReply> {
   if (message.photo || message.document || message.video) {
+    if (state.scenario === "reports") return reportStep(deps,telegramId,deps.bot==="worker"?"/mywork":"/plans");
+    if (state.scenario === "initiatives") return queueInitiativePhoto(deps,telegramId,message,updateId);
+    if (state.scenario === "polls") return pollStep(deps, telegramId, "");
+    if (state.scenario === "documents") return queueDocumentFile(deps, telegramId, message);
     return queueRequestFile(deps, telegramId, message, updateId, bot);
   }
   const text = String(message.text);
@@ -55,6 +65,13 @@ async function routeStep(
   const startPayload = command === "/start"
     ? text.trim().split(/\s+/)[1]
     : undefined;
+  if (REPORT_COMMANDS.includes(command)) return reportStep(deps,telegramId,text);
+  if (startPayload?.startsWith("idea_")||startPayload?.startsWith("mod_")) return initiativeStep(deps,telegramId,text);
+  if (INITIATIVE_COMMANDS.includes(command)||(state.scenario==="initiatives"&&!isCommand)) return initiativeStep(deps,telegramId,text);
+  if (startPayload?.startsWith("poll_")) return pollStep(deps, telegramId, `/poll ${startPayload.slice(5)}`);
+  if (POLL_COMMANDS.includes(command) || (state.scenario === "polls" && !isCommand)) return pollStep(deps, telegramId, text);
+  if (startPayload?.startsWith("doc_")) return documentStep(deps, telegramId, `/doc ${startPayload.slice(4)}`);
+  if (DOCUMENT_COMMANDS.includes(command) || (state.scenario === "documents" && !isCommand)) return documentStep(deps, telegramId, text);
   if (startPayload?.startsWith("req_") && bot === "resident") {
     return requestStep(
       deps,
@@ -148,9 +165,10 @@ export async function processInbound(
     throw new ApiError("VALIDATION_FAILED", "Некорректный update_id");
   }
   return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     // update_id уникален внутри одного бота; ключ дедупликации — пара (bot, update_id).
     const inserted = await exec.query(
-      "insert into bot_inbound(bot,update_id,payload) values ($1,$2,$3::text::jsonb) on conflict do nothing returning update_id",
+      "insert into bot_inbound(bot,update_id,payload) values ($1,$2,$3::text::jsonb) on conflict (bot,update_id) do update set status='received',error=null where bot_inbound.status='error' returning update_id",
       [bot, update.update_id, JSON.stringify(update)],
     );
     if (!inserted.length) return false;

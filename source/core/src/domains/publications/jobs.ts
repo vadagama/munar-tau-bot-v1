@@ -23,15 +23,15 @@ export async function publishScheduled(
         [item.id],
       );
       if (!row) return;
-      const actor = await recipientActor(exec, row.created_by);
+      const actor = await recipientActor(exec, String(row.scheduled_by ?? row.created_by));
       try {
         if (!actor) throw new Error("AUTHOR_UNAVAILABLE");
         await requirePublication(exec, actor, row.id, "publication.manage");
-        await releaseChecks(exec, row);
+        await releaseChecks(exec, row, actor, true);
       } catch {
         // Отозванные полномочия/изменённый комплект не обходятся планировщиком.
         await exec.query(
-          "update publication set state='draft',publish_at=null,version=version+1 where id=$1",
+          "update publication set state='draft',publish_at=null,scheduled_by=null,version=version+1 where id=$1",
           [row.id],
         );
         await exec.query(
@@ -45,7 +45,7 @@ export async function publishScheduled(
         return;
       }
       const [updated] = await exec.query<Publication>(
-        "update publication set state='published',published_at=now(),version=version+1 where id=$1 returning *",
+        "update publication set state='published',published_at=now(),scheduled_by=null,version=version+1 where id=$1 returning *",
         [row.id],
       );
       const { scope } = await requirePublication(

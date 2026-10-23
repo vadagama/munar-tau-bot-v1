@@ -5,6 +5,11 @@
 import { STAFF_ROLES, type SpecialRights, type StaffRole } from "./types.ts";
 
 export type ActionKey =
+  | "moderation.read" | "moderation.appeal" | "moderation.resolve"
+  | "report.requests" | "report.tasks" | "report.incidents" | "report.payments" | "report.export" | "report.configure"
+  | "initiative.attach" | "initiative.use" | "initiative.create" | "initiative.read" | "initiative.manage" | "initiative.support" | "initiative.comment" | "initiative.moderate"
+  | "poll.use" | "poll.read" | "poll.manage" | "poll.answer" | "poll.results"
+  | "document.use" | "document.read" | "document.prepare" | "document.review" | "document.manage" | "document.obligations"
   | "staff.read" | "staff.edit"
   | "settings.templates.read" | "settings.templates.edit"
   | "incident.use" | "incident.read" | "incident.manage" | "incident.link"
@@ -60,6 +65,34 @@ export interface ActionSpec {
 }
 
 export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
+  "moderation.read": {privileged:false},
+  "moderation.appeal": {privileged:false},
+  "moderation.resolve": {privileged:false},
+  "report.requests": { privileged: false },
+  "report.tasks": { privileged: false },
+  "report.incidents": { privileged: false },
+  "report.payments": { privileged: false },
+  "report.export": { privileged: false },
+  "report.configure": { privileged: true },
+  "initiative.attach": { privileged: false },
+  "initiative.use": { privileged: false },
+  "initiative.create": { privileged: false },
+  "initiative.read": { privileged: false },
+  "initiative.manage": { privileged: false },
+  "initiative.support": { privileged: false },
+  "initiative.comment": { privileged: false },
+  "initiative.moderate": { privileged: false },
+  "poll.use": { privileged: false },
+  "poll.read": { privileged: false },
+  "poll.manage": { privileged: false },
+  "poll.answer": { privileged: false },
+  "poll.results": { privileged: false },
+  "document.use": { privileged: false },
+  "document.obligations": { privileged: false },
+  "document.read": { privileged: false },
+  "document.prepare": { privileged: false },
+  "document.review": { privileged: false },
+  "document.manage": { privileged: false },
   "staff.read": { privileged:false, roles:["chairman","administrator","deputy"] },
   "staff.edit": { privileged:true, roles:["chairman","administrator","deputy"] },
   "settings.templates.read": {privileged:false,roles:["chairman","administrator","tech_admin"]},

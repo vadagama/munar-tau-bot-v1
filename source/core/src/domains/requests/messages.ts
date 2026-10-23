@@ -1,3 +1,4 @@
+import { recordReportResponse } from "../reports/history.ts";
 import { templateNotice } from "../../templates/notice.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { ApiError } from "../../errors/api.ts";
@@ -109,6 +110,7 @@ export async function addMessage(
         }
         if (channel === "resident") {
           if (await isManager(exec, actor, row)) {
+            if(typeof input.text==="string"&&input.text.trim())await recordReportResponse(exec,id,messageId);
             await exec.query(
               "update request set first_response_at=coalesce(first_response_at,now()) where id=$1",
               [id],

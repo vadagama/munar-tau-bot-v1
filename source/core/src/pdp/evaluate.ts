@@ -1,13 +1,19 @@
+import { reportDecision } from "./reports.ts";
 // Оценка доступа can() — единственный способ проверки полномочий (LLD-01 §3.1).
 // Deny-by-default. Оценка детерминированная: часы БД и отзыв полномочий
 // проверяются при сборке Actor, здесь работают только собранные данные.
 
 import { ACTIONS, type ActionKey, type ActionSpec } from "./actions.ts";
+import { moderationDecision } from "./moderation.ts";
+import { initiativeDecision } from "./initiatives.ts";
+import { pollDecision } from "./polls.ts";
+import { documentDecision } from "./documents.ts";
 import { ALLOW, deny, type Actor, type Decision, type ResourceRef, type StaffRole } from "./types.ts";
 
 /** can(actor, action, resource) — контракт LLD-01 §3.1. */
 export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {}): Decision {
   const spec: ActionSpec | undefined = ACTIONS[action];
+  if(action.startsWith("report."))return reportDecision(actor,action);
   if (!spec) return deny(`Неизвестное действие: ${action}`);
 
   // Эмуляция (HLD 10.8): права оцениваются по эмулируемой роли, но привилегированные
@@ -20,6 +26,15 @@ export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {})
       return deny("Управляющие действия в эмуляции недоступны");
     }
   }
+
+  if(action.startsWith("moderation."))return moderationDecision(actor,action,resource);
+  if(action==="initiative.use")return actor.person.status==="active"?ALLOW:deny("Учётная запись недоступна");
+  if(action.startsWith("initiative."))return initiativeDecision(actor,action,resource);
+
+  if(action==="poll.use")return actor.person.status==="active"?ALLOW:deny("Учётная запись недоступна");
+  if (action.startsWith("poll.")) return pollDecision(actor, action, resource);
+
+  if (action.startsWith("document.") && action !== "document.use") return documentDecision(actor, action, resource);
 
   if (action.startsWith("request.") && action !== "request.use" && action !== "request.category.edit") {
     const r = resource.requestAccess;
@@ -46,6 +61,10 @@ export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {})
     if (action === "publication.approve") return chairman ? ALLOW : deny("Требуется председатель");
     if (action === "incident.link" || action === "publication.manage") return manager ? ALLOW : deny("Требуется администратор области");
     if (action === "incident.manage") return manager || duty ? ALLOW : deny("Требуется администратор или назначенный дежурный");
+    if (action === "publication.read" && resource.publicationAccess?.financial) {
+      const finance = actor.assignments.some(a => a.role === "finance" && inScope(a));
+      return manager || finance || (r.published && resource.publicationAccess.owner) ? ALLOW : deny("Нужна действующая собственность в области финансового отчёта");
+    }
     return manager || (action === "incident.read" && duty) || (r.published && r.member) ? ALLOW : deny("Объект недоступен");
   }
 

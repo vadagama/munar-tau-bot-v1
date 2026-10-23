@@ -92,3 +92,10 @@ Deno.test("GET /health — 200 без секрета", async () => {
   assertEquals(response.status, 200);
   assertEquals((await response.json()).service, "bot-webhook");
 });
+
+Deno.test("диагностика сбоя не перезаписывает уже processed обновление",async()=>{
+ const queries:string[]=[];
+ const deps={db:{transaction:()=>Promise.reject(new Error("temporary failure")),query:(sql:string)=>{queries.push(sql);return Promise.resolve([]);}},audit:{}} as unknown as import("../../core/src/domains/registry/service.ts").RegistryDeps;
+ const request=new Request("https://test/bot-webhook",{method:"POST",headers:{"X-Telegram-Bot-Api-Secret-Token":RESIDENT_SECRET},body:JSON.stringify({update_id:701})});
+ assertEquals((await handle(request,envWithSecret,deps)).status,500);assertEquals(queries.length,1);assertEquals(queries[0]!.includes("where bot_inbound.status<>'processed'"),true);
+});

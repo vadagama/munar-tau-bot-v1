@@ -1,4 +1,6 @@
 import { requireTask } from "../tasks/access.ts";
+import { requireDocument } from "../documents/access.ts";
+import { requireFinancialObligation } from "../publications/financial-obligations.ts";
 import { registryScope } from "../registry/access.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { can } from "../../pdp/evaluate.ts";
@@ -12,6 +14,17 @@ async function failureAllowed(exec: DbExecutor, actor: Actor, n: Row) {
     !can(actor, "notification.failures").allow ||
     actor.person.isTest !== n.is_test
   ) return false;
+  const ref = jsonValue<{ documentId?: string; financialObligationId?: string; pollId?: string; pollEvent?: string; moderationActionId?: string; initiativeId?: string }>(n.event_ref);
+  // POL-02: состав участников нельзя восстановить через ошибки доставки.
+  if(ref.initiativeId || ref.moderationActionId || ref.pollId || ref.pollEvent || String(n.dedup_key??"").startsWith("poll."))return false;
+  if (ref.financialObligationId) {
+    try { await requireFinancialObligation(exec, actor, ref.financialObligationId, true); return true; }
+    catch (error) { if (error instanceof ApiError && ["FORBIDDEN", "NOT_FOUND"].includes(error.code)) return false; throw error; }
+  }
+  if (ref.documentId) {
+    try { await requireDocument(exec, actor, ref.documentId, "document.manage"); return true; }
+    catch (error) { if (error instanceof ApiError && ["FORBIDDEN", "NOT_FOUND"].includes(error.code)) return false; throw error; }
+  }
   if (n.task_id) {
     try {
       await requireTask(exec, actor, String(n.task_id), "task.manage");
@@ -48,7 +61,7 @@ export async function listFailures(exec: DbExecutor, actor: Actor) {
   }
   const scope = registryScope(actor);
   const all = await exec.query<Row>(
-    `select n.id,n.recipient_person_id,n.event_type,n.event_ref,n.request_id,n.task_id,n.is_test,n.attempts,n.last_error,n.created_at,f.id as followup_id,f.state as followup_state,f.result,f.completed_at from notification n left join request r on r.id=n.request_id left join notification_followup f on f.notification_id=n.id where n.state='failed' and n.is_test=$1 and ($2::uuid[] is null or (r.building_id=any($2::uuid[]) and r.complaint_route<>'chairman' and r.complaint_subject_person_id is distinct from $3::uuid) or (n.request_id is null and exists(select 1 from jsonb_array_elements_text(coalesce(n.event_ref->'buildingIds','[]'::jsonb)) b where b::uuid=any($2::uuid[])))) order by n.created_at desc limit 200`,
+    `select n.id,n.recipient_person_id,n.event_type,n.event_ref,n.request_id,n.task_id,n.is_test,n.attempts,n.last_error,n.created_at,f.id as followup_id,f.state as followup_state,f.result,f.completed_at from notification n left join request r on r.id=n.request_id left join notification_followup f on f.notification_id=n.id where n.state='failed' and n.is_test=$1 and not (coalesce(n.event_ref,'{}'::jsonb) ?| array['pollId','pollEvent','moderationActionId','initiativeId']) and coalesce(n.dedup_key,'') not like 'poll.%' and ($2::uuid[] is null or (r.building_id=any($2::uuid[]) and r.complaint_route<>'chairman' and r.complaint_subject_person_id is distinct from $3::uuid) or (n.request_id is null and exists(select 1 from jsonb_array_elements_text(coalesce(n.event_ref->'buildingIds','[]'::jsonb)) b where b::uuid=any($2::uuid[])))) order by n.created_at desc limit 200`,
     [actor.person.isTest, scope, actor.person.id],
   );
   const items: Row[] = [];

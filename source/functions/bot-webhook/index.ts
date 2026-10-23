@@ -76,7 +76,8 @@ async function recordInboundError(
     await db.query(
       `insert into bot_inbound(bot,update_id,payload,status,error)
        values ($1,$2,$3::text::jsonb,'error',$4)
-       on conflict (bot,update_id) do update set status='error',error=excluded.error`,
+       on conflict (bot,update_id) do update set status='error',error=excluded.error
+       where bot_inbound.status<>'processed'`,
       [bot, updateId, JSON.stringify(update), message.slice(0, 2000)],
     );
   } catch {

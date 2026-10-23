@@ -2,6 +2,7 @@ import { DeadlineInput } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
 import { taskGuidance, processActionHint } from "../components/process-guidance";
 import { DetailSection } from "../components/detail-section";
+import { DocumentObligationSummary } from "./document-obligation-summary";
 import { ConfigurableTable } from "../components/configurable-table";
 import type { TableColumnsType } from "antd";
 import { taskAssigneeOptions } from "./task-assignees";
@@ -648,6 +649,7 @@ export function TasksPage() {
               Методичка, версия {String((card.methodology as Row).version)} · {String((card.methodology as Row).author_name)} · {new Date(String((card.methodology as Row).created_at)).toLocaleDateString("ru-RU",{timeZone:"Asia/Almaty"})}
             </Typography.Text>}
           </DetailSection>
+          {roles.some(r => r !== "tech_admin") && <DetailSection title="Комплект документов"><DocumentObligationSummary kind="task" id={String(card.id)} actRequired={card.document_required === true} /></DetailSection>}
           <TaskProblems task={card} onSaved={() => open(card.id, true)} />
           {card.state !== "on_review" && taskReports}
           <ProcessHistory title="История задания">

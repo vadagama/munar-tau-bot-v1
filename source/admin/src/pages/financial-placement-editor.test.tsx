@@ -1,0 +1,27 @@
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { FinancialPlacementEditor } from "./financial-placement-editor";
+import { apiFetch } from "../lib/api";
+vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
+const computed = window.getComputedStyle.bind(window);
+beforeEach(() => { vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element)); });
+afterEach(() => { cleanup(); vi.clearAllMocks(); vi.restoreAllMocks(); });
+const duty = { id: "duty", publication_id: "pub", version: 3, active_version_id: "released", rule_snapshot: { definition: { channels: ["Стенд"] } } };
+it("черновик не предлагается как доказательство размещения; выпущенная версия доступна", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/publications/pub" ? { financial_version_id: "draft", financial_versions: [{ id: "draft", version: 2, published_at: null }, { id: "released", version: 1, published_at: "2026-10-01T00:00:00Z" }] } : { items: [], has_more: false });
+  render(<FinancialPlacementEditor duty={duty} onCancel={vi.fn()} onSaved={vi.fn()} />);
+  const select = await screen.findByLabelText("Выпущенная версия отчёта");
+  fireEvent.mouseDown(select);
+  expect(await screen.findByText("Версия 1")).toBeInTheDocument();
+  expect(screen.queryByText("Версия 2")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText("Версия 1"));
+  expect(await screen.findByText("Размещение исторической версии сохраняется в истории и не закрывает текущую обязанность.")).toBeInTheDocument();
+  expect(vi.mocked(apiFetch).mock.calls.every(([, request]) => !request?.method)).toBe(true);
+});
+it("при ошибке чтения выпуска запись недоступна и есть повтор", async () => {
+  vi.mocked(apiFetch).mockRejectedValue(new Error("Выпуск недоступен"));
+  render(<FinancialPlacementEditor duty={duty} onCancel={vi.fn()} onSaved={vi.fn()} />);
+  await screen.findByText("Выпуск недоступен");
+  expect(screen.getByRole("button", { name: "Подтвердить размещение" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Обновить данные размещения" })).toBeInTheDocument();
+});

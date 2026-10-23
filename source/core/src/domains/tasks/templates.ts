@@ -11,11 +11,13 @@ import {
   requireCommon,
 } from "./common.ts";
 import { createTask, evidenceInput } from "./service.ts";
+import { documentRulesInput } from "../documents/rules.ts";
 export function blueprintInput(input: Row) {
   return {
     title: content(input.title),
     instruction: content(input.instruction),
     required_evidence: evidenceInput(input.required_evidence),
+    document_requirements: documentRulesInput(input.document_requirements),
   };
 }
 export async function listTemplates(deps: RegistryDeps, actor: Actor) {

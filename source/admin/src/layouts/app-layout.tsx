@@ -94,6 +94,10 @@ export function AppLayout() {
     ] }] : []),
     { key: "/incidents", label: <MenuLabel label="Аварии" count={queue.incidentsAction.length} /> },
     { key: "/publications", label: "Публикации" },
+    { key: "/documents", label: "Документы" },
+    { key: "/polls", label: "Опросы" },
+    { key: "/initiatives", label: "Инициативы" },
+    ...(canSeeTasks(roles) ? [{key:"/reports",label:"Отчётность"}] : []),
     ...(manager ? [
       { key: "users", label: "Пользователи", children: [
         { key: "/users/residents", label: "Жители" },

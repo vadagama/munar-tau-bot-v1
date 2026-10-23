@@ -26,6 +26,8 @@ import {
   type TaskRow,
 } from "./access.ts";
 import { nextTaskState } from "./fsm.ts";
+import { documentObligationSnapshot } from "../documents/snapshot.ts";
+import { applyTaskDocumentRules, documentRulesInput } from "../documents/rules.ts";
 import {
   type EvidenceRequirement,
   validateEvidenceAcceptance,
@@ -83,7 +85,8 @@ export async function taskLog(
   await syncTaskTimers(exec,row,from);
   await exec.query(
     `insert into task_log(task_id,from_state,to_state,actor_person_id,reason,meta)
-    values ($1,$2,$3,$4,$5,$6::text::jsonb)`,
+    values ($1,$2,$3,$4,$5,($6::text::jsonb)||jsonb_build_object('report',
+      (select jsonb_build_object('assignee_person_id',t.assignee_person_id,'due_at',t.due_at,'acceptance_due_at',t.acceptance_due_at,'rework_due_at',t.rework_due_at) from task t where t.id=$1)))`,
     [
       row.id,
       from,
@@ -150,15 +153,17 @@ export async function taskLog(
   }
 }
 
+export interface TaskTemplateSnapshot { id: string; version: number; blueprint: Row }
 export async function createTask(
   deps: RegistryDeps,
   actor: Actor,
   input: Row,
   key: unknown,
+  templateSnapshot?: TaskTemplateSnapshot,
 ): Promise<TaskRow> {
   return deps.db.transaction((exec) =>
-    idempotent(exec, actor, "tasks:create", key, input, async () => {
-      return createTaskInTransaction(deps, exec, actor, input);
+    idempotent(exec, actor, "tasks:create", key, templateSnapshot ? { input, templateSnapshot } : input, async () => {
+      return createTaskInTransaction(deps, exec, actor, input, templateSnapshot);
     }, async (row) => {
       await requireTask(exec, actor, row.id, "task.manage");
     })
@@ -171,6 +176,7 @@ export async function createTaskInTransaction(
   exec: DbExecutor,
   actor: Actor,
   input: Row,
+  templateSnapshot?: TaskTemplateSnapshot,
 ): Promise<TaskRow> {
       if (!!input.request_id === !!input.common_work_id) {
         invalid("Укажите обращение или общую работу");
@@ -204,7 +210,12 @@ export async function createTaskInTransaction(
       let definition = input;
       let templateId: string | null = null,
         templateVersion: number | null = null;
-      if (input.template_id) {
+      if (templateSnapshot) {
+        // Только доверенный снимок очереди; HTTP-обработчики этот аргумент не передают.
+        definition = templateSnapshot.blueprint;
+        templateId = templateSnapshot.id;
+        templateVersion = templateSnapshot.version;
+      } else if (input.template_id) {
         const [template] = await exec.query<Row>(
           "select * from job_template where id=$1 for share",
           [content(input.template_id)],
@@ -229,6 +240,8 @@ export async function createTaskInTransaction(
         templateVersion = Number(template.version);
       }
       const required = evidenceInput(definition.required_evidence);
+      const documentRules = documentRulesInput(definition.document_requirements);
+      const documentRequired = input.document_required === true || documentRules.some(r => r.kind === "act" && r.phase === "before_acceptance");
       const assignee = input.assignee_person_id
         ? content(input.assignee_person_id)
         : null;
@@ -242,7 +255,7 @@ export async function createTaskInTransaction(
           invalid(`Некорректное ${name}`);
         }
       }
-      if (input.document_required === true && input.is_required === false) {
+      if (documentRequired && input.is_required === false) {
         invalid("Задание с обязательным актом входит в необходимый объём");
       }
       const dependencyId = input.depends_on_task_id
@@ -282,7 +295,7 @@ export async function createTaskInTransaction(
           work?.id ?? null,
           templateId,
           templateVersion,
-          input.document_required === true,
+          documentRequired,
         ],
       );
       let row = {
@@ -302,6 +315,7 @@ export async function createTaskInTransaction(
           state: "awaiting_acceptance",
         };
       }
+      if (documentRules.length) row = await applyTaskDocumentRules(deps, exec, actor, row.id, documentRules, "Документальные требования утверждённой методички");
       await taskLog(
         deps,
         exec,
@@ -517,11 +531,7 @@ export async function transitionTask(
         checkVersion(Number(report.version), input.report_version);
         if (action === "approve") {
           if (!canAcceptTaskReport(actor,row,report.created_by)) throw new ApiError("FORBIDDEN", "Собственную работу должен принять другой администратор");
-          if (row.document_required) {
-            invalid(
-              "Для приёмки нужен обязательный акт; контур документов ещё не подключён",
-            );
-          }
+          const documentVersions = await documentObligationSnapshot(exec, null, [id], row.document_required ? [id] : []);
           if (input.result_checked !== true) {
             invalid("Подтвердите проверку результата и чек-листа");
           }
@@ -541,6 +551,7 @@ export async function transitionTask(
             normalized,
           );
           reviewMeta = {
+            document_versions: documentVersions,
             report_id: report.id,
             report_version: report.version,
             evidence_decisions: normalized,
@@ -617,6 +628,7 @@ export async function transitionTask(
           row.template_version === template.version
         ) invalid("Эта версия уже применена");
         const definition = jsonValue<Row>(template.blueprint);
+        const documentRules = documentRulesInput(definition.document_requirements);
         await exec.query(
           "update task set title=$2,instruction=$3,required_evidence=$4::text::jsonb,template_id=$5,template_version=$6 where id=$1",
           [
@@ -628,6 +640,8 @@ export async function transitionTask(
             template.version,
           ],
         );
+        if (documentRules.some(r => r.kind === "act" && r.phase === "before_acceptance")) await exec.query("update task set document_required=true,is_required=true where id=$1", [id]);
+        await applyTaskDocumentRules(deps, exec, actor, id, documentRules, String(reason));
         reviewMeta = {
           previous_template_id: row.template_id ?? null,
           previous_template_version: row.template_version ?? null,

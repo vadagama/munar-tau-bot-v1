@@ -1,4 +1,8 @@
+import { reportStep } from "./reports.ts";
+import { initiativeStep } from "./initiatives.ts";
 import { loadDialog,saveDialog } from "./dialog.ts";
+import { pollStep } from "./polls.ts";
+import { documentStep } from "./documents.ts";
 import { navigationReply } from "./navigation.ts";
 import { staffRequestStep } from "./staff-requests.ts";
 import { workerHelp } from "./help.ts";
@@ -13,9 +17,9 @@ import type { RegistryDeps } from "../domains/registry/service.ts";
 import { ApiError } from "../errors/api.ts";
 export function botScenarios(deps: RegistryDeps) {
   const scenarios = registrationScenarios(deps);
-  for (const id of ["requests","tasks","incidents","staff-requests"]) scenarios.register({
+  for (const id of ["requests","tasks","incidents","staff-requests","documents","polls","initiatives","reports"]) scenarios.register({
     id,
-    description: id === "requests" ? "REQ/SHR/MSG: обращения и переписка" : id === "incidents" ? "EMG/PUB: аварии и публикации" : "WRK: задания исполнителя",
+    description: id === "reports" ? "REP: моя работа и опубликованные планы" : id === "initiatives" ? "IDEA/MOD: инициативы и оспаривания" : id === "polls" ? "POL: информационные опросы" : id === "documents" ? "DOC/WRK: документы и обязанности" : id === "requests" ? "REQ/SHR/MSG: обращения и переписка" : id === "incidents" ? "EMG/PUB: аварии и публикации" : "WRK: задания исполнителя",
     run: async (input, ctx) => {
       if (
         !ctx.actor?.emulation || !ctx.actor.person.isTest
@@ -37,7 +41,7 @@ export function botScenarios(deps: RegistryDeps) {
           },
         }
         : deps;
-      const step = id === "staff-requests" ? staffRequestStep : id === "requests"
+      const step = id === "reports" ? reportStep : id === "initiatives" ? initiativeStep : id === "polls" ? pollStep : id === "documents" ? documentStep : id === "staff-requests" ? staffRequestStep : id === "requests"
         ? requestStep
         : id === "incidents"
         ? incidentStep

@@ -57,6 +57,10 @@ const names: Record<string, string> = {
   warning: "Предупреждение о проверке",
 };
 export function IncidentsPage() {
+  const {identity,roles}=useCabinetIdentity();
+  return <IncidentPanel key={`${identity?.id??""}:${identity?.me?.emulation?.session_id??""}:${roles.join(",")}`}/>;
+}
+function IncidentPanel() {
   const [activeTab, setActiveTab] = useState("incidents");
   const { roles } = useCabinetIdentity(),
     [view, setView] = useBoardView("view.incidents"),
@@ -79,7 +83,7 @@ export function IncidentsPage() {
   const editScope = Form.useWatch("edit_scope", form);
   const selectedKind = Form.useWatch("kind", form);
   const scopeValues = Form.useWatch("scope", form) as Row[] | undefined;
-  const key = useRef(crypto.randomUUID()), generation = useRef(0);
+  const key = useRef(crypto.randomUUID()), generation = useRef(0), cardGeneration=useRef(0);
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : "Ошибка запроса");
   async function refresh() {
@@ -103,19 +107,22 @@ export function IncidentsPage() {
   usePageRefresh(refresh, !busy);
   useEffect(() => {
     void refresh();
+    const url=new URL(window.location.href),id=url.searchParams.get("incident");
+    if(id){url.searchParams.delete("incident");window.history.replaceState({},"",url);void open(id);}
     return () => {
+      cardGeneration.current++;
       generation.current++;
     };
   }, []);
   async function open(id: string) {
-    setBusy(true);
+    const g=++cardGeneration.current;setBusy(true);
     try {
-      setCard(await apiFetch<Row>(`/v1/incidents/${id}`));
-      setError(null);
+      const next=await apiFetch<Row>(`/v1/incidents/${id}`);
+      if(g===cardGeneration.current){setCard(next);setError(null);}
     } catch (e) {
-      fail(e);
+      if(g===cardGeneration.current)fail(e);
     } finally {
-      setBusy(false);
+      if(g===cardGeneration.current)setBusy(false);
     }
   }
   async function begin(next: string) {

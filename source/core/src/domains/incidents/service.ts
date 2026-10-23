@@ -61,7 +61,8 @@ export async function incidentLog(
   meta: Row = {},
 ) {
   await exec.query(
-    "insert into incident_log(incident_id,from_state,to_state,actor_person_id,reason,meta) values($1,$2,$3,$4,$5,$6::text::jsonb)",
+    `insert into incident_log(incident_id,from_state,to_state,actor_person_id,reason,meta) values($1,$2,$3,$4,$5,
+      ($6::text::jsonb)||jsonb_build_object('report',(select jsonb_build_object('responsible_person_id',i.responsible_person_id,'next_update_at',i.next_update_at,'completed_at',i.completed_at,'first_signal_at',i.first_signal_at) from incident i where i.id=$1)))`,
     [
       row.id,
       from,

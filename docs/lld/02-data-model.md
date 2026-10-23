@@ -209,11 +209,30 @@ id PK, number UNIQUE, title, state enum cw_state {planned, in_progress, on_revie
 
 ## 6. Документы и публикации
 
-- `document`: id PK, kind enum doc_kind {work_report, act, invoice, receipt, decision_basis, other}, audience enum audience {resident, owner, staff, finance, service} (аудитория определяется типом, модель процессов раздел 7), request_id FK NULL, task_id FK NULL, created_by, created_at.
+VS-8 (23.10.2026): [ADR-018](../decisions/018-vs8-documents-participation-reports.md)
+и [спецификации](../../VS8-CAPABILITY-MAP.md) уточняют версии, историю проверок
+и обязанности. Сокращённые состояния инициатив раздела 8 заменяются раздельными
+состояниями публикации, этапами IDEA-03 и отдельной модерацией. История аудитории
+сохраняет интервалы связей для расчёта на момент окончания опроса.
+
+- `document`: id PK, title, kind {work_report, act, invoice, receipt, decision_basis, instruction, financial_report, other}, audience {resident, owner, staff, finance, service}, document_number, document_date, parties, request_id FK NULL, task_id FK NULL (не более одного источника), prepared_by/reviewer_id FK person, published_version_id, is_test, version, created_by, created_at. Invoice/receipt имеют финансовую аудиторию.
 - `document_scope`: document_id FK, building_id FK, PK (document_id, building_id).
-- `document_version`: id PK, document_id FK, version int, attachment_id FK attachment, state enum docv_state {draft, on_review, returned, approved, needs_fix} — схема раздела 7 модели процессов; prepared_by, reviewed_by FK person, review_comment text, created_at. Версии не перезаписываются (WRK-17–18, FIN-02–03).
-- `publication`: id PK, kind enum pub_kind {announcement, outage, work_report, financial_report}, title, body text, document_version_id FK NULL, incident_id FK NULL, state enum pub_state {draft, pending_approval, scheduled, published, archived}, publish_at timestamptz NULL, created_by, approved_by FK person NULL (председатель — FIN-01–04), approval_note, created_at, version int.
+- `document_version`: id PK, document_id FK, version int, attachment_id FK attachment, signed_attachment_id FK attachment отдельно, signature_method/signature_basis, task_report_id FK, state {draft, on_review, returned, approved, needs_fix}, prepared_by, reviewed_by FK person, review_comment, reviewed_at, created_at, was_published. Содержание и файлы версии неизменяемы; переходы проверки записываются в append-only `document_log` (WRK-17–18, FIN-02–03).
+- `document_obligation`: ровно один request_id/task_id, kind, phase {before_acceptance, after_acceptance}, basis, prepared_by, reviewer_id, signed_required, rule_version_id FK, rule_snapshot, due_at, document_version_id FK, completed_at, reminded_at, escalated_at, version, is_test. Условия и срок неизменяемы; передача меняет сотрудников с аудитом, `needs_fix` открывает обязанность повторно. RLS закрывает все пять таблиц документов от прямого клиента.
+- `job_template.blueprint.document_requirements`: до 20 требований kind/phase/basis/prepared_by/reviewer_id/signed_required без длительностей. При создании/явной смене методички они применяются в той же транзакции задания. Снимок обязанности включает identity версии методички и TIM. Планировщик использует сохранённую методичку, старые обязанности не удаляются.
+- `publication`: id PK, kind enum pub_kind {announcement, outage, work_report, financial_report}, title, body text, requires_document, common_work_id FK NULL, financial_version_id FK NULL, state enum pub_state {draft, pending_approval, scheduled, published, archived}, publish_at timestamptz NULL, scheduled_by FK person NULL, created_by, approved_by FK person NULL (разрешение на публикацию — FIN-01–04), approval_note, created_at, version int. Плановый выпуск повторно авторизует scheduled_by (для прежних записей — created_by); причина управленческого действия сохраняется в publication_log.reason и аудите.
 - `publication_scope`: publication_id FK, building_id FK, PK (publication_id, building_id).
+- `publication_document`: конкретные версии оснований обычной публикации; менять набор можно только до выпуска. При выпуске проверяются PDP документа/источника, файлы, состояние и охват; связь не раскрывает внутренний файл читателю публикации.
+- FIN VS-8: `financial_rule`/`financial_rule_version` — версионный регламент; `financial_obligation` — снимок формы/периода/домов/ответственных/срока и активного выпуска; `financial_publication_version` — неизменяемые title/body/период/область/комплект и пояснение исправления; `financial_publication_approval` — append-only разрешение председателя на снимок; `financial_package_document` — конкретные версии с кодами и признаком раскрытия. Разрешение и активная версия привязаны составными FK к тому же выпуску и обязанности. Новый период — отдельная публикация; исправление сохраняет исходную обязанность, прежняя опубликованная версия получает replaced_at только при выпуске новой.
+- `financial_placement` хранит отдельные доказательства размещения версии по каналам, `financial_issue` — ошибки оснований опубликованного комплекта. Они не подменяются доставкой outbox. Обязанность сохраняет версии финансового регламента и TIM, параметры и первоначальный due_at; отсчёт начинается с локальной полуночи после включительной даты периода в Алматы. Передача ответственных не меняет условия. Только пригодная текущая выпущенная версия с доказательствами всех исходных каналов завершает обязанность; исторические факты не меняют завершённость новой версии. needs_fix активного комплекта однократно открывает ту же обязанность с прежним сроком. Сервисы, API, кабинет и сценарии ботов подключены.
+- `broadcast.financial_version_id` с составным FK `(publication_id,financial_version_id)` сохраняет точную версию финансового уведомления. При наличии версии публикация обязательна. `financialVersionId` проходит в outbox, digest item и notification.event_ref; повторная авторизация проверяет опубликованность этой версии, режим и актуальную собственность в её домах. Каталог бота отбирает опубликованные финансовые снимки с PDP до пагинации и не зависит от текущего черновика publication.
+- FIN не выставляет глобальные флаги публикации документов. Раскрытая версия доступна через опубликованный выпуск только при действующей подтверждённой собственности в его домах; собственная аудитория и PDP источника документа проверяются отдельно. Назначение на задание не расширяет финансовую видимость версий. Служебные основания не входят в публичный DTO; их ошибка представлена общим предупреждением.
+
+- POL VS-8 P01: `audience_history_meta.starts_at` фиксирует начало наблюдений; `audience_connection_event` хранит append-only снимки connection/person/premises/building/mode/active-profile и полуоткрытые сроки действия. FK к удаляемому реестру нет. Триггеры охватывают архив/восстановление, перенос, режим и удаление; штатное каскадное удаление реестра сохраняет историю. Сервер объединяет интервалы всех подходящих связей, сохраняя разрыв при потере последней. Общий транзакционный gate и единая отметка атомарного изменения — ADR-019. Схема опросов и фиксация итогов реализованы в P02/P03.
+
+- POL P02: `poll` хранит черновик/открытые параметры и версию; `poll_answer` имеет PK `(poll_id,person_id)` и версию личного ответа; `poll_answer_log` — закрытая append-only история выбора/исключения. После открытия параметры защищены guard; дата/время записи и право в момент ответа сверяются одной отметкой PostgreSQL. Личный выбор не копируется в audit_log. Результаты и отмена реализованы в P03.
+
+- POL P03: `poll_result` — неизменяемый итог с точным as_of=closes_at, числом и распределением; `poll_result_participant` — закрытый состав для чтения сводки после переезда. Deferred constraint требует завершённого согласованного снимка. История считается слева от конца открытого периода, без пересчёта по позднему реестру. Индивидуальный ответ и состав не входят в публичные результаты, журнал ошибок доставки или followup.
 
 ## 7. Платные услуги
 
@@ -226,12 +245,13 @@ id PK, number UNIQUE, title, state enum cw_state {planned, in_progress, on_revie
 
 ## 8. Опросы, инициативы, модерация
 
-- `poll`: id PK, question text, options jsonb NOT NULL `[согласовано 16.10.2026]` (варианты ответов; при необходимости — отдельная таблица), audience jsonb (дома), state enum poll_state {draft, open, closed, canceled}, closes_at timestamptz, created_by, created_at.
-- `poll_answer`: id PK, poll_id FK, person_id FK, option_key text, answered_at, excluded boolean DEFAULT false, excluded_reason text; UNIQUE (poll_id, person_id) — один ответ на человека (POL-02–03); при потере права — excluded=true, из подсчёта исключён.
-- `initiative`: id PK, author_person_id FK, title, body, audience jsonb (по подтверждённым связям автора), state enum initiative_state {submitted, approved, published, rejected, completed, restricted}, restricted_until, moderator_note, created_at, version int.
-- `initiative_support`: initiative_id FK, person_id FK, created_at, withdrawn_at; UNIQUE (initiative_id, person_id) — отзыв поддержки = withdrawn_at.
-- `initiative_comment`: id PK, initiative_id FK, author_person_id FK, text, hidden_at, hidden_by, hidden_reason — имя автора из профиля, без телефона/номера помещения (IDEA-02).
-- `moderation_action`: id PK, action enum mod_action {hide_comment, restrict_publication}, target_type, target_id, reason text, until_at, by_person_id, created_at — без редактирования чужого текста (MOD-01–02); оспаривание — MOD-03 (председатель) в `audit_log`+status.
+- `poll`: id UUID PK, question text, options jsonb `[{key,label}]`, building_ids uuid[], state text {draft, open, closed, canceled}, closes_at/opened_at/closed_at/canceled_at timestamptz, cancel_reason, is_test, created_by, created_at, version. После открытия параметры неизменяемы; в момент открытия сравнение срока и opened_at используют одну серверную отметку.
+- `poll_answer`: PK (poll_id, person_id), option_key, version, answered_at, excluded_at; один актуальный личный ответ. `poll_answer_log` хранит закрытую append-only историю ответов и исключений, одно исключение на версию. Участие определяется непрерывностью истории аудитории, восстановление связи не возвращает прежний ответ. `poll_result` хранит неизменяемый итог; `poll_result_participant` — закрытый состав. `poll_reconciliation` содержит только poll_id и checked_at для ротации фоновых порций, не меняет версию карточки.
+- `initiative`: id PK, author_person_id FK, title/body/location_text; requested_building_ids и approved_building_ids раздельно. publication_state {submitted,published,rejected}; stage {collecting,assessing,planned,implementing,completed,rejected,deferred}, до публикации NULL. План хранит основание/ответственного/срок, обязательность решения и конкретную проверенную версию со снимком. support_closed_at/final_support_count фиксируются при конечном этапе completed/rejected; completed_at — только при реализации. initiative_log append-only хранит переходы и причины.
+- `initiative_support`: PK (initiative_id,person_id), version, supported_at, withdrawn_at, excluded_at. Закрытая initiative_support_log фиксирует поддержку/отзыв/исключение. Число поддержки до конца следует непрерывной истории аудитории, после конечного этапа — сохранённому итогу; восстановление связи не возвращает прежнюю поддержку.
+- `initiative_comment`: id PK, initiative_id FK, author_person_id FK, body, is_test, created_at. Оригинал append-only. Скрытие вычисляется по действующим moderation_action до пагинации; автор и уполномоченный разбор сохраняют доступ к оригиналу. DTO содержит имя без телефона/номера помещения (IDEA-02).
+- `moderation_action`: id PK, initiative_id FK, kind {hide_comment,restrict_author}, target_person_id/target_comment_id, reason, original_until_at, until_at, revoked_at, created_by/created_at, is_test, version. Исходные поля неизменяемы. Ограничение действует только при until_at > текущего серверного времени; jobs не определяет момент истечения.
+- `moderation_appeal`: action_id, appellant_person_id, reason, status {open,resolved}, version, created_at/resolved_at; unique partial index допускает одну открытую жалобу на действие. `moderation_decision` — append-only решение председателя {uphold,shorten,revoke}, причина, before_version/after_version, конечный срок и автор. Отложенные ограничения связывают изменение действия и закрытие жалобы с решением в одной транзакции (MOD-03).
 
 ## 9. Регламенты времени (TIM)
 
@@ -401,7 +421,7 @@ id PK, number UNIQUE, title, state enum cw_state {planned, in_progress, on_revie
 
 `common_work.plan` и `due_at` фиксируют план и срок, `common_work_log.meta` —
 прежнюю дату завершения при возврате и незавершённые локальные задания заявителей.
-`task.document_required` обозначает обязательность акта; до VS-8 приёмка блокируется.
+`task.document_required` обозначает обязательность акта; VS-8 заменяет прежний безусловный запрет проверкой настроенного обязательства и актуальной одобренной версии акта.
 Версия шаблона копируется в task вместе с инструкцией/чек-листом, job_template_version
 неизменяема. Явное обновление методички сохраняет прежний снимок в task_log.
 
@@ -419,3 +439,18 @@ replacement_task_id, переносит неначатые зависимост�
 ### Реализация расписаний VS-5
 
 `job_schedule` хранит одну текущую версионируемую настройку на шаблон. `job_queue` хранит неизменный снимок параметров запуска, устойчивый ключ, попытки и безопасный код ошибки. `job_run` связывает дату/версию расписания, версию шаблона, очередь и созданное задание; `missed_at` сохраняет пропуск. Все три таблицы закрыты RLS от прямого клиентского доступа. `task` дополнен `acceptance_version`, `acceptance_due_at`, `overdue_at`, `next_action_notified_at`; `notification.task_id` позволяет повторно проверить область перед доставкой. Личное сообщение о снятии назначения содержит только прежний факт и номер, без ссылки/текущих сведений задания.
+
+
+### История отчётности REP-06 / KPI-01 (VS-8)
+
+report_request_event — приватный append-only факт перехода из request_log
+либо первого содержательного ответа по message_id. Старые переходы
+переносятся с существующим временем; неполная цепочка обозначается unknown.
+report_timer_event сохраняет params конкретной версии и смены состояния
+таймера; baseline не означает известное историческое начало.
+report_history_meta задаёт начало полной наблюдаемости новых ответов.
+report_launch — append-only даты общего запуска; report_kpi_achievement —
+неизменяемый датированный факт цели по версии запуска. Сводки/экспорт
+не получают исходные связи, сообщения и записи закрытой истории.
+
+REP-05: report_export_job хранит immutable intent (kind, filters, scope_snapshot, permission_snapshot, as_of, effective/real profile/person, emulation_session_id, is_test), state pending/running/ready/failed, attempts≤3 и lease. Готовый private path/размер/число строк и внутренние object_ids используются для повторной PDP; клиентам поля не выдаются. Финальные записи неизменяемы, таблица закрыта RLS. SQL-миграции репозитория должны предшествовать новой API/jobs-функции.

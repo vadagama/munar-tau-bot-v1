@@ -15,10 +15,11 @@ export async function queueBroadcast(
     isTest: boolean;
     incidentId?: string;
     publicationId?: string;
+    financialVersionId?: string;
   },
 ) {
   await exec.query(
-    "insert into broadcast(dedup_key,event_type,text,scope,is_test,incident_id,publication_id) values($1,$2,$3::text::jsonb,$4::text::jsonb,$5,$6,$7) on conflict(dedup_key) do nothing",
+    "insert into broadcast(dedup_key,event_type,text,scope,is_test,incident_id,publication_id,financial_version_id) values($1,$2,$3::text::jsonb,$4::text::jsonb,$5,$6,$7,$8) on conflict(dedup_key) do nothing",
     [
       input.key,
       input.type,
@@ -27,6 +28,7 @@ export async function queueBroadcast(
       input.isTest,
       input.incidentId ?? null,
       input.publicationId ?? null,
+      input.financialVersionId ?? null,
     ],
   );
 }
@@ -47,6 +49,7 @@ export async function fanoutBroadcasts(
           cursor_person_id: string | null;
           incident_id: string | null;
           publication_id: string | null;
+          financial_version_id: string | null;
         }
       >("select * from broadcast where completed_at is null order by created_at for update skip locked limit 1");
       if (!row) return 0;
@@ -54,9 +57,12 @@ export async function fanoutBroadcasts(
       const people = await exec.query<{ id: string }>(
         `select distinct c.person_id as id from connection c join premises p on p.id=c.premises_id join person n on n.id=c.person_id
    where c.status='active' and n.status='active' and n.is_test=$1 and p.is_test=$1 and ($2::uuid is null or c.person_id>$2::uuid)
+   and (not exists(select 1 from publication f where f.id=$4 and f.kind='financial_report') or
+     (c.role='owner' and (c.start_date is null or c.start_date<=(now() at time zone 'Asia/Almaty')::date)
+      and (c.end_date is null or c.end_date>=(now() at time zone 'Asia/Almaty')::date)))
    and exists(select 1 from jsonb_array_elements($3::text::jsonb) s where p.building_id=(s->>'building_id')::uuid and
    (jsonb_array_length(s->'premises_ids')=0 or s->'premises_ids' ? p.id::text)) order by c.person_id limit 50`,
-        [row.is_test, row.cursor_person_id, JSON.stringify(scope)],
+        [row.is_test, row.cursor_person_id, JSON.stringify(scope), row.publication_id],
       );
       for (const person of people) {
         if (Date.now() >= deadline) break;
@@ -72,6 +78,7 @@ export async function fanoutBroadcasts(
           isTest: row.is_test,
           incidentId: row.incident_id ?? undefined,
           publicationId: row.publication_id ?? undefined,
+          financialVersionId: row.financial_version_id ?? undefined,
         });
         await exec.query(
           "update broadcast set cursor_person_id=$2 where id=$1",

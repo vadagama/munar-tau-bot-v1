@@ -1,4 +1,12 @@
+import { reportTemplates } from "./reports.ts";
+import { initiativeTemplates,initiativeDialogTemplates } from "./initiatives.ts";
+import { pollTemplates, pollDialogTemplates } from "./polls.ts";
 import { botUiTemplates } from "./bot-ui.ts";
+import { documentTemplates } from "./documents.ts";
+import { financialTemplates } from "./financial.ts";
+import { financialPublicationTemplates } from "./financial-publications.ts";
+import { financialDialogTemplates } from "./financial-dialogs.ts";
+import { documentDialogTemplates } from "./document-dialogs.ts";
 import { staffRequestTemplates } from "./staff-requests.ts";
 import { staffTemplates } from "./staff.ts";
 import { requestsMessageTemplates } from "./messages-requests.ts";
@@ -18,6 +26,11 @@ import { registrationTemplates } from "./registration.ts";
 import { errors } from "./errors.ts";
 import type { TemplateDef } from "./types.ts";
 const legacyCatalog: readonly TemplateDef[] = [
+  ...documentTemplates,
+  ...financialTemplates,
+  ...financialPublicationTemplates,
+  ...pollTemplates,
+  ...initiativeTemplates,
   ...staffTemplates,
   ...errors,
   ...commonTemplates,
@@ -42,6 +55,11 @@ const legacyCatalog: readonly TemplateDef[] = [
   },
 ];
 const messages = [
+  ...reportTemplates,
+  ...initiativeDialogTemplates,
+  ...pollDialogTemplates,
+  ...financialDialogTemplates,
+  ...documentDialogTemplates,
   ...staffRequestTemplates,
   ...botUiTemplates,
   ...requestsMessageTemplates,

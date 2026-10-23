@@ -8,6 +8,7 @@ import { taskAssigneeOptions } from "./task-assignees";
 import { REQUEST_ACTION_ICONS } from "./request-action-icons";
 import { TASK_STATE_TEXT } from "../../../core/src/locales/tasks";
 import { DetailSection } from "../components/detail-section";
+import { DocumentObligationSummary } from "./document-obligation-summary";
 import { PageLayout } from "../components/page-layout";
 import { requestOverdue, requestOverdueDetails } from "./request-overdue";
 import { formatDateTime } from "../lib/format-date";
@@ -842,6 +843,7 @@ export function RequestsPage() {
                 </List.Item>} />
             </DetailSection>}
 
+            {staff && <DetailSection title="Комплект документов"><DocumentObligationSummary kind="request" id={String(card.id)} /></DetailSection>}
             <DetailSection title="Переписка">
               <Tabs
                 activeKey={channel}

@@ -16,24 +16,27 @@ export interface RequestRow extends Row {
   complaint_subject_person_id: string | null;
   confirmation_version: number;
 }
+export interface RequestLinks { participant: boolean; active_author: boolean }
+/** Одни условия для карточки и пакетной проверки списка. Аргументы — SQL-выражения сервера. */
+export function requestLinkColumns(id = "$1", person = "$2", premises = "$3", author = "$4") {
+  return `exists(select 1 from request_participant p join connection c on c.person_id=p.person_id and c.premises_id=${premises} and c.status='active'
+ where p.request_id=${id} and p.person_id=${person} and p.role='participant' and p.revoked_at is null) as participant,
+ case when ${premises}::uuid is null then
+   exists(select 1 from profile pr join person n on n.id=pr.person_id where pr.person_id=${author} and pr.archived_at is null and n.status='active')
+ else
+   exists(select 1 from connection c where c.person_id=${author} and c.status='active' and c.premises_id=${premises})
+ end as active_author`;
+}
 export async function requestAccess(
   exec: DbExecutor,
   actor: Actor,
   row: RequestRow,
+  knownLinks?: RequestLinks,
 ) {
-  const [links] = await exec.query<
-    { participant: boolean; active_author: boolean }
-  >(
-    `select
- exists(select 1 from request_participant p join connection c on c.person_id=p.person_id and c.premises_id=$3 and c.status='active'
- where p.request_id=$1 and p.person_id=$2 and p.role='participant' and p.revoked_at is null) as participant,
- case when $3::uuid is null then
-   exists(select 1 from profile pr join person n on n.id=pr.person_id where pr.person_id=$4 and pr.archived_at is null and n.status='active')
- else
-   exists(select 1 from connection c where c.person_id=$4 and c.status='active' and c.premises_id=$3)
- end as active_author`,
+  const links = knownLinks ?? (await exec.query<RequestLinks>(
+    `select ${requestLinkColumns()}`,
     [row.id, actor.person.id, row.premises_id, row.author_person_id],
-  );
+  ))[0];
   return {
     chairmanOnly: row.complaint_route === "chairman",
     authorId: row.author_person_id,

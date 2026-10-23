@@ -1,9 +1,10 @@
+import { recordReportResponse } from "../reports/history.ts";
 import { templateNotice } from "../../templates/notice.ts";
 import type { NoticeText } from "../../templates/notice.ts";
 import { fmtDate } from "../../bot/text.ts";
 import { startConfirmationTimers } from "./timers.ts";
 import { cancelParentTasks } from "../tasks/cancellation.ts";
-import { lockRequestWorks, taskResultSnapshot } from "../tasks/results.ts";
+import { lockRequestWorks, requestResultSnapshot } from "../tasks/results.ts";
 import { requestStateLoc } from "../../locales/requests.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { ApiError } from "../../errors/api.ts";
@@ -761,22 +762,21 @@ export async function transitionRequestInTransaction(
       }
       const needsWork = row.kind === "request" ||
         row.work_execution_required === true;
-      const workSnapshot = needsWork &&
-          ["submit_result", "confirm_result", "admin_close"].includes(action)
-        ? await taskResultSnapshot(exec, id)
-        : { task_report_ids: [], task_results: [] };
-      if (needsWork && ["confirm_result", "admin_close"].includes(action)) {
+      const workSnapshot = ["submit_result", "confirm_result", "admin_close"].includes(action)
+        ? await requestResultSnapshot(exec, id, needsWork)
+        : { task_report_ids: [], task_results: [], document_versions: [] };
+      if (["confirm_result", "admin_close"].includes(action)) {
         const [active] = await exec.query(
           "select payload from request_confirmation where request_id=$1 and version=$2 and superseded_at is null",
           [id, row.confirmation_version],
         );
-        const saved = active
-          ? jsonValue<Row>(active.payload).task_report_ids
-          : undefined;
+        const savedPayload = active ? jsonValue<Row>(active.payload) : undefined;
+        const saved = savedPayload?.task_report_ids;
         if (
           !Array.isArray(saved) ||
           JSON.stringify([...saved].sort()) !==
-            JSON.stringify([...workSnapshot.task_report_ids].sort())
+            JSON.stringify([...workSnapshot.task_report_ids].sort()) ||
+          canonical(savedPayload?.document_versions ?? []) !== canonical(workSnapshot.document_versions)
         ) {
           throw new ApiError(
             "CONCURRENT_MODIFICATION",
@@ -790,7 +790,7 @@ export async function transitionRequestInTransaction(
         content(payload?.summary, "итоговый ответ жителю");
         if (
           (payload?.document_version_ids as unknown[] | undefined)?.length
-        ) invalid("Контур обязательных документов ещё не подключён");
+        ) invalid("Состав комплекта документов формируется сервером");
         if (
           payload?.task_report_ids !== undefined &&
           (!Array.isArray(payload.task_report_ids) ||
@@ -981,10 +981,12 @@ export async function transitionRequestInTransaction(
           invalid("Недоступное сообщение ответа");
         }
         if (!previous.length) {
+          const messageId=crypto.randomUUID();
           await exec.query(
-            "insert into message(request_id,channel,author_person_id,text,source) values ($1,'resident',$2,$3,$4)",
-            [id, actor.person.id, text, p.source ?? "web"],
+            "insert into message(id,request_id,channel,author_person_id,text,source) values ($1,$2,'resident',$3,$4,$5)",
+            [messageId,id,actor.person.id,text,p.source??"web"],
           );
+          if(action!=="answer_clarification")await recordReportResponse(exec,id,messageId);
         }
         if (action !== "answer_clarification") {
           await exec.query(

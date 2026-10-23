@@ -83,6 +83,10 @@ export async function sendNotifications(
             scope: ref.scope,
             incidentId: ref.incidentId,
             publicationId: ref.publicationId,
+            documentId: ref.documentId,
+            financialObligationId: ref.financialObligationId,
+            financialVersionId: ref.financialVersionId,
+            pollId:ref.pollId,pollEvent:ref.pollEvent,moderationActionId:ref.moderationActionId,initiativeId:ref.initiativeId,initiativeReview:ref.initiativeReview,
           }) ||
           await preference(
               deps.db,

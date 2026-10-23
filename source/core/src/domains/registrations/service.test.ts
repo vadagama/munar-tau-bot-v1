@@ -44,6 +44,7 @@ function harness(registration: Row, options: HarnessOptions = {}) {
   const writeParams: unknown[][] = [];
   const exec: DbExecutor = {
     query: <T>(query: string, params?: readonly unknown[]) => {
+      if (query === "select public.audience_clock()") return Promise.resolve([] as T[]);
       if (query.startsWith("select * from registration"))
         return Promise.resolve([
           {
@@ -401,6 +402,7 @@ function submitHarness(options: { reviewers?: string[]; existingRegistration?: b
   const writeParams: unknown[][] = [];
   const exec: DbExecutor = {
     query: <T>(query: string, params?: readonly unknown[]) => {
+      if (query === "select public.audience_clock()") return Promise.resolve([] as T[]);
       if (query.startsWith("select r.* from registration r where r.telegram_user_id="))
         return Promise.resolve((options.withdrawnRegistration ? [options.withdrawnRegistration] : []) as T[]);
       if (query.startsWith("update registration set draft=") && options.withdrawnRegistration) {
@@ -513,6 +515,7 @@ function sweepHarness(options: { deputies?: string[] } = {}) {
   const auditInputs: AuditEntryInput[] = [];
   const exec: DbExecutor = {
     query: <T>(query: string, params?: readonly unknown[]) => {
+      if (query === "select public.audience_clock()") return Promise.resolve([] as T[]);
       if (query.startsWith("select t.*,v.params,r.key as rule_key from timer"))
         return Promise.resolve([
           {

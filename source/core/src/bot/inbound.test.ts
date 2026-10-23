@@ -17,8 +17,9 @@ interface Capture {
   sql: string;
 }
 
-function harness(opts: { profile?: boolean; failUsernameSync?: boolean } = {}) {
-  const delivered = new Set<string>();
+function harness(opts: { profile?: boolean; failUsernameSync?: boolean; failedUpdate?: number } = {}) {
+  const delivered = new Set<string>(opts.failedUpdate===undefined?[]:[`resident:${opts.failedUpdate}`]);
+  let retried=false;
   const notifications: Capture[] = [];
   const dialogSaves: Capture[] = [];
   const usernameSyncs: Capture[] = [];
@@ -27,7 +28,10 @@ function harness(opts: { profile?: boolean; failUsernameSync?: boolean } = {}) {
     query: <T>(sql: string, params?: unknown[]): Promise<T[]> => {
       if (sql.startsWith("insert into bot_inbound")) {
         const key = `${params![0]}:${params![1]}`;
-        if (delivered.has(key)) return Promise.resolve([] as T[]);
+        if (delivered.has(key)) {
+          if(!retried&&opts.failedUpdate===params![1]&&sql.includes("where bot_inbound.status='error'")){retried=true;return Promise.resolve([{update_id:params![1]}] as T[]);}
+          return Promise.resolve([] as T[]);
+        }
         delivered.add(key);
         return Promise.resolve([{ update_id: params![1] }] as T[]);
       }
@@ -436,4 +440,8 @@ it("устаревшая house-link не сбрасывает другой ди�
  expect(h.notifications[0]?.params?.[1]).toContain("уже неактивен");
  expect(h.dialogSaves).toHaveLength(0);
  expect(h.dialogState.description).toBe("Мой черновик");
+});
+
+it("диагностическая error-запись повторяется один раз, processed остаётся дубликатом",async()=>{
+ const h=harness({failedUpdate:700});expect(await processInbound(h.deps,helpUpdate(700))).toBe(true);expect(h.notifications).toHaveLength(1);expect(await processInbound(h.deps,helpUpdate(700))).toBe(false);expect(h.notifications).toHaveLength(1);
 });

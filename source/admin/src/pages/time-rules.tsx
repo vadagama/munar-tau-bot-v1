@@ -39,6 +39,10 @@ interface Rule {
   };
 }
 const names: Record<string, string> = {
+  financial_monthly_publication: "Размещение месячного финансового отчёта",
+  financial_annual_publication: "Размещение годового финансового отчёта",
+  document_prepare: "Подготовка обязательного документа до приёмки",
+  document_after_acceptance: "Документальное обязательство после приёмки",
   task_accept: "Ожидание принятия задания",
   task_escalation: "Повторная эскалация назначения",
   work_schedule: "Рабочий график",

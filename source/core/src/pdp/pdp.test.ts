@@ -56,7 +56,7 @@ function withRole(role: ActorAssignment["role"], scopeBuildingIds: string[] | un
 }
 
 describe("реестр действий", () => {
-  it("все действия VS-1–VS-7 зарегистрированы", () => {
+  it("все действия VS-1–VS-8 зарегистрированы", () => {
     expect(Object.keys(ACTIONS).sort()).toEqual([
       "admin.assignment.create",
       "admin.assignment.list",
@@ -65,6 +65,12 @@ describe("реестр действий", () => {
       "admin.session.list",
       "admin.session.revoke",
       "audit.read",
+      "document.manage",
+      "document.obligations",
+      "document.prepare",
+      "document.read",
+      "document.review",
+      "document.use",
       "emulation.person.create",
       "emulation.person.list",
       "emulation.person.role.revoke",
@@ -72,10 +78,13 @@ describe("реестр действий", () => {
       "emulation.session.start",
       "emulation.simulate",
       "incident.link", "incident.manage", "incident.read", "incident.use",
+      "initiative.attach", "initiative.comment", "initiative.create", "initiative.manage", "initiative.moderate", "initiative.read", "initiative.support", "initiative.use",
       "meta.dictionary",
       "meta.me",
+      "moderation.appeal", "moderation.read", "moderation.resolve",
       "notification.failures",
       "notification.preferences",
+      "poll.answer", "poll.manage", "poll.read", "poll.results", "poll.use",
       "privacy.request",
       "publication.approve", "publication.manage", "publication.read",
       "registration.manage",
@@ -87,6 +96,7 @@ describe("реестр действий", () => {
       "registry.rules.read",
       "registry.telegram.recovery",
       "registry.write",
+      "report.configure", "report.export", "report.incidents", "report.payments", "report.requests", "report.tasks",
       "request.author", "request.category.edit", "request.comment", "request.internal", "request.manage", "request.read", "request.use",
       "settings.templates.edit",
       "settings.templates.read",

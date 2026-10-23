@@ -167,7 +167,7 @@ it("редактирование публикации использует ту 
 
 
 it("согласованный финансовый отчёт предлагает публикацию вместо повторного согласования", async () => {
- const card={id:"p",title:"Отчёт за месяц",body:"Доходы и расходы",kind:"financial_report",state:"draft",approved_by:"chairman",files:[],history:[]};
+ const card={id:"p",title:"Отчёт за месяц",body:"Доходы и расходы",kind:"financial_report",state:"draft",approved_by:"chairman",files:[],history:[],can_manage:true,can_approve:false,financial_versions:[]};
  vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/publications" ? {items:[card]} : card);
  render(<PublicationsPage/>);
  fireEvent.click(await screen.findByText("Открыть"));

@@ -37,3 +37,7 @@ it("ключи уникальны, дефолты валидны, перемен
     }
   }
 });
+
+it("активные диалоги VS-8 доступны редактору каталога",()=>{
+ for(const key of ["reports.mywork","reports.plans","polls.controls","initiatives.controls"]){expect(getTemplate(key),key).toBeDefined();expect(getTemplate(key)?.deprecated,key).not.toBe(true);}
+});

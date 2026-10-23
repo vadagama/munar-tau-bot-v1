@@ -1,3 +1,4 @@
+import { lockAudience } from "./audience-lock.ts";
 import { jsonValue } from "./validation.ts";
 import { ApiError } from "../../errors/api.ts";
 import type { Actor } from "../../pdp/types.ts";
@@ -301,6 +302,7 @@ export async function commitImport(
 ): Promise<Row> {
   registryScope(actor);
   return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     const [batch] = await exec.query<Row>(
       "select * from import_batch where id=$1 for update",
       [id],

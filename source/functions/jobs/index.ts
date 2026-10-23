@@ -1,4 +1,11 @@
+import { processReportExports } from "../../core/src/domains/reports/jobs.ts";
+import { captureReportKpi } from "../../core/src/domains/reports/history.ts";
+import { reconcileInitiativeSupport } from "../../core/src/domains/initiatives/reconcile.ts";
+import { reconcileOpenPolls } from "../../core/src/domains/polls/reconcile.ts";
+import { closeDuePolls } from "../../core/src/domains/polls/jobs.ts";
 import { publishScheduled } from "../../core/src/domains/publications/jobs.ts";
+import { sweepDocumentObligations } from "../../core/src/domains/documents/jobs.ts";
+import { reopenFinancialObligations, sweepFinancialObligations } from "../../core/src/domains/publications/financial-jobs.ts";
 import { sweepEmergencies } from "../../core/src/domains/incidents/jobs.ts";
 import { fanoutBroadcasts } from "../../core/src/domains/incidents/broadcast.ts";
 import {
@@ -162,6 +169,15 @@ export async function handle(
             : 0;
         const processed = files +
           (await sweepEmergencies(actual,new Date(),backgroundDeadline)) +
+          (await closeDuePolls(actual,backgroundDeadline)) +
+          (await reconcileOpenPolls(actual,backgroundDeadline)) +
+          (await reconcileInitiativeSupport(actual,backgroundDeadline)) +
+          (await captureReportKpi(actual.db,backgroundDeadline)) +
+          (!deps && env("SUPABASE_URL") && env("SUPABASE_SERVICE_ROLE_KEY")
+            ? await processReportExports(actual,new SupabaseFileStorage(requireEnv(env,"SUPABASE_URL"),requireEnv(env,"SUPABASE_SERVICE_ROLE_KEY")),backgroundDeadline) : 0) +
+          (await sweepDocumentObligations(actual,backgroundDeadline)) +
+          (await reopenFinancialObligations(actual,backgroundDeadline)) +
+          (await sweepFinancialObligations(actual,backgroundDeadline)) +
           (await publishScheduled(actual,backgroundDeadline)) +
           (await sweepRegistrations(actual, new Date(), backgroundDeadline)) +
           (await processImportBatches(actual, backgroundDeadline)) +

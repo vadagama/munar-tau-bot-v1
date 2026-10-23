@@ -91,3 +91,13 @@ it("блокирует дату и все шаблоны вместе с фор�
     expect((button as HTMLButtonElement).disabled).toBe(true);
   }
 });
+
+ it("задаёт быстрый срок в указанном часовом поясе",()=>{
+  vi.useFakeTimers({toFake:["Date"]});
+  vi.setSystemTime(new Date("2026-10-23T10:00:00Z"));
+  const change=vi.fn();
+  render(<DeadlineDatePicker timeZone="Asia/Almaty" onChange={change}/>);
+  fireEvent.click(screen.getByRole("button",{name:"час"}));
+  expect(change.mock.calls[0]![0].format("YYYY-MM-DDTHH:mm")).toBe("2026-10-23T16:00");
+  expect(change.mock.calls[0]![0].toISOString()).toBe("2026-10-23T11:00:00.000Z");
+});
