@@ -1,3 +1,4 @@
+import { reconcileOpenPolls } from "../../core/src/domains/polls/reconcile.ts";
 import { closeDuePolls } from "../../core/src/domains/polls/jobs.ts";
 import { publishScheduled } from "../../core/src/domains/publications/jobs.ts";
 import { sweepDocumentObligations } from "../../core/src/domains/documents/jobs.ts";
@@ -166,6 +167,7 @@ export async function handle(
         const processed = files +
           (await sweepEmergencies(actual,new Date(),backgroundDeadline)) +
           (await closeDuePolls(actual,backgroundDeadline)) +
+          (await reconcileOpenPolls(actual,backgroundDeadline)) +
           (await sweepDocumentObligations(actual,backgroundDeadline)) +
           (await reopenFinancialObligations(actual,backgroundDeadline)) +
           (await sweepFinancialObligations(actual,backgroundDeadline)) +

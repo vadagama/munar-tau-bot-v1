@@ -11,10 +11,13 @@ export const t=Date.parse("2026-10-23T10:00:00Z")*1000;
 export const body={question:"Когда?",options:[{key:"private_sat",label:"Суббота"},{key:"private_sun",label:"Воскресенье"}],building_ids:[B1],closes_at:"2026-11-01T10:00:00Z",reason:"Согласуем день"};
 type R=Record<string,unknown>;
 export function harness(member=true) {
-  const s:{now:number;poll:R|null;answer:R|null;events:R[];logs:R[];audit:AuditEntryInput[];keys:Map<string,R>;result:R|null;participants:string[];notices:R[];resultReads:number;cancelGuardError:boolean}={now:t,poll:null,answer:null,events:member?[{id:"1",connection_id:"link",person_id:personId,building_id:B1,is_test:false,enabled:true,effective_at:String(t-1000000),valid_from:null,valid_until:null}]:[],logs:[],audit:[],keys:new Map(),result:null,participants:[],notices:[],resultReads:0,cancelGuardError:false};
+  const s:{now:number;poll:R|null;answer:R|null;events:R[];logs:R[];audit:AuditEntryInput[];keys:Map<string,R>;result:R|null;participants:string[];notices:R[];resultReads:number;cancelGuardError:boolean;openStatementExpired:boolean}={now:t,poll:null,answer:null,events:member?[{id:"1",connection_id:"link",person_id:personId,building_id:B1,is_test:false,enabled:true,effective_at:String(t-1000000),valid_from:null,valid_until:null}]:[],logs:[],audit:[],keys:new Map(),result:null,participants:[],notices:[],resultReads:0,cancelGuardError:false,openStatementExpired:false};
   const exec:DbExecutor={async query<T>(sql:string,params:readonly unknown[]=[]):Promise<T[]> {
     let rows:unknown[]=[];
     if(sql.startsWith("select public.audience_clock") || sql.startsWith("select pg_advisory"))rows=[];
+    else if(sql.startsWith("with opening")){
+      if(!s.openStatementExpired){s.poll={...s.poll,state:"open",version:Number(s.poll!.version)+1};rows=[{...s.poll}];}
+    }
     else if(sql.startsWith("with clock"))rows=[{at:new Date(s.now/1000),us:String(s.now)}];
     else if(sql.includes("from audience_history_meta"))rows=[{starts_at:String(t-2000000),starts_us:String(t-2000000)}];
     else if(sql.includes("from audience_connection_event e"))rows=s.events;
@@ -32,6 +35,8 @@ export function harness(member=true) {
     else if(sql.startsWith("insert into outbox(event_type,payload,dedup_key)")){
       for(const notice of JSON.parse(String(params[0])) as R[])if(!s.notices.some(n=>n.key===notice.key))s.notices.push(notice);
     }
+    else if(sql.startsWith("select p.id from poll p"))rows=s.poll?.state==="open" && s.now<Number(s.poll.closes_us)?[{id:pollId}]:[];
+    else if(sql.startsWith("insert into poll_reconciliation"))rows=[];
     else if(sql.startsWith("select p.*"))rows=s.poll?[{...s.poll}]:[];
     else if(sql.startsWith("insert into poll(")){
       s.poll={id:pollId,question:params[0],options:JSON.parse(String(params[1])),building_ids:params[2],closes_at:params[3],closes_us:String(Date.parse(String(params[3]))*1000),is_test:false,state:"draft",version:1,cancel_reason:null};rows=[{...s.poll}];

@@ -44,8 +44,10 @@ export async function openPoll(deps:RegistryDeps,actor:Actor,id:string,input:Row
       const [meta]=await exec.query<{starts_us:string}>("select (extract(epoch from starts_at)*1000000)::bigint as starts_us from audience_history_meta where singleton");
       if(!meta || clock.us<Number(meta.starts_us))throw new ApiError("INVALID_TRANSITION");
       if((await exec.query("select id from building where id=any($1::uuid[])",[row.building_ids])).length!==row.building_ids.length)invalid("Область опроса изменилась; исправьте черновик");
-      const [updated]=await exec.query<PollRow>("update poll set state='open',opened_at=clock_timestamp(),version=version+1 where id=$1 returning *",[id]);
-      if(!updated)throw new Error("Опрос не открыт");
+      const [updated]=await exec.query<PollRow>(`with opening as materialized(select clock_timestamp() as at)
+        update poll set state='open',opened_at=opening.at,version=poll.version+1 from opening
+        where poll.id=$1 and poll.closes_at>opening.at returning poll.*`,[id]);
+      if(!updated)throw new ApiError("INVALID_TRANSITION");
       updated.options=row.options;
       await recordAudit(deps,exec,actor,"poll.open","poll",id,row.building_ids,{version:row.version},{version:updated.version,state:"open"},reason);
       return pollCard(updated);

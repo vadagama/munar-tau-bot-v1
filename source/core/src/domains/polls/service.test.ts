@@ -37,3 +37,9 @@ it("управляющий без действующей связи не гол�
   await expect(answerPoll(h.deps,actor,pollId,{option_key:"private_sat",expected_version:0},"vote")).rejects.toMatchObject({code:"NOT_FOUND"});
   const card=await getPoll(h.deps,actor,pollId);expect(card.can_manage).toBe(true);expect(card.can_answer).toBe(false);expect(card.own_answer).toBeNull();
 });
+
+it("срок, пересечённый перед самой записью открытия, даёт доменный отказ без публикации",async()=>{
+  const h=harness();await savePoll(h.deps,actor,null,body,"create");h.s.openStatementExpired=true;
+  await expect(openPoll(h.deps,actor,pollId,{expected_version:1,reason:"Открываем"},"open")).rejects.toMatchObject({code:"INVALID_TRANSITION"});
+  expect(h.s.poll!.state).toBe("draft");expect(h.s.audit.map(a=>a.action)).not.toContain("poll.open");
+});
