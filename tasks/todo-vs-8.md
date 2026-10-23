@@ -285,12 +285,12 @@
 
 ## I01. Хранить инициативу с двумя состояниями
 
-- [ ] **I01 выполнена**
+- [x] **I01 выполнена**
 - Критерий: Запрошенная/утверждённая аудитории разделены; публикация и этап IDEA-03 не смешаны с ограничением автора.
 - Критерий: Планирование требует основания, ответственного, срока и проверенного решения при необходимости; отказ/отложение имеют причину.
 - Проверка: npm test -w core -- src/domains/initiatives
 - Зависимости: P07. Объём: M (5 основных файлов).
-- Файлы: `source/db/migrations/20261023100000_vs8_initiatives.sql`, `source/core/src/domains/initiatives/service.ts`, `source/core/src/domains/initiatives/fsm.ts`, `source/core/src/domains/initiatives/fsm.test.ts`, `source/core/src/domains/initiatives/service.test.ts`.
+- Файлы: `source/db/migrations/20261023105000_vs8_initiatives.sql`, `source/core/src/domains/initiatives/service.ts`, `source/core/src/domains/initiatives/fsm.ts`, `source/core/src/domains/initiatives/fsm.test.ts`, `source/core/src/domains/initiatives/service.test.ts`.
 
 ## I02. Защитить доступ и поддержку
 
