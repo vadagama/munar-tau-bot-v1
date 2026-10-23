@@ -7,6 +7,7 @@ import type { TemplateStore } from "../templates/store.ts";
 export function withSimulatorMenu(reply: BotReply, scenario: string, lang: Lang, templates: TemplateStore): BotReply {
   const scenarios: Record<string, string> = {
     "/polls": "polls",
+    "/mywork":"reports", "/plans":"reports",
     "/initiatives":"initiatives",
     "/documents": "documents",
     "/newrequest": "requests", "/requests": "requests", "/objects": "registration",

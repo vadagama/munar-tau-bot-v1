@@ -1,3 +1,4 @@
+import { REPORT_COMMANDS,reportStep } from "./reports.ts";
 import { queueInitiativePhoto } from "./initiative-files.ts";
 import { INITIATIVE_COMMANDS,initiativeStep } from "./initiatives.ts";
 import { lockAudience } from "../domains/registry/audience-lock.ts";
@@ -47,6 +48,7 @@ async function routeStep(
   updateId: unknown,
 ): Promise<BotReply> {
   if (message.photo || message.document || message.video) {
+    if (state.scenario === "reports") return reportStep(deps,telegramId,deps.bot==="worker"?"/mywork":"/plans");
     if (state.scenario === "initiatives") return queueInitiativePhoto(deps,telegramId,message,updateId);
     if (state.scenario === "polls") return pollStep(deps, telegramId, "");
     if (state.scenario === "documents") return queueDocumentFile(deps, telegramId, message);
@@ -62,6 +64,7 @@ async function routeStep(
   const startPayload = command === "/start"
     ? text.trim().split(/\s+/)[1]
     : undefined;
+  if (REPORT_COMMANDS.includes(command)) return reportStep(deps,telegramId,text);
   if (startPayload?.startsWith("idea_")||startPayload?.startsWith("mod_")) return initiativeStep(deps,telegramId,text);
   if (INITIATIVE_COMMANDS.includes(command)||(state.scenario==="initiatives"&&!isCommand)) return initiativeStep(deps,telegramId,text);
   if (startPayload?.startsWith("poll_")) return pollStep(deps, telegramId, `/poll ${startPayload.slice(5)}`);

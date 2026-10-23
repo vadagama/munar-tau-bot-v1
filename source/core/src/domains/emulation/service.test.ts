@@ -321,6 +321,14 @@ describe("simulate (LLD-03 §3.16, критерий среза)", () => {
     expect(await simulate({...deps,scenarios:registry},actor,{scenarioId:'tasks',text:'/notifications'})).toMatchObject({scenarioId:'notifications',bot:'worker',reply:'worker'});
     expect(await simulate({...deps,scenarios:registry},actor,{scenarioId:'notifications',bot:'worker',text:'/notifications publication'})).toMatchObject({bot:'worker',reply:'worker'});
   });
+  it("REP: команды маршрутизируются в общую сводку с сохранением канала",async()=>{
+    registry.register({id:"tasks",description:"WRK",run:async()=>"tasks"});
+    registry.register({id:"reports",description:"REP",run:async(_input,ctx)=>String(ctx.bot)});
+    registry.register({id:"registration",description:"REG",run:async()=>"resident"});
+    const {actor}=await emulatedPersonaActor();
+    expect(await simulate({...deps,scenarios:registry},actor,{scenarioId:"tasks",text:"/mywork"})).toMatchObject({scenarioId:"reports",bot:"worker",reply:"worker"});
+    expect(await simulate({...deps,scenarios:registry},actor,{scenarioId:"registration",text:"/plans"})).toMatchObject({scenarioId:"reports",reply:"resident"});
+  });
   it("сохраняет кнопки общего сценария вместе с текстом", async () => {
     const buttons = [[{ text: "Русский", data: "ru" }]];
     registry.register({ id: "keyboard", description: "Кнопки", run: async () => ({ text: "Язык", buttons }) });

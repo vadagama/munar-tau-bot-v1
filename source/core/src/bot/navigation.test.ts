@@ -11,7 +11,7 @@ it.each(["/start", "Старт"])("главное меню жителя откр
     ["/status", "/register", "/help"], ["/objects", "/add"],
     ["/requests", "/newrequest"], ["/invite", "/accesses"],
     ["/incidents", "/publications"], ["/documents", "/financial"], ["/polls","/initiatives"], ["/emergency", "/notifications"],
-    ["/pending"], ["/cancel"],
+    ["/pending"], ["/plans"], ["/cancel"],
   ]);
 });
 it("справка предлагает вернуться на старт", () => {
@@ -35,4 +35,9 @@ it("контекстные кнопки сохраняются, отмена н�
 it("меню сотрудника открывает финансовые обязанности кнопкой", () => {
   const reply = navigationReply("Справка", "tasks", "kk", undefined, "/start");
   expect(typeof reply !== "string" && reply.buttons?.flat().some(b => b.data === "/financialduties")).toBe(true);
+});
+
+it("меню сотрудника открывает личную работу, жителю доступна публикационная сводка",()=>{
+ const worker=navigationReply("Меню","tasks","ru",undefined,"/start"),resident=navigationReply("Меню","registration","kk",undefined,"/start");
+ expect(typeof worker!=="string"&&worker.buttons?.flat().some(b=>b.data==="/mywork")).toBe(true);expect(typeof resident!=="string"&&resident.buttons?.flat().some(b=>b.data==="/mywork")).toBe(false);
 });
