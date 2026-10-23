@@ -176,6 +176,10 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
   const [recovery, setRecovery] = useState<Row | null>(null),
     [pending, setPending] = useState<Row[]>([]);
   const [recoveryForm] = Form.useForm();
+  const [unlink, setUnlink] = useState<Row | null>(null),
+    [unlinkSaving, setUnlinkSaving] = useState(false),
+    [unlinkError, setUnlinkError] = useState<string | null>(null);
+  const [unlinkForm] = Form.useForm();
   const openRecovery = async (row: Row) => {
     try {
       setPending(
@@ -205,6 +209,32 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
       if (e instanceof Error) setError(e.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Отвязка (REG-11): прекращение связи с причиной; сервер проверяет
+  // права (registry.write) и каскад для собственника.
+  const openUnlink = (row: Row) => {
+    unlinkForm.resetFields();
+    setUnlinkError(null);
+    setUnlink(row);
+  };
+  const submitUnlink = async () => {
+    if (!unlink) return;
+    try {
+      const values = await unlinkForm.validateFields();
+      setUnlinkSaving(true);
+      setUnlinkError(null);
+      await apiFetch(`/v1/registry/connections/${unlink.id}`, {
+        method: "PATCH",
+        body: { status: "revoked", revoked_reason: values.revoked_reason },
+      });
+      setUnlink(null);
+      await load();
+    } catch (e) {
+      if (e instanceof Error) setUnlinkError(e.message);
+    } finally {
+      setUnlinkSaving(false);
     }
   };
 
@@ -324,6 +354,11 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
       render: (_: unknown, row: Row) => (
         <Space wrap>
           <Button onClick={() => open(row)}>Изменить</Button>
+          {entity === "connections" && ["active", "pending"].includes(String(row.status)) && (
+            <Button danger size="small" onClick={() => openUnlink(row)}>
+              Отвязать
+            </Button>
+          )}
           {entity === "persons" && (
             <Button onClick={() => void openRecovery(row)}>
               Восстановить Telegram
@@ -444,6 +479,38 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
           onDeleted={async () => { await load(); }}
         />
       )}
+      <Modal
+        title="Отвязать помещение"
+        open={unlink !== null}
+        okText="Отвязать"
+        okButtonProps={{ danger: true, loading: unlinkSaving }}
+        cancelText="Отмена"
+        onCancel={() => { if (!unlinkSaving) setUnlink(null); }}
+        onOk={() => void submitUnlink()}
+      >
+        {unlink !== null && (
+          <Form form={unlinkForm} layout="vertical" onFinish={() => void submitUnlink()}>
+            <Typography.Paragraph>
+              Прекратить привязку «{String(unlink.full_name ?? "")}» к помещению
+              {" "}{String(unlink.building_code ?? "—")} · {displayKind(unlink.kind)} {String(unlink.number ?? "")}?
+              Пользователь потеряет доступ к помещению, получит уведомление, а действие сохранится в журнале.
+            </Typography.Paragraph>
+            {unlink.role === "owner" && (
+              <Typography.Paragraph>
+                Связи других пользователей, подтверждённые этим собственником, и их приглашения также будут прекращены.
+              </Typography.Paragraph>
+            )}
+            {unlinkError && <Alert type="error" showIcon message={unlinkError} style={{ marginBottom: 16 }} />}
+            <Form.Item
+              name="revoked_reason"
+              label="Причина отвязки"
+              rules={[{ required: true, message: "Укажите причину отвязки" }]}
+            >
+              <Input.TextArea maxLength={300} />
+            </Form.Item>
+          </Form>
+        )}
+      </Modal>
       <CardDrawer
         open={editing !== undefined || !!recovery}
         title={recovery ? "Восстановление Telegram" : `${editing ? "Изменить" : "Добавить"}: ${users === "staff" ? "Сотрудники" : LABELS[entity]}`}
