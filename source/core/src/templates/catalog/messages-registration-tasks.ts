@@ -361,6 +361,10 @@ const defs: TemplateDef[] = [
       ru: "Пригласить — {code}/{number}",
       kk: "Шақыру — {code}/{number}",
       variables: variables("{code}/{number}", ""),
+    }, {
+      id: "add",
+      ru: "Добавить помещение",
+      kk: "Үй-жай қосу",
     }],
   ),
   def(
