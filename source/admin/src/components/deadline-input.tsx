@@ -1,6 +1,10 @@
 import { Button, DatePicker, Input, Space } from "antd";
 import type { DatePickerProps, InputProps } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const presets = [
   { label: "час", amount: 1, unit: "hour" },
@@ -13,8 +17,9 @@ const presets = [
   { label: "месяц", amount: 1, unit: "month" },
 ] as const;
 
-function DeadlinePresets({ onSelect, disabled }: {
+function DeadlinePresets({ onSelect, disabled, timeZone }: {
   onSelect: (date: Dayjs) => void;
+  timeZone?: string;
   disabled?: boolean;
 }) {
   return (
@@ -31,7 +36,7 @@ function DeadlinePresets({ onSelect, disabled }: {
           size="small"
           htmlType="button"
           disabled={disabled}
-          onClick={() => onSelect(dayjs().add(amount, unit))}
+          onClick={() => onSelect((timeZone ? dayjs().tz(timeZone) : dayjs()).add(amount, unit))}
         >
           {label}
         </Button>
@@ -66,12 +71,13 @@ export function DeadlineInput({
   );
 }
 
-export function DeadlineDatePicker({ onChange, disabled, ...props }: DatePickerProps) {
+export function DeadlineDatePicker({ onChange, disabled, timeZone, ...props }: DatePickerProps & { timeZone?: string }) {
   return (
     <div>
       <DatePicker {...props} onChange={onChange} disabled={disabled} />
       <DeadlinePresets
         disabled={disabled === true}
+        timeZone={timeZone}
         onSelect={(date) => onChange?.(date, date.format("DD.MM.YYYY HH:mm"))}
       />
     </div>

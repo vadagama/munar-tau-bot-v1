@@ -9,6 +9,7 @@ import type { PollOption } from "./input.ts";
 export interface PollRow extends Row {
   id:string; question:string; options:PollOption[]; building_ids:string[];
   state:"draft"|"open"|"closed"|"canceled"; is_test:boolean; version:number;
+  buildings?:{id:string;label:string}[];
   closes_at:Date|string; closes_us:string; cancel_reason:string|null;
 }
 export async function serverClock(exec:DbExecutor) {
@@ -18,7 +19,9 @@ export async function serverClock(exec:DbExecutor) {
   return {at:row.at,us:Number(row.us)};
 }
 export async function pollRow(exec:DbExecutor,id:string,lock=false):Promise<PollRow> {
-  const [row]=await exec.query<PollRow>(`select p.*,(extract(epoch from p.closes_at)*1000000)::bigint as closes_us from poll p where p.id=$1${lock?" for update":""}`,[id]);
+  const [row]=await exec.query<PollRow>(`select p.*,(extract(epoch from p.closes_at)*1000000)::bigint as closes_us,
+    coalesce((select jsonb_agg(jsonb_build_object('id',b.id,'label',coalesce(b.name,'Здание '||b.code)) order by b.code)
+      from building b where b.id=any(p.building_ids)),'[]'::jsonb) as buildings from poll p where p.id=$1${lock?" for update":""}`,[id]);
   if(!row) throw new ApiError("NOT_FOUND");
   row.options=jsonValue<PollOption[]>(row.options);
   return row;
@@ -38,7 +41,7 @@ export async function requirePoll(exec:DbExecutor,actor:Actor,id:string,action:"
   return row;
 }
 export function pollCard(row:PollRow) {
-  return {id:row.id,question:row.question,options:row.options,building_ids:row.building_ids,
+  return {id:row.id,question:row.question,options:row.options,building_ids:row.building_ids,buildings:jsonValue<{id:string;label:string}[]>(row.buildings??[]),
     closes_at:row.closes_at,state:row.state,version:row.version,cancel_reason:row.cancel_reason,
     informational:true};
 }

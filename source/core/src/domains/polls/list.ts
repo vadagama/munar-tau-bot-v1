@@ -17,6 +17,8 @@ export async function listPolls(deps:RegistryDeps,actor:Actor,options:{offset?:n
     const rows=await exec.query<ListRow>(`with clock as materialized(select clock_timestamp() as at)
       select p.*,(extract(epoch from p.closes_at)*1000000)::bigint as closes_us,
       (extract(epoch from clock.at)*1000000)::bigint as now_us,
+      coalesce((select jsonb_agg(jsonb_build_object('id',b.id,'label',coalesce(b.name,'Здание '||b.code)) order by b.code)
+        from building b where b.id=any(p.building_ids)),'[]'::jsonb) as buildings,
       exists(select 1 from poll_answer a where a.poll_id=p.id and a.person_id=$1) as participated,
       exists(select 1 from poll_result_participant r where r.poll_id=p.id and r.person_id=$1) as final_participant,
       exists(select 1 from connection c join premises m on m.id=c.premises_id join person v on v.id=c.person_id
@@ -32,7 +34,7 @@ export async function listPolls(deps:RegistryDeps,actor:Actor,options:{offset?:n
         participant:row.participated,finalParticipant:row.final_participant,answerOpen:row.state==="open"&&Number(row.now_us)<Number(row.closes_us)}};
       if(!can(actor,"poll.read",resource).allow)return [];
       row.options=jsonValue<PollOption[]>(row.options);
-      return [{...pollCard(row),can_manage:can(actor,"poll.manage",resource).allow,
+      return [{...pollCard(row),deadline_passed:Number(row.now_us)>=Number(row.closes_us),can_manage:can(actor,"poll.manage",resource).allow,
         can_answer:can(actor,"poll.answer",resource).allow,can_results:can(actor,"poll.results",resource).allow}];
     });
     return {items:allowed.slice(offset,offset+limit),has_more:allowed.length>offset+limit};

@@ -80,6 +80,7 @@ export function AppLayout() {
     { key: "/incidents", label: "Аварии" },
     { key: "/publications", label: "Публикации" },
     { key: "/documents", label: "Документы" },
+    { key: "/polls", label: "Опросы" },
     ...(manager ? [
       { key: "users", label: "Пользователи", children: [
         { key: "/users/residents", label: "Жители" },

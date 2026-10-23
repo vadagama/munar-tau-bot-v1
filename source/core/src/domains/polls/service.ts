@@ -66,7 +66,7 @@ export async function getPoll(deps:RegistryDeps,actor:Actor,id:string) {
   return deps.db.transaction(async exec=>{
     await lockAudience(exec);
     const row=await requirePoll(exec,actor,id), clock=await serverClock(exec), resource=await pollResource(exec,actor,row,clock.us);
-    return {...pollCard(row),own_answer:await ownAnswer(exec,actor,row,clock.us),can_manage:can(actor,"poll.manage",resource).allow,
+    return {...pollCard(row),deadline_passed:clock.us>=Number(row.closes_us),own_answer:await ownAnswer(exec,actor,row,clock.us),can_manage:can(actor,"poll.manage",resource).allow,
       can_answer:can(actor,"poll.answer",resource).allow,can_results:can(actor,"poll.results",resource).allow};
   });
 }

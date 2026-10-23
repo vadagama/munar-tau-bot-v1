@@ -3,6 +3,7 @@ import { describeWithDb } from "./with-db.ts";
 import { SEED } from "./helpers.ts";
 import { actorForPerson } from "../../src/domains/documents/service.ts";
 import { SqlAuditRepo } from "../../src/domains/audit/repo.ts";
+import { getPoll } from "../../src/domains/polls/service.ts";
 import { listPolls } from "../../src/domains/polls/list.ts";
 
 describeWithDb("POL список с PDP",getDb=>{
@@ -24,6 +25,10 @@ describeWithDb("POL список с PDP",getDb=>{
     expect(second.items[0]?.question).toBe("Видимый 1");expect(second.has_more).toBe(false);
     expect((await listPolls(deps,actor,{offset:2,limit:1})).items).toHaveLength(0);
     expect(JSON.stringify(first)).not.toContain("person_id");expect(JSON.stringify(first)).not.toContain("option_key");
+    expect(first.items[0]?.buildings).toEqual([{id:SEED.building1,label:"Дом 1"}]);
+    const card=await getPoll(deps,actor,first.items[0]!.id);
+    expect(card.buildings).toEqual(first.items[0]!.buildings);expect(card.deadline_passed).toBe(false);
+
     await db.query("update connection set status='revoked' where person_id=$1",[actor.person.id]);
     expect((await listPolls(deps,actor)).items).toHaveLength(0);
   });

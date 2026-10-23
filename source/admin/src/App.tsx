@@ -1,3 +1,4 @@
+import { PollsPage } from "./pages/polls";
 import { RegistryPhasesPage } from "./pages/registry-phases";
 import { StaffPage } from "./pages/staff";
 import { DocumentsPage } from "./pages/documents";
@@ -54,6 +55,7 @@ export default function App() {
               <Route path="/incidents" element={<IncidentsPage />} />
               <Route path="/publications" element={<PublicationsPage />} />
               <Route path="/documents" element={<DocumentsPage />} />
+              <Route path="/polls" element={<PollsPage />} />
               <Route path="/templates" element={<TemplatesPage />} />
               <Route path="/notifications" element={<Navigate to="/notifications/preferences" replace />} />
               <Route path="/notifications/preferences" element={<NotificationsPage key="preferences" section="preferences" />} />

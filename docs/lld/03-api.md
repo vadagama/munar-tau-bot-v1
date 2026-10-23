@@ -215,7 +215,8 @@ POL VS-8: `poll.use` — только вход конвейера с эффек�
 `offset` (0–100000), `limit` (1–50, по умолчанию 20), необязательное `state`:
 `draft/open/closed/canceled`; ответ `{items, has_more}`. Фильтрация PDP предшествует
 пагинации. Карточка содержит `id/question/options[{key,label}]/building_ids`,
-`closes_at/state/version/cancel_reason/informational`, собственный `own_answer`
+`closes_at/state/version/cancel_reason/informational`, названия существующих
+зданий `buildings[{id,label}]`, серверный `deadline_passed`, собственный `own_answer`
 либо null и флаги `can_manage/can_answer/can_results`. Чужие ответы и состав
 участников не выбираются для DTO списка/карточки.
 
