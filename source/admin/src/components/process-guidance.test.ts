@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { requestGuidance, taskGuidance, incidentGuidance, publicationGuidance, processActionHint } from "./process-guidance";
 
 describe("подсказки процесса", () => {
- it("для заявки предлагает работу, для вопроса — ответ", () => {
+ it("на рассмотрении предлагает начать работу для заявки и вопроса", () => {
   expect(requestGuidance({state:"reviewing",kind:"request"},true,false).primary).toBe("start_work");
-  expect(requestGuidance({state:"reviewing",kind:"question"},true,false).primary).toBe("submit_result");
+  expect(requestGuidance({state:"reviewing",kind:"question"},true,false).primary).toBe("start_work");
  });
  it("при невыполненном обязательном задании не предлагает итоговый ответ", () => {
   const g=requestGuidance({state:"in_work",tasks:[{state:"in_progress",is_required:true}]},true,false);

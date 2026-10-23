@@ -520,3 +520,21 @@ it("показывает инициатора, сортирует по имен�
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/requests/search",
     expect.objectContaining({ body: expect.objectContaining({ search: "Соколова", cursor: undefined }) })));
 });
+
+it.each(["request", "question"])("на рассмотрении %s: пять действий видны сразу в согласованном порядке", async kind => {
+  const row = setup(true);
+  row.state = "reviewing";
+  row.kind = kind;
+  row.author_person_id = "resident";
+  render(<RequestsPage />);
+  fireEvent.click(await findButton("З-26-00001"));
+  await findButton("Начать работу");
+  const actions = within(screen.getByRole("region", { name: "Действия по процессу" }));
+  const buttons = actions.getAllByRole("button");
+  expect(buttons.map(button => button.textContent)).toEqual([
+    "Начать работу", "Итоговый ответ", "Запросить уточнение", "Отложить", "Отклонить",
+  ]);
+  expect(buttons[0]).toHaveClass("ant-btn-primary");
+  expect(buttons.slice(1).every(button => !button.classList.contains("ant-btn-primary"))).toBe(true);
+  expect(actions.queryByRole("button", { name: "Другие действия" })).not.toBeInTheDocument();
+});
