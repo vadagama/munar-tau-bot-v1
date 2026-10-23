@@ -43,6 +43,8 @@ function harness(
     reviewRow?: Row | null;
     /** Доступы для списка /accesses. */
     accessRows?: Row[];
+    /** Помещения для списка /objects (id, premises_id, role, status, kind, number, code). */
+    objectsRows?: Row[];
     /** Связь для revokeOwnConnection (select * from connection … for update). */
     revokeRow?: Row | null;
     openPrivacyRequests?: Row[];
@@ -111,6 +113,15 @@ function harness(
       // /accesses: выданные доступы собственника.
       if (sql.startsWith("select c.id,c.confirmed_by,n.full_name")) {
         return Promise.resolve((opts.accessRows ?? []) as T[]);
+      }
+      // /objects: помещения пользователя; фильтр статуса связи берётся из SQL.
+      if (sql.startsWith("select c.id,c.premises_id,c.role")) {
+        const rows = opts.objectsRows ?? [];
+        return Promise.resolve(
+          (sql.includes("c.status='active'")
+            ? rows.filter((r) => r.status === "active")
+            : rows) as T[],
+        );
       }
       // revokeOwnConnection: связь, которую отзывают.
       if (sql.startsWith("select * from connection where id=$1 for update")) {
@@ -516,6 +527,54 @@ describe("бот: выданные доступы (/accesses)", () => {
     expect(h.audit.length).toBe(1);
     expect(h.audit[0]).toMatchObject({ action: "connection.revoke" });
     expect(h.state).toEqual({});
+  });
+});
+
+describe("бот: мои помещения (/objects)", () => {
+  const objectRow = (id: string, status: string) => ({
+    id,
+    premises_id: "p-" + id,
+    role: "owner",
+    status,
+    kind: "apartment",
+    number: "4",
+    code: "107/1",
+  });
+
+  it("список показывает только подтверждённые помещения и кнопку «Добавить помещение»", async () => {
+    const h = harness({
+      profile: true,
+      objectsRows: [
+        objectRow("conn-1", "active"),
+        objectRow("conn-2", "revoked"),
+        objectRow("conn-3", "pending"),
+      ],
+    });
+    const reply = await registrationStep(h.deps, "100", "/objects");
+    const text = replyText(reply);
+    expect(text).toContain("Мои помещения:");
+    // Прекращённая и неподтверждённая связи в список жителя не попадают.
+    expect(text).not.toContain("Прекращено");
+    expect(text).not.toContain("Не подтверждено");
+    expect(reply).toMatchObject({
+      buttons: [
+        [{ text: "Пригласить жильца", data: "/invite" }],
+        [{ text: "Добавить помещение", data: "/add" }],
+      ],
+    });
+  });
+
+  it("без подтверждённых помещений — подсказка о пустом списке и кнопка добавления", async () => {
+    const h = harness({
+      profile: true,
+      objectsRows: [objectRow("conn-2", "revoked")],
+    });
+    const reply = await registrationStep(h.deps, "100", "/objects");
+    const text = replyText(reply);
+    expect(text).toContain("Подтверждённых");
+    expect(reply).toMatchObject({
+      buttons: [[{ text: "Добавить помещение", data: "/add" }]],
+    });
   });
 });
 

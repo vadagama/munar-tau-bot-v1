@@ -360,15 +360,33 @@ export async function registrationStep(
         return save(registerPrompt(deps.templates, L));
       }
       const rows = await exec.query<Row>(
-        "select c.id,c.premises_id,c.role,c.status,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1",
+        // Показываем только подтверждённые связи: прекращённые (REG-08a) и
+        // неподтверждённые (анкета ещё в работе) в списке жителя не участвуют.
+        "select c.id,c.premises_id,c.role,c.status,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1 and c.status='active'",
         [actor.person.id],
       );
       if (!rows.length) {
-        return message(
-          deps.templates,
-          L,
-          "registration.podtverzhdennyh_obektov_net",
-        );
+        // Пустой список — сразу путь добавления помещения отдельной анкетой.
+        return save({
+          text: message(
+            deps.templates,
+            L,
+            "registration.podtverzhdennyh_obektov_net",
+          ),
+          buttons: [
+            [
+              btn(
+                messageButton(
+                  deps.templates,
+                  L,
+                  "registration.podtverzhdennyh_obektov_net",
+                  "add",
+                ),
+                "/add",
+              ),
+            ],
+          ],
+        });
       }
       const seen = new Set<string>();
       state.object_options = rows.flatMap((r) => {
@@ -389,17 +407,31 @@ export async function registrationStep(
             ),
           ),
         }),
-        buttons: [[
-          btn(
-            messageButton(
-              deps.templates,
-              L,
-              "message.registration.objects",
-              "invite",
+        buttons: [
+          [
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.objects",
+                "invite",
+              ),
+              "/invite",
             ),
-            "/invite",
-          ),
-        ]],
+          ],
+          // Добавление ещё одного помещения — отдельной анкетой /add.
+          [
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.objects",
+                "add",
+              ),
+              "/add",
+            ),
+          ],
+        ],
       });
     }
     if (
@@ -453,8 +485,10 @@ export async function registrationStep(
             parts[1] = "1";
           } else {
             // Несколько помещений: выбор строки кнопками, затем роль.
+            // Тот же фильтр, что в /objects: номера строк совпадают с
+            // object_options, прекращённые помещения не предлагаются.
             const rows = await exec.query<Row>(
-              "select c.premises_id,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1",
+              "select c.premises_id,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1 and c.status='active'",
               [actor.person.id],
             );
             const seen = new Set<string>();
