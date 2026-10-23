@@ -388,9 +388,16 @@ export function JobTemplates(
                 )}
               </>
             )}
-          <Button style={{ position: "sticky", bottom: 0, zIndex: 1, marginBlock: token.marginSM }} type="primary" htmlType="submit" loading={busy}>
-            Сохранить
-          </Button>
+          <div style={{
+            position: "sticky", bottom: -token.paddingLG, zIndex: 1,
+            margin: `${token.marginSM}px -${token.paddingLG}px -${token.paddingLG}px`,
+            padding: `${token.paddingXS}px ${token.paddingLG}px ${token.paddingLG}px`,
+            background: token.colorBgContainer, borderTop: `1px solid ${token.colorBorderSecondary}`,
+          }}>
+            <Button type="primary" htmlType="submit" loading={busy}>
+              Сохранить
+            </Button>
+          </div>
         </Form>
       </ActionPanel>
       </CardDrawer>

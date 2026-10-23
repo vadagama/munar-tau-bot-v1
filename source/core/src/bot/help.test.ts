@@ -7,8 +7,8 @@ describe("справка по командам", () => {
     for (const command of ["register", "status", "objects", "add", "requests", "newrequest", "publications", "notifications", "cancel", "help"]) {
       expect(text).toMatch(new RegExp(`/${command} — .+`));
     }
-    expect(text).toContain(lang === "ru" ? "<b>👤 Регистрация</b>" : "<b>👤 Тіркелу</b>");
-    expect(text).toContain(lang === "ru" ? "<b>📬 Обращения</b>" : "<b>📬 Өтініштер</b>");
+    expect(text).toContain(lang === "ru" ? "<b>Регистрация</b>" : "<b>Тіркелу</b>");
+    expect(text).toContain(lang === "ru" ? "<b>Обращения</b>" : "<b>Өтініштер</b>");
     expect(text).not.toContain("/staffrequests");
     expect(text).not.toContain("/tasks");
   });
@@ -17,7 +17,7 @@ describe("справка по командам", () => {
     for (const command of ["staffrequests", "tasks", "notifications", "help", "cancel"]) {
       expect(text).toMatch(new RegExp(`/${command} — .+`));
     }
-    expect(text).toContain(lang === "ru" ? "<b>🗂 Задания</b>" : "<b>🗂 Тапсырмалар</b>");
+    expect(text).toContain(lang === "ru" ? "<b>Задания</b>" : "<b>Тапсырмалар</b>");
     expect(text).not.toContain("/newrequest");
     expect(text).not.toContain("/register");
   });

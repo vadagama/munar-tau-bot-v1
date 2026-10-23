@@ -8,31 +8,25 @@ import {
   type BotReply,
   type InlineButton,
   inlineMarkup,
-  menuMarkup,
   replyText,
 } from "../../bot/keyboard.ts";
 
 import { notificationParts } from "../notifications/text.ts";
 export { notificationParts } from "../notifications/text.ts";
 
-/** Клавиатуры ответа: inline-кнопки и/или reply-меню главных действий. */
+/** Клавиатуры ответа: inline-кнопки сценария. */
 export interface ReplyMarkup {
   buttons?: InlineButton[][];
-  menu?: string[][];
 }
 
 /**
- * Разметка ответа для Telegram: inline-кнопки сценария и/или постоянное меню.
- * Одновременно заданы обе — сохраняется inline (меню постоянное, ставится
- * ближайшей репликой справки).
+ * Разметка ответа для Telegram: inline-кнопки сценария либо undefined —
+ * обычное сообщение (транспорт доставки сам убирает устаревшую
+ * reply-клавиатуру, см. REMOVE_KEYBOARD).
  */
-export function telegramReplyMarkup(
-  reply: BotReply,
-  menu?: string[][],
-): unknown | undefined {
+export function telegramReplyMarkup(reply: BotReply): unknown | undefined {
   const buttons = typeof reply === "string" ? undefined : reply.buttons;
   if (buttons?.length) return inlineMarkup(buttons);
-  if (menu?.length) return menuMarkup(menu);
   return undefined;
 }
 
@@ -49,7 +43,6 @@ export async function notifyTelegram(
   message: BotReply | NoticeText,
   key: string,
   bot: BotKind = "resident",
-  menu?: string[][],
   templates?: TemplateStore,
 ): Promise<void> {
   if (!telegramId) return;
@@ -65,7 +58,7 @@ export async function notifyTelegram(
     reply = renderNotice(loc, langOf(p?.language), "template" in message ? templates ?? await loadTemplateStore(exec) : undefined);
   }
   const text = replyText(reply);
-  const markup = telegramReplyMarkup(reply, menu);
+  const markup = telegramReplyMarkup(reply);
   const parts = notificationParts(text);
   for (const [index, part] of parts.entries()) {
     // Разметка уходит с последней частью: кнопки завершают сообщение.

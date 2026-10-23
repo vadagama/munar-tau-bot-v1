@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { navigationReply } from "./navigation.ts";
-import { menuCommand, welcomeText } from "./help.ts";
+import { welcomeText } from "./help.ts";
 
 it.each(["/start", "Старт"])("главное меню жителя открывается по %s", input => {
   const reply = navigationReply(welcomeText(), "registration", "ru", undefined, input);
@@ -14,11 +14,10 @@ it.each(["/start", "Старт"])("главное меню жителя откр
     ["/pending"], ["/plans"], ["/cancel"],
   ]);
 });
-it("справка предлагает вернуться на старт", () => {
+it("справка предлагает только отмену", () => {
   const reply = navigationReply("Справка", "registration", "ru", undefined, "/help");
   if (typeof reply === "string") throw new Error("Ожидалась навигация");
-  expect(reply.buttons).toEqual([[{ text: "Старт", data: "/start" }], [{ text: "Отменить", data: "/cancel" }]]);
-  expect(menuCommand("Старт")).toBe("/start");
+  expect(reply.buttons).toEqual([[{ text: "Отменить", data: "/cancel" }]]);
 });
 
 it.each(["registration", "requests", "tasks", "incidents", "notifications"])("%s: свободный ввод получает только отмену", scenario => {

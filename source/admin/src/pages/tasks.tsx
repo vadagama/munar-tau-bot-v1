@@ -76,7 +76,9 @@ export function TasksPage() {
   );
   const [assigneeFilter, setAssigneeFilter] = useState<string>();
   const [search, setSearch] = useState("");
-  const [stateFilter, setStateFilter] = useState<string>();
+  // Состояние можно задать ссылкой вида /tasks?state=on_review (очередь дня).
+  const [stateFilter, setStateFilter] = useState<string | undefined>(
+    () => new URLSearchParams(window.location.search).get("state") ?? undefined);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [rows, setRows] = useState<Task[]>([]),

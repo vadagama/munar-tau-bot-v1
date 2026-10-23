@@ -27,6 +27,8 @@ function harness(
   opts: {
     registrations?: Row[];
     buildings?: Row[];
+    /** Помещения шага «номер помещения»: поиск по номеру/uuid и подсказка. */
+    premiseNumbers?: Row[];
     editable?: Row | null;
     profile?: boolean;
     profileLanguage?: "ru" | "kk";
@@ -41,6 +43,8 @@ function harness(
     reviewRow?: Row | null;
     /** Доступы для списка /accesses. */
     accessRows?: Row[];
+    /** Помещения для списка /objects (id, premises_id, role, status, kind, number, code). */
+    objectsRows?: Row[];
     /** Связь для revokeOwnConnection (select * from connection … for update). */
     revokeRow?: Row | null;
     openPrivacyRequests?: Row[];
@@ -110,6 +114,15 @@ function harness(
       if (sql.startsWith("select c.id,c.confirmed_by,n.full_name")) {
         return Promise.resolve((opts.accessRows ?? []) as T[]);
       }
+      // /objects: помещения пользователя; фильтр статуса связи берётся из SQL.
+      if (sql.startsWith("select c.id,c.premises_id,c.role")) {
+        const rows = opts.objectsRows ?? [];
+        return Promise.resolve(
+          (sql.includes("c.status='active'")
+            ? rows.filter((r) => r.status === "active")
+            : rows) as T[],
+        );
+      }
       // revokeOwnConnection: связь, которую отзывают.
       if (sql.startsWith("select * from connection where id=$1 for update")) {
         return Promise.resolve(
@@ -139,9 +152,24 @@ function harness(
         return Promise.resolve((opts.buildings ?? [
           { id: "b1", code: "Ж1" },
         ]) as T[]);
-      // Шаг «номер помещения»: одно активное помещение.
-      if (sql.startsWith("select id from premises"))
-        return Promise.resolve([{ id: "p1" }] as T[]);
+      // Шаг «номер помещения»: поиск по номеру или uuid из deep-link
+      // (params[3] — ввод), а также список для подсказки. ids списка —
+      // uuid, иначе ссылки не пройдут регекс premiseChoice при клике.
+      if (sql.startsWith("select id,number from premises"))
+        return Promise.resolve(
+          (opts.premiseNumbers ?? [{ id: "p1", number: "1" }]) as T[],
+        );
+      if (sql.startsWith("select id from premises")) {
+        const input = String(params?.[3] ?? "");
+        const found = (opts.premiseNumbers ?? [{ id: "p1", number: "1" }])
+          .filter((row) => row.number === input || row.id === input);
+        return Promise.resolve(found.map((row) => ({ id: row.id })) as T[]);
+      }
+      // Шаг «роль»: адрес помещения для согласия (дом, код, номер).
+      if (sql.startsWith("select p.number"))
+        return Promise.resolve([
+          { number: "4", code: "107/2" },
+        ] as T[]);
       if (sql.startsWith("insert into privacy_request"))
         return Promise.resolve([
           { id: "prq-1", person_id: params![0], kind: params![1], state: "received" },
@@ -291,7 +319,7 @@ describe("бот: исправление анкеты (/fix)", () => {
     // Согласие — один язык и кнопка с текстовым эквивалентом «да».
     const phoneText = replyText(phoneReply);
     expect(phoneText).toContain("Олег Краснов");
-    expect(phoneText).toContain("Согласие на обработку");
+    expect(phoneText).toContain("Если согласны на обработку");
     expect(typeof phoneReply === "object" && phoneReply.buttons?.[0]?.[0]?.data).toBe("да");
   });
 
@@ -502,6 +530,54 @@ describe("бот: выданные доступы (/accesses)", () => {
   });
 });
 
+describe("бот: мои помещения (/objects)", () => {
+  const objectRow = (id: string, status: string) => ({
+    id,
+    premises_id: "p-" + id,
+    role: "owner",
+    status,
+    kind: "apartment",
+    number: "4",
+    code: "107/1",
+  });
+
+  it("список показывает только подтверждённые помещения и кнопку «Добавить помещение»", async () => {
+    const h = harness({
+      profile: true,
+      objectsRows: [
+        objectRow("conn-1", "active"),
+        objectRow("conn-2", "revoked"),
+        objectRow("conn-3", "pending"),
+      ],
+    });
+    const reply = await registrationStep(h.deps, "100", "/objects");
+    const text = replyText(reply);
+    expect(text).toContain("Мои помещения:");
+    // Прекращённая и неподтверждённая связи в список жителя не попадают.
+    expect(text).not.toContain("Прекращено");
+    expect(text).not.toContain("Не подтверждено");
+    expect(reply).toMatchObject({
+      buttons: [
+        [{ text: "Пригласить жильца", data: "/invite" }],
+        [{ text: "Добавить помещение", data: "/add" }],
+      ],
+    });
+  });
+
+  it("без подтверждённых помещений — подсказка о пустом списке и кнопка добавления", async () => {
+    const h = harness({
+      profile: true,
+      objectsRows: [objectRow("conn-2", "revoked")],
+    });
+    const reply = await registrationStep(h.deps, "100", "/objects");
+    const text = replyText(reply);
+    expect(text).toContain("Подтверждённых");
+    expect(reply).toMatchObject({
+      buttons: [[{ text: "Добавить помещение", data: "/add" }]],
+    });
+  });
+});
+
 describe("бот: /edit НОМЕР после /status (регрессия)", () => {
   it("номер строки из /status резолвится до очистки состояния", async () => {
     const h = harness({
@@ -584,7 +660,7 @@ describe("бот: /register при существующей анкете (guard)
     const text = replyText(reply);
     expect(text).toContain("Вы уже зарегистрированы. Повторная регистрация не нужна.");
     expect(text).toContain("Oleg Krasnov");
-    expect(text).toContain("Квартира Ж1/12");
+    expect(text).toContain("Дом Ж1, Квартира 12");
     expect(h.state.step).toBeUndefined();
   });
 
@@ -754,6 +830,89 @@ describe("бот: анкета без помещения (/status, /fix)", () =>
   });
 });
 
+describe("бот: /status — актуальный статус и история изменений", () => {
+  const currentRow = () => ({
+    id: REG_ID,
+    state: "pending_review",
+    decided_reason: null,
+    decided_at: null,
+    created_at: "2026-10-21T09:00:00.000Z",
+    draft,
+    premises_id: "p1",
+    kind: "apartment",
+    code: "Ж1",
+    number: "1",
+    role: "owner",
+  });
+  const rejectedRow = () => ({
+    id: REG_ID_2,
+    state: "rejected",
+    decided_reason: "Нужна латиница в имени",
+    decided_at: "2026-10-20T10:00:00.000Z",
+    created_at: "2026-10-20T09:00:00.000Z",
+    draft,
+    premises_id: "p1",
+    kind: "apartment",
+    code: "Ж1",
+    number: "1",
+    role: "owner",
+  });
+  const pendingRow = () => ({
+    id: "33333333-3333-3333-3333-333333333333",
+    state: "pending_review",
+    decided_reason: null,
+    decided_at: null,
+    created_at: "2026-10-19T08:00:00.000Z",
+    draft,
+    premises_id: null,
+    role: null,
+  });
+
+  it("актуальный статус вверху без номера, история с датами, исправление — одна кнопка", async () => {
+    const h = harness({ registrations: [currentRow(), rejectedRow(), pendingRow()] });
+    const reply = await registrationStep(h.deps, "100", "/status");
+    const text = replyText(reply);
+    // Актуальная анкета — вверху, без нумерации.
+    expect(text).toContain("<b>Ожидает проверки</b>: Oleg Krasnov, Дом Ж1, Квартира 1, Собственник");
+    expect(text).not.toContain("1. ");
+    // История — хронологически, каждая запись: дата, статус и анкетные данные.
+    expect(text).toContain("История изменений статуса:");
+    expect(text).toContain(
+      "19.10.2026 13:00 — <b>Ожидает проверки</b>: Oleg Krasnov, помещение не указано",
+    );
+    expect(text).toContain(
+      "20.10.2026 15:00 — <b>Отказано</b>: Oleg Krasnov, Дом Ж1, Квартира 1, Собственник — Нужна латиница в имени",
+    );
+    expect(text.indexOf("<b>Ожидает проверки</b>")).toBeLessThan(text.indexOf("История изменений статуса:"));
+    // Операции адресованы только актуальной анкете.
+    expect(reply).toMatchObject({
+      buttons: [
+        [{ text: "Исправить анкету", data: "/edit 1" }],
+        [{ text: "Удалить анкету", data: "/delete" }],
+      ],
+    });
+  });
+
+  it("актуальная анкета в споре — кнопки исправления нет, удаление остаётся", async () => {
+    const h = harness({ registrations: [{ ...currentRow(), state: "disputed" }, rejectedRow()] });
+    const reply = await registrationStep(h.deps, "100", "/status");
+    if (typeof reply === "string") throw new Error("Ожидался ответ с кнопками");
+    const data = reply.buttons?.flat().map(button => button.data) ?? [];
+    expect(data).not.toContain("/edit 1");
+    expect(data).toContain("/delete");
+    expect(replyText(reply)).toContain("История изменений статуса:");
+  });
+
+  it("/cancel после /status очищает диалог и открывает главное меню", async () => {
+    const h = harness({ registrations: [currentRow(), rejectedRow()] });
+    await registrationStep(h.deps, "100", "/status");
+    expect(h.state.status_options).toEqual([REG_ID, REG_ID_2]);
+    const reply = await registrationStep(h.deps, "100", "/cancel");
+    expect(replyText(reply)).toContain("ОСИ ЖК «Мунар Тау»");
+    expect(h.state).toEqual({});
+  });
+});
+
 describe("бот: /add — добавление помещения", () => {
   const P1 = "aaaaaaaa-1111-1111-1111-111111111111";
   const P2 = "aaaaaaaa-2222-2222-2222-222222222222";
@@ -767,8 +926,8 @@ describe("бот: /add — добавление помещения", () => {
     const reply = await registrationStep(h.deps, "100", "/add");
     const text = replyText(reply);
     expect(text).toContain("связанные с вами");
-    expect(text).toContain("Квартира Ж1/12 — Собственник");
-    expect(text).toContain("Парковочное место П1/3 — Собственник");
+    expect(text).toContain("Дом Ж1, Квартира 12 — Собственник");
+    expect(text).toContain("Дом П1, Парковочное место 3 — Собственник");
     expect(text).not.toContain("Ваше имя");
     expect(text).not.toContain("Телефон");
     expect(h.state.step).toBe("add_select");
@@ -803,7 +962,7 @@ describe("бот: /add — добавление помещения", () => {
     const reply = await registrationStep(h.deps, "100", "2");
     const text = replyText(reply);
     expect(text).toContain("Проверьте");
-    expect(text).toContain("Парковочное место П1/3");
+    expect(text).toContain("Дом П1, Парковочное место 3");
     expect(text).toContain("Собственник");
     expect(h.state.step).toBe("consent");
     expect(h.state.premises_id).toBe(P2);
@@ -911,7 +1070,7 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
     const consent = replyText(phoneReply);
     expect(consent).toContain("Имя Фамилия");
     expect(consent).toContain("+77777771676");
-    expect(consent).toContain("Согласие на обработку");
+    expect(consent).toContain("Если согласны на обработку");
     expect(consent).not.toContain("Выберите здание");
     expect(h.state.step).toBe("consent");
     const done = await registrationStep(h.deps, "100", "да");
@@ -932,7 +1091,7 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
     await registrationStep(h.deps, "100", "Аты Жөні");
     const phoneReply = await registrationStep(h.deps, "100", "+7 701 000 00 00");
     expect(replyText(phoneReply)).toContain("Тексеріңіз");
-    expect(replyText(phoneReply)).toContain("ОСИ тіркелуі үшін");
+    expect(replyText(phoneReply)).toContain("ОСИ-де өңдеуге келісетін");
   });
 });
 
@@ -1022,4 +1181,33 @@ it("/add: только отмена, при ошибке — дома по оч�
   const stale=await registrationStep(h.deps,"100",link);
   expect(replyText(stale)).toContain("уже неактивен");
   expect(h.state.step).toBe("kind");
+});
+
+it("/add manual: при ошибке — номера помещений ссылками, ссылка выбирает помещение", async () => {
+  const pid="aaaaaaaa-0000-4000-8000-000000000004";
+  const h=harness({
+    profile:true,
+    premiseNumbers:[
+      {id:pid,number:"4"},
+      {id:"aaaaaaaa-0000-4000-8000-000000000005",number:"5"},
+      {id:"aaaaaaaa-0000-4000-8000-000000000006",number:"6"},
+    ],
+  });
+  await registrationStep(h.deps,"100","/add manual");
+  const kind=await registrationStep(h.deps,"100","ж 1");
+  expect(replyText(kind)).toContain("Тип помещения");
+  await registrationStep(h.deps,"100","1");
+  const hints=await registrationStep(h.deps,"100","999");
+  expect(replyText(hints)).toContain("Помещение не найдено");
+  expect(h.state.step).toBe("number");
+  expect(h.state.premise_choice_token).toBeTruthy();
+  expect(replyText(hints)).toContain(`?start=premise_${pid}_${h.state.premise_choice_token}`);
+  const link=`/start premise_${pid}_${h.state.premise_choice_token}`;
+  const result=await registrationStep(h.deps,"100",link);
+  expect(h.state.premises_id).toBe(pid);
+  expect(h.state.step).toBe("role");
+  expect(replyText(result)).toContain("Ваша роль");
+  const stale=await registrationStep(h.deps,"100",link);
+  expect(replyText(stale)).toContain("уже неактивен");
+  expect(h.state.step).toBe("role");
 });

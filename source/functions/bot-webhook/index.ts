@@ -13,9 +13,10 @@ import { SupabaseFileStorage } from "../../core/src/domains/requests/files.ts";
 // (ключ bot+update_id — нумерации у ботов независимы)
 // и бизнес-сценария; ответ ставится в устойчивую очередь уведомлений.
 
-import { botFromPath, botTokenEnv, botWebhookSecretEnv } from "../../core/src/bot/bots.ts";
+import { botFromPath, botTokenEnv, botWebhookSecretEnv, type BotKind } from "../../core/src/bot/bots.ts";
 import { processInbound } from "../../core/src/bot/inbound.ts";
-import { createDbClient } from "../../core/src/db/client.ts";
+import { createDbClient, type DbClient } from "../../core/src/db/client.ts";
+import type { Row } from "../../core/src/domains/registry/validation.ts";
 import { SqlAuditRepo } from "../../core/src/domains/audit/repo.ts";
 import type { RegistryDeps } from "../../core/src/domains/registry/service.ts";
 import { requireEnv } from "../../core/src/config/env.ts";
@@ -51,6 +52,37 @@ export async function answerCallbackQuery(
     body: JSON.stringify({ callback_query_id: callbackQueryId }),
     signal: AbortSignal.timeout(5000),
   }).catch(() => undefined);
+}
+
+/**
+ * Фиксация упавшего обновления в bot_inbound вне транзакции сценария.
+ * Транзакция processInbound откатывается целиком (включая первичную вставку),
+ * и Telegram видит только безликий 500 — корень падения иначе недоступен:
+ * логи Edge Functions не читаются. Запись со status='error' делает отказ
+ * наблюдаемым в БД. Best-effort: сбой диагностики не меняет ответ.
+ */
+async function recordInboundError(
+  db: DbClient,
+  bot: BotKind,
+  update: Row,
+  error: unknown,
+): Promise<void> {
+  try {
+    const updateId = (update as { update_id?: unknown }).update_id;
+    if (typeof updateId !== "number" || !Number.isSafeInteger(updateId)) return;
+    const message = error instanceof Error
+      ? `${error.name}: ${error.message}`
+      : String(error);
+    await db.query(
+      `insert into bot_inbound(bot,update_id,payload,status,error)
+       values ($1,$2,$3::text::jsonb,'error',$4)
+       on conflict (bot,update_id) do update set status='error',error=excluded.error
+       where bot_inbound.status<>'processed'`,
+      [bot, updateId, JSON.stringify(update), message.slice(0, 2000)],
+    );
+  } catch {
+    // Диагностика не должна маскировать исходную ошибку обработки.
+  }
 }
 
 // Секрет проверяется до чтения тела и подключения к БД.
@@ -120,6 +152,12 @@ export async function handle(
         status: 200,
         headers: JSON_HEADERS,
       });
+    } catch (error) {
+      // Ошибка обработки видна в Telegram только как 500; фиксируем отказ в
+      // БД, пока соединение открыто (закроется в finally). Ответ не меняется:
+      // 500 заставляет Telegram повторить доставку.
+      await recordInboundError(actual.db, bot, update as Row, error);
+      throw error;
     } finally {
       if (!deps) await actual.db.close();
     }

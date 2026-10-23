@@ -2,9 +2,7 @@ import type { TemplateOverride } from "./store.ts";
 import { expect, it } from "vitest";
 import {
   menuCommand,
-  residentMenu,
   validateMenuLabels,
-  workerMenu,
 } from "../bot/help.ts";
 import { messagePreview } from "./message.ts";
 import { getTemplate } from "./catalog/index.ts";
@@ -17,14 +15,17 @@ it("редактируемое меню использует те же подп�
       kk: { newrequest: "Өтініш беру" },
     },
   }]]);
-  expect(residentMenu("ru", store)[0]?.[0]).toBe("Создать заявку");
   expect(menuCommand("Создать заявку", store)).toBe("/newrequest");
   expect(menuCommand("Өтініш беру", store)).toBe("/newrequest");
   expect(menuCommand("🆕 Новое обращение", store)).toBe("/newrequest");
-  expect(messagePreview(store, getTemplate("help.welcome_text")!).ru.buttons)
-    .toEqual(residentMenu("ru", store));
-  expect(messagePreview(undefined, getTemplate("help.worker_help")!).kk.buttons)
-    .toEqual(workerMenu("kk"));
+  // Reply-меню больше не отправляется, но подписи предпросмотра каталога
+  // обязаны маршрутизироваться: старые клиенты присылают их текстом.
+  for (const labelText of messagePreview(store, getTemplate("help.welcome_text")!).ru.buttons?.flat() ?? []) {
+    expect(menuCommand(labelText, store)).toBeDefined();
+  }
+  for (const labelText of messagePreview(undefined, getTemplate("help.worker_help")!).kk.buttons?.flat() ?? []) {
+    expect(menuCommand(labelText, store)).toBeDefined();
+  }
   expect(validateMenuLabels(store)).toEqual([]);
 });
 it("запрещает коллизии между языками, карточками и прежними подписями", () => {

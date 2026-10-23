@@ -17,13 +17,14 @@ import { ApiError } from "../errors/api.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { registrationStep } from "./registration.ts";
 import { notificationStep } from "./notifications.ts";
-import { menuCommand, residentMenu, workerHelp, workerMenu } from "./help.ts";
+import { menuCommand, workerHelp } from "./help.ts";
 import { notifyTelegram } from "../domains/registrations/notifications.ts";
 import type { BotKind } from "./bots.ts";
 import type { Row } from "../domains/registry/validation.ts";
 import { type BotReply, replyText } from "./keyboard.ts";
 import { botErrorText } from "./bot-errors.ts";
 import { type Lang, langOf } from "./text.ts";
+import { syncTelegramUsername } from "./telegram-username.ts";
 
 /**
  * Маршрутизация шага внутри бота (ADR-009): файлы — в очередь загрузок,
@@ -167,7 +168,7 @@ export async function processInbound(
     await lockAudience(exec);
     // update_id уникален внутри одного бота; ключ дедупликации — пара (bot, update_id).
     const inserted = await exec.query(
-      "insert into bot_inbound(bot,update_id,payload) values ($1,$2,$3::text::jsonb) on conflict do nothing returning update_id",
+      "insert into bot_inbound(bot,update_id,payload) values ($1,$2,$3::text::jsonb) on conflict (bot,update_id) do update set status='received',error=null where bot_inbound.status='error' returning update_id",
       [bot, update.update_id, JSON.stringify(update)],
     );
     if (!inserted.length) return false;
@@ -234,20 +235,6 @@ export async function processInbound(
       }
       const currentState = await readDialog(exec,String(from.id),bot);
       reply = navigationReply(reply,String(currentState.scenario ?? (bot === "worker" ? "tasks" : "registration")),await profileLang(exec,String(from.id)),templates,text);
-      // Reply-меню прикрепляется к справке: постоянная клавиатура ставится
-      // один раз и остаётся, пока пользователь её не скроет. Кнопки — подписи
-      // на языке профиля; их тексты резолвятся в команды в processInbound.
-      const menu = command === "/start" || command === "/help"
-        ? await profileLang(exec, String(from.id)).then((lang) =>
-          bot === "worker" ? workerMenu(lang, templates) : residentMenu(
-            lang,
-            templates,
-            command === "/help"
-              ? "help.registration_help"
-              : "help.welcome_text",
-          )
-        )
-        : undefined;
       // Ответ уходит тем же ботом, который принял обновление.
       if (replyText(reply)) {
         await notifyTelegram(
@@ -256,8 +243,17 @@ export async function processInbound(
           reply,
           `update:${update.update_id}:reply`,
           bot,
-          menu,
         );
+      }
+      // Имя в Telegram — display-only метаданные (ADR-001/004); синхронизация
+      // после сценария, чтобы снимок попал и во вновь созданную анкету. Сбой
+      // не должен ломать обработку обновления — savepoint + продолжение.
+      await exec.query("savepoint sync_telegram_username");
+      try {
+        await syncTelegramUsername(exec, String(from.id), from.username);
+      } catch (error) {
+        await exec.query("rollback to savepoint sync_telegram_username");
+        console.error("telegram_username sync failed", error);
       }
     }
     await exec.query(

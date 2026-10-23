@@ -34,6 +34,7 @@
 | id | uuid PK | |
 | person_id | uuid FK person UNIQUE (частично: WHERE archived_at IS NULL) | один действующий профиль на человека; перенос привязки — AUTH-04 |
 | telegram_user_id | bigint UNIQUE NOT NULL | проверенный сервером идентификатор (ADR-001); username не хранится как ключ |
+| telegram_username | text NULL | имя в Telegram для каталогов кабинета — display-only метаданные, НЕ ключ аутентификации/сопоставления (ADR-001/004); актуализируется best-effort при входящих обновлениях бота |
 | supabase_user_id | uuid UNIQUE | связка с сеансом Auth |
 | language | enum language: ru, kk | UI-02 |
 | is_test | boolean DEFAULT false | |
@@ -99,7 +100,7 @@ id PK, created_by FK person, premises_id FK, role enum connection_role, token te
 
 ### 2.8. registration — анкета/спор
 
-id PK, person_id FK NULL (предварительный профиль без Telegram — REG-09), draft jsonb (данные анкеты), premises_id FK NULL, role enum connection_role, source enum reg_source {bot, admin, import}, telegram_user_id bigint NULL, state enum reg_state {pending_review, need_clarification, approved, rejected, disputed, withdrawn}, checker_id FK person NULL, dispute_of FK registration NULL (спор о доступе), decided_at, decided_reason, created_at, updated_at. История решений — `audit_log` + таймеры эскалации REG-14 (12 рабочих часов на этапе).
+id PK, person_id FK NULL (предварительный профиль без Telegram — REG-09), draft jsonb (данные анкеты), premises_id FK NULL, role enum connection_role, source enum reg_source {bot, admin, import}, telegram_user_id bigint NULL, telegram_username text NULL (снимок имени в Telegram автора на момент подачи/последнего сообщения, display-only — не ключ; у ожидающих анкет профиля ещё нет), state enum reg_state {pending_review, need_clarification, approved, rejected, disputed, withdrawn}, checker_id FK person NULL, dispute_of FK registration NULL (спор о доступе), decided_at, decided_reason, created_at, updated_at. История решений — `audit_log` + таймеры эскалации REG-14 (12 рабочих часов на этапе).
 
 ### 2.9. support_access, consent, privacy_request
 

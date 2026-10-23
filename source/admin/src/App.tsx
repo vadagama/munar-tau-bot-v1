@@ -19,16 +19,19 @@ import { RegistrationsPage } from "./pages/registrations";
 import { RegistryImportPage } from "./pages/registry-import";
 import { Refine, Authenticated } from "@refinedev/core";
 import routerProvider from "@refinedev/react-router-v6";
-import { ConfigProvider, Spin, theme as antdTheme } from "antd";
+import { App as AntApp, ConfigProvider, Spin } from "antd";
 import ruRU from "antd/locale/ru_RU";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { authProvider } from "./lib/auth-provider";
+import { cabinetTheme } from "./lib/cabinet-theme";
+import "./styles/cabinet.css";
 import { AppLayout } from "./layouts/app-layout";
 import { AuditPage } from "./pages/audit";
 import { EmulationPage } from "./pages/emulation";
 import { HomePage } from "./pages/home";
 import { LoginPage } from "./pages/login";
+import { ThemePreviewPage } from "./pages/theme-preview";
 
 // VS-1: Telegram-вход (AUTH-01, ADR-001), authProvider на /v1/meta/me,
 // серверная проверка прав — PDP в функции api при каждом запросе.
@@ -36,12 +39,15 @@ export default function App() {
   return (
     <ConfigProvider
       locale={ruRU}
-      theme={{ algorithm: antdTheme.defaultAlgorithm }}
+      theme={cabinetTheme("green")}
     >
+      <AntApp>
       <BrowserRouter>
         <Refine routerProvider={routerProvider} authProvider={authProvider} resources={[]}>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            {/* Превью темы — только в dev-сервере, в прод-сборку не попадает. */}
+            {import.meta.env.DEV && <Route path="/theme-preview" element={<ThemePreviewPage />} />}
             <Route
               element={
                 <Authenticated
@@ -87,6 +93,7 @@ export default function App() {
           </Routes>
         </Refine>
       </BrowserRouter>
+      </AntApp>
     </ConfigProvider>
   );
 }

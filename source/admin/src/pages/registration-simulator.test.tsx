@@ -123,7 +123,7 @@ it("показывает кнопки регистрации только в с�
 
 it("ссылка дома выбирает его в сценарии регистрации симулятора", async () => {
  const payload='house_00000000-0000-4000-8000-000000000001_123456abcdef';
- vi.mocked(apiFetch).mockResolvedValueOnce({reply:`<b>Очередь 1</b>\n<a href="https://t.me/munar_tau_bot?start=${payload}">102/1</a>`}).mockResolvedValueOnce({reply:'Тип помещения'});
+ vi.mocked(apiFetch).mockResolvedValueOnce({reply:`<b>Очередь 1</b>\n<a href="https://t.me/munar_tau_user_bot?start=${payload}">102/1</a>`}).mockResolvedValueOnce({reply:'Тип помещения'});
  render(<RegistrationSimulator active />);
  fireEvent.click(screen.getByRole('button',{name:'Зарегистрироваться'}));
  fireEvent.click(await screen.findByRole('link',{name:'102/1'}));

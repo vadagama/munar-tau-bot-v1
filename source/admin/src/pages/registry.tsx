@@ -1,17 +1,21 @@
 import { RegistryFilters, EMPTY_REGISTRY_FILTERS, filterRegistryRows, type RegistryFilterValues, type RegistrySection } from "./registry-filters";
 import { ProcessOverview } from "../components/process-card";
+import { REGISTRATION_REVIEWER_ROLES } from "../components/process-guidance";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
+import { TelegramHandle } from "../components/telegram-handle";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { ActionPanel } from "./action-panel";
 import { CardDrawer } from "./card-drawer";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
   Form,
   Input,
   InputNumber,
+  List,
+  Modal,
   Popconfirm,
   Select,
   Space,
@@ -42,6 +46,7 @@ const LABELS: Record<string, string> = {
   connections: "Привязки помещений",
   full_name: "ФИО",
   phone_e164: "Телефон",
+  telegram_username: "Telegram",
   code: "Обозначение",
   name: "Название",
   construction_phase: "Очередь строительства",
@@ -77,6 +82,70 @@ const REGISTRATION_STATES: Record<string, string> = {
   rejected: "Отказано", disputed: "Спор", withdrawn: "Отозвана", none: "Нет анкеты",
 };
 const linkedPremises = (row: Row): Row[] => Array.isArray(row.linked_premises) ? row.linked_premises : [];
+
+// Каскадное необратимое удаление здания: подтверждение вводом обозначения
+// и явный список последствий — защита соответствует цене ошибки.
+function DeleteBuildingModal({ row, onClose, onDeleted }: {
+  row: Row;
+  onClose: () => void;
+  onDeleted: () => Promise<void> | void;
+}) {
+  const code = String(row.code ?? "").trim();
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ready = code !== "" && confirm.trim() === code;
+  return (
+    <Modal
+      open
+      title={`Удаление здания «${code || (row.name ?? "без названия")}»`}
+      okText="Удалить безвозвратно"
+      okButtonProps={{ danger: true, disabled: !ready, loading: busy }}
+      cancelText="Отмена"
+      onCancel={onClose}
+      onOk={async () => {
+        try {
+          setBusy(true);
+          setError(null);
+          await apiFetch(`/v1/registry/buildings/${row.id}`, { method: "DELETE" });
+          await onDeleted();
+          onClose();
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Не удалось удалить здание");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+        <Typography.Text>Удаление необратимо. Будут удалены:</Typography.Text>
+        <List
+          size="small"
+          dataSource={[
+            "Все помещения здания",
+            "Привязки жителей к помещениям",
+            "Приглашения и анкеты регистрации",
+          ]}
+          renderItem={(item) => <List.Item style={{ paddingBlock: 2 }}>{item}</List.Item>}
+        />
+        <Typography.Text type="secondary">
+          Обращения сохранятся без привязки к зданию. Удаление недоступно при активных аварийных сигналах.
+        </Typography.Text>
+        <Typography.Text>
+          Для подтверждения введите обозначение здания: <Typography.Text strong>{code}</Typography.Text>
+        </Typography.Text>
+        <Input
+          aria-label="Подтверждение удаления"
+          placeholder={code}
+          value={confirm}
+          onChange={(event) => setConfirm(event.target.value)}
+          autoComplete="off"
+        />
+        {error && <Alert type="error" showIcon message={error} />}
+      </Space>
+    </Modal>
+  );
+}
 const residentAddress = (row: Row): string => [...new Set(linkedPremises(row).map(p =>
   p.building_name && p.building_name !== p.building_code
     ? `${p.building_name} (${p.building_code})` : String(p.building_code ?? "—"),
@@ -84,6 +153,67 @@ const residentAddress = (row: Row): string => [...new Set(linkedPremises(row).ma
 const residentPremises = (row: Row): string => linkedPremises(row).map(p =>
   `${p.building_code} · ${displayKind(p.kind)} ${p.number} · ${displayRole(p.role)}`,
 ).join("; ") || "Помещения не привязаны";
+// Удаление жителя = удаление его основной анкеты (ADR-16): доступ закрывается
+// необратимо, поэтому требуются основание и ключ идемпотентности; сервер ещё раз
+// проверяет полномочия и версию анкеты (registration.manage).
+function DeleteResidentModal({ row, onClose, onDeleted }: {
+  row: Row;
+  onClose: () => void;
+  onDeleted: () => Promise<void> | void;
+}) {
+  const [form] = Form.useForm();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const deleteKey = useRef(crypto.randomUUID());
+  const submit = async () => {
+    try {
+      const values = await form.validateFields();
+      setBusy(true);
+      setError(null);
+      await apiFetch(`/v1/registrations/${row.registration_id}/manage`, {
+        method: "POST",
+        idempotencyKey: deleteKey.current,
+        body: { operation: "delete", expected_version: row.registration_version, reason: values.reason },
+      });
+      await onDeleted();
+      onClose();
+    } catch (e) {
+      if (e instanceof Error) setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      open
+      title={`Удаление жителя: ${String(row.full_name ?? "")}`}
+      okText="Удалить"
+      okButtonProps={{ danger: true, loading: busy }}
+      cancelText="Отмена"
+      onCancel={onClose}
+      onOk={() => void submit()}
+    >
+      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+        <ProcessOverview guidance={{
+          title: "Нужно подтвердить прекращение доступа",
+          description: "Проверьте человека и основание удаления. Сохранение прекратит доступ, роли и связи; обращения и история сохранятся.",
+          waitingFor: REGISTRATION_REVIEWER_ROLES,
+        }} />
+        <Alert showIcon type="warning" message="Доступ к боту и кабинету закроется. Связи с помещениями и служебные роли прекратятся. История обращений и операций сохранится." />
+        <Form name="resident-delete" form={form} layout="vertical">
+          <Form.Item
+            name="reason"
+            label="Основание удаления"
+            rules={[{ required: true, whitespace: true, message: "Укажите основание" }]}
+          >
+            <Input.TextArea maxLength={300} />
+          </Form.Item>
+        </Form>
+        {error && <Alert type="error" showIcon message={error} />}
+      </Space>
+    </Modal>
+  );
+}
 export function RegistryPage({ users, section = "premises" }: { users?: "residents" | "staff"; section?: RegistrySection }) {
   const entity: Entity = users ? "persons" : section;
   const [rows, setRows] = useState<Row[]>([]),
@@ -92,10 +222,13 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
   const [editing, setEditing] = useState<Row | null | undefined>(undefined),
     [saving, setSaving] = useState(false),
     [deleting, setDeleting] = useState<string | null>(null),
+    [deleteBuilding, setDeleteBuilding] = useState<Row | null>(null),
+    [deleteResident, setDeleteResident] = useState<Row | null>(null),
     [buildings, setBuildings] = useState<Row[]>([]),
     [premises, setPremises] = useState<Row[]>([]),
     [persons, setPersons] = useState<Row[]>([]);
   const [residentSearch, setResidentSearch] = useState("");
+  const [staffSearch, setStaffSearch] = useState("");
   const [registrationState, setRegistrationState] = useState<string>();
   const [residentBuilding, setResidentBuilding] = useState<string>();
   const [hasPremises, setHasPremises] = useState<string>();
@@ -107,6 +240,10 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
   const [recovery, setRecovery] = useState<Row | null>(null),
     [pending, setPending] = useState<Row[]>([]);
   const [recoveryForm] = Form.useForm();
+  const [unlink, setUnlink] = useState<Row | null>(null),
+    [unlinkSaving, setUnlinkSaving] = useState(false),
+    [unlinkError, setUnlinkError] = useState<string | null>(null);
+  const [unlinkForm] = Form.useForm();
   const openRecovery = async (row: Row) => {
     try {
       setPending(
@@ -136,6 +273,32 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
       if (e instanceof Error) setError(e.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Отвязка (REG-11): прекращение связи с причиной; сервер проверяет
+  // права (registry.write) и каскад для собственника.
+  const openUnlink = (row: Row) => {
+    unlinkForm.resetFields();
+    setUnlinkError(null);
+    setUnlink(row);
+  };
+  const submitUnlink = async () => {
+    if (!unlink) return;
+    try {
+      const values = await unlinkForm.validateFields();
+      setUnlinkSaving(true);
+      setUnlinkError(null);
+      await apiFetch(`/v1/registry/connections/${unlink.id}`, {
+        method: "PATCH",
+        body: { status: "revoked", revoked_reason: values.revoked_reason },
+      });
+      setUnlink(null);
+      await load();
+    } catch (e) {
+      if (e instanceof Error) setUnlinkError(e.message);
+    } finally {
+      setUnlinkSaving(false);
     }
   };
 
@@ -202,7 +365,9 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
       : entity === "premises"
         ? ["building_code", "kind", "number", "entrance", "floor", "status"]
         : entity === "persons"
-          ? ["full_name", "phone_e164", "comment"]
+          ? users
+            ? ["full_name", "phone_e164", "telegram_username", "comment"]
+            : ["full_name", "phone_e164", "comment"]
           : ["full_name", "phone_e164", "building_code", "kind", "number", "role", "basis", "status"];
   const remove = async (row: Row) => {
     try {
@@ -233,6 +398,8 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
           displayKind(v)
         ) : key === "role" ? (
           displayRole(v)
+        ) : key === "telegram_username" ? (
+          <TelegramHandle username={v} />
         ) : key === "status" ? (
           <Tag>{STATUS[String(v)] ?? String(v)}</Tag>
         ) : (
@@ -251,12 +418,27 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
       render: (_: unknown, row: Row) => (
         <Space wrap>
           <Button onClick={() => open(row)}>Изменить</Button>
+          {entity === "connections" && ["active", "pending"].includes(String(row.status)) && (
+            <Button danger onClick={() => openUnlink(row)}>
+              Отвязать
+            </Button>
+          )}
           {entity === "persons" && (
             <Button onClick={() => void openRecovery(row)}>
               Восстановить Telegram
             </Button>
           )}
-          {canDelete && (
+          {canDelete && entity === "buildings" && (
+            <Button danger onClick={() => setDeleteBuilding(row)}>
+              Удалить
+            </Button>
+          )}
+          {users === "residents" && Boolean(row.can_manage) && (
+            <Button danger onClick={() => setDeleteResident(row)}>
+              Удалить
+            </Button>
+          )}
+          {canDelete && entity === "premises" && (
             <Popconfirm
               title="Удалить без возможности восстановления?"
               description={deleteHint}
@@ -265,7 +447,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
               okButtonProps={{ danger: true, loading: deleting === String(row.id) }}
               onConfirm={() => void remove(row)}
             >
-              <Button danger size="small">Удалить</Button>
+              <Button danger>Удалить</Button>
             </Popconfirm>
           )}
         </Space>
@@ -294,7 +476,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
   const visibleRows = users === "residents" ? rows.filter(row => {
     const links = linkedPremises(row);
     const search = residentSearch.trim().toLocaleLowerCase("ru-RU");
-    const searchable = [row.full_name, row.phone_e164, residentAddress(row), residentPremises(row)].join(" ").toLocaleLowerCase("ru-RU");
+    const searchable = [row.full_name, row.phone_e164, row.telegram_username ? `@${row.telegram_username}` : "", residentAddress(row), residentPremises(row)].join(" ").toLocaleLowerCase("ru-RU");
     const date = row.registered_at ? new Date(String(row.registered_at)).toLocaleDateString("en-CA", { timeZone: "Asia/Almaty" }) : "";
     return (!search || searchable.includes(search))
       && (!registrationState || (row.registration_state ?? "none") === registrationState)
@@ -302,12 +484,19 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
       && (!hasPremises || (hasPremises === "yes" ? links.length > 0 : links.length === 0))
       && (!registeredFrom || !!date && date >= registeredFrom)
       && (!registeredTo || !!date && date <= registeredTo);
+  }) : users === "staff" ? rows.filter(row => {
+    const search = staffSearch.trim().toLocaleLowerCase("ru-RU");
+    if (!search) return true;
+    const roles = (row.staff_roles as string[] | undefined) ?? [];
+    const searchable = [row.full_name, row.phone_e164, row.telegram_username ? `@${row.telegram_username}` : "", row.comment,
+      ...roles.map(role => ROLE_LABELS[role] ?? role)].join(" ").toLocaleLowerCase("ru-RU");
+    return searchable.includes(search);
   }) : users ? rows : filterRegistryRows(directoryRows, filters, KINDS, ROLES, STATUS);
   return (
     <PageLayout title={users === "staff" ? "Сотрудники" : users ? "Жители" : LABELS[entity]}
       actions={users !== "staff" ? <Button type="primary" onClick={() => open(null)}>Добавить запись</Button> : null}
       filters={users === "residents" ? <Space wrap>
-        <Input.Search aria-label="Поиск жителей" placeholder="ФИО, телефон или адрес" value={residentSearch}
+        <Input.Search aria-label="Поиск жителей" placeholder="ФИО, телефон, Telegram или адрес" value={residentSearch}
           onChange={e => setResidentSearch(e.target.value)} style={{ width: 280 }} />
         <Select aria-label="Статус регистрации" placeholder="Все статусы" allowClear value={registrationState}
           onChange={setRegistrationState} style={{ width: 230 }}
@@ -323,6 +512,9 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
           onChange={e => setRegisteredFrom(e.target.value)} style={{ width: 155 }} />
         <Input aria-label="Период регистрации по" type="date" value={registeredTo}
           onChange={e => setRegisteredTo(e.target.value)} style={{ width: 155 }} />
+      </Space> : users === "staff" ? <Space wrap>
+        <Input.Search aria-label="Поиск сотрудников" placeholder="ФИО, телефон, Telegram или роль" value={staffSearch}
+          onChange={e => setStaffSearch(e.target.value)} style={{ width: 320 }} />
       </Space> : !users && <RegistryFilters section={section} values={filters}
         onChange={values => { setFilters(values); setPage(1); }} buildings={buildings} kinds={KINDS} roles={ROLES} statuses={STATUS} />}> <Typography.Paragraph type="secondary">
           {users === "staff" ? "Пользователи с действующими служебными полномочиями в доступной области." : users
@@ -349,6 +541,52 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
         pagination={{ pageSize: 20, showSizeChanger: true, ...(!users ? { current: page, onChange: setPage } : {}) }}
         locale={{ emptyText: rows.length ? "По выбранным условиям ничего не найдено" : "Записей пока нет" }}
       />
+      {deleteBuilding && (
+        <DeleteBuildingModal
+          row={deleteBuilding}
+          onClose={() => setDeleteBuilding(null)}
+          onDeleted={async () => { await load(); }}
+        />
+      )}
+      <Modal
+        title="Отвязать помещение"
+        open={unlink !== null}
+        okText="Отвязать"
+        okButtonProps={{ danger: true, loading: unlinkSaving }}
+        cancelText="Отмена"
+        onCancel={() => { if (!unlinkSaving) setUnlink(null); }}
+        onOk={() => void submitUnlink()}
+      >
+        {unlink !== null && (
+          <Form form={unlinkForm} layout="vertical" onFinish={() => void submitUnlink()}>
+            <Typography.Paragraph>
+              Прекратить привязку «{String(unlink.full_name ?? "")}» к помещению
+              {" "}{String(unlink.building_code ?? "—")} · {displayKind(unlink.kind)} {String(unlink.number ?? "")}?
+              Пользователь потеряет доступ к помещению, получит уведомление, а действие сохранится в журнале.
+            </Typography.Paragraph>
+            {unlink.role === "owner" && (
+              <Typography.Paragraph>
+                Связи других пользователей, подтверждённые этим собственником, и их приглашения также будут прекращены.
+              </Typography.Paragraph>
+            )}
+            {unlinkError && <Alert type="error" showIcon message={unlinkError} style={{ marginBottom: 16 }} />}
+            <Form.Item
+              name="revoked_reason"
+              label="Причина отвязки"
+              rules={[{ required: true, message: "Укажите причину отвязки" }]}
+            >
+              <Input.TextArea maxLength={300} />
+            </Form.Item>
+          </Form>
+        )}
+      </Modal>
+      {deleteResident && (
+        <DeleteResidentModal
+          row={deleteResident}
+          onClose={() => setDeleteResident(null)}
+          onDeleted={async () => { await load(); }}
+        />
+      )}
       <CardDrawer
         open={editing !== undefined || !!recovery}
         title={recovery ? "Восстановление Telegram" : `${editing ? "Изменить" : "Добавить"}: ${users === "staff" ? "Сотрудники" : LABELS[entity]}`}

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { btn, inlineMarkup, menuMarkup, replyText } from "./keyboard.ts";
+import { btn, inlineMarkup, REMOVE_KEYBOARD, replyText } from "./keyboard.ts";
 import { ApiError } from "../errors/api.ts";
 
 describe("btn", () => {
@@ -45,12 +45,8 @@ describe("inlineMarkup", () => {
   });
 });
 
-describe("menuMarkup", () => {
-  it("reply-клавиатура постоянная и подстраивается по высоте", () => {
-    expect(menuMarkup([["/newrequest"], ["/help"]])).toEqual({
-      keyboard: [[{ text: "/newrequest" }], [{ text: "/help" }]],
-      is_persistent: true,
-      resize_keyboard: true,
-    });
+describe("REMOVE_KEYBOARD", () => {
+  it("разметка удаления reply-клавиатуры уходит ровно в поле Telegram", () => {
+    expect(REMOVE_KEYBOARD).toEqual({ remove_keyboard: true });
   });
 });

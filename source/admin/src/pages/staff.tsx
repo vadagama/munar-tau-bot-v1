@@ -16,6 +16,7 @@ import {
   Typography,
 } from "antd";
 import { PageLayout } from "../components/page-layout";
+import { TelegramHandle } from "../components/telegram-handle";
 import { CardDrawer } from "./card-drawer";
 import { ActionPanel } from "./action-panel";
 import { apiFetch } from "../lib/api";
@@ -184,9 +185,9 @@ export function StaffPage() {
         ? !row.roles.length && row.scheduled
         : !row.roles.length && !row.scheduled)) &&
     (!role || row.roles.includes(role)) &&
-    `${row.full_name} ${row.phone_e164}`.toLowerCase().includes(
-      query.toLowerCase(),
-    )
+    `${row.full_name} ${row.phone_e164} ${row.telegram_username ? `@${row.telegram_username}` : ""}`
+      .toLowerCase()
+      .includes(query.toLowerCase())
   );
   return (
     <PageLayout
@@ -204,7 +205,7 @@ export function StaffPage() {
         <Space wrap>
           <Input.Search
             aria-label="Поиск сотрудников"
-            placeholder="ФИО или телефон"
+            placeholder="ФИО, телефон или Telegram"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             allowClear
@@ -257,6 +258,11 @@ export function StaffPage() {
             ),
           },
           { title: "Телефон", dataIndex: "phone_e164" },
+          {
+            title: "Telegram",
+            dataIndex: "telegram_username",
+            render: (v) => <TelegramHandle username={v} />,
+          },
           {
             title: "Роли",
             key: "roles",

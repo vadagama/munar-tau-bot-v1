@@ -63,6 +63,34 @@ it("сотрудники загружаются отдельно, включая
   expect(screen.queryByRole("button", { name: "Добавить запись" })).toBeNull();
 });
 
+it("Telegram-имя в таблицах жителей и сотрудников, поиск по нему работает", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/staff")
+    ? [{ id: "staff-1", full_name: "Олег Краснов", phone_e164: "+77777771667", telegram_username: "oleg_san_krasnov", staff_roles: ["administrator"] }]
+    : path.endsWith("/persons")
+      ? [{ id: "p-1", full_name: "Житель Безымянный", phone_e164: "+77771165605", telegram_username: "w84gr8", staff_roles: [] }]
+      : [] }));
+  // Жители: колонка Telegram — кликабельное имя, поиск по нему.
+  render(<RegistryPage users="residents" />);
+  const residentLink = await screen.findByRole("link", { name: "@w84gr8" });
+  expect(residentLink).toHaveAttribute("href", "https://t.me/w84gr8");
+  fireEvent.change(screen.getByRole("searchbox", { name: "Поиск жителей" }), { target: { value: "@w84" } });
+  expect(screen.getByText("Житель Безымянный")).toBeInTheDocument();
+  fireEvent.change(screen.getByRole("searchbox", { name: "Поиск жителей" }), { target: { value: "нет такого" } });
+  expect(screen.getByText("По выбранным условиям ничего не найдено")).toBeInTheDocument();
+  cleanup();
+  // Сотрудники: отдельный поиск, находит и по Telegram, и по роли.
+  render(<RegistryPage users="staff" />);
+  const staffLink = await screen.findByRole("link", { name: "@oleg_san_krasnov" });
+  expect(staffLink).toHaveAttribute("href", "https://t.me/oleg_san_krasnov");
+  const staffSearch = screen.getByRole("searchbox", { name: "Поиск сотрудников" });
+  fireEvent.change(staffSearch, { target: { value: "oleg_san" } });
+  expect(screen.getByText("Олег Краснов")).toBeInTheDocument();
+  fireEvent.change(staffSearch, { target: { value: "администратор" } });
+  expect(screen.getByText("Олег Краснов")).toBeInTheDocument();
+  fireEvent.change(staffSearch, { target: { value: "исполнитель" } });
+  expect(screen.getByText("По выбранным условиям ничего не найдено")).toBeInTheDocument();
+});
+
 
 it("фильтрует здания по очереди, отсутствию очереди и возвращает все", async () => {
   const buildings = [
@@ -160,9 +188,13 @@ it("у зданий подтверждение предупреждает о к�
     ? [{ id: "b1", code: "ДОМ-1", construction_phase: 1 }] : [] }));
   render(<RegistryPage section="buildings" />);
   fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
-  const popover = await screen.findByRole("tooltip");
-  expect(within(popover).getByText(/Удалится дом вместе со всеми помещениями, связями, приглашениями и анкетами/)).toBeInTheDocument();
-  expect(within(popover).getByText(/недоступно при активных аварийных сигналах/)).toBeInTheDocument();
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText("Все помещения здания")).toBeInTheDocument();
+  expect(within(dialog).getByText(/недоступно при активных аварийных сигналах/)).toBeInTheDocument();
+  // Подтверждение — вводом обозначения здания; без него кнопка недоступна.
+  expect(within(dialog).getByRole("button", { name: "Удалить безвозвратно" })).toBeDisabled();
+  fireEvent.change(within(dialog).getByLabelText("Подтверждение удаления"), { target: { value: "ДОМ-1" } });
+  expect(within(dialog).getByRole("button", { name: "Удалить безвозвратно" })).toBeEnabled();
 });
 
 it("жители и сотрудники без кнопки удаления", async () => {
@@ -175,7 +207,7 @@ it("жители и сотрудники без кнопки удаления", 
 
 async function renderResidentDirectory() {
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/persons") ? [
-    { id: "r1", full_name: "Анна Соколова", phone_e164: "+77011111111", registration_state: "approved", registered_at: "2026-10-20T20:00:00Z",
+    { id: "r1", full_name: "Анна Соколова", phone_e164: "+77011111111", registration_id: "reg-1", registration_version: 1, registration_state: "approved", registered_at: "2026-10-20T20:00:00Z", can_manage: true,
       linked_premises: [{ id: "p1", building_id: "b1", building_code: "107-1", building_name: "Улица Мира, 107/1", kind: "apartment", number: "4", role: "owner" }] },
     { id: "r2", full_name: "Борис Петров", registration_state: "pending_review", registered_at: "2026-10-19T08:00:00Z", linked_premises: [] },
     { id: "r3", full_name: "Вера Иванова", registration_state: null, registered_at: null, linked_premises: [] },
@@ -230,6 +262,49 @@ it("жители: период регистрации включает весь 
   expect(screen.queryByRole("button", { name: "Применить" })).not.toBeInTheDocument();
 });
 
+it("жители: кнопка удаления видна только при can_manage", async () => {
+  await renderResidentDirectory();
+  // can_manage только у Анны: у Веры нет анкеты, у Бориса — без вычисленного флага.
+  expect(screen.getAllByRole("button", { name: "Удалить" })).toHaveLength(1);
+  const annaRow = screen.getByText("Анна Соколова").closest("tr");
+  expect(within(annaRow!).getByRole("button", { name: "Удалить" })).toBeInTheDocument();
+});
+
+it("жители: удаление отправляет manage delete с основанием и ключом, затем перечитывает", async () => {
+  await renderResidentDirectory();
+  fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText(/Проверьте человека и основание удаления/)).toBeInTheDocument();
+  expect(within(dialog).getByText(/Доступ к боту и кабинету закроется/)).toBeInTheDocument();
+  // Без основания запрос не отправляется.
+  fireEvent.click(within(dialog).getByRole("button", { name: "Удалить" }));
+  expect(await within(dialog).findByText("Укажите основание")).toBeInTheDocument();
+  expect(vi.mocked(apiFetch).mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(false);
+  fireEvent.change(within(dialog).getByLabelText("Основание удаления"), { target: { value: "Дубликат карточки" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Удалить" }));
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registrations/reg-1/manage", expect.objectContaining({
+    method: "POST", idempotencyKey: expect.any(String),
+    body: { operation: "delete", expected_version: 1, reason: "Дубликат карточки" },
+  })));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path === "/v1/registry/persons").length).toBeGreaterThan(1);
+});
+
+it("жители: ошибка удаления видна в окне удаления", async () => {
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => {
+    if (options?.method === "POST") throw new Error("Анкета уже отозвана — обновите страницу");
+    return { items: path.endsWith("/persons") ? [
+      { id: "r1", full_name: "Анна Соколова", phone_e164: "+77011111111", registration_id: "reg-1", registration_version: 1, registration_state: "approved", registered_at: "2026-10-20T20:00:00Z", can_manage: true, linked_premises: [] },
+    ] : [] };
+  });
+  render(<RegistryPage users="residents" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
+  const dialog = await screen.findByRole("dialog");
+  fireEvent.change(within(dialog).getByLabelText("Основание удаления"), { target: { value: "Причина" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Удалить" }));
+  expect(await within(dialog).findByText("Анкета уже отозвана — обновите страницу")).toBeInTheDocument();
+});
+
 it("помещения: поиск и фильтры работают совместно, смена условий возвращает первую страницу", async () => {
   const premises = Array.from({length: 25}, (_, i) => ({id:`p${i}`,building_id:"b1",building_code:"107/1",number:`КВ-${i+1}`,kind:"apartment",status:"active"}));
   vi.mocked(apiFetch).mockImplementation(async path => ({items: path.endsWith("/buildings")
@@ -259,4 +334,29 @@ it("привязки ищутся по телефону, зданию и ФИО 
   fireEvent.mouseDown(screen.getByLabelText("Фильтр по отношению к помещению", {selector:"input"}));
   fireEvent.click(await screen.findByText("Арендатор", {selector:".ant-select-item-option-content"}));
   expect(screen.getByText("По выбранным условиям ничего не найдено")).toBeVisible();
+});
+
+it("привязки: «Отвязать» прекращает действующую связь с обязательной причиной", async () => {
+  const connection = {id:"c1",person_id:"n1",full_name:"Иван Петров",building_id:"b1",building_code:"107/1",kind:"apartment",number:"12",role:"owner",status:"active",basis:"ownership"};
+  vi.mocked(apiFetch).mockImplementation(async path => ({items: path.endsWith("/buildings")
+    ? [{id:"b1",code:"107/1",construction_phase:1}]
+    : path.endsWith("/persons") ? [{id:"n1",full_name:"Иван Петров",phone_e164:"+77011112233"}]
+    : path.endsWith("/connections") ? [connection,
+        {...connection, id:"c2", full_name:"Пётр Иванов", status:"revoked"}] : []}));
+  render(<RegistryPage section="connections" />);
+  expect(await screen.findByText("Иван Петров", {selector:"td"})).toBeVisible();
+  // Прекращённую связь не меняют — кнопка только у действующей.
+  expect(screen.getAllByRole("button", {name:"Отвязать"})).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", {name:"Отвязать"}));
+  const dialog = screen.getByRole("dialog");
+  // Для собственника предупреждение о зависимых связях.
+  expect(within(dialog).getByText(/подтверждённые этим собственником/)).toBeInTheDocument();
+  // Без причины отправка невозможна.
+  fireEvent.click(within(dialog).getByRole("button", {name:"Отвязать"}));
+  expect(vi.mocked(apiFetch).mock.calls.some(([,opts]) => opts?.method === "PATCH")).toBe(false);
+  fireEvent.change(within(dialog).getByLabelText("Причина отвязки"), {target:{value:"Продал квартиру"}});
+  fireEvent.click(within(dialog).getByRole("button", {name:"Отвязать"}));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  const call = vi.mocked(apiFetch).mock.calls.find(([path]) => path === "/v1/registry/connections/c1");
+  expect(call?.[1]).toMatchObject({method:"PATCH", body:{status:"revoked", revoked_reason:"Продал квартиру"}});
 });

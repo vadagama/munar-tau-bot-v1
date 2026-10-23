@@ -17,16 +17,21 @@ interface Capture {
   sql: string;
 }
 
-function harness(opts: { profile?: boolean } = {}) {
-  const delivered = new Set<string>();
+function harness(opts: { profile?: boolean; failUsernameSync?: boolean; failedUpdate?: number } = {}) {
+  const delivered = new Set<string>(opts.failedUpdate===undefined?[]:[`resident:${opts.failedUpdate}`]);
+  let retried=false;
   const notifications: Capture[] = [];
   const dialogSaves: Capture[] = [];
+  const usernameSyncs: Capture[] = [];
   const dialogState: Row = {};
   const exec: DbExecutor = {
     query: <T>(sql: string, params?: unknown[]): Promise<T[]> => {
       if (sql.startsWith("insert into bot_inbound")) {
         const key = `${params![0]}:${params![1]}`;
-        if (delivered.has(key)) return Promise.resolve([] as T[]);
+        if (delivered.has(key)) {
+          if(!retried&&opts.failedUpdate===params![1]&&sql.includes("where bot_inbound.status='error'")){retried=true;return Promise.resolve([{update_id:params![1]}] as T[]);}
+          return Promise.resolve([] as T[]);
+        }
         delivered.add(key);
         return Promise.resolve([{ update_id: params![1] }] as T[]);
       }
@@ -40,6 +45,12 @@ function harness(opts: { profile?: boolean } = {}) {
       }
       if (sql.startsWith("update bot_dialog_channel set state")) {
         dialogSaves.push({ sql, params });
+        return Promise.resolve([] as T[]);
+      }
+      if (sql.startsWith("update profile set telegram_username") ||
+        sql.startsWith("update registration set telegram_username")) {
+        if (opts.failUsernameSync) return Promise.reject(new Error("sync down"));
+        usernameSyncs.push({ sql, params });
         return Promise.resolve([] as T[]);
       }
       if (opts.profile) {
@@ -84,6 +95,7 @@ function harness(opts: { profile?: boolean } = {}) {
     notifications,
     dialogState,
     dialogSaves,
+    usernameSyncs,
   };
 }
 
@@ -122,9 +134,9 @@ describe("processInbound: callback_query (срез UX B)", () => {
     // Справка бота жителей уходит тем же ботом.
     expect(text).toContain("ОСИ ЖК «Мунар Тау»");
     expect(bot).toBe("resident");
-    // Из справки можно вернуться на главный экран через Старт.
+    // Справка предлагает только отмену.
     const parsed = JSON.parse(markup!) as { inline_keyboard: { text: string;callback_data:string }[][] };
-    expect(parsed.inline_keyboard.flat().map((b) => b.callback_data)).toEqual(["/start", "/cancel"]);
+    expect(parsed.inline_keyboard.flat().map((b) => b.callback_data)).toEqual(["/cancel"]);
   });
 
   it("кнопка reply-меню исполняется как её команда («Мои помещения» → /objects)", async () => {
@@ -212,14 +224,60 @@ const textUpdate = (updateId: number, text: string): Row => ({
 const replyOf = (h: ReturnType<typeof harness>): string =>
   h.notifications[0]!.params![1] as string;
 
+describe("processInbound: имя в Telegram (display-only метаданные)", () => {
+  it("username из обновления уходит в профиль и снимок активных анкет", async () => {
+    const h = harness();
+    const update = textUpdate(40, "/help");
+    ((update.message as Row).from as Row).username = "w84gr8";
+    expect(await processInbound(h.deps, update, "resident")).toBe(true);
+    expect(h.usernameSyncs.length).toBe(2);
+    expect(h.usernameSyncs[0]!.sql.startsWith("update profile set telegram_username")).toBe(true);
+    expect(h.usernameSyncs[0]!.params).toEqual(["100", "w84gr8"]);
+    expect(h.usernameSyncs[1]!.sql.startsWith("update registration set telegram_username")).toBe(true);
+    expect(h.usernameSyncs[1]!.params).toEqual(["100", "w84gr8"]);
+  });
+
+  it("username из callback_query тоже синхронизируется", async () => {
+    const h = harness();
+    const update = helpCallback(41);
+    ((update.callback_query as Row).from as Row).username = "oleg_san_krasnov";
+    expect(await processInbound(h.deps, update, "resident")).toBe(true);
+    expect(h.usernameSyncs[0]!.params).toEqual(["100", "oleg_san_krasnov"]);
+  });
+
+  it("сообщение без username очищает сохранённое имя (null)", async () => {
+    const h = harness();
+    expect(await processInbound(h.deps, textUpdate(42, "/help"), "resident")).toBe(true);
+    expect(h.usernameSyncs.map((s) => s.params)).toEqual([["100", null], ["100", null]]);
+  });
+
+  it("некорректный username не попадает в базу", async () => {
+    const h = harness();
+    const update = textUpdate(42, "/help");
+    ((update.message as Row).from as Row).username = "не username!";
+    expect(await processInbound(h.deps, update, "resident")).toBe(true);
+    expect(h.usernameSyncs.map((s) => s.params)).toEqual([["100", null], ["100", null]]);
+  });
+
+  it("сбой синхронизации имени не ломает обработку обновления", async () => {
+    const h = harness({ failUsernameSync: true });
+    const update = textUpdate(43, "/help");
+    ((update.message as Row).from as Row).username = "w84gr8";
+    expect(await processInbound(h.deps, update, "resident")).toBe(true);
+    // Ответ пользователю ушёл, несмотря на отказ синхронизации.
+    expect(h.notifications.length).toBe(1);
+    expect(h.usernameSyncs.length).toBe(0);
+  });
+});
+
 describe("processInbound: команды не глотаются активным сценарием", () => {
   it("кнопка Помощь открывает сгруппированную справку из активного диалога", async () => {
     const h = harness();
     stuckInPlace(h);
     expect(await processInbound(h.deps, textUpdate(80, "❓ Помощь"), "resident")).toBe(true);
-    expect(replyOf(h)).toContain("<b>👤 Регистрация</b>");
+    expect(replyOf(h)).toContain("<b>Регистрация</b>");
     expect(replyOf(h)).toContain("📝 /register — Зарегистрироваться.");
-    expect(replyOf(h)).toContain("<b>📬 Обращения</b>");
+    expect(replyOf(h)).toContain("<b>Обращения</b>");
   });
 
   it("/help из шага выбора помещения — справка жителя, а не «Выберите номер»", async () => {
@@ -382,4 +440,8 @@ it("устаревшая house-link не сбрасывает другой ди�
  expect(h.notifications[0]?.params?.[1]).toContain("уже неактивен");
  expect(h.dialogSaves).toHaveLength(0);
  expect(h.dialogState.description).toBe("Мой черновик");
+});
+
+it("диагностическая error-запись повторяется один раз, processed остаётся дубликатом",async()=>{
+ const h=harness({failedUpdate:700});expect(await processInbound(h.deps,helpUpdate(700))).toBe(true);expect(h.notifications).toHaveLength(1);expect(await processInbound(h.deps,helpUpdate(700))).toBe(false);expect(h.notifications).toHaveLength(1);
 });

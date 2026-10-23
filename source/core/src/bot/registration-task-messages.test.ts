@@ -41,6 +41,9 @@ function harness(
       return [{ id: "b", code: "Дом <1>" }] as T[];
     }
     if (sql.startsWith("select id from premises")) return [{ id: "p" }] as T[];
+    if (sql.startsWith("select p.number")) {
+      return [{ number: "4", code: "1", b_kind: "house" }] as T[];
+    }
     if (sql.startsWith("select phone_e164 from person")) {
       return [{ phone_e164: "+77001234567" }] as T[];
     }
@@ -51,6 +54,7 @@ function harness(
         kind: "apartment",
         number: "4",
         code: "1",
+        b_kind: "house",
       }] as T[];
     }
     if (sql.startsWith("select id from task")) return [{ id: "t" }] as T[];
@@ -63,6 +67,7 @@ function harness(
         kind: "apartment",
         number: "4",
         code: "1",
+        b_kind: "house",
         role: "owner",
       }] as T[];
     }
@@ -97,7 +102,7 @@ describe("Полные сообщения регистрации и задани
     );
     const result = await registrationStep(h.deps, "1", "/status", actor);
     expect(replyText(result)).toBe(
-      "<b>Ваши анкеты</b>\n1. <b>Ожидает проверки</b>: &lt;Алия&gt;, Квартира 1/4, Собственник\nВсе действия здесь",
+      "<b>Ваши анкеты</b>\n<b>Ожидает проверки</b>: &lt;Алия&gt;, Дом 1, Квартира 4, Собственник\nВсе действия здесь",
     );
     expect(result).toMatchObject({
       buttons: [[{ text: "Уточнить", data: "/edit 1" }], [{ text: "Удалить анкету", data: "/delete" }]],
@@ -123,6 +128,7 @@ describe("Полные сообщения регистрации и задани
         full_name: "<b>Алия</b>",
         phone_e164: "+77001234567",
         kind: "apartment",
+        premises_id: "p",
       },
     );
     const result = await registrationStep(h.deps, "1", "1", actor);

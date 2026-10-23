@@ -13,6 +13,11 @@ export const premiseLabels: Record<string, Loc> = {
   parking_slot: { ru: "Парковочное место", kk: "Тұрақ орны" },
   storage: { ru: "Кладовка", kk: "Қойма" },
 };
+/** Здание, в котором находится помещение (kind из building). */
+export const buildingLabels: Record<string, Loc> = {
+  house: { ru: "Дом", kk: "Үй" },
+  parking: { ru: "Парковка", kk: "Тұрақ" },
+};
 export const roleLabels: Record<string, Loc> = {
   owner: { ru: "Собственник", kk: "Меншік иесі" },
   tenant: { ru: "Арендатор", kk: "Жалға алушы" },

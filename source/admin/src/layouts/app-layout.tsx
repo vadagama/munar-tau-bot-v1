@@ -1,7 +1,8 @@
 import { EmulationRoleSelect } from "./emulation-role-select";
 import { PAGE_REFRESH_EVENT, usePageRefresh } from "../lib/use-page-refresh";
+import { DayQueueProvider, useDayQueue } from "../lib/day-queue";
 import { useState } from "react";
-import { Alert, Button, Layout, Menu, Space, Typography } from "antd";
+import { Alert, Badge, Button, Layout, Menu, Space, Typography, theme } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useLogout } from "@refinedev/core";
 
@@ -13,6 +14,7 @@ import {
   useCabinetIdentity,
 } from "../lib/identity";
 import { apiFetch } from "../lib/api";
+import { BrandLogo } from "../components/brand-logo";
 
 const { Header, Sider, Content } = Layout;
 
@@ -47,6 +49,18 @@ function EmulationBanner() {
   );
 }
 
+// Бейдж пункта меню: тихий нейтральный счётчик, только когда есть работа.
+export function MenuLabel({ label, count }: { label: string; count: number }) {
+  const { token } = theme.useToken();
+  if (count <= 0) return <>{label}</>;
+  return (
+    <Space size={6}>
+      <span>{label}</span>
+      <Badge count={count} overflowCount={99} color={token.colorTextSecondary} />
+    </Space>
+  );
+}
+
 // Layout кабинета (VS-1): меню по ролям, баннер эмуляции, выход.
 export function AppLayout() {
   const [narrow, setNarrow] = useState(false);
@@ -56,6 +70,7 @@ export function AppLayout() {
   const { identity, roles, refreshIdentity } = useCabinetIdentity();
   usePageRefresh(refreshIdentity);
   const { mutate: logout } = useLogout();
+  const queue = useDayQueue();
 
   const manager = roles.some(role => ["chairman", "administrator", "deputy"].includes(role));
   const settings = [
@@ -68,16 +83,16 @@ export function AppLayout() {
     ...(canUseEmulation(roles) || identity?.me.emulation ? [{ key: "/emulation", label: "Эмуляция ролей (пилот)" }] : []),
   ];
   const items = [
-    { key: "/", label: "Главная" },
-    { key: "/requests", label: "Обращения" },
-    ...(canSeeTasks(roles) ? [{ key: "tasks", label: "Задания", children: [
+    { key: "/", label: <MenuLabel label="Главная" count={0} /> },
+    { key: "/requests", label: <MenuLabel label="Обращения" count={queue.requestsNew.length + queue.requestsAction.length} /> },
+    ...(canSeeTasks(roles) ? [{ key: "tasks", label: <MenuLabel label="Задания" count={queue.tasksAccept.length + queue.tasksReview.length} />, children: [
       { key: "/tasks", label: "Все задания" },
       ...(manager ? [
         { key: "/common-works", label: "Общие работы" },
         { key: "/job-templates", label: "Шаблоны заданий" },
       ] : []),
     ] }] : []),
-    { key: "/incidents", label: "Аварии" },
+    { key: "/incidents", label: <MenuLabel label="Аварии" count={queue.incidentsAction.length} /> },
     { key: "/publications", label: "Публикации" },
     { key: "/documents", label: "Документы" },
     { key: "/polls", label: "Опросы" },
@@ -109,16 +124,18 @@ export function AppLayout() {
   const activeGroup = items.find(item => item.children?.some(child => child.key === selectedPath))?.key;
 
   return (
+    <DayQueueProvider>
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider theme="dark" width={240} breakpoint="lg" collapsedWidth={0}
+      <Sider theme="light" width={240} breakpoint="lg" collapsedWidth={0}
         collapsed={collapsed} onCollapse={setCollapsed} onBreakpoint={setNarrow}
-        style={narrow ? { position: "fixed", zIndex: 1000, height: "100dvh" } : undefined}>
-        <div style={{ color: "#fff", padding: "16px", fontWeight: 600 }}>
-          ОСИ ЖК «Мунар Тау»
+        style={{ borderInlineEnd: "1px solid #eceef0",
+          ...(narrow ? { position: "fixed", zIndex: 1000, height: "100dvh" } : null) }}>
+        <div style={{ padding: "16px 16px 12px" }}>
+          <BrandLogo size={24} caption="Кабинет ОСИ" />
         </div>
         <div style={narrow ? { maxHeight: "calc(100dvh - 56px)", overflowY: "auto" } : undefined}>
         <Menu
-          theme="dark"
+          theme="light"
           mode="inline"
           selectedKeys={[selectedPath]}
           key={activeGroup}
@@ -130,7 +147,7 @@ export function AppLayout() {
         </div>
       </Sider>
       <Layout style={{ minWidth: 0 }}>
-        <Header style={{ background: "#fff", paddingInline: 16, minHeight: 64, height: "auto", gap: 12, flexWrap: "wrap", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Header style={{ background: "#fff", borderBottom: "1px solid #eceef0", paddingInline: 24, minHeight: 56, height: "auto", gap: 12, flexWrap: "wrap", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Typography.Title level={4} style={{ margin: 0, lineHeight: "32px", fontSize: 18 }}>
             Кабинет администратора
           </Typography.Title>
@@ -146,11 +163,12 @@ export function AppLayout() {
             </Button>
           </Space>
         </Header>
-        <Content style={{ margin: 24 }}>
+        <Content style={{ width: "100%", padding: "24px 24px 48px" }}>
           <EmulationBanner />
           <Outlet key={location.pathname === "/emulation" ? "emulation" : identity?.me.profile.id} />
         </Content>
       </Layout>
     </Layout>
+    </DayQueueProvider>
   );
 }

@@ -5,3 +5,6 @@ dist/
 .env.*
 *.pem
 **/supabase/.temp/
+# Скриншоты-капчуры impeccable (ревью-артефакты остаются локальными)
+.impeccable/**/review/
+.impeccable/**/critique/capture-*.png

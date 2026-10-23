@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Spin, Typography } from "antd";
+import { Alert, Button, Card, Spin, Typography, theme } from "antd";
 import { useEffect, useState } from "react";
 import { useLogin } from "@refinedev/core";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { appEnv } from "../lib/env";
 import { getSupabase } from "../lib/supabase";
 import { getAuthCallbackError, hadPkceCodeAtLoad } from "../lib/auth-callback";
+import { BrandLogo } from "../components/brand-logo";
 import loginBg from "../assets/login-bg.jpg";
 
 const { Paragraph } = Typography;
@@ -13,6 +14,7 @@ const { Paragraph } = Typography;
 // Страница входа (VS-1, AUTH-01): Telegram OIDC через Supabase Auth (ADR-001).
 // Без публичных переменных среды — заглушка VS-0 с пояснением настройки.
 export function LoginPage() {
+  const { token } = theme.useToken();
   const { mutate: login, isLoading } = useLogin();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
@@ -75,16 +77,20 @@ export function LoginPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        // Фон — визуализация ЖК (из карточки novostroyki-almaty.kz); полупрозрачный
-        // слой приглушает картинку ради читаемости карточки входа.
-        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), url(${loginBg})`,
+        // Фон — визуализация ЖК (из карточки novostroyki-almaty.kz). Картинка
+        // солнечная и используется без затемняющего слоя: белый карточке входа
+        // хватает собственной тени для читаемости.
+        backgroundImage: `url(${loginBg})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}
     >
-      <Card style={{ width: 400, boxShadow: "0 8px 32px rgba(0, 0, 0, 0.35)" }}>
-        <Typography.Title level={3} style={{ textAlign: "center" }}>
-          Вход в кабинет ОСИ ЖК «Мунар Тау»
+      <Card style={{ width: 400, borderRadius: 14, boxShadow: token.boxShadowSecondary }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+          <BrandLogo size={30} caption />
+        </div>
+        <Typography.Title level={3} style={{ textAlign: "center", fontSize: 20 }}>
+          Вход в кабинет ОСИ
         </Typography.Title>
         <Paragraph type="secondary">
           Кабинет предназначен для исполнителей и администраторов ОСИ. Вход

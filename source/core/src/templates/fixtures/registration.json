@@ -206,8 +206,8 @@
   {
     "key": "registration.vashe_imya_i_familiya",
     "source": "registration",
-    "ru": "Ваше имя и фамилия:",
-    "kk": "Аты-жөніңіз:"
+    "ru": "Укажите Ваши Фамилию Имя Отчество (ФИО):",
+    "kk": "Тегіңізді, атыңызды және әкеңіздің атын (ФИО) көрсетіңіз:"
   },
   {
     "key": "registration.telefon_7",

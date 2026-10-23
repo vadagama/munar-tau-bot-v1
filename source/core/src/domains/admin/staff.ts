@@ -95,9 +95,14 @@ export async function staffDetail(deps: StaffDeps, actor: Actor, id: string) {
     where a.entity_type='person' and a.entity_id=$1 and a.action='staff.roles.changed' order by a.id desc limit 100`,
     [id],
   );
+  const [contact] = await deps.db.query<{ telegram_username: string | null }>(
+    `select pr.telegram_username from profile pr where pr.person_id=$1 and pr.archived_at is null order by pr.id desc limit 1`,
+    [id],
+  );
   return {
     id: person.id,
     full_name: person.fullName,
+    telegram_username: contact?.telegram_username ?? null,
     phone_e164: person.phoneE164,
     roles,
     effective_roles: effectiveRoles(roles),
@@ -133,6 +138,7 @@ export async function staffList(deps: StaffDeps, actor: Actor) {
   requireStaff(actor);
   const items = await deps.db.query(
     `select p.id,p.full_name,p.phone_e164,
+    (select pr.telegram_username from profile pr where pr.person_id=p.id and pr.archived_at is null order by pr.id desc limit 1) telegram_username,
     coalesce(array_agg(distinct a.role::text) filter(where a.status='active' and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())),array[]::text[]) roles,
     coalesce(bool_or(a.status='active' and a.valid_from>now() and (a.valid_until is null or a.valid_until>now())),false) scheduled,
     (select count(*)::int from task t where t.assignee_person_id=p.id and t.state not in ('accepted_admin','canceled')) open_tasks

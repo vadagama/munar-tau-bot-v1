@@ -1,12 +1,12 @@
 import { lockAudience } from "../domains/registry/audience-lock.ts";
-import { buildingHints, houseChoice, validHouseChoice } from "./building-hints.ts";
+import { buildingHints,houseChoice,premiseChoice,premiseHints,validHouseChoice,validPremiseChoice } from "./building-hints.ts";
 import { navigationReply } from "./navigation.ts";
 import { loadDialog, readDialog, saveDialog } from "./dialog.ts";
-import { withSimulatorMenu } from "./simulator-menu.ts";
 import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
 import { loadTemplateStore, type TemplateStore } from "../templates/store.ts";
 import {
+  buildingLabels,
   label,
   premiseLabels,
   roleLabels,
@@ -31,7 +31,7 @@ import {
 import { manageRegistration, withdrawUnconfirmedRegistration } from "../domains/registrations/management.ts";
 import { ScenarioRegistry } from "./registry.ts";
 import { menuCommand, registrationHelp, welcomeText } from "./help.ts";
-import { type BotReply, btn } from "./keyboard.ts";
+import { type BotReply, btn, type InlineButton } from "./keyboard.ts";
 import {
   buildingCodeMatches,
   esc,
@@ -87,24 +87,32 @@ function roleFromWord(value: string | undefined): string | undefined {
   return ROLE_WORDS[value.trim().toLowerCase()];
 }
 
-/** Строка списка анкет: состояние, анкетные данные, помещение, роль, причина. */
+/** Адрес помещения: «Дом 107-1, Квартира 5»; без помещения — «помещение не указано». */
+function premisesAddress(r: Row, L: Lang, store?: TemplateStore): string {
+  if (!r.premises_id) {
+    return esc(message(store, L, "registration.pomeschenie_ne_ukazano"));
+  }
+  return `${esc(label(buildingLabels, "house", L, "Дом"))} ${esc(r.code ?? "—")}, ${
+    esc(label(premiseLabels, r.kind, L, "помещение"))
+  } ${esc(r.number ?? "—")}`;
+}
+
+/** Строка анкеты: состояние, анкетные данные, помещение, роль, причина. */
+function registrationLine(r: Row, L: Lang, store?: TemplateStore): string {
+  const draft = r.draft ? jsonValue<Row>(r.draft) : {};
+  // Анкета-минимум (REG-01) без помещения и роли — только имя и состояние.
+  const place = premisesAddress(r, L, store);
+  return `<b>${esc(label(stateLabels, r.state, L))}</b>: ${
+    esc(draft.full_name ?? "—")
+  }, ${place}${
+    r.role ? `, ${esc(label(roleLabels, r.role, L))}` : ""
+  }${
+    r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""
+  }${r.confirmed_draft ? `\n${esc(message(store, L, "registration.previous_access_retained"))}` : ""}`;
+}
+
 function registrationLines(rows: Row[], L: Lang, store?: TemplateStore): string[] {
-  return rows.map((r) => {
-    const draft = r.draft ? jsonValue<Row>(r.draft) : {};
-    // Анкета-минимум (REG-01) без помещения и роли — только имя и состояние.
-    const place = r.premises_id
-      ? `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
-        esc(r.code ?? "—")
-      }/${esc(r.number ?? "—")}`
-      : esc(message(store, L, "registration.pomeschenie_ne_ukazano"));
-    return `<b>${esc(label(stateLabels, r.state, L))}</b>: ${
-      esc(draft.full_name ?? "—")
-    }, ${place}${
-      r.role ? `, ${esc(label(roleLabels, r.role, L))}` : ""
-    }${
-      r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""
-    }${r.confirmed_draft ? `\n${esc(message(store, L, "registration.previous_access_retained"))}` : ""}`;
-  });
+  return rows.map((r) => registrationLine(r, L, store));
 }
 
 function scopedDeps(deps: RegistryDeps, exec: DbExecutor): RegistryDeps {
@@ -132,13 +140,22 @@ export async function registrationStep(
     const bot = deps.bot ?? "resident";
     const choiceAttempt = input.trim().startsWith("/start house_");
     const choice = houseChoice(input);
+    const premiseAttempt = input.trim().startsWith("/start premise_");
+    const premiseLink = premiseChoice(input);
     const expiredChoice = (language: Lang): BotReply => ({
       text: message(deps.templates, language, "message.registration.building_choice_expired"),
       buttons: [[btn(messageButton(deps.templates, language, "bot.controls", "cancel"), "/cancel")]],
     });
-    // Проверяем старую ссылку до loadDialog: она не должна переключать чужой сценарий.
+    const expiredPremiseChoice = (language: Lang): BotReply => ({
+      text: message(deps.templates, language, "message.registration.premise_choice_expired"),
+      buttons: [[btn(messageButton(deps.templates, language, "bot.controls", "cancel"), "/cancel")]],
+    });
+    // Проверяем старые ссылки до loadDialog: они не должны переключать чужой сценарий.
     if (choiceAttempt && !validHouseChoice(await readDialog(exec, telegramId, bot), choice)) {
       return expiredChoice(langOf(actor?.profile.language));
+    }
+    if (premiseAttempt && !validPremiseChoice(await readDialog(exec, telegramId, bot), premiseLink)) {
+      return expiredPremiseChoice(langOf(actor?.profile.language));
     }
     const state = await loadDialog(exec, telegramId, bot, actor?.profile.id ?? null, actor?.emulation?.sessionId ?? null, "registration");
     // Язык подачи: выбранный в диалоге, иначе язык профиля, иначе русский.
@@ -146,6 +163,10 @@ export async function registrationStep(
     if (choiceAttempt) {
       if (!validHouseChoice(state, choice)) return expiredChoice(L);
       input = choice!.id;
+    }
+    if (premiseAttempt) {
+      if (!validPremiseChoice(state, premiseLink)) return expiredPremiseChoice(L);
+      input = premiseLink!.id;
     }
     const help = () => registrationHelp(L, deps.templates);
     const save = async (reply: BotReply) => {
@@ -157,7 +178,8 @@ export async function registrationStep(
       cmd = parts[0];
     if (cmd === "/cancel") {
       for (const key of Object.keys(state)) delete state[key];
-      return save(help());
+      // Отмена ведёт в главное меню (как /start), а не в справку.
+      return save(welcomeText(L, deps.templates));
     }
     if (cmd === "/start" && !parts[1]?.startsWith("invite_")) {
       for (const key of Object.keys(state)) delete state[key];
@@ -165,7 +187,7 @@ export async function registrationStep(
     }
     if (cmd === "/status") {
       const rows = await exec.query<Row>(
-        `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
+        `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.decided_at,r.created_at,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
         from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
         where (r.telegram_user_id=$1 or r.person_id=$2) and r.superseded_by is null order by r.created_at desc limit 20`,
         [telegramId, actor?.person.id ?? null],
@@ -174,39 +196,44 @@ export async function registrationStep(
         return message(deps.templates, L, "registration.anket_poka_net");
       }
       state.status_options = rows.map((r) => String(r.id));
-      // Кнопка доступна только редактируемым анкетам: /edit проверит и ответит.
+      // Операции адресованы актуальной анкете (первая строка): исправление —
+      // одна кнопка, дубли на исторические записи не выдаются; /edit проверит.
       const editable = new Set([
         "pending_review",
         "need_clarification",
         "rejected",
         "approved",
       ]);
-      const buttons = rows
-        .map((r, i) =>
-          editable.has(String(r.state))
-            ? [
-              btn(
-                messageButton(
-                  deps.templates,
-                  L,
-                  "message.registration.status",
-                  "edit",
-                ),
-                `/edit ${i + 1}`,
-              ),
-            ]
-            : undefined
-        )
-        .filter((row): row is NonNullable<typeof row> => !!row);
+      const buttons: InlineButton[][] = editable.has(String(rows[0]!.state))
+        ? [[
+          btn(
+            messageButton(
+              deps.templates,
+              L,
+              "message.registration.status",
+              "edit",
+            ),
+            "/edit 1",
+          ),
+        ]]
+        : [];
       if (rows.some(r => r.state !== "withdrawn")) buttons.push([
         btn(messageButton(deps.templates, L, "message.registration.status", "delete"), "/delete"),
       ]);
+      // Актуальный статус — вверху; остальные записи — история изменений
+      // статуса: дата решения (или подачи), статус и анкетные данные.
+      const history = rows.slice(1).reverse().map((r) =>
+        `${esc(fmtDate(r.decided_at ?? r.created_at))} — ${registrationLine(r, L, deps.templates)}`,
+      );
+      const status = message(deps.templates, L, "message.registration.status", {
+        registrations: safeBlock(registrationLine(rows[0]!, L, deps.templates)),
+      });
       return save({
-        text: message(deps.templates, L, "message.registration.status", {
-          registrations: safeBlock(
-            numbered(registrationLines(rows, L, deps.templates)),
-          ),
-        }),
+        text: history.length
+          ? `${status}\n\n${message(deps.templates, L, "message.registration.status_history", {
+            registrations: safeBlock(history.join("\n")),
+          })}`
+          : status,
         ...(buttons.length ? { buttons } : {}),
       });
     }
@@ -328,15 +355,33 @@ export async function registrationStep(
         return save(registerPrompt(deps.templates, L));
       }
       const rows = await exec.query<Row>(
-        "select c.id,c.premises_id,c.role,c.status,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1",
+        // Показываем только подтверждённые связи: прекращённые (REG-08a) и
+        // неподтверждённые (анкета ещё в работе) в списке жителя не участвуют.
+        "select c.id,c.premises_id,c.role,c.status,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1 and c.status='active'",
         [actor.person.id],
       );
       if (!rows.length) {
-        return message(
-          deps.templates,
-          L,
-          "registration.podtverzhdennyh_obektov_net",
-        );
+        // Пустой список — сразу путь добавления помещения отдельной анкетой.
+        return save({
+          text: message(
+            deps.templates,
+            L,
+            "registration.podtverzhdennyh_obektov_net",
+          ),
+          buttons: [
+            [
+              btn(
+                messageButton(
+                  deps.templates,
+                  L,
+                  "registration.podtverzhdennyh_obektov_net",
+                  "add",
+                ),
+                "/add",
+              ),
+            ],
+          ],
+        });
       }
       const seen = new Set<string>();
       state.object_options = rows.flatMap((r) => {
@@ -350,26 +395,38 @@ export async function registrationStep(
           premises: safeBlock(
             numbered(
               rows.map((r) =>
-                `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
-                  esc(r.code)
-                }/${esc(r.number)} — ${esc(label(roleLabels, r.role, L))}, ${
+                `${premisesAddress(r, L)} — ${esc(label(roleLabels, r.role, L))}, ${
                   esc(label(stateLabels, r.status, L))
                 }`
               ),
             ),
           ),
         }),
-        buttons: [[
-          btn(
-            messageButton(
-              deps.templates,
-              L,
-              "message.registration.objects",
-              "invite",
+        buttons: [
+          [
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.objects",
+                "invite",
+              ),
+              "/invite",
             ),
-            "/invite",
-          ),
-        ]],
+          ],
+          // Добавление ещё одного помещения — отдельной анкетой /add.
+          [
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.objects",
+                "add",
+              ),
+              "/add",
+            ),
+          ],
+        ],
       });
     }
     if (
@@ -423,8 +480,10 @@ export async function registrationStep(
             parts[1] = "1";
           } else {
             // Несколько помещений: выбор строки кнопками, затем роль.
+            // Тот же фильтр, что в /objects: номера строк совпадают с
+            // object_options, прекращённые помещения не предлагаются.
             const rows = await exec.query<Row>(
-              "select c.premises_id,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1",
+              "select c.premises_id,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1 and c.status='active'",
               [actor.person.id],
             );
             const seen = new Set<string>();
@@ -595,9 +654,7 @@ export async function registrationStep(
           premises: safeBlock(
             numbered(
               options.map((r) =>
-                `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
-                  esc(r.code)
-                }/${esc(r.number)} — ${esc(label(roleLabels, r.role, L))}`
+                `${premisesAddress(r, L)} — ${esc(label(roleLabels, r.role, L))}`
               ),
             ),
           ),
@@ -946,6 +1003,7 @@ export async function registrationStep(
               {
                 full_name: state.full_name,
                 phone: state.phone_e164,
+                building: label(buildingLabels, "house", L, "Дом"),
                 kind: label(premiseLabels, state.kind, L),
                 code: conn.code,
                 number: conn.number,
@@ -1015,22 +1073,65 @@ export async function registrationStep(
           message(deps.templates, L, "registration.nomer_pomescheniya"),
         );
       case "number": {
+        // Номер помещения текстом или кликом по deep-link (аналогично домам):
+        // id::text=$4 резолвит uuid из ссылки тем же запросом; при ошибке
+        // предлагаем кликабельные номера помещений выбранного типа в доме.
         const [premises] = await exec.query<Row>(
-          "select id from premises where building_id=$1 and kind=$2 and number=$3 and status='active' and is_test=$4",
+          "select id from premises where building_id=$1 and kind=$2 and status='active' and is_test=$3 and (number=$4 or id::text=$4)",
           [
             state.building_id,
             state.kind,
-            input.trim(),
             actor?.person.isTest ?? false,
+            input.trim(),
           ],
         );
         if (!premises) {
-          return message(
-            deps.templates,
-            L,
-            "registration.pomeschenie_ne_naydeno_proverte_nomer_ili_obratites",
+          const numbers = await exec.query<Row>(
+            "select id,number from premises where building_id=$1 and kind=$2 and status='active' and is_test=$3 order by number limit 30",
+            [state.building_id, state.kind, actor?.person.isTest ?? false],
           );
+          if (numbers.length === 0) {
+            return {
+              text: message(
+                deps.templates,
+                L,
+                "registration.pomeschenie_ne_naydeno_proverte_nomer_ili_obratites",
+              ),
+              buttons: [[
+                btn(
+                  messageButton(
+                    deps.templates,
+                    L,
+                    "registration.pomeschenie_ne_naydeno_proverte_nomer_ili_obratites",
+                    "cancel",
+                  ),
+                  "/cancel",
+                ),
+              ]],
+            };
+          }
+          // Токен связывает ссылки подсказки с текущим диалогом: чужая или
+          // устаревшая ссылка после смены шага/токена становится неактивной.
+          if (!state.premise_choice_token) {
+            state.premise_choice_token = crypto.randomUUID().replaceAll("-", "").slice(0, 12);
+          }
+          return save({
+            text: premiseHints(
+              numbers,
+              L,
+              String(state.premise_choice_token),
+              deps.templates,
+              deps.residentBotUsername,
+            ),
+            buttons: [[
+              btn(
+                messageButton(deps.templates, L, "message.registration.premise_unknown", "cancel"),
+                "/cancel",
+              ),
+            ]],
+          });
         }
+        delete state.premise_choice_token;
         state.premises_id = premises.id;
         state.step = "role";
         return save({
@@ -1051,7 +1152,14 @@ export async function registrationStep(
           ]),
         });
       }
-      case "role":
+      case "role": {
+        // Полный адрес для согласия: дом и номер берём из БД, а не из
+        // состояния — помещение могло быть переименовано между шагами.
+        const [premises] = await exec.query<Row>(
+          "select p.number,b.code from premises p join building b on b.id=p.building_id where p.id=$1 and p.status='active'",
+          [state.premises_id],
+        );
+        if (!premises) throw new ApiError("NOT_FOUND");
         state.role = (ROLE_OPTIONS[Number(input.trim()) - 1] ??
           input.trim()) as string;
         state.step = "consent";
@@ -1061,13 +1169,17 @@ export async function registrationStep(
             message(deps.templates, L, "message.registration.consent", {
               full_name: state.full_name,
               phone: state.phone_e164,
+              building: label(buildingLabels, "house", L, "Дом"),
+              code: premises.code,
               kind: label(premiseLabels, state.kind, L),
+              number: premises.number,
               role: label(roleLabels, state.role, L),
             }),
             deps.templates,
             "message.registration.consent",
           ),
         );
+      }
       case "fix_name": {
         const name = input.trim() === "." ? "" : input.trim();
         if (name.length > 300) throw new ApiError("VALIDATION_FAILED");
@@ -1302,7 +1414,7 @@ export function registrationScenarios(deps: RegistryDeps): ScenarioRegistry {
         input,
         ctx.actor,
       );
-      return withSimulatorMenu(navigationReply(reply,"registration",ctx.actor.profile.language,templates,input), "registration", ctx.actor.profile.language, templates);
+      return navigationReply(reply,"registration",ctx.actor.profile.language,templates,input);
     },
   });
   return scenarios;

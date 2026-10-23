@@ -27,9 +27,9 @@ export async function queryRequestReport(exec:DbExecutor,actor:Actor,scope:Repor
   r.urgency,r.updated_at::text,r.created_at::text,r.first_response_at::text,r.open_at::text,r.closed_at::text,r.close_method,r.confirmation_version,
   coalesce((select jsonb_agg(jsonb_build_object('id',e.id::text,'at',e.at::text,'kind',e.kind,'from_state',e.from_state,'to_state',e.to_state,'action',e.action,'confirmation_version',e.confirmation_version,'close_method',e.close_method) order by e.at,e.id)
    from report_request_event e where e.request_id=r.id and e.at<$5::timestamptz),'[]'::jsonb) as events,
-  coalesce((select jsonb_agg(jsonb_build_object('id',e.id::text,'timer_id',e.timer_id,'stage',e.stage,'rule_version_id',e.rule_version_id,'params',e.params,'state',e.state,'due_at',e.due_at::text,'at',e.at::text,'baseline',e.baseline) order by e.at,e.id)
-   from report_timer_event e where e.request_id=r.id and e.at<$5::timestamptz),'[]'::jsonb) as timers,
-  (select jsonb_build_object('value',l.value,'confirmation_version',l.confirmation_version,'withdrawn_at',v.withdrawn_at::text,'updated_at',l.at::text) from rating_log l left join rating v on v.request_id=l.request_id where l.request_id=r.id and l.at<$5::timestamptz order by l.at desc,l.id desc limit 1) as rating,
+  coalesce((select jsonb_agg(jsonb_build_object('id',timer_event.id::text,'timer_id',timer_event.timer_id,'stage',timer_event.stage,'rule_version_id',timer_event.rule_version_id,'params',timer_event.params,'state',timer_event.state,'due_at',timer_event.due_at::text,'at',timer_event.at::text,'baseline',timer_event.baseline) order by timer_event.at,timer_event.id)
+   from report_timer_event timer_event where timer_event.request_id=r.id and timer_event.at<$5::timestamptz),'[]'::jsonb) as timers,
+  (select jsonb_build_object('value',rating_event.value,'confirmation_version',rating_event.confirmation_version,'withdrawn_at',v.withdrawn_at::text,'updated_at',rating_event.at::text) from rating_log rating_event left join rating v on v.request_id=rating_event.request_id where rating_event.request_id=r.id and rating_event.at<$5::timestamptz order by rating_event.at desc,rating_event.id desc limit 1) as rating,
   case when queue.unknown=0 then queue.unfinished=0 end as unassigned,queue.overdue>0 as work_overdue,
   exists(select 1 from message m where m.request_id=r.id and m.channel='resident' and m.restricted_at is null and m.created_at<$5::timestamptz and m.author_person_id<>$2 and (m.author_person_id=r.author_person_id or exists(select 1 from request_participant p where p.request_id=r.id and p.person_id=m.author_person_id and p.role='participant')) and not exists(select 1 from request_message_read rd where rd.message_id=m.id and rd.person_id=$2 and rd.read_at<$5::timestamptz)) as unread,
   case when queue.unknown=0 then queue.review>0 end as report_pending
@@ -51,11 +51,11 @@ export async function queryRequestReport(exec:DbExecutor,actor:Actor,scope:Repor
   and (r.open_at>=$8::timestamptz or r.closed_at>=$8::timestamptz or r.state not in ('closed','canceled','rejected')
    or exists(select 1 from report_request_event e where e.request_id=r.id and e.at>=$8::timestamptz and e.kind='state'))
   and ($9::uuid is null or exists(select 1 from task t
-   left join lateral(select l.meta from task_log l where l.task_id=t.id and l.at<$5::timestamptz order by l.at desc,l.id desc limit 1) p on true
+   left join lateral(select l.meta from task_log l where l.task_id=t.id and l.at<$5::timestamptz order by l.at desc,l.id desc limit 1) assignment_snapshot on true
    left join lateral(select l.meta from task_log l where l.task_id=t.id and l.at>=$5::timestamptz and l.meta ? 'previous_assignee_id' order by l.at,l.id limit 1) f on true
    where t.request_id=r.id and t.created_at<$5::timestamptz and
-   (case when p.meta->'report' ? 'assignee_person_id' then (p.meta->'report'->>'assignee_person_id')::uuid
-    when p.meta ? 'assignee_person_id' then (p.meta->>'assignee_person_id')::uuid
+   (case when assignment_snapshot.meta->'report' ? 'assignee_person_id' then (assignment_snapshot.meta->'report'->>'assignee_person_id')::uuid
+    when assignment_snapshot.meta ? 'assignee_person_id' then (assignment_snapshot.meta->>'assignee_person_id')::uuid
     when f.meta ? 'previous_assignee_id' then (f.meta->>'previous_assignee_id')::uuid
     when t.updated_at<$5::timestamptz then t.assignee_person_id end)=$9))
   order by r.created_at,r.id limit 10001`,[scope.is_test,actor.person.id,chairman,scope.building_ids,asOf,scope.selected_building_ids,scope.include_addressless,from,scope.assignee_id]);

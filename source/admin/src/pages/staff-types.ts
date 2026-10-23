@@ -4,6 +4,7 @@ export interface StaffRow {
   id: string;
   full_name: string;
   phone_e164: string;
+  telegram_username?: string | null;
   roles: StaffRole[];
   scheduled?: boolean;
   open_tasks?: number;
