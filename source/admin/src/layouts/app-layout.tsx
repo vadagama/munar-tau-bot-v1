@@ -1,8 +1,9 @@
 import { EmulationRoleSelect } from "./emulation-role-select";
 import { PAGE_REFRESH_EVENT, usePageRefresh } from "../lib/use-page-refresh";
 import { DayQueueProvider, useDayQueue } from "../lib/day-queue";
-import { useState } from "react";
-import { Alert, Badge, Button, Layout, Menu, Space, Typography, theme } from "antd";
+import { useState, useSyncExternalStore } from "react";
+import { Alert, Badge, Button, Drawer, Layout, Menu, Space, Typography, theme } from "antd";
+import { MenuOutlined } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useLogout } from "@refinedev/core";
 
@@ -17,6 +18,33 @@ import { apiFetch } from "../lib/api";
 import { BrandLogo } from "../components/brand-logo";
 
 const { Header, Sider, Content } = Layout;
+
+// Узкий экран (<992px): сайдбар не рендерится, меню живёт в шторке и открывается
+// кнопкой в шапке. Раньше сайдбар на узких экранах становился position: fixed без
+// компенсации отступа — лежал поверх контента и ломал раскладку при прокрутке.
+const NARROW_QUERY = "(max-width: 991.98px)";
+function subscribeNarrow(onChange: () => void) {
+  const mql = window.matchMedia(NARROW_QUERY);
+  const listener = () => onChange();
+  if (typeof mql.addEventListener === "function") {
+    mql.addEventListener("change", listener);
+    return () => mql.removeEventListener("change", listener);
+  }
+  mql.addListener(listener);
+  return () => mql.removeListener(listener);
+}
+
+// Логотип и меню — общий узел для сайдбара (десктоп) и шторки (узкий экран).
+function SideNav(props: { menu: React.ReactNode }) {
+  return (
+    <>
+      <div style={{ padding: "16px 16px 12px" }}>
+        <BrandLogo size={24} caption="Кабинет ОСИ" />
+      </div>
+      <div style={{ maxHeight: "calc(100dvh - 56px)", overflowY: "auto" }}>{props.menu}</div>
+    </>
+  );
+}
 
 // Баннер режима эмуляции (Task 7, HLD 10.8): имя персоны и пометка
 // журналирования; завершение сеанса — DELETE /v1/emulation/sessions/{id}.
@@ -63,8 +91,12 @@ export function MenuLabel({ label, count }: { label: string; count: number }) {
 
 // Layout кабинета (VS-1): меню по ролям, баннер эмуляции, выход.
 export function AppLayout() {
-  const [narrow, setNarrow] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const narrow = useSyncExternalStore(
+    subscribeNarrow,
+    () => window.matchMedia(NARROW_QUERY).matches,
+    () => false,
+  );
   const navigate = useNavigate();
   const location = useLocation();
   const { identity, roles, refreshIdentity } = useCabinetIdentity();
@@ -118,35 +150,39 @@ export function AppLayout() {
   ];
   const selectedPath = location.pathname;
   const activeGroup = items.find(item => item.children?.some(child => child.key === selectedPath))?.key;
+  const menu = (
+    <Menu
+      theme="light"
+      mode="inline"
+      selectedKeys={[selectedPath]}
+      key={activeGroup}
+      defaultOpenKeys={activeGroup ? [activeGroup] : []}
+      items={items}
+      onClick={({ key }) => { if (key === location.pathname) window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
+        else navigate(key); if (narrow) setMenuOpen(false); }}
+    />
+  );
 
   return (
     <DayQueueProvider>
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider theme="light" width={240} breakpoint="lg" collapsedWidth={0}
-        collapsed={collapsed} onCollapse={setCollapsed} onBreakpoint={setNarrow}
-        style={{ borderInlineEnd: "1px solid #eceef0",
-          ...(narrow ? { position: "fixed", zIndex: 1000, height: "100dvh" } : null) }}>
-        <div style={{ padding: "16px 16px 12px" }}>
-          <BrandLogo size={24} caption="Кабинет ОСИ" />
-        </div>
-        <div style={narrow ? { maxHeight: "calc(100dvh - 56px)", overflowY: "auto" } : undefined}>
-        <Menu
-          theme="light"
-          mode="inline"
-          selectedKeys={[selectedPath]}
-          key={activeGroup}
-          defaultOpenKeys={activeGroup ? [activeGroup] : []}
-          items={items}
-          onClick={({ key }) => { if (key === location.pathname) window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
-            else navigate(key); if (narrow) setCollapsed(true); }}
-        />
-        </div>
-      </Sider>
+      {!narrow && (
+        <Sider theme="light" width={240}
+          style={{ position: "sticky", top: 0, height: "100dvh", borderInlineEnd: "1px solid #eceef0" }}>
+          <SideNav menu={menu} />
+        </Sider>
+      )}
       <Layout style={{ minWidth: 0 }}>
         <Header style={{ background: "#fff", borderBottom: "1px solid #eceef0", paddingInline: 24, minHeight: 56, height: "auto", gap: 12, flexWrap: "wrap", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography.Title level={4} style={{ margin: 0, lineHeight: "32px", fontSize: 18 }}>
-            Кабинет администратора
-          </Typography.Title>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+            {narrow && (
+              <Button type="text" icon={<MenuOutlined />} aria-label="Меню"
+                onClick={() => setMenuOpen(true)} />
+            )}
+            <Typography.Title level={4} style={{ margin: 0, lineHeight: "32px", fontSize: 18 }}>
+              Кабинет администратора
+            </Typography.Title>
+          </div>
           <Space wrap style={{ maxWidth: "100%" }}>
             <Typography.Text type="secondary">
               {identity?.fullName ?? "…"}
@@ -164,6 +200,12 @@ export function AppLayout() {
           <Outlet key={location.pathname === "/emulation" ? "emulation" : identity?.me.profile.id} />
         </Content>
       </Layout>
+      {narrow && (
+        <Drawer placement="left" width={288} open={menuOpen} onClose={() => setMenuOpen(false)}
+          styles={{ body: { padding: 0 } }} aria-label="Меню кабинета">
+          <SideNav menu={menu} />
+        </Drawer>
+      )}
     </Layout>
     </DayQueueProvider>
   );

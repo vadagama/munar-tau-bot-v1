@@ -40,6 +40,26 @@
   transform: none;
 }
 
+/* Доска прокручивается внутри себя (одна линия колонок), страница не скроллится вбок.
+   Цвет ползунка приходит CSS-переменной из board.tsx, поэтому работает и в тёмной теме. */
+.board-row {
+  scrollbar-width: thin;
+  scrollbar-color: var(--board-scrollbar, rgba(0, 0, 0, 0.2)) transparent;
+}
+
+.board-row::-webkit-scrollbar {
+  height: 8px;
+}
+
+.board-row::-webkit-scrollbar-thumb {
+  background: var(--board-scrollbar, rgba(0, 0, 0, 0.2));
+  border-radius: 999px;
+}
+
+.board-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /* Подсказка «открывается справа»: видна при наведении, фокусе и у открытой карточки. */
 .board-card__hint {
   position: absolute;

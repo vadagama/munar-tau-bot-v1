@@ -16,7 +16,7 @@ vi.mock("../lib/identity", async importOriginal => ({
   } : undefined }),
 }));
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn().mockResolvedValue({ persons: [] }) }));
-afterEach(() => { cleanup(); state.emulating = false; vi.clearAllMocks(); });
+afterEach(() => { cleanup(); state.emulating = false; vi.clearAllMocks(); window.innerWidth = 1024; });
 function show(path = "/") {
   render(<MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
     <Routes><Route element={<AppLayout />}>
@@ -64,6 +64,18 @@ it("вне эмуляции не показывает выбор роли и н�
   show();
   expect(screen.queryByRole("combobox", { name: "Роль эмуляции" })).toBeNull();
   expect(apiFetch).not.toHaveBeenCalled();
+});
+it("на узком экране меню открывается кнопкой в шапке и живёт в шторке", () => {
+  window.innerWidth = 500;
+  show();
+  // Сайдбара нет, закрытая шторка меню не рендерит.
+  expect(screen.queryByRole("menu")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Меню" }));
+  expect(screen.getByRole("menu")).toBeVisible();
+  // Клик по пункту навигируется и закрывает шторку.
+  fireEvent.click(screen.getByRole("menuitem", { name: "Обращения" }));
+  expect(screen.queryByRole("menu")).toBeNull();
+  window.innerWidth = 1024;
 });
 it("только в эмуляции показывает выбор роли слева от выхода", async () => {
   state.emulating = true;
