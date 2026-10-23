@@ -1,3 +1,4 @@
+import { captureReportKpi } from "../../core/src/domains/reports/history.ts";
 import { reconcileInitiativeSupport } from "../../core/src/domains/initiatives/reconcile.ts";
 import { reconcileOpenPolls } from "../../core/src/domains/polls/reconcile.ts";
 import { closeDuePolls } from "../../core/src/domains/polls/jobs.ts";
@@ -170,6 +171,7 @@ export async function handle(
           (await closeDuePolls(actual,backgroundDeadline)) +
           (await reconcileOpenPolls(actual,backgroundDeadline)) +
           (await reconcileInitiativeSupport(actual,backgroundDeadline)) +
+          (await captureReportKpi(actual.db,backgroundDeadline)) +
           (await sweepDocumentObligations(actual,backgroundDeadline)) +
           (await reopenFinancialObligations(actual,backgroundDeadline)) +
           (await sweepFinancialObligations(actual,backgroundDeadline)) +

@@ -16,3 +16,8 @@ export function zonedInstant(date:string,hour=0,zone=REPORT_ZONE):number {
  }
  return invalid();
 }
+/** ISO/PG text сохраняет дробь до микросекунд; SQL-источник читает at::text, не Date. */
+export function reportInstantUs(value:string):bigint {
+ const milliseconds=Date.parse(value),match=/[T ]\d{2}:\d{2}:\d{2}(?:\.(\d{1,6}))?(?:Z|[+-]\d{2}(?::?\d{2})?)$/.exec(value);
+ if(!Number.isFinite(milliseconds)||!match)invalid();return BigInt(milliseconds)*1000n+BigInt((match[1]??"").padEnd(6,"0").slice(3));
+}

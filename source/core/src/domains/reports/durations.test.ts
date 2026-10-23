@@ -16,3 +16,7 @@ it("два возврата и ожидание сохраняются отде�
  const result=cycleDurations(cycles,"2026-10-23T06:00:00Z");expect(result).toEqual([{number:1,calendar_minutes:60,waiting_minutes:30,ended:true},{number:2,calendar_minutes:120,waiting_minutes:0,ended:false}]);
  expect(calendarMinutes("2026-10-23T03:00:00Z","2026-10-23T04:00:00Z")).toBe(60);
 });
+
+it("рабочие и календарные длительности сохраняют микросекундный край",()=>{
+ const from="2026-10-23T03:00:00.000200Z",to="2026-10-23T03:00:00.000500Z";expect(calendarMinutes(from,to)).toBe(0.000005);expect(workingMinutes(from,to,rule,[{from,to}])).toBe(0.000005);
+});

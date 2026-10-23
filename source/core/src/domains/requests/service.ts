@@ -1,3 +1,4 @@
+import { recordReportResponse } from "../reports/history.ts";
 import { templateNotice } from "../../templates/notice.ts";
 import type { NoticeText } from "../../templates/notice.ts";
 import { fmtDate } from "../../bot/text.ts";
@@ -980,10 +981,12 @@ export async function transitionRequestInTransaction(
           invalid("Недоступное сообщение ответа");
         }
         if (!previous.length) {
+          const messageId=crypto.randomUUID();
           await exec.query(
-            "insert into message(request_id,channel,author_person_id,text,source) values ($1,'resident',$2,$3,$4)",
-            [id, actor.person.id, text, p.source ?? "web"],
+            "insert into message(id,request_id,channel,author_person_id,text,source) values ($1,$2,'resident',$3,$4,$5)",
+            [messageId,id,actor.person.id,text,p.source??"web"],
           );
+          if(action!=="answer_clarification")await recordReportResponse(exec,id,messageId);
         }
         if (action !== "answer_clarification") {
           await exec.query(
