@@ -1,10 +1,14 @@
 import { expect, it, vi } from "vitest";
-import { documentStep } from "./documents.ts";
+import { documentStep, queueDocumentFile } from "./documents.ts";
 import { replyText } from "./keyboard.ts";
 import { B1, makeTestActor } from "../testing/actors.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import type { Row } from "../domains/registry/validation.ts";
 import { listObligations } from "../domains/documents/obligations.ts";
+import { actorForTelegram } from "./registration.ts";
+import { prepareFile } from "../domains/requests/files.ts";
+vi.mock("./registration.ts", () => ({ actorForTelegram: vi.fn() }));
+vi.mock("../domains/requests/files.ts", () => ({ prepareFile: vi.fn(async () => ({ attachment_id: "staged-file" })), fileUrl: vi.fn() }));
 vi.mock("../domains/documents/obligations.ts", () => ({ listObligations: vi.fn() }));
 vi.mock("../domains/documents/service.ts", () => ({
   listDocuments: async () => ({ items: [{ id: "d", title: "<b>Акт & проверка</b>" }], total: 1 }),
@@ -62,4 +66,27 @@ it("все обязанности доступны по страницам бе�
   const last = await documentStep(s.deps, "123", "/docduties 30", actor);
   expect(replyText(last)).toContain("ОБ-30");
   expect(replyText(last)).not.toContain("ОБ-29");
+});
+it.each([{ language: "ru", state: "На проверке", prompt: "Укажите причину" }, { language: "kk", state: "Тексеруде", prompt: "Әрекеттің себебін" }])("карточка и форма используют один язык $language в общем сценарии симулятора", async ({ language, state, prompt }) => {
+  const s = fixture(), actor = makeTestActor("administrator", [B1]);
+  actor.profile.language = language as "ru" | "kk";
+  expect(replyText(await documentStep(s.deps, "123", "/doc d", actor))).toContain(state);
+  const form = await documentStep(s.deps, "123", `/dc ${s.state().document_token} return`, actor);
+  expect(replyText(form)).toContain(prompt);
+});
+it("файл сохраняется через устойчивую очередь и не объявляется сохранённым до обработки", async () => {
+  const s = fixture(), actor = makeTestActor("administrator", [B1]);
+  const queries = vi.spyOn(s.deps.db, "query");
+  vi.mocked(actorForTelegram).mockResolvedValue(actor);
+  await documentStep(s.deps, "123", "/doc d", actor);
+  await documentStep(s.deps, "123", `/dc ${s.state().document_token} version`, actor);
+  const reply = await queueDocumentFile(s.deps, "123", { document: { file_id: "telegram-file", file_name: "act.pdf", mime_type: "application/pdf", file_size: 12 } });
+  expect(prepareFile).toHaveBeenCalledWith(s.deps, actor, expect.objectContaining({ owner_type: "document", owner_id: "d", expected_version: 3 }));
+  expect(queries).toHaveBeenCalledWith("insert into request_upload_job(attachment_id,telegram_file_id,person_id,bot) values($1,$2,$3,'worker')", ["staged-file", "telegram-file", actor.person.id]);
+  expect(replyText(reply)).toContain("Файл принят в очередь");
+  expect(s.state().document_form).toMatchObject({ step: "choose_signed", values: { attachment_id: "staged-file" } });
+  await documentStep(s.deps, "123", "/documents", actor);
+  const cancelled = await queueDocumentFile(s.deps, "123", { document: { file_id: "late-file" } });
+  expect(replyText(cancelled)).toContain("ожидается текст");
+  expect(prepareFile).toHaveBeenCalledTimes(1);
 });
