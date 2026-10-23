@@ -1,7 +1,6 @@
 import { buildingHints, houseChoice, validHouseChoice } from "./building-hints.ts";
 import { navigationReply } from "./navigation.ts";
 import { loadDialog, readDialog, saveDialog } from "./dialog.ts";
-import { withSimulatorMenu } from "./simulator-menu.ts";
 import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
 import { loadTemplateStore, type TemplateStore } from "../templates/store.ts";
@@ -1300,7 +1299,7 @@ export function registrationScenarios(deps: RegistryDeps): ScenarioRegistry {
         input,
         ctx.actor,
       );
-      return withSimulatorMenu(navigationReply(reply,"registration",ctx.actor.profile.language,templates,input), "registration", ctx.actor.profile.language, templates);
+      return navigationReply(reply,"registration",ctx.actor.profile.language,templates,input);
     },
   });
   return scenarios;

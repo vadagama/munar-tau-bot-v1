@@ -619,7 +619,7 @@ Deno.test("симулятор: без эмуляции — 400, неизвест
   assertEquals((await unknown.json()).error.code, "NOT_FOUND");
 });
 
-Deno.test("симулятор жителя возвращает текст, inline-кнопки и меню", async () => {
+Deno.test("симулятор жителя возвращает текст и inline-кнопки", async () => {
   const { deps, admin, emulation } = makeDeps();
   const tech = seedTechAdmin(admin);
   const techJwt = await token({ sub: tech.sub, sessionId: tech.sessionId });
@@ -628,13 +628,12 @@ Deno.test("симулятор жителя возвращает текст, inli
     token: techJwt, method: "POST", body: { emulated_profile_id: persona.profile.id },
   });
   const buttons = [[{ text: "Русский", data: "ru" }]];
-  const menu = [[{ text: "Обращения", data: "/requests", scenario: "requests" }]];
-  deps.scenarios.register({ id: "registration", description: "REG", run: () => Promise.resolve({ text: "Язык", buttons, menu }) });
+  deps.scenarios.register({ id: "registration", description: "REG", run: () => Promise.resolve({ text: "Язык", buttons }) });
   const response = await call(deps, "/v1/emulation/simulate", {
     token: techJwt, method: "POST", body: { scenario: "registration", input: "/register" },
   });
   assertEquals(response.status, 200);
-  assertEquals(await response.json(), { scenario_id: "registration", reply: "Язык", buttons, menu });
+  assertEquals(await response.json(), { scenario_id: "registration", reply: "Язык", buttons });
 });
 
 Deno.test("эмуляция: техадмин снимает роль тестовой персоны — назначение отозвано, аудит и уведомление", async () => {

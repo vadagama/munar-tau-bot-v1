@@ -305,6 +305,6 @@ export async function simulate(
       entityId: actor.emulation?.sessionId,
       meta: { scenario: scenarioId },
     }));
-    return { scenarioId, ...(bot==='worker'?{bot}:{}), reply: replyText(reply), ...(typeof reply === "string" ? {} : { buttons: reply.buttons, menu: reply.menu }) };
+    return { scenarioId, ...(bot==='worker'?{bot}:{}), reply: replyText(reply), ...(typeof reply === "string" ? {} : { buttons: reply.buttons }) };
   });
 }

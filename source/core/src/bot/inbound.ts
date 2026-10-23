@@ -11,7 +11,7 @@ import { ApiError } from "../errors/api.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
 import { registrationStep } from "./registration.ts";
 import { notificationStep } from "./notifications.ts";
-import { menuCommand, residentMenu, workerHelp, workerMenu } from "./help.ts";
+import { menuCommand, workerHelp } from "./help.ts";
 import { notifyTelegram } from "../domains/registrations/notifications.ts";
 import type { BotKind } from "./bots.ts";
 import type { Row } from "../domains/registry/validation.ts";
@@ -216,20 +216,6 @@ export async function processInbound(
       }
       const currentState = await readDialog(exec,String(from.id),bot);
       reply = navigationReply(reply,String(currentState.scenario ?? (bot === "worker" ? "tasks" : "registration")),await profileLang(exec,String(from.id)),templates,text);
-      // Reply-меню прикрепляется к справке: постоянная клавиатура ставится
-      // один раз и остаётся, пока пользователь её не скроет. Кнопки — подписи
-      // на языке профиля; их тексты резолвятся в команды в processInbound.
-      const menu = command === "/start" || command === "/help"
-        ? await profileLang(exec, String(from.id)).then((lang) =>
-          bot === "worker" ? workerMenu(lang, templates) : residentMenu(
-            lang,
-            templates,
-            command === "/help"
-              ? "help.registration_help"
-              : "help.welcome_text",
-          )
-        )
-        : undefined;
       // Ответ уходит тем же ботом, который принял обновление.
       if (replyText(reply)) {
         await notifyTelegram(
@@ -238,7 +224,6 @@ export async function processInbound(
           reply,
           `update:${update.update_id}:reply`,
           bot,
-          menu,
         );
       }
     }
