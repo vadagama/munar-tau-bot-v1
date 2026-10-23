@@ -23,6 +23,7 @@ export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {})
     }
   }
 
+  if(action==="poll.use")return actor.person.status==="active"?ALLOW:deny("Учётная запись недоступна");
   if (action.startsWith("poll.")) return pollDecision(actor, action, resource);
 
   if (action.startsWith("document.") && action !== "document.use") return documentDecision(actor, action, resource);

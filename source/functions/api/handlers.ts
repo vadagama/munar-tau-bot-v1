@@ -1,3 +1,4 @@
+import { POLL_ROUTES } from "./poll-handlers.ts";
 import { canManageStaff, canManageRole } from "../../core/src/pdp/roles.ts";
 import { STAFF_ROUTES } from "./staff-handlers.ts";
 import { DOCUMENT_ROUTES } from "./document-handlers.ts";
@@ -532,6 +533,7 @@ async function handleEmulationSimulate(ctx: RouteContext): Promise<RouteResult> 
 
 export const ROUTES: readonly Route[] = [
   ...DOCUMENT_ROUTES,
+  ...POLL_ROUTES,
   ...STAFF_ROUTES,
   ...NOTIFICATION_ROUTES,
   ...TEMPLATE_ROUTES,
