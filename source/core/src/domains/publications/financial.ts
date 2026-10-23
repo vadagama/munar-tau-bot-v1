@@ -5,7 +5,7 @@ type DocumentKind = typeof DOCUMENT_KINDS[number];
 
 function uuid(value: unknown): string {
   if (typeof value !== "string" || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(value)) invalid("Выберите запись из списка");
-  return value;
+  return value.toLowerCase();
 }
 function day(value: unknown): string {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) invalid("Укажите действительную дату периода");

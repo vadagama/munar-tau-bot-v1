@@ -21,6 +21,13 @@ it("регламент фиксирует форму, сотрудников, с
   expect(financialRuleInput({ ...rule, hours: 1 })).toEqual(rule);
   for (const patch of [{ channels: [] }, { required_agreements: [] }, { reviewer_id: report }, { form: "unknown" }, { required_agreements: [{ ...rule.required_agreements[0], code: "report" }] }]) expect(() => financialRuleInput({ ...rule, ...patch })).toThrow();
 });
+it("регистр UUID не создаёт разных людей, домов или версий", () => {
+  const id = "abcdefab-1234-4123-8123-abcdefabcdef";
+  expect(() => financialRuleInput({ ...rule, prepared_by: id.toUpperCase(), reviewer_id: id })).toThrow();
+  expect(() => financialRuleInput({ ...rule, building_ids: [id, id.toUpperCase()] })).toThrow();
+  expect(() => financialInput({ ...input, report_version_id: id, basis_versions: [{ code: "council", document_version_id: id.toUpperCase() }], disclosed_version_ids: [id] })).toThrow();
+  expect(financialRuleInput({ ...rule, prepared_by: id.toUpperCase() }).prepared_by).toBe(id);
+});
 it("комплект требует действительных оснований, подписей и полного охвата", () => {
   const documents = [{ id: report, document_id: "report", kind: "financial_report", state: "approved", is_test: true, audience: "owner", building_ids: [building], signed_attachment_id: "signed-report", prepared_by: report, reviewer_id: basis },
     { id: basis, document_id: "basis", kind: "decision_basis", state: "approved", is_test: true, audience: "finance", building_ids: [building], signed_attachment_id: "signed-basis", prepared_by: report, reviewer_id: basis }];
