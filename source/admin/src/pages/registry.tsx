@@ -419,7 +419,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
         <Space wrap>
           <Button onClick={() => open(row)}>Изменить</Button>
           {entity === "connections" && ["active", "pending"].includes(String(row.status)) && (
-            <Button danger size="small" onClick={() => openUnlink(row)}>
+            <Button danger onClick={() => openUnlink(row)}>
               Отвязать
             </Button>
           )}
@@ -429,12 +429,12 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
             </Button>
           )}
           {canDelete && entity === "buildings" && (
-            <Button danger size="small" onClick={() => setDeleteBuilding(row)}>
+            <Button danger onClick={() => setDeleteBuilding(row)}>
               Удалить
             </Button>
           )}
           {users === "residents" && Boolean(row.can_manage) && (
-            <Button danger size="small" onClick={() => setDeleteResident(row)}>
+            <Button danger onClick={() => setDeleteResident(row)}>
               Удалить
             </Button>
           )}
@@ -447,7 +447,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
               okButtonProps={{ danger: true, loading: deleting === String(row.id) }}
               onConfirm={() => void remove(row)}
             >
-              <Button danger size="small">Удалить</Button>
+              <Button danger>Удалить</Button>
             </Popconfirm>
           )}
         </Space>
