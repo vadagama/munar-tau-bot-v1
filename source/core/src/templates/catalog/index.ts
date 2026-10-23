@@ -27,13 +27,10 @@ import { errors } from "./errors.ts";
 import type { TemplateDef } from "./types.ts";
 const legacyCatalog: readonly TemplateDef[] = [
   ...documentTemplates,
-  ...reportTemplates,
   ...financialTemplates,
   ...financialPublicationTemplates,
   ...pollTemplates,
   ...initiativeTemplates,
-  ...initiativeDialogTemplates,
-  ...pollDialogTemplates,
   ...staffTemplates,
   ...errors,
   ...commonTemplates,
@@ -58,6 +55,9 @@ const legacyCatalog: readonly TemplateDef[] = [
   },
 ];
 const messages = [
+  ...reportTemplates,
+  ...initiativeDialogTemplates,
+  ...pollDialogTemplates,
   ...financialDialogTemplates,
   ...documentDialogTemplates,
   ...staffRequestTemplates,

@@ -49,7 +49,7 @@ export function navigationReply(
   }
   if(scenario==='registration'&&!existing.length&&['/start','/cancel'].includes(command))rows.push([b('pending','/pending')]);
   if(scenario==='tasks'&&!existing.length&&['/start','/cancel'].includes(command))rows.push([b('signals','/signals'),b('publications','/publications')],[b('incidents','/incidents'),b('emergency','/emergency')]);
-  if(scenario==='tasks'&&!existing.length&&['/start','/cancel'].includes(command))rows.push([b('documents','/documents'),b('financialduties','/financialduties')]);
+  if(scenario==='tasks'&&!existing.length&&['/start','/cancel'].includes(command))rows.push([b('documents','/documents'),b('financialduties','/financialduties')],[b('polls','/polls'),b('initiatives','/initiatives')]);
   if(scenario==="tasks"&&mainMenu&&!existing.length)rows.push([btn(messageButton(store,lang,"reports.controls","mywork"),"/mywork")]);
   if(scenario==="registration"&&mainMenu&&!existing.length)rows.push([btn(messageButton(store,lang,"reports.controls","plans"),"/plans")]);
   if (

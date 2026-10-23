@@ -139,3 +139,11 @@ it("переходит в опросы и отправляет точную кн
   await waitFor(()=>expect(apiFetch).toHaveBeenLastCalledWith("/v1/emulation/simulate",{method:"POST",body:{scenario:"polls",input:"/pc nonce 0"}}));
   expect(await screen.findByText("Ваш ответ сохранён")).toBeInTheDocument();
 });
+
+it("сводки переключают worker и resident канал явно",async()=>{
+ vi.mocked(apiFetch).mockResolvedValueOnce({scenario_id:"reports",bot:"worker",reply:"Моя работа"}).mockResolvedValueOnce({scenario_id:"reports",reply:"Планы"});
+ render(<RegistrationSimulator active/>);fireEvent.mouseDown(screen.getByRole("combobox",{name:"Сценарий симулятора"}));fireEvent.click(screen.getByText("Работы и планы",{selector:".ant-select-item-option-content"}));
+ fireEvent.click(screen.getByRole("button",{name:"Моя работа"}));await screen.findByRole("article",{name:"Ответ симулятора 1"});fireEvent.click(screen.getByRole("button",{name:"Работы и планы"}));await screen.findByRole("article",{name:"Ответ симулятора 2"});
+ expect(apiFetch).toHaveBeenNthCalledWith(1,"/v1/emulation/simulate",{method:"POST",body:{scenario:"reports",input:"/mywork",bot:"worker"}});
+ expect(apiFetch).toHaveBeenNthCalledWith(2,"/v1/emulation/simulate",{method:"POST",body:{scenario:"reports",input:"/plans",bot:"resident"}});
+});

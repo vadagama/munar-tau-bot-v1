@@ -4,7 +4,7 @@ import { menuCommand, registrationHelp, workerHelp } from "./help.ts";
 describe("справка по командам", () => {
   it.each(["ru", "kk"] as const)("житель получает группы и описания команд (%s)", lang => {
     const text = registrationHelp(lang);
-    for (const command of ["register", "status", "objects", "add", "requests", "newrequest", "publications", "notifications", "cancel", "help"]) {
+    for (const command of ["register", "status", "objects", "add", "requests", "newrequest", "publications", "notifications", "cancel", "help", "documents", "financial", "polls", "initiatives", "plans"]) {
       expect(text).toMatch(new RegExp(`/${command} — .+`));
     }
     expect(text).toContain(lang === "ru" ? "<b>Регистрация</b>" : "<b>Тіркелу</b>");
@@ -14,7 +14,7 @@ describe("справка по командам", () => {
   });
   it.each(["ru", "kk"] as const)("сотрудник получает собственные группы (%s)", lang => {
     const text = workerHelp(lang);
-    for (const command of ["staffrequests", "tasks", "notifications", "help", "cancel"]) {
+    for (const command of ["staffrequests", "tasks", "notifications", "help", "cancel", "mywork", "documents", "financialduties", "polls", "initiatives"]) {
       expect(text).toMatch(new RegExp(`/${command} — .+`));
     }
     expect(text).toContain(lang === "ru" ? "<b>Задания</b>" : "<b>Тапсырмалар</b>");

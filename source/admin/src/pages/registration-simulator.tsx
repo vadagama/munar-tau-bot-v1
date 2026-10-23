@@ -23,7 +23,7 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
     message.focus({ preventScroll: true });
     message.scrollIntoView({ block: "start", inline: "nearest" });
   }, [history.length]);
-  const send = async (text: string, targetScenario = scenario,targetBot=bot) => {
+  const send = async (text: string, targetScenario = scenario,targetBot:"worker"|"resident"|undefined=bot) => {
     if (!active || busy || !text.trim()) return;
     setBusy(true);
     setError(null);
@@ -49,7 +49,9 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
   return (
     <Card title="Симулятор бота" style={{ marginBottom: 16 }}>
       <Space direction="vertical" style={{ width: "100%" }}>
-        <Select aria-label="Сценарий симулятора" value={scenario} onChange={setScenario} options={[{value:"registration",label:"Регистрация"},{value:"requests",label:"Обращения"},{value:"tasks",label:"Задания"},{value:"staff-requests",label:"Обращения сотрудников"},{value:"documents",label:"Документы"},{value:"polls",label:"Опросы"},{value:"notifications",label:"Уведомления"},{value:"incidents",label:"Аварии и публикации"}]} />
+        <Select aria-label="Сценарий симулятора" value={scenario} onChange={setScenario} options={[{value:"registration",label:"Регистрация"},{value:"requests",label:"Обращения"},{value:"tasks",label:"Задания"},{value:"staff-requests",label:"Обращения сотрудников"},{value:"documents",label:"Документы"},{value:"polls",label:"Опросы"},{value:"initiatives",label:"Инициативы"},{value:"reports",label:"Работы и планы"},{value:"notifications",label:"Уведомления"},{value:"incidents",label:"Аварии и публикации"}]} />
+        {scenario === "reports" && <Space wrap><Button disabled={!active||busy} onClick={()=>void send("/mywork","reports","worker")}>Моя работа</Button><Button disabled={!active||busy} onClick={()=>void send("/plans","reports","resident")}>Работы и планы</Button></Space>}
+        {scenario === "initiatives" && <Button disabled={!active||busy} onClick={()=>void send("/initiatives","initiatives","resident")}>Инициативы</Button>}
         {scenario === "polls" && <Button disabled={!active || busy} onClick={()=>void send("/polls", "polls", undefined)}>Опросы</Button>}
         {scenario === "notifications" && <Button disabled={!active || busy} onClick={()=>void send("/notifications")}>Настройки уведомлений</Button>}
         {scenario === "documents" && <><Select aria-label="Канал документов" value={bot ?? "resident"} disabled={!active || busy} onChange={value => setBot(value === "worker" ? "worker" : undefined)} options={[{ value: "resident", label: "Бот жителей" }, { value: "worker", label: "Бот сотрудников" }]} /><Button disabled={!active || busy} onClick={()=>void send("/documents")}>Документы</Button></>}

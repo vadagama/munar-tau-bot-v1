@@ -261,7 +261,9 @@ ISO-срок с часовым поясом и причину. PATCH части�
 | --- | --- | --- |
 | GET `/v1/reports/requests` · `/tasks` · `/incidents` · `/payments` | отчёты REP-01–04 с фильтрами периода/дома | исполнитель — свои; админ — область; председатель — ОСИ; без персональных данных |
 | POST `/v1/reports/export` | Excel-выгрузка (тип, период, область) — очередью; журналируется | админ/председатель (REP-05) |
-| GET `/v1/reports/exports/{id}` | статус и ссылка на файл | создатель |
+| GET `/v1/reports/exports/{id}` | состояние очереди; повторная проверка прав | создатель |
+| GET `/v1/reports/exports/{id}/url` | приватная ссылка на 300 секунд после PDP всех строк | создатель |
+| POST `/v1/reports/launch` | append-only дата запуска KPI, причина, Idempotency-Key | председатель вне эмуляции |
 
 ### 3.11. `regulations` (TIM) — priv
 
@@ -591,3 +593,9 @@ POST /v1/initiatives/{id}/photos/{fileId}/discard требует expected_versio
 публикации заморожен. Общий FIL upload-url принимает owner_type=initiative
 с expected_version; prepare/complete возвращают initiative_version.
 Подписанная ссылка доступна пять минут, PDP повторяется при её получении.
+
+### Реализованный контракт REP (24.10.2026)
+
+GET принимает from/to (даты Алматы, `[from,to)`), building_ids (UUID через запятую), assignee_id, state, offset, limit≤100. Возвращает отдельные flows/snapshot/durations/sample_sizes, as_of (исключённая микросекундная граница), filter_options и страницу items. Неизвестная история — null/unknown, без VS-6 payments возвращает available=false. Личные задания не открывают исходные обращения.
+
+POST export принимает kind=requests/tasks/incidents и те же фильтры, Idempotency-Key обязателен; ответ202 pending. Снимок области и прав неизменяем. GET состояния/URL переавторизует инициатора и эмуляцию, потеря части исходной области запрещает весь файл. DTO не содержит Storage path, object_ids и снимков полномочий. Excel содержит разрешённые служебные колонки, без телефонов, переписки, вложений и индивидуальных ответов; формулы не исполняются.

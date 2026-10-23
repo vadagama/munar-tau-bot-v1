@@ -450,3 +450,5 @@ report_history_meta задаёт начало полной наблюдаемо�
 report_launch — append-only даты общего запуска; report_kpi_achievement —
 неизменяемый датированный факт цели по версии запуска. Сводки/экспорт
 не получают исходные связи, сообщения и записи закрытой истории.
+
+REP-05: report_export_job хранит immutable intent (kind, filters, scope_snapshot, permission_snapshot, as_of, effective/real profile/person, emulation_session_id, is_test), state pending/running/ready/failed, attempts≤3 и lease. Готовый private path/размер/число строк и внутренние object_ids используются для повторной PDP; клиентам поля не выдаются. Финальные записи неизменяемы, таблица закрыта RLS. SQL-миграции репозитория должны предшествовать новой API/jobs-функции.

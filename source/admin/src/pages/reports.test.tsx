@@ -30,7 +30,7 @@ it("экспорт сохраняет намерение и скрывает с�
 it("сохранение KPI после смены периода обновляет актуальный фильтр",async()=>{
  state.roles=["chairman"];let finish!:(value:unknown)=>void;
  vi.mocked(apiFetch).mockImplementation(async(path,options)=>path==="/v1/reports/launch"?new Promise(resolve=>{finish=resolve;}):{...result,items:options?.query?.from==="2026-09-01"?[]:result.items});
- render(<ReportsPage/>);await screen.findByText("Поток за период");fireEvent.change(screen.getByLabelText("Дата запуска KPI"),{target:{value:"2026-10-01"}});fireEvent.change(screen.getByLabelText("Причина настройки KPI"),{target:{value:"Запуск"}});fireEvent.click(screen.getByRole("button",{name:"Сохранить дату запуска"}));
+ render(<ReportsPage/>);await screen.findByText("Поток за период");fireEvent.change(screen.getByLabelText("Дата запуска KPI",{selector:"input"}),{target:{value:"2026-10-01"}});fireEvent.change(screen.getByLabelText("Причина настройки KPI"),{target:{value:"Запуск"}});fireEvent.click(screen.getByRole("button",{name:"Сохранить дату запуска"}));
  fireEvent.change(screen.getByLabelText("Начало периода"),{target:{value:"2026-09-01"}});await screen.findByText("Объектов за выбранный период нет");await act(async()=>finish({}));
  const gets=vi.mocked(apiFetch).mock.calls.filter(([path])=>path==="/v1/reports/requests");expect(gets.at(-1)?.[1]?.query?.from).toBe("2026-09-01");expect(screen.queryByRole("link",{name:"З-42"})).not.toBeInTheDocument();
 });
