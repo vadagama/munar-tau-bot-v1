@@ -50,9 +50,13 @@ export interface FinancialInput {
   obligation_id: string; period_from: string; period_to: string; report_version_id: string;
   basis_versions: { code: string; document_version_id: string }[]; disclosed_version_ids: string[]; correction_note: string;
 }
-export function financialInput(input: Row): FinancialInput {
-  const from = day(input.period_from), to = day(input.period_to), report = uuid(input.report_version_id);
+export function financialPeriodInput(input: Row) {
+  const from = day(input.period_from), to = day(input.period_to);
   if (to < from) invalid("Конец периода предшествует началу");
+  return { period_from: from, period_to: to };
+}
+export function financialInput(input: Row): FinancialInput {
+  const { period_from: from, period_to: to } = financialPeriodInput(input), report = uuid(input.report_version_id);
   if (!Array.isArray(input.basis_versions) || !input.basis_versions.length || input.basis_versions.length > 30 || !Array.isArray(input.disclosed_version_ids)) invalid("Укажите основания и раскрываемый комплект");
   const bases = input.basis_versions.map(value => {
     if (!value || typeof value !== "object" || Array.isArray(value)) invalid("Некорректное основание");
