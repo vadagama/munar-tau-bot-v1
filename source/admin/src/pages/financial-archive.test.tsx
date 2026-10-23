@@ -4,6 +4,12 @@ import { FinancialArchive } from "./financial-archive";
 import { apiFetch } from "../lib/api";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
+it("после создания исправления раскрывает новый комплект", () => {
+  const first = { id: "v1", version: 1, title: "Первый отчёт", body: "Прежние данные", period_from: "2026-09-01", period_to: "2026-09-30", published_at: "date", replaced_at: null, approved: true, needs_fix: false, correction_note: "", documents: [] };
+  const { rerender } = render(<FinancialArchive publicationId="pub" onError={vi.fn()} versions={[first]} />);
+  rerender(<FinancialArchive publicationId="pub" onError={vi.fn()} versions={[{ ...first, id: "v2", version: 2, title: "Исправленный отчёт", body: "Новый комплект", published_at: null, approved: false }, first]} />);
+  expect(screen.getByText("Новый комплект")).toBeInTheDocument();
+});
 it("показывает точную версию, пояснение и предупреждение без действий утверждения", async () => {
   vi.mocked(apiFetch).mockRejectedValue(new Error("Файл недоступен"));
   const fail = vi.fn();

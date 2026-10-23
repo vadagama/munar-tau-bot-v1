@@ -17,7 +17,7 @@ export function FinancialArchive({ publicationId, versions, onError }: { publica
   }
   return <DetailSection title="Финансовые версии и основания">
     {!versions.length && <Typography.Paragraph>Комплект ещё не подготовлен.</Typography.Paragraph>}
-    <Collapse defaultActiveKey={versions[0]?.id} items={versions.map(version => ({ key: version.id,
+    <Collapse key={versions[0]?.id ?? "empty"} defaultActiveKey={versions[0]?.id} items={versions.map(version => ({ key: version.id,
       label: <Space wrap><span>Версия {version.version}: {day(version.period_from)} — {day(version.period_to)}</span><Tag>{version.replaced_at ? "Заменена" : version.published_at ? "Опубликована" : version.approved ? "Разрешён выпуск" : "Подготовка"}</Tag></Space>,
       children: <>
         {version.needs_fix && <Alert type="warning" showIcon message="Требует исправления: в комплекте есть документ с замечаниями." />}
