@@ -144,6 +144,20 @@ VS-8 (23.10.2026): расширения версий/обязательств с
 | POST `/v1/publications/{id}/transitions` | разрешить финансовый выпуск (председатель, FIN-01–04), опубликовать, назначить плановый выпуск, архивировать | по PDP |
 | GET `/v1/publications` | лента по своим домам и аудитории | по PDP |
 
+FIN-04 использует `/v1/financial-rules` (GET/POST), `/v1/financial-rules/{id}`
+(PATCH), `/v1/financial-obligations` (GET/POST), `/v1/financial-obligations/{id}`
+(GET), а также POST `/{id}/reassign` и `/{id}/placements` внутри
+`financial-obligations`. Все команды требуют Idempotency-Key и причину;
+правки/передача/размещение — expected_version, создание обязанности — версию
+выбранного финансового регламента. Режим берётся из эффективной персоны.
+Чтение требует финансового PDP области, управление — управляющего PDP;
+техническая роль и личная собственность сами по себе доступа к настройкам
+и очереди не дают. Очередь возвращает до 200 доступных строк, offset/has_more.
+Карточка содержит исходный снимок, историю размещений и missing_channels;
+старые подтверждения не покрывают исправляемую версию. Размещение принимает
+financial_version_id, channel, placed_at, evidence и необязательный proof_version_id
+проверенного документа. Запись факта не завершает непригодный комплект.
+
 Финансовые POST/PATCH `/v1/publications` принимают `obligation_id`, `period_from/to`,
 `report_version_id`, `basis_versions: [{code, document_version_id}]`,
 `disclosed_version_ids`, `correction_note`. Сервер создаёт неизменяемую версию
