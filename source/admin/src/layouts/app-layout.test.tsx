@@ -30,7 +30,7 @@ it("порядок главного меню и вложенные настро�
   const menu = screen.getByRole("menu");
   expect(Array.from(menu.children).map(item => item.textContent)).toEqual([
     "Главная", "Обращения", "Задания", "Аварии", "Публикации", "Пользователи",
-    "Помещения", "Уведомления", "Журнал действий", "Настройки",
+    "Объекты эксплуатации", "Уведомления", "Журнал действий", "Настройки",
   ]);
   fireEvent.click(screen.getByText("Настройки", { exact: true }));
   expect(within(screen.getAllByRole("menu")[1]!).getAllByRole("menuitem").map(item => item.textContent)).toEqual([
@@ -57,7 +57,7 @@ it("импорт и экспорт раскрывает настройки и в
   show("/registry-import");
   expect(screen.getByRole("menuitem", { name: "Импорт и экспорт" })).toBeVisible();
   expect(screen.getByRole("menuitem", { name: "Импорт и экспорт" })).toHaveClass("ant-menu-item-selected");
-  expect(screen.getByRole("menuitem", { name: "Помещения" })).not.toHaveClass("ant-menu-item-selected");
+  expect(screen.queryByRole("menuitem", { name: "Помещения" })).toBeNull();
 });
 
 it("вне эмуляции не показывает выбор роли и не загружает персон", () => {
@@ -90,4 +90,17 @@ it("исполнитель видит в группе только Все зад
   expect(screen.getByRole("menuitem", { name: "Все задания" })).toBeVisible();
   expect(screen.queryByRole("menuitem", { name: "Общие работы" })).not.toBeInTheDocument();
   expect(screen.queryByRole("menuitem", { name: "Шаблоны заданий" })).not.toBeInTheDocument();
+});
+
+it.each([
+ ["/registry/buildings", "Здания"], ["/registry/premises", "Помещения"],
+ ["/registry/connections", "Привязки помещений"], ["/registry/phases", "Очереди"],
+])("%s раскрывает Объекты эксплуатации и выделяет подраздел", (path, label) => {
+ state.roles = ["administrator"];
+ show(path);
+ expect(screen.getByText("Объекты эксплуатации")).toBeVisible();
+ expect(screen.getByRole("menuitem", {name: label})).toHaveClass("ant-menu-item-selected");
+ for (const name of ["Здания", "Помещения", "Привязки помещений", "Очереди"]) {
+   expect(screen.getByRole("menuitem", {name})).toBeVisible();
+ }
 });

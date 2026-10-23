@@ -71,8 +71,7 @@ it("фильтрует здания по очереди, отсутствию о
     { id: "b3", code: "ДОМ-3", construction_phase: null },
   ];
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings") ? buildings : [] }));
-  render(<RegistryPage />);
-  fireEvent.click(screen.getByRole("tab", { name: "Здания" }));
+  render(<RegistryPage section="buildings" />);
   expect(await screen.findByText("ДОМ-3")).toBeInTheDocument();
   const select = screen.getByRole("combobox", { name: "Фильтр по очереди строительства" });
   fireEvent.mouseDown(select);
@@ -92,8 +91,7 @@ it("фильтрует здания по очереди, отсутствию о
 
 it("сохраняет выбранную очередь здания и явное отсутствие очереди", async () => {
   vi.mocked(apiFetch).mockResolvedValue({ items: [] });
-  render(<RegistryPage />);
-  fireEvent.click(screen.getByRole("tab", { name: "Здания" }));
+  render(<RegistryPage section="buildings" />);
   fireEvent.click(screen.getByText("Добавить запись", {selector:"button > span"}));
   // Поля выбираются по связанной метке с selector=input: одноимённые
   // сортируемые заголовки таблицы не участвуют в поиске формы.
@@ -119,8 +117,7 @@ it("сохраняет выбранную очередь здания и явн�
 it("очистка очереди существующего здания отправляет null, фон не сбрасывает черновик", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings")
     ? [{ id: "b1", code: "ДОМ-1", construction_phase: 3 }] : [] }));
-  render(<RegistryPage />);
-  fireEvent.click(screen.getByRole("tab", { name: "Здания" }));
+  render(<RegistryPage section="buildings" />);
   fireEvent.click(await screen.findByText("Изменить", {selector:"button > span"}));
   fireEvent.change(screen.getByLabelText("Обозначение", {selector:"input"}), { target: { value: "ДОМ-ИЗМЕНЁН" } });
   const phase = screen.getByLabelText("Очередь строительства", {selector:"input"});
@@ -161,8 +158,7 @@ it("ошибка удаления помещения видна в общей о
 it("у зданий подтверждение предупреждает о каскаде и аварийных сигналах", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings")
     ? [{ id: "b1", code: "ДОМ-1", construction_phase: 1 }] : [] }));
-  render(<RegistryPage />);
-  fireEvent.click(screen.getByRole("tab", { name: "Здания" }));
+  render(<RegistryPage section="buildings" />);
   fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
   const popover = await screen.findByRole("tooltip");
   expect(within(popover).getByText(/Удалится дом вместе со всеми помещениями, связями, приглашениями и анкетами/)).toBeInTheDocument();
@@ -232,4 +228,35 @@ it("жители: период регистрации включает весь 
   fireEvent.change(screen.getByLabelText("Период регистрации с"), { target: { value: "2026-10-22" } });
   expect(screen.queryByText("Анна Соколова")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Применить" })).not.toBeInTheDocument();
+});
+
+it("помещения: поиск и фильтры работают совместно, смена условий возвращает первую страницу", async () => {
+  const premises = Array.from({length: 25}, (_, i) => ({id:`p${i}`,building_id:"b1",building_code:"107/1",number:`КВ-${i+1}`,kind:"apartment",status:"active"}));
+  vi.mocked(apiFetch).mockImplementation(async path => ({items: path.endsWith("/buildings")
+    ? [{id:"b1",code:"107/1",construction_phase:1}] : path.endsWith("/premises") ? premises : []}));
+  render(<RegistryPage section="premises" />);
+  expect(await screen.findByText("КВ-1")).toBeVisible();
+  fireEvent.click(screen.getByTitle("2"));
+  expect(screen.getByText("КВ-25")).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Поиск объектов"), {target:{value:"КВ-1"}});
+  expect(screen.getByText("КВ-1")).toBeVisible();
+  expect(screen.queryByText("КВ-25")).toBeNull();
+  fireEvent.mouseDown(screen.getByLabelText("Фильтр по типу помещения", {selector:"input"}));
+  fireEvent.click(await screen.findByText("Кладовка", {selector:".ant-select-item-option-content"}));
+  expect(screen.getByText("По выбранным условиям ничего не найдено")).toBeVisible();
+});
+
+it("привязки ищутся по телефону, зданию и ФИО и фильтруются по отношению", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => ({items: path.endsWith("/buildings")
+    ? [{id:"b1",code:"107/1",construction_phase:1}]
+    : path.endsWith("/persons") ? [{id:"n1",full_name:"Иван Петров",phone_e164:"+77011112233"}]
+    : path.endsWith("/connections") ? [{id:"c1",person_id:"n1",full_name:"Иван Петров",building_id:"b1",kind:"apartment",number:"12",role:"owner",status:"active"}] : []}));
+  render(<RegistryPage section="connections" />);
+  expect(await screen.findByText("Иван Петров", {selector:"td"})).toBeVisible();
+  expect(screen.getByText("107/1", {selector:"td"})).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Поиск объектов"), {target:{value:"1112233"}});
+  expect(screen.getByText("Иван Петров", {selector:"td"})).toBeVisible();
+  fireEvent.mouseDown(screen.getByLabelText("Фильтр по отношению к помещению", {selector:"input"}));
+  fireEvent.click(await screen.findByText("Арендатор", {selector:".ant-select-item-option-content"}));
+  expect(screen.getByText("По выбранным условиям ничего не найдено")).toBeVisible();
 });

@@ -1,3 +1,4 @@
+import { RegistryFilters, EMPTY_REGISTRY_FILTERS, filterRegistryRows, type RegistryFilterValues, type RegistrySection } from "./registry-filters";
 import { ProcessOverview } from "../components/process-card";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
@@ -14,7 +15,6 @@ import {
   Popconfirm,
   Select,
   Space,
-  Tabs,
   Tag,
   Typography,
 } from "antd";
@@ -84,9 +84,9 @@ const residentAddress = (row: Row): string => [...new Set(linkedPremises(row).ma
 const residentPremises = (row: Row): string => linkedPremises(row).map(p =>
   `${p.building_code} · ${displayKind(p.kind)} ${p.number} · ${displayRole(p.role)}`,
 ).join("; ") || "Помещения не привязаны";
-export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
-  const [entity, setEntity] = useState<Entity>(users ? "persons" : "premises"),
-    [rows, setRows] = useState<Row[]>([]),
+export function RegistryPage({ users, section = "premises" }: { users?: "residents" | "staff"; section?: RegistrySection }) {
+  const entity: Entity = users ? "persons" : section;
+  const [rows, setRows] = useState<Row[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Row | null | undefined>(undefined),
@@ -101,7 +101,8 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
   const [hasPremises, setHasPremises] = useState<string>();
   const [registeredFrom, setRegisteredFrom] = useState("");
   const [registeredTo, setRegisteredTo] = useState("");
-  const [constructionPhase, setConstructionPhase] = useState<number | "all" | "unassigned">("all");
+  const [filters, setFilters] = useState<RegistryFilterValues>(EMPTY_REGISTRY_FILTERS);
+  const [page, setPage] = useState(1);
   const [form] = Form.useForm();
   const [recovery, setRecovery] = useState<Row | null>(null),
     [pending, setPending] = useState<Row[]>([]);
@@ -162,15 +163,6 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
   useEffect(() => {
     void load();
   }, [entity]);
-  const switchEntity = (key: string) => {
-    // Старые строки другой сущности не показываем: при переключении таба
-    // колонки меняются сразу, и до загрузки таблица выглядела как «квартиры
-    // в табе Здания».
-    if (key !== entity) {
-      setRows([]);
-      setEntity(key as Entity);
-    }
-  };
   const open = (row: Row | null) => {
     form.resetFields();
     form.setFieldsValue(
@@ -211,7 +203,7 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
         ? ["building_code", "kind", "number", "entrance", "floor", "status"]
         : entity === "persons"
           ? ["full_name", "phone_e164", "comment"]
-          : ["full_name", "kind", "number", "role", "basis", "status"];
+          : ["full_name", "phone_e164", "building_code", "kind", "number", "role", "basis", "status"];
   const remove = async (row: Row) => {
     try {
       setDeleting(String(row.id));
@@ -290,6 +282,15 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
       <Input maxLength={300} />
     </Form.Item>
   );
+  const buildingById = new Map(buildings.map(row => [row.id, row]));
+  const personById = new Map(persons.map(row => [row.id, row]));
+  const directoryRows = rows.map(row => {
+    const building = buildingById.get(row.building_id);
+    const person = personById.get(row.person_id);
+    return { ...row, building_code: row.building_code ?? building?.code,
+      building_name: building?.name, construction_phase: row.construction_phase ?? building?.construction_phase,
+      phone_e164: row.phone_e164 ?? person?.phone_e164 };
+  });
   const visibleRows = users === "residents" ? rows.filter(row => {
     const links = linkedPremises(row);
     const search = residentSearch.trim().toLocaleLowerCase("ru-RU");
@@ -301,11 +302,9 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
       && (!hasPremises || (hasPremises === "yes" ? links.length > 0 : links.length === 0))
       && (!registeredFrom || !!date && date >= registeredFrom)
       && (!registeredTo || !!date && date <= registeredTo);
-  }) : entity === "buildings" && constructionPhase !== "all"
-    ? rows.filter(row => constructionPhase === "unassigned" ? row.construction_phase == null : row.construction_phase === constructionPhase)
-    : rows;
+  }) : users ? rows : filterRegistryRows(directoryRows, filters, KINDS, ROLES, STATUS);
   return (
-    <PageLayout title={users === "staff" ? "Сотрудники" : users ? "Жители" : "Помещения"}
+    <PageLayout title={users === "staff" ? "Сотрудники" : users ? "Жители" : LABELS[entity]}
       actions={users !== "staff" ? <Button type="primary" onClick={() => open(null)}>Добавить запись</Button> : null}
       filters={users === "residents" ? <Space wrap>
         <Input.Search aria-label="Поиск жителей" placeholder="ФИО, телефон или адрес" value={residentSearch}
@@ -324,28 +323,8 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
           onChange={e => setRegisteredFrom(e.target.value)} style={{ width: 155 }} />
         <Input aria-label="Период регистрации по" type="date" value={registeredTo}
           onChange={e => setRegisteredTo(e.target.value)} style={{ width: 155 }} />
-      </Space> : !users && <>
-      <Tabs
-        activeKey={entity}
-        onChange={switchEntity}
-        items={Object.keys(LABELS)
-          .filter((k) =>
-            ["buildings", "premises", "connections"].includes(k),
-          )
-          .map((key) => ({ key, label: LABELS[key] }))}
-      />
-      {entity === "buildings" && <Select
-        aria-label="Фильтр по очереди строительства"
-        value={constructionPhase}
-        onChange={setConstructionPhase}
-        style={{ width: "100%", maxWidth: 280 }}
-        options={[
-          { value: "all", label: "Все очереди" },
-          ...CONSTRUCTION_PHASES,
-          { value: "unassigned", label: "Не указана" },
-        ]}
-      />}
-      </>}> <Typography.Paragraph type="secondary">
+      </Space> : !users && <RegistryFilters section={section} values={filters}
+        onChange={values => { setFilters(values); setPage(1); }} buildings={buildings} kinds={KINDS} roles={ROLES} statuses={STATUS} />}> <Typography.Paragraph type="secondary">
           {users === "staff" ? "Пользователи с действующими служебными полномочиями в доступной области." : users
             ? "Жители без действующих служебных назначений. Совпадение телефона не объединяет карточки."
             : "Здания, помещения и привязки помещений к пользователям. Изменения сохраняются в журнале."}
@@ -367,8 +346,8 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
         dataSource={visibleRows}
         columns={columns}
         scroll={{ x: users === "residents" ? 1500 : 900 }}
-        pagination={{ pageSize: 20, showSizeChanger: true }}
-        locale={{ emptyText: "Записей пока нет" }}
+        pagination={{ pageSize: 20, showSizeChanger: true, ...(!users ? { current: page, onChange: setPage } : {}) }}
+        locale={{ emptyText: rows.length ? "По выбранным условиям ничего не найдено" : "Записей пока нет" }}
       />
       <CardDrawer
         open={editing !== undefined || !!recovery}
