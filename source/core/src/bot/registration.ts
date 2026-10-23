@@ -915,7 +915,7 @@ export async function registrationStep(
         // Роль и помещение берём заново: связи могли измениться между /add
         // и выбором номера. Роль связи сохраняется в анкете.
         const [conn] = await exec.query<Row>(
-          `select c.role,p.kind,p.number,b.code from connection c
+          `select c.role,p.kind,p.number,b.code,b.kind as b_kind from connection c
           join premises p on p.id=c.premises_id join building b on b.id=p.building_id
           where c.person_id=$1 and c.premises_id=$2 and c.status='pending'`,
           [actor?.person.id ?? null, id],
@@ -954,6 +954,7 @@ export async function registrationStep(
               {
                 full_name: state.full_name,
                 phone: state.phone_e164,
+                building: label(buildingLabels, conn.b_kind, L, "Дом"),
                 kind: label(premiseLabels, state.kind, L),
                 code: conn.code,
                 number: conn.number,
@@ -1059,7 +1060,14 @@ export async function registrationStep(
           ]),
         });
       }
-      case "role":
+      case "role": {
+        // Полный адрес для согласия: дом и номер берём из БД, а не из
+        // состояния — помещение могло быть переименовано между шагами.
+        const [premises] = await exec.query<Row>(
+          "select p.number,b.code,b.kind as b_kind from premises p join building b on b.id=p.building_id where p.id=$1 and p.status='active'",
+          [state.premises_id],
+        );
+        if (!premises) throw new ApiError("NOT_FOUND");
         state.role = (ROLE_OPTIONS[Number(input.trim()) - 1] ??
           input.trim()) as string;
         state.step = "consent";
@@ -1069,13 +1077,17 @@ export async function registrationStep(
             message(deps.templates, L, "message.registration.consent", {
               full_name: state.full_name,
               phone: state.phone_e164,
+              building: label(buildingLabels, premises.b_kind, L, "Дом"),
+              code: premises.code,
               kind: label(premiseLabels, state.kind, L),
+              number: premises.number,
               role: label(roleLabels, state.role, L),
             }),
             deps.templates,
             "message.registration.consent",
           ),
         );
+      }
       case "fix_name": {
         const name = input.trim() === "." ? "" : input.trim();
         if (name.length > 300) throw new ApiError("VALIDATION_FAILED");

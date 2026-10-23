@@ -142,6 +142,11 @@ function harness(
       // Шаг «номер помещения»: одно активное помещение.
       if (sql.startsWith("select id from premises"))
         return Promise.resolve([{ id: "p1" }] as T[]);
+      // Шаг «роль»: адрес помещения для согласия (дом, код, номер).
+      if (sql.startsWith("select p.number"))
+        return Promise.resolve([
+          { number: "4", code: "107/2", b_kind: "house" },
+        ] as T[]);
       if (sql.startsWith("insert into privacy_request"))
         return Promise.resolve([
           { id: "prq-1", person_id: params![0], kind: params![1], state: "received" },
@@ -291,7 +296,7 @@ describe("бот: исправление анкеты (/fix)", () => {
     // Согласие — один язык и кнопка с текстовым эквивалентом «да».
     const phoneText = replyText(phoneReply);
     expect(phoneText).toContain("Олег Краснов");
-    expect(phoneText).toContain("Согласие на обработку");
+    expect(phoneText).toContain("Если согласны на обработку");
     expect(typeof phoneReply === "object" && phoneReply.buttons?.[0]?.[0]?.data).toBe("да");
   });
 
@@ -886,7 +891,7 @@ describe("бот: /add — добавление помещения", () => {
     const reply = await registrationStep(h.deps, "100", "2");
     const text = replyText(reply);
     expect(text).toContain("Проверьте");
-    expect(text).toContain("Парковочное место П1/3");
+    expect(text).toContain("Парковка П1, Парковочное место 3");
     expect(text).toContain("Собственник");
     expect(h.state.step).toBe("consent");
     expect(h.state.premises_id).toBe(P2);
@@ -994,7 +999,7 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
     const consent = replyText(phoneReply);
     expect(consent).toContain("Имя Фамилия");
     expect(consent).toContain("+77777771676");
-    expect(consent).toContain("Согласие на обработку");
+    expect(consent).toContain("Если согласны на обработку");
     expect(consent).not.toContain("Выберите здание");
     expect(h.state.step).toBe("consent");
     const done = await registrationStep(h.deps, "100", "да");
@@ -1015,7 +1020,7 @@ describe("бот: короткий /start и шаги анкеты (UX-фикс�
     await registrationStep(h.deps, "100", "Аты Жөні");
     const phoneReply = await registrationStep(h.deps, "100", "+7 701 000 00 00");
     expect(replyText(phoneReply)).toContain("Тексеріңіз");
-    expect(replyText(phoneReply)).toContain("ОСИ тіркелуі үшін");
+    expect(replyText(phoneReply)).toContain("ОСИ-де өңдеуге келісетін");
   });
 });
 

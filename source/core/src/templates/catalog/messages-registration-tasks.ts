@@ -22,6 +22,11 @@ const consentButtons: MessageButton[] = [
   { id: "confirm", ru: "Согласен (да)", kk: "Келісемін (иә)" },
   { id: "cancel", ru: "Отменить", kk: "Болдырмау" },
 ];
+/** Единая строка согласия для всех анкетных сценариев: данные + действие. */
+const consentLine = (lang: "ru" | "kk") =>
+  lang === "kk"
+    ? "Егер осы деректерді ОСИ-де өңдеуге келісетін болсаңыз, «Келісемін (иә)» түймесін басыңыз."
+    : "Если согласны на обработку этих данных в ОСИ, нажмите Согласен.";
 const taskButtons: MessageButton[] = [
   { id: "accept", ru: "Принять", kk: "Қабылдау" },
   { id: "start", ru: "Начать работу", kk: "Жұмысты бастау" },
@@ -61,6 +66,7 @@ const values: Record<string, [string, string]> = {
   reason: ["Вопрос администратора", "Уточните имя"],
   full_name: ["Имя и фамилия", "Алия Омарова"],
   phone: ["Телефон", "+77001234567"],
+  building: ["Подпись здания: Дом или Парковка", "Дом"],
   kind: ["Тип помещения", "Квартира"],
   code: ["Код здания", "1"],
   number: ["Номер помещения или задания", "4"],
@@ -526,13 +532,8 @@ const defs: TemplateDef[] = [
         "<b>" + old(R + "proverte", l) + "</b>: {full_name}, {phone}" +
         (name === "fix_consent"
           ? ". " + old(R + "pomeschenie_i_rol_sohraneny", l)
-          : ", {kind}" +
-            (name === "premises_consent" ? " {code}/{number}" : "") +
-            ", {role}.") +
-        "\n" +
-        (l === "kk"
-          ? "ОСИ тіркелуі үшін осы деректерді өңдеуге келісім."
-          : "Согласие на обработку этих данных для регистрации в ОСИ."),
+          : ", {building} {code}, {kind} {number}, {role}.") +
+        "\n\n" + consentLine(l),
       consentButtons,
     )
   ),
@@ -553,10 +554,8 @@ const defs: TemplateDef[] = [
     "/register",
     [],
     (l) =>
-      "<b>" + old(R + "proverte", l) + "</b>: {full_name}, {phone}.\n" +
-      (l === "kk"
-        ? "ОСИ тіркелуі үшін осы деректерді өңдеуге келісім."
-        : "Согласие на обработку этих данных для регистрации в ОСИ."),
+      "<b>" + old(R + "proverte", l) + "</b>: {full_name}, {phone}.\n\n" +
+      consentLine(l),
     consentButtons,
   ),
   def(

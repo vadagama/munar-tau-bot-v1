@@ -41,6 +41,9 @@ function harness(
       return [{ id: "b", code: "Дом <1>" }] as T[];
     }
     if (sql.startsWith("select id from premises")) return [{ id: "p" }] as T[];
+    if (sql.startsWith("select p.number")) {
+      return [{ number: "4", code: "1", b_kind: "house" }] as T[];
+    }
     if (sql.startsWith("select phone_e164 from person")) {
       return [{ phone_e164: "+77001234567" }] as T[];
     }
@@ -125,6 +128,7 @@ describe("Полные сообщения регистрации и задани
         full_name: "<b>Алия</b>",
         phone_e164: "+77001234567",
         kind: "apartment",
+        premises_id: "p",
       },
     );
     const result = await registrationStep(h.deps, "1", "1", actor);
