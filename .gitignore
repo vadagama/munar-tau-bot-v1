@@ -6,5 +6,5 @@ dist/
 *.pem
 **/supabase/.temp/
 # Скриншоты-капчуры impeccable (ревью-артефакты остаются локальными)
-.impeccable/**/review/
-.impeccable/**/critique/capture-*.png
+**/.impeccable/**/review/
+**/.impeccable/**/critique/capture-*.png
