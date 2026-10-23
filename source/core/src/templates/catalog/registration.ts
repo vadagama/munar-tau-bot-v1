@@ -139,6 +139,11 @@ export const registrationTemplates: readonly TemplateDef[] = [
     "variables": [],
     "ru": "Подтверждённых помещений нет",
     "kk": "Расталған үй-жай жоқ",
+    "buttons": [{
+      "id": "add",
+      "ru": "Добавить помещение",
+      "kk": "Үй-жай қосу"
+    }]
   },
   {
     "key":
