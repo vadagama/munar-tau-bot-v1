@@ -9,9 +9,9 @@ describeWithDb("VS-8: схема документов и RLS", getDb => {
        has_table_privilege('anon',c.oid,'SELECT') or has_table_privilege('authenticated',c.oid,'SELECT') as exposed
        from pg_class c join pg_namespace n on n.oid=c.relnamespace
        where n.nspname='public' and c.relname=any($1::text[])`,
-      [["document", "document_scope", "document_version", "document_log"]],
+      [["document", "document_scope", "document_version", "document_log", "document_obligation"]],
     );
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(5);
     for (const row of rows) expect(row).toMatchObject({ relrowsecurity: true, exposed: false });
   });
   it("запрещает изменить и удалить историю", async () => {

@@ -789,7 +789,7 @@ export async function transitionRequestInTransaction(
         content(payload?.summary, "итоговый ответ жителю");
         if (
           (payload?.document_version_ids as unknown[] | undefined)?.length
-        ) invalid("Контур обязательных документов ещё не подключён");
+        ) invalid("Состав комплекта документов формируется сервером");
         if (
           payload?.task_report_ids !== undefined &&
           (!Array.isArray(payload.task_report_ids) ||

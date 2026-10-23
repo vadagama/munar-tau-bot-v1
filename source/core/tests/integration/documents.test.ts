@@ -38,6 +38,18 @@ async function setup(db: DbClient) {
 }
 
 describeWithDb("VS-8: документы и приватные файлы", getDb => {
+  it("одновременные проверка и возврат сохраняют одно решение, второе получает конфликт", async () => {
+    const s = await setup(getDb()), file = await s.attachment();
+    const v = await addDocumentVersion(s.deps, s.admin, s.doc.id, { attachment_id: file, expected_version: s.doc.version, reason: "Новая версия" }, "race-version");
+    let current = await getDocument(s.deps, s.admin, s.doc.id);
+    await transitionDocumentVersion(s.deps, s.admin, s.doc.id, v.version, "submit", { expected_version: current.version, reason: "Проверить" }, "race-submit");
+    current = await getDocument(s.deps, s.admin, s.doc.id);
+    const decisions = await Promise.allSettled(["approve", "return"].map(action => transitionDocumentVersion(s.deps, s.reviewer, s.doc.id, v.version, action,
+      { expected_version: current.version, reason: "Независимое решение" }, `race-${action}`)));
+    expect(decisions.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(decisions.find(result => result.status === "rejected")).toMatchObject({ reason: { code: "CONCURRENT_MODIFICATION" } });
+    expect(await s.db.query("select id from document_log where document_id=$1 and action in ('approve','return')", [s.doc.id])).toHaveLength(1);
+  }, 300_000);
   it("проходит проверку/публикацию, повтор не создаёт вторую карточку", async () => {
     const s = await setup(getDb());
     expect((await createDocument(s.deps, s.admin, s.input, "create")).id).toBe(s.doc.id);

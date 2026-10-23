@@ -8,6 +8,7 @@ import { transitionRequest } from "../../src/domains/requests/service.ts";
 import { SqlAdminRepo } from "../../src/domains/admin/repo.ts";
 import { SqlAuditRepo } from "../../src/domains/audit/repo.ts";
 import { buildActorForProfile } from "../../src/domains/admin/actor-service.ts";
+import { transitionDocumentVersion } from "../../src/domains/documents/service.ts";
 
 async function administrator(db: DbClient) {
   await db.query("insert into staff_assignment(person_id,role) values($1,'administrator')", [SEED.testAdminPersonId]);
@@ -33,7 +34,44 @@ async function fixture(db: DbClient) {
   return { requestId, taskId, reportId, documentId, versionId, obligationId: o!.id };
 }
 
+async function confirmation(db: DbClient, s: Awaited<ReturnType<typeof fixture>>) {
+  await db.query(`insert into time_rule_version(rule_id,version,params,reason) select id,1,'{"hours":24,"clock":"calendar"}'::jsonb,'VS-8 test fixture' from time_rule where key='request_reopen' on conflict(rule_id,version) do nothing`);
+  const snapshot = await db.transaction(exec => taskResultSnapshot(exec, s.requestId));
+  await db.query("insert into request_confirmation(request_id,version,payload,admin_close_after) values($1,1,$2::text::jsonb,now())", [s.requestId, JSON.stringify({ summary: "Работы завершены", ...snapshot })]);
+  const [request] = await db.query<{ version: number }>("update request set state='awaiting_confirmation',confirmation_version=1,version=version+1 where id=$1 returning version", [s.requestId]);
+  return { action: "confirm_result", expected_version: request!.version, payload: { confirmation_version: 1 } };
+}
+
 describeWithDb("WRK-18: обязательный комплект и блокировки", getDb => {
+  it("не подтверждает результат после отметки ошибки проверенного акта", async () => {
+    const db = getDb(), s = await fixture(db), actor = await administrator(db), input = await confirmation(db, s);
+    const deps = { db, audit: new SqlAuditRepo() };
+    await transitionDocumentVersion(deps, actor, s.documentId, 1, "needs_fix", { expected_version: 1, reason: "Ошибка акта" }, "fix-first");
+    await expect(transitionRequest(deps, actor, s.requestId, input, "confirm-after-fix")).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    expect((await db.query("select state from request where id=$1", [s.requestId]))[0]).toMatchObject({ state: "awaiting_confirmation" });
+  });
+  it("параллельная отметка ошибки ждёт подтверждения с уже заблокированным действительным комплектом", async () => {
+    const db = getDb(), s = await fixture(db), actor = await administrator(db), input = await confirmation(db, s);
+    let release!: () => void, entered!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const ready = new Promise<void>(resolve => { entered = resolve; });
+    const audit = new SqlAuditRepo();
+    const holdingDb: DbClient = { ...db, transaction: fn => db.transaction(exec => fn({ query: async <T>(sql: string, params?: readonly unknown[]) => {
+      const rows = await exec.query<T>(sql, params);
+      if (sql.includes("for update of o")) { entered(); await gate; }
+      return rows;
+    } })) };
+    const confirming = transitionRequest({ db: holdingDb, audit }, actor, s.requestId, input, "confirm-before-fix");
+    let fixing: ReturnType<typeof transitionDocumentVersion> | undefined;
+    try {
+      await Promise.race([ready, confirming]);
+      await expect(db.query("select id from document where id=$1 for update nowait", [s.documentId])).rejects.toMatchObject({ code: "55P03" });
+      fixing = transitionDocumentVersion({ db, audit }, actor, s.documentId, 1, "needs_fix", { expected_version: 1, reason: "Найдено после проверки" }, "parallel-fix");
+    } finally { release(); }
+    expect(await confirming).toMatchObject({ state: "closed" });
+    expect(await fixing).toMatchObject({ state: "needs_fix" });
+    expect((await db.query("select completed_at from document_obligation where id=$1", [s.obligationId]))[0]).toMatchObject({ completed_at: null });
+  });
   it("реальный переход принимает задание с проверенным обязательным актом", async () => {
     const db = getDb(), s = await fixture(db), actor = await administrator(db);
     await db.query("update task set state='on_review' where id=$1", [s.taskId]);

@@ -237,11 +237,7 @@ export async function processScheduledJobs(
           common_work_id: work.id,
           due_at: p.dueAt,
           assignee_person_id: p.assigneeId,
-        }, `schedule:${job.id}:task`);
-        await exec.query(
-          "update task set template_id=$2,template_version=$3 where id=$1",
-          [task.id, p.templateId, p.templateVersion],
-        );
+        }, `schedule:${job.id}:task`, { id: p.templateId, version: p.templateVersion, blueprint: p.blueprint });
         await exec.query("update job_run set task_id=$2 where queue_id=$1", [
           job.id,
           task.id,

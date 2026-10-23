@@ -30,8 +30,10 @@ export function obligationInput(input: Row) {
   return { task_id: task, request_id: request, kind, phase: String(input.phase), basis: content(input.basis, "основание обязательности"), prepared_by: prepared, reviewer_id: reviewer, signed_required: input.signed_required === true };
 }
 async function parent(exec: DbExecutor, actor: Actor, input: { task_id: string | null; request_id: string | null }, manage = false, lock = false) {
-  return input.task_id ? requireTask(exec, actor, input.task_id, manage ? "task.manage" : "task.read", lock)
-    : requireRequest(exec, actor, input.request_id!, manage ? "request.manage" : "request.read", lock);
+  if (!input.task_id) return requireRequest(exec, actor, input.request_id!, manage ? "request.manage" : "request.read", lock);
+  const task = await requireTask(exec, actor, input.task_id, manage ? "task.manage" : "task.read", lock);
+  if (manage && task.request_id) await requireRequest(exec, actor, task.request_id, "request.manage");
+  return task;
 }
 async function people(exec: DbExecutor, actor: Actor, prepared: string, reviewer: string) {
   const rows = await exec.query<{ id: string; roles: string[] }>(
@@ -67,7 +69,7 @@ export async function createObligation(deps: RegistryDeps, actor: Actor, input: 
     const [rule] = await exec.query<{ params: unknown }>("select params from time_rule_version where id=$1", [deadline.id]);
     const [row] = await exec.query<Obligation>(`insert into document_obligation(task_id,request_id,kind,phase,basis,prepared_by,reviewer_id,signed_required,rule_version_id,rule_snapshot,due_at,created_by,is_test)
       values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::text::jsonb,$11,$12,$13) returning *`,
-      [data.task_id, data.request_id, data.kind, data.phase, data.basis, data.prepared_by, data.reviewer_id, data.signed_required, deadline.id, JSON.stringify({ ...data, params: rule!.params }), deadline.due.toISOString(), actor.person.id, actor.person.isTest]);
+      [data.task_id, data.request_id, data.kind, data.phase, data.basis, data.prepared_by, data.reviewer_id, data.signed_required, deadline.id, JSON.stringify({ ...data, params: rule!.params, template: source.template_id ? { id: source.template_id, version: source.template_version } : null }), deadline.due.toISOString(), actor.person.id, actor.person.isTest]);
     await exec.query(data.task_id ? "update task set version=version+1 where id=$1" : "update request set version=version+1 where id=$1", [source.id]);
     await recordAudit(deps, exec, actor, "document.obligation.create", "document_obligation", row!.id, [], null, { kind: data.kind, phase: data.phase, rule_version_id: deadline.id }, reason);
     return row!;
@@ -77,7 +79,9 @@ export async function listObligations(deps: RegistryDeps, actor: Actor, source: 
   if (!can(actor, "document.obligations").allow) throw new ApiError("FORBIDDEN");
   const rows = await deps.db.query<Obligation>(`select o.*,p.full_name as prepared_name,r.full_name as reviewer_name from document_obligation o
     join person p on p.id=o.prepared_by join person r on r.id=o.reviewer_id
-    where o.is_test=$1 and ($2::uuid is null or o.request_id=$2) and ($3::uuid is null or o.task_id=$3)
+    where o.is_test=$1 and ($2::uuid is null or o.request_id=$2 or o.task_id in (
+      select t.id from task t left join common_work_request l on l.common_work_id=t.common_work_id where t.request_id=$2 or l.request_id=$2))
+    and ($3::uuid is null or o.task_id=$3)
     order by o.completed_at nulls first,o.due_at,o.id`, [actor.person.isTest, source.requestId ?? null, source.taskId ?? null]);
   const items: Row[] = [];
   for (const row of rows) {

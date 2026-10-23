@@ -8,6 +8,7 @@ import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict"
 import { ActionPanel } from "./action-panel";
 import { CardDrawer } from "./card-drawer";
 import { JobSchedule } from "./job-schedule";
+import { DocumentRuleFields } from "./document-rule-fields";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -45,6 +46,7 @@ export function JobTemplates(
   const [scheduleDirty, setScheduleDirty] = useState(false);
   const [schedule,setSchedule]=useState<Row|null>(null);
   const [form] = Form.useForm();
+  const [people, setPeople] = useState<{ id: unknown; full_name?: unknown }[]>([]);
   const key = useRef(crypto.randomUUID()), generation = useRef(0);
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : "Ошибка запроса");
@@ -73,6 +75,13 @@ export function JobTemplates(
       generation.current++;
     };
   }, []);
+  useEffect(() => {
+    if (!action) return;
+    let active = true;
+    void apiFetch<{ items: { id: unknown; full_name?: unknown }[] }>("/v1/documents/candidates")
+      .then(result => { if (active) setPeople(result.items ?? []); }, e => { if (active) fail(e); });
+    return () => { active = false; };
+  }, [action]);
   function begin(value: string, row: Row | null) {
     setSelected(row);
     setError(null);
@@ -284,6 +293,7 @@ export function JobTemplates(
         >
           {action === "run"
             ? (
+              <>
               <Form.Item
                 name="due_at"
                 label="Срок задания (местное время)"
@@ -291,6 +301,9 @@ export function JobTemplates(
               >
                 <DeadlineInput />
               </Form.Item>
+              <Form.Item name="assignee_person_id" label="Исполнитель задания"><Select allowClear showSearch optionFilterProp="label" options={people.map(p => ({ value: p.id, label: String(p.full_name) }))} /></Form.Item>
+              <Typography.Paragraph>Документальные требования применяются из выбранной версии методички. При отсутствии полномочий подготовителя или настроенного срока задание не создаётся.</Typography.Paragraph>
+              </>
             )
             : (
               <>
@@ -360,6 +373,7 @@ export function JobTemplates(
                     </>
                   )}
                 </Form.List>
+                <DocumentRuleFields people={people} />
                 <Form.Item name="active" valuePropName="checked">
                   <Checkbox>Доступен для новых заданий</Checkbox>
                 </Form.Item>
