@@ -22,3 +22,14 @@ export async function initiativeSupportState(exec:DbExecutor,row:InitiativeRow,a
   const histories=await loadAudienceBatch(exec,{isTest:row.is_test,buildingIds:row.approved_building_ids},rows.map(r=>r.person_id));
   return calculateSupport(rows,histories,at,final);
 }
+
+export async function persistInitiativeExclusions(exec:DbExecutor,id:string,excluded:readonly {personId:string;version:number;lostAt:number}[]) {
+  if(!excluded.length)return;
+  const data=JSON.stringify(excluded.map(e=>({person_id:e.personId,support_version:e.version,lost_us:e.lostAt})));
+  await exec.query(`insert into initiative_support_log(initiative_id,person_id,support_version,action,at)
+    select $1,x.person_id,x.support_version,'excluded',poll_instant(x.lost_us)
+    from jsonb_to_recordset($2::text::jsonb) x(person_id uuid,support_version integer,lost_us bigint) on conflict do nothing`,[id,data]);
+  await exec.query(`update initiative_support s set excluded_at=poll_instant(x.lost_us)
+    from jsonb_to_recordset($2::text::jsonb) x(person_id uuid,support_version integer,lost_us bigint)
+    where s.initiative_id=$1 and s.person_id=x.person_id and s.version=x.support_version and s.excluded_at is null`,[id,data]);
+}

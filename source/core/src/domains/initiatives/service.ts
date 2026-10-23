@@ -12,7 +12,7 @@ import { initiativeAudience,initiativeCard,initiativeResource,requireInitiative 
 import { submissionInput,initiativeBuildings,initiativeFields,planInput } from "./input.ts";
 import { publicationTransition,stageTransition } from "./fsm.ts";
 import { checkedInitiativeDecision } from "./planning.ts";
-import { initiativeSupportState } from "./support-state.ts";
+import { initiativeSupportState,persistInitiativeExclusions } from "./support-state.ts";
 import type { InitiativeRow,InitiativeStage } from "./types.ts";
 async function history(exec:DbExecutor,actor:Actor,row:InitiativeRow,action:string,reason:string) {
   await exec.query(`insert into initiative_log(initiative_id,version,action,publication_state,stage,reason,by_person_id)
@@ -81,6 +81,7 @@ export async function transitionInitiative(deps:RegistryDeps,actor:Actor,id:stri
           }
           if(action==="completed" || action==="rejected") {
             const support=await initiativeSupportState(exec,row,Number(clock.us),true);
+            await persistInitiativeExclusions(exec,id,support.excluded);
             Object.assign(patch,{support_closed_at:clock.at_text,final_support_count:support.count});
             if(action==="completed")patch.completed_at=clock.at_text;
           }

@@ -3,6 +3,9 @@ import { describeWithDb } from "./with-db.ts";
 import { SEED } from "./helpers.ts";
 import { SqlAuditRepo } from "../../src/domains/audit/repo.ts";
 import { actorForPerson } from "../../src/domains/documents/service.ts";
+import { setInitiativeSupport } from "../../src/domains/initiatives/support.ts";
+import { initiativeAudience } from "../../src/domains/initiatives/access.ts";
+import { initiativeSupportState } from "../../src/domains/initiatives/support-state.ts";
 import { submitInitiative,transitionInitiative } from "../../src/domains/initiatives/service.ts";
 
 describeWithDb("VS-8 инициативы: транзакции и схема",getDb=>{
@@ -38,4 +41,25 @@ describeWithDb("VS-8 инициативы: транзакции и схема",g
       values($1,'Тест','Тест','Двор',array[$2::uuid],true,gen_random_uuid(),'{"id":null}')`,[SEED.testAdminPersonId,SEED.building1]))
       .rejects.toMatchObject({code:"23514",constraint_name:"initiative_decision_snapshot_id_matches"});
   });
+  it("поддержка уникальна; потеря последней связи и восстановление требуют нового действия; прямой перенос запрещён",async()=>{
+    const db=getDb();await db.query("insert into staff_assignment(person_id,role) values($1,'administrator')",[SEED.testAdminPersonId]);
+    const premises=await db.query<{id:string}>("insert into premises(building_id,kind,number,is_test) values($1,'apartment','IDEA-support-1',true),($1,'apartment','IDEA-support-2',true) returning id",[SEED.building1]);
+    await db.query("insert into connection(person_id,premises_id,role,basis,status) select $1,id,'resident','family','active' from premises where id=any($2::uuid[])",[SEED.testAdminPersonId,premises.map(p=>p.id)]);
+    const actor=await actorForPerson(db,SEED.testAdminPersonId,true),deps={db,audit:new SqlAuditRepo()};
+    const initiative=await submitInitiative(deps,actor,{title:"Поддержка",body:"Двор",location_text:"Двор",building_ids:[SEED.building1]},"create");
+    await transitionInitiative(deps,actor,initiative.id,"publish",{expected_version:1,reason:"Проверено",building_ids:[SEED.building1]},"publish");
+    const body={expected_version:0};
+    await setInitiativeSupport(deps,actor,initiative.id,true,body,"support");
+    await setInitiativeSupport(deps,actor,initiative.id,true,body,"support");
+    expect(await db.query("select person_id from initiative_support where initiative_id=$1",[initiative.id])).toHaveLength(1);
+    await expect(db.query("update initiative_support set person_id=$2 where initiative_id=$1",[initiative.id,SEED.testExecutorPersonId])).rejects.toMatchObject({code:"23514"});
+    const count=async()=>{const {initiativeRow}=await import("../../src/domains/initiatives/access.ts");const row=await initiativeRow(db,initiative.id),clock=await initiativeAudience(db,actor.person.id,true);return (await initiativeSupportState(db,row,Number(clock.us))).count;};
+    await db.query("update connection set status='revoked' where person_id=$1 and premises_id=$2",[actor.person.id,premises[0]!.id]);expect(await count()).toBe(1);
+    await db.query("update connection set status='revoked' where person_id=$1",[actor.person.id]);expect(await count()).toBe(0);
+    await db.query("update connection set status='active' where person_id=$1 and premises_id=$2",[actor.person.id,premises[1]!.id]);expect(await count()).toBe(0);
+    await setInitiativeSupport(deps,actor,initiative.id,true,{expected_version:1},"rejoin");expect(await count()).toBe(1);
+    expect(await db.query("select id from initiative_support_log where initiative_id=$1 and action='excluded'",[initiative.id])).toHaveLength(1);
+    await setInitiativeSupport(deps,actor,initiative.id,false,{expected_version:2},"withdraw");expect(await count()).toBe(0);
+  },240000);
+
 });
