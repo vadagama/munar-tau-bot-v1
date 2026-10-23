@@ -207,7 +207,7 @@ it("жители и сотрудники без кнопки удаления", 
 
 async function renderResidentDirectory() {
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/persons") ? [
-    { id: "r1", full_name: "Анна Соколова", phone_e164: "+77011111111", registration_state: "approved", registered_at: "2026-10-20T20:00:00Z",
+    { id: "r1", full_name: "Анна Соколова", phone_e164: "+77011111111", registration_id: "reg-1", registration_version: 1, registration_state: "approved", registered_at: "2026-10-20T20:00:00Z", can_manage: true,
       linked_premises: [{ id: "p1", building_id: "b1", building_code: "107-1", building_name: "Улица Мира, 107/1", kind: "apartment", number: "4", role: "owner" }] },
     { id: "r2", full_name: "Борис Петров", registration_state: "pending_review", registered_at: "2026-10-19T08:00:00Z", linked_premises: [] },
     { id: "r3", full_name: "Вера Иванова", registration_state: null, registered_at: null, linked_premises: [] },
@@ -260,6 +260,49 @@ it("жители: период регистрации включает весь 
   fireEvent.change(screen.getByLabelText("Период регистрации с"), { target: { value: "2026-10-22" } });
   expect(screen.queryByText("Анна Соколова")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Применить" })).not.toBeInTheDocument();
+});
+
+it("жители: кнопка удаления видна только при can_manage", async () => {
+  await renderResidentDirectory();
+  // can_manage только у Анны: у Веры нет анкеты, у Бориса — без вычисленного флага.
+  expect(screen.getAllByRole("button", { name: "Удалить" })).toHaveLength(1);
+  const annaRow = screen.getByText("Анна Соколова").closest("tr");
+  expect(within(annaRow!).getByRole("button", { name: "Удалить" })).toBeInTheDocument();
+});
+
+it("жители: удаление отправляет manage delete с основанием и ключом, затем перечитывает", async () => {
+  await renderResidentDirectory();
+  fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText(/Проверьте человека и основание удаления/)).toBeInTheDocument();
+  expect(within(dialog).getByText(/Доступ к боту и кабинету закроется/)).toBeInTheDocument();
+  // Без основания запрос не отправляется.
+  fireEvent.click(within(dialog).getByRole("button", { name: "Удалить" }));
+  expect(await within(dialog).findByText("Укажите основание")).toBeInTheDocument();
+  expect(vi.mocked(apiFetch).mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(false);
+  fireEvent.change(within(dialog).getByLabelText("Основание удаления"), { target: { value: "Дубликат карточки" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Удалить" }));
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registrations/reg-1/manage", expect.objectContaining({
+    method: "POST", idempotencyKey: expect.any(String),
+    body: { operation: "delete", expected_version: 1, reason: "Дубликат карточки" },
+  })));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path === "/v1/registry/persons").length).toBeGreaterThan(1);
+});
+
+it("жители: ошибка удаления видна в окне удаления", async () => {
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => {
+    if (options?.method === "POST") throw new Error("Анкета уже отозвана — обновите страницу");
+    return { items: path.endsWith("/persons") ? [
+      { id: "r1", full_name: "Анна Соколова", phone_e164: "+77011111111", registration_id: "reg-1", registration_version: 1, registration_state: "approved", registered_at: "2026-10-20T20:00:00Z", can_manage: true, linked_premises: [] },
+    ] : [] };
+  });
+  render(<RegistryPage users="residents" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
+  const dialog = await screen.findByRole("dialog");
+  fireEvent.change(within(dialog).getByLabelText("Основание удаления"), { target: { value: "Причина" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Удалить" }));
+  expect(await within(dialog).findByText("Анкета уже отозвана — обновите страницу")).toBeInTheDocument();
 });
 
 it("помещения: поиск и фильтры работают совместно, смена условий возвращает первую страницу", async () => {
