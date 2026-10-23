@@ -5,10 +5,12 @@ import { SEED } from "./helpers.ts";
 import { actorForPerson, getDocument } from "../../src/domains/documents/service.ts";
 import { SqlAuditRepo } from "../../src/domains/audit/repo.ts";
 import { fileUrl } from "../../src/domains/requests/files.ts";
-import { getPublication, listPublications } from "../../src/domains/publications/service.ts";
+import { getPublication, listPublications, savePublication, transitionPublication } from "../../src/domains/publications/service.ts";
 import { publicationFile } from "../../src/domains/publications/media.ts";
 import { checkedDocumentVersions } from "../../src/domains/documents/provider.ts";
-import { prepareFinancialVersion, approveFinancialVersion, checkFinancialRelease, markFinancialPublished } from "../../src/domains/publications/financial-store.ts";
+import { checkFinancialRelease } from "../../src/domains/publications/financial-store.ts";
+import { publishScheduled } from "../../src/domains/publications/jobs.ts";
+import { fanoutBroadcasts } from "../../src/domains/incidents/broadcast.ts";
 
 /** Только проверка ограничений схемы; бизнес-разрешение проверяет сервис FIN. */
 async function schemaFixture(db: DbClient) {
@@ -34,9 +36,8 @@ async function schemaFixture(db: DbClient) {
   return { publicationId, otherPublicationId, obligationId: obligation!.id, versions, version };
 }
 
-describeWithDb("FIN-01…04: изоляция и неизменяемость версии комплекта", getDb => {
-  it("разрешает только зафиксированный комплект; исправление и needs_fix требуют нового разрешения", async () => {
-    const db = getDb(), s = await schemaFixture(db);
+async function businessFixture(db: DbClient) {
+    const s = await schemaFixture(db);
     await db.query("insert into staff_assignment(person_id,role) values($1,'chairman')", [SEED.testAdminPersonId]);
     const chairman = await actorForPerson(db, SEED.testAdminPersonId, true);
     await db.query("update document_version set state='on_review' where id=any($1::uuid[])", [s.versions]);
@@ -49,22 +50,79 @@ describeWithDb("FIN-01…04: изоляция и неизменяемость в
     const [obligation] = await db.query<{ id: string }>(`insert into financial_obligation(financial_rule_version_id,period_from,period_to,building_ids,prepared_by,reviewer_id,publisher_id,time_rule_version_id,rule_snapshot,due_at,publication_id,is_test,created_by)
       values($1,'2026-10-01','2026-10-31',array[$2::uuid],$3,$4,$4,$5,$6::text::jsonb,now(),$7,true,$4) returning id`,
       [old!.financial_rule_version_id, SEED.building1, SEED.testExecutorPersonId, SEED.testAdminPersonId, old!.time_rule_version_id, JSON.stringify({ definition: rule }), s.publicationId]);
-    const input = { obligation_id: obligation!.id, period_from: "2026-10-01", period_to: "2026-10-31", report_version_id: s.versions[0], basis_versions: [{ code: "council", document_version_id: s.versions[1] }], disclosed_version_ids: [s.versions[0]], correction_note: "" };
-    const version = await db.transaction(exec => prepareFinancialVersion(exec, chairman, s.publicationId, input));
+    const input = { obligation_id: obligation!.id, period_from: "2026-10-01", period_to: "2026-10-31", report_version_id: s.versions[0], basis_versions: [{ code: "council", document_version_id: s.versions[1] }], disclosed_version_ids: [s.versions[0]], correction_note: "", reason: "Проверка финансового комплекта" };
+    const deps = { db, audit: new SqlAuditRepo() };
+    return { s, chairman, input, deps };
+}
+
+describeWithDb("FIN-01…04: изоляция и неизменяемость версии комплекта", getDb => {
+  it("одновременные разрешение и замена комплекта сохраняют одно решение и один конфликт", async () => {
+    const db = getDb(), { s, chairman, input, deps } = await businessFixture(db);
+    const values = { ...input, expected_version: 1, title: "Отчёт", body: "Период", kind: "financial_report", requires_document: true, building_ids: [SEED.building1] };
+    const saved = await savePublication(deps, chairman, s.publicationId, values, "race-save");
+    const pending = await transitionPublication(deps, chairman, s.publicationId, { action: "submit_approval", expected_version: saved.version, reason: "Проверка гонки" }, "race-submit");
+    const outcomes = await Promise.allSettled([
+      transitionPublication(deps, chairman, s.publicationId, { action: "approve", expected_version: pending.version, approval_note: "Внешние основания проверены", reason: "Проверка гонки" }, "race-approve"),
+      savePublication(deps, chairman, s.publicationId, { ...values, expected_version: pending.version, title: "Другая редакция" }, "race-replace"),
+    ]);
+    expect(outcomes.filter(r => r.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.find(r => r.status === "rejected")).toMatchObject({ reason: { code: "CONCURRENT_MODIFICATION" } });
+    const [head] = await db.query<{ title: string; approval_id: string | null }>("select f.title,f.approval_id from publication p join financial_publication_version f on f.id=p.financial_version_id where p.id=$1", [s.publicationId]);
+    if (head!.title === "Другая редакция") expect(head!.approval_id).toBeNull();
+    else expect(head!.approval_id).toBeTruthy();
+    expect(await db.query("select id from publication_log where publication_id=$1 and version=$2", [s.publicationId, pending.version + 1])).toHaveLength(1);
+  }, 600_000);
+  it("плановый выпуск повторяет проверку комплекта и не повторяет публикацию", async () => {
+    const db = getDb(), { s, chairman, input, deps } = await businessFixture(db);
+    let row = await savePublication(deps, chairman, s.publicationId, { ...input, expected_version: 1, title: "Отчёт", body: "Период", kind: "financial_report", requires_document: true, building_ids: [SEED.building1] }, "scheduled-save");
+    async function transition(action: string, values = {}) {
+      row = await transitionPublication(deps, chairman, s.publicationId, { ...values, action, expected_version: row.version, reason: "Проверка планового выпуска" }, crypto.randomUUID());
+    }
+    async function schedule() {
+      await transition("submit_approval");
+      await transition("approve", { approval_note: "Внешние основания проверены" });
+      await transition("schedule", { publish_at: new Date(Date.now() + 86_400_000).toISOString() });
+      expect(row.scheduled_by).toBe(chairman.person.id);
+      await db.query("update publication set publish_at=now()-interval '1 minute' where id=$1", [s.publicationId]);
+    }
+    await schedule();
+    expect(await publishScheduled(deps, Date.now() + 120_000)).toBe(1);
+    expect(await publishScheduled(deps, Date.now() + 120_000)).toBe(0);
+    const [published] = await db.query<{ version: number }>("select version from publication where id=$1", [s.publicationId]);
+    row = await savePublication(deps, chairman, s.publicationId, { ...input, expected_version: published!.version, title: "Исправление", body: "Период", kind: "financial_report", requires_document: true, building_ids: [SEED.building1], correction_note: "Повторная внешняя проверка" }, "scheduled-correction");
+    await schedule();
+    await db.query("update document_version set state='needs_fix' where id=$1", [s.versions[1]]);
+    expect(await publishScheduled(deps, Date.now() + 120_000)).toBe(0);
+    expect(await db.query("select id from financial_publication_version where publication_id=$1 and published_at is not null", [s.publicationId])).toHaveLength(1);
+    expect(await db.query("select id from broadcast where publication_id=$1", [s.publicationId])).toHaveLength(1);
+    expect(await db.query("select id from publication_log where publication_id=$1 and action='schedule_blocked'", [s.publicationId])).toHaveLength(1);
+    const [blocked] = await db.query<{ version: number; state: string }>("select version,state from publication where id=$1", [s.publicationId]);
+    expect(blocked!.state).toBe("draft");
+    await expect(transitionPublication(deps, chairman, s.publicationId, { action: "publish", expected_version: blocked!.version, reason: "Повторная проверка" }, "blocked-immediate")).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+  }, 600_000);
+  it("разрешает только зафиксированный комплект; исправление и needs_fix требуют нового разрешения", async () => {
+    const db = getDb(), { s, chairman, input, deps } = await businessFixture(db);
+    const saved = await savePublication(deps, chairman, s.publicationId, { ...input, expected_version: 1, title: "Отчёт", body: "Период", kind: "financial_report", requires_document: true, building_ids: [SEED.building1] }, "save-package");
+    expect(saved.financial_version_id).toBeTruthy();
+    const [version] = await db.query<{ id: string; version: number }>("select id,version from financial_publication_version where id=$1", [saved.financial_version_id]);
     await expect(db.transaction(exec => checkFinancialRelease(exec, chairman, s.publicationId))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-    await db.transaction(exec => approveFinancialVersion(exec, chairman, s.publicationId, "Внешнее согласование подтверждено"));
+    const submitted = await transitionPublication(deps, chairman, s.publicationId, { action: "submit_approval", expected_version: saved.version, reason: "Передача председателю" }, "submit-package");
+    const approved = await transitionPublication(deps, chairman, s.publicationId, { action: "approve", expected_version: submitted.version, approval_note: "Внешнее согласование подтверждено", reason: "Разрешение на выпуск" }, "approve-package");
     await db.transaction(exec => checkFinancialRelease(exec, chairman, s.publicationId));
     await db.query("update staff_assignment set status='revoked' where person_id=$1 and role='chairman'", [SEED.testAdminPersonId]);
     await expect(db.transaction(exec => checkFinancialRelease(exec, chairman, s.publicationId))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     await db.query("update staff_assignment set status='active' where person_id=$1 and role='chairman'", [SEED.testAdminPersonId]);
-    await db.transaction(exec => markFinancialPublished(exec, chairman, s.publicationId));
+    const published = await transitionPublication(deps, chairman, s.publicationId, { action: "publish", expected_version: approved.version, reason: "Размещение отчёта" }, "publish-package");
     for (const [building, person] of [[SEED.building1, SEED.testAdminPersonId], [SEED.building2, SEED.testExecutorPersonId]]) {
       const [premises] = await db.query<{ id: string }>("insert into premises(building_id,kind,number,is_test) values($1,'apartment','FIN-test',true) returning id", [building]);
       await db.query("insert into connection(person_id,premises_id,role,basis,status,confirmed_by,confirmed_at) values($1,$2,'owner','ownership','active',$3,now())", [person, premises!.id, SEED.testAdminPersonId]);
     }
+    await db.query("insert into connection(person_id,premises_id,role,basis,status,confirmed_by,confirmed_at) select $1,id,'tenant','rent','active',$2,now() from premises where building_id=$3 and number='FIN-test'", [SEED.testExecutorPersonId, SEED.testAdminPersonId, SEED.building1]);
+    await fanoutBroadcasts(deps, Date.now() + 120_000);
+    const recipients = await db.query<{ recipient: string }>("select payload->>'personId' as recipient from outbox where payload->>'publicationId'=$1", [s.publicationId]);
+    expect(recipients.map(r => r.recipient)).toEqual([SEED.testAdminPersonId]);
     const owner = { ...chairman, assignments: [] }, otherOwner = { ...await actorForPerson(db, SEED.testExecutorPersonId, true), assignments: [] };
     const [report] = await db.query<{ document_id: string; attachment_id: string; was_published: boolean }>("select document_id,attachment_id,was_published from document_version where id=$1", [s.versions[0]]);
-    const deps = { db, audit: new SqlAuditRepo() };
     expect(report!.was_published).toBe(false); // FIN не расширяет самостоятельную аудиторию документа.
     expect((await getDocument(deps, owner, report!.document_id)).versions).toHaveLength(1);
     expect(await getPublication(deps, owner, s.publicationId)).toMatchObject({ title: "Отчёт", state: "published", financial_versions: [{ version: 1 }] });
@@ -77,17 +135,22 @@ describeWithDb("FIN-01…04: изоляция и неизменяемость в
     const [basis] = await db.query<{ attachment_id: string }>("select attachment_id from document_version where id=$1", [s.versions[1]]);
     await expect(publicationFile(deps, storage, owner, s.publicationId, basis!.attachment_id)).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(fileUrl(deps, storage, otherOwner, report!.attachment_id)).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(db.transaction(exec => prepareFinancialVersion(exec, chairman, s.publicationId, input))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-    await db.query("update publication set title='Черновик исправления' where id=$1", [s.publicationId]);
-    const correction = await db.transaction(exec => prepareFinancialVersion(exec, chairman, s.publicationId, { ...input, correction_note: "Исправлена сумма во внешнем отчёте" }));
-    expect(correction.version).toBe(version.version + 1);
+    const correctionInput = { ...input, expected_version: published.version, title: "Черновик исправления", body: "Период", kind: "financial_report", requires_document: true, building_ids: [SEED.building1] };
+    await expect(savePublication(deps, chairman, s.publicationId, correctionInput, "correction-no-reason")).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    const correction = await savePublication(deps, chairman, s.publicationId, { ...correctionInput, correction_note: "Исправлена сумма во внешнем отчёте" }, "correction-save");
+    const [correctedVersion] = await db.query<{ version: number }>("select version from financial_publication_version where id=$1", [correction.financial_version_id]);
+    expect(correctedVersion!.version).toBe(version!.version + 1);
     expect(await getPublication(deps, owner, s.publicationId)).toMatchObject({ title: "Отчёт", financial_versions: [{ version: 1 }] });
     expect((await listPublications(deps, owner)).find(p => p.id === s.publicationId)).toMatchObject({ title: "Отчёт", body: "Период", version: 1 });
     await expect(db.transaction(exec => checkFinancialRelease(exec, chairman, s.publicationId))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-    await db.transaction(exec => approveFinancialVersion(exec, chairman, s.publicationId, "Повторно разрешено"));
+    const submittedCorrection = await transitionPublication(deps, chairman, s.publicationId, { action: "submit_approval", expected_version: correction.version, reason: "Передача исправления" }, "submit-correction");
+    const approvedCorrection = await transitionPublication(deps, chairman, s.publicationId, { action: "approve", expected_version: submittedCorrection.version, approval_note: "Повторно разрешено", reason: "Разрешение исправления" }, "approve-correction");
+    await transitionPublication(deps, chairman, s.publicationId, { action: "publish", expected_version: approvedCorrection.version, reason: "Размещение исправления" }, "publish-correction");
+    const archive = await getPublication(deps, owner, s.publicationId);
+    expect(archive).toMatchObject({ title: "Черновик исправления", financial_versions: [{ version: 2 }, { version: 1, replaced_at: expect.anything() }] });
     await db.query("update document_version set state='needs_fix' where id=$1", [s.versions[1]]);
     await expect(db.transaction(exec => checkFinancialRelease(exec, chairman, s.publicationId))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-    expect(await db.query("select id from financial_publication_version where publication_id=$1 and published_at is not null", [s.publicationId])).toHaveLength(1);
+    expect(await db.query("select id from financial_publication_version where publication_id=$1 and published_at is not null", [s.publicationId])).toHaveLength(2);
   }, 600_000);
   it("провайдер проверяет конкретные версии, область, исходный PDP и состояние файла", async () => {
     const db = getDb(), s = await schemaFixture(db);

@@ -3,6 +3,7 @@ import { getTemplate } from "../../templates/catalog/index.ts";
 import { btn, inlineMarkup } from "../../bot/keyboard.ts";
 import { type NoticeText, renderNotice } from "../../templates/notice.ts";
 import { loadTemplateStore } from "../../templates/store.ts";
+import { financialOwnerBuildings, publicFinancialHeads } from "../publications/financial-access.ts";
 import { requireIncident } from "../incidents/access.ts";
 import { audienceMember, type AudienceScope } from "../incidents/audience.ts";
 import { requireTask } from "../tasks/access.ts";
@@ -193,11 +194,16 @@ export async function noticeAllowed(
     }).allow
   ) return false;
   if (notice.publicationId) {
-    const [publication] = await exec.query(
-      "select id from publication where id=$1 and state='published' and is_test=$2",
+    const [publication] = await exec.query<{ id: string; kind: string; state: string }>(
+      "select id,kind,state from publication where id=$1 and is_test=$2",
       [notice.publicationId, actor.person.isTest],
     );
     if (!publication) return false;
+    if (publication.kind === "financial_report" && notice.audience === "publication") {
+      const owners = await financialOwnerBuildings(exec, actor), targets = notice.scope?.map(s => s.building_id) ?? notice.buildingIds ?? [];
+      if (!targets.some(id => owners.includes(id))) return false;
+      if (!(await publicFinancialHeads(exec, actor, [publication.id])).length) return false;
+    } else if (publication.state !== "published") return false;
   }
   if (notice.scope && !await audienceMember(exec, actor, notice.scope)) {
     return false;

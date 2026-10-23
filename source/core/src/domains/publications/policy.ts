@@ -13,7 +13,7 @@ export function validatePublicationRelease(
     !value.documentApproved
   ) {
     invalid(
-      "Нужна утверждённая версия документа; контур VS-8 ещё не подключён",
+      "Нужен проверенный комплект конкретных версий документов-оснований",
     );
   }
   if (value.kind === "financial_report" && !value.approved_by) {

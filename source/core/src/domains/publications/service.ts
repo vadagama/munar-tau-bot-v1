@@ -15,6 +15,8 @@ import { fmtDate, fmtInterval } from "../../bot/text.ts";
 import { responsibleInput } from "../incidents/service.ts";
 import { validatePublicationRelease } from "./policy.ts";
 import { financialArchive, publicFinancialHeads } from "./financial-access.ts";
+import { prepareFinancialVersion, approveFinancialVersion, checkFinancialRelease, markFinancialPublished } from "./financial-store.ts";
+import { checkedDocumentVersions } from "../documents/provider.ts";
 export interface Publication extends Row {
   id: string;
   kind: string;
@@ -76,10 +78,11 @@ export async function publicationLog(
   row: Publication,
   buildings: string[],
   action: string,
+  reason: string | null = null,
 ) {
   await exec.query(
-    "insert into publication_log(publication_id,actor_person_id,action,version,snapshot) values($1,$2,$3,$4,$5::text::jsonb)",
-    [row.id, actor.person.id, action, row.version, JSON.stringify(row)],
+    "insert into publication_log(publication_id,actor_person_id,action,version,snapshot,reason) values($1,$2,$3,$4,$5::text::jsonb,$6)",
+    [row.id, actor.person.id, action, row.version, JSON.stringify(row), reason],
   );
   await recordAudit(
     deps,
@@ -91,6 +94,7 @@ export async function publicationLog(
     buildings,
     null,
     { state: row.state, version: row.version, kind: row.kind },
+    reason ?? undefined,
   );
 }
 export async function savePublication(
@@ -119,7 +123,7 @@ export async function savePublication(
           : null;
         if (old) {
           checkVersion(old.version, input.expected_version);
-          if (!["draft", "pending_approval"].includes(old.state)) {
+          if (!["draft", "pending_approval"].includes(old.state) && !(old.kind === "financial_report" && old.state === "published")) {
             invalid(
               "Редактирование доступно только до публикации/планирования",
             );
@@ -131,6 +135,9 @@ export async function savePublication(
           !["announcement", "outage", "work_report", "financial_report"]
             .includes(kind)
         ) invalid("Выберите вид публикации");
+        if (old?.financial_version_id && kind !== "financial_report") invalid("Вид финансового отчёта с историей выпуска не меняется");
+        const reason = old && (kind === "financial_report" || old.kind === "financial_report" || old.requires_document || input.requires_document)
+          ? content(input.reason, "причину изменения публикации") : null;
         if (typeof input.requires_document !== "boolean") {
           invalid(
             "Укажите, требуется ли утверждённый документ-основание",
@@ -168,7 +175,7 @@ export async function savePublication(
           content(input.body),
           kind,
           actor.person.isTest,
-          input.requires_document,
+          kind === "financial_report" || input.requires_document,
           kind === "work_report" ? input.common_work_id : null,
           start,
           end,
@@ -203,14 +210,23 @@ export async function savePublication(
             [row!.id, building],
           );
         }
-        await publicationLog(deps, exec, actor, row!, buildings, "saved");
-        return row!;
+        if (kind === "financial_report") await prepareFinancialVersion(exec, actor, row!.id, input);
+        else if (input.document_version_ids !== undefined) {
+          const ids = input.document_version_ids;
+          if (!Array.isArray(ids) || ids.length > 31 || ids.some(id => typeof id !== "string") || new Set(ids).size !== ids.length) invalid("Выберите версии документов-оснований (до 31)");
+          if (ids.length) await checkedDocumentVersions(exec, actor, ids, buildings);
+          await exec.query("delete from publication_document where publication_id=$1", [row!.id]);
+          for (const document of ids) await exec.query("insert into publication_document(publication_id,document_version_id) values($1,$2)", [row!.id, document]);
+        }
+        const [saved] = await exec.query<Publication>("select * from publication where id=$1", [row!.id]);
+        await publicationLog(deps, exec, actor, saved!, buildings, "saved", reason);
+        return saved!;
       },
       (r) => requirePublication(exec, actor, r.id, "publication.manage"),
     )
   );
 }
-export async function releaseChecks(exec: DbExecutor, row: Publication) {
+export async function releaseChecks(exec: DbExecutor, row: Publication, actor: Actor, publishFinancial = false) {
   const [work] = row.common_work_id
     ? await exec.query<{ state: string }>(
       "select state from common_work where id=$1 for update",
@@ -227,9 +243,22 @@ export async function releaseChecks(exec: DbExecutor, row: Publication) {
       "Выбранные медиа больше не относятся к принятому результату работы",
     );
   }
+  if (row.kind === "financial_report") {
+    if (publishFinancial) await markFinancialPublished(exec, actor, row.id);
+    else await checkFinancialRelease(exec, actor, row.id);
+    return;
+  }
+  let documentApproved = false;
+  if (row.requires_document) {
+    const pins = await exec.query<{ document_version_id: string }>("select document_version_id from publication_document where publication_id=$1 order by document_version_id", [row.id]);
+    if (pins.length) {
+      await checkedDocumentVersions(exec, actor, pins.map(p => p.document_version_id), (await publicationScope(exec, row.id)).map(s => s.building_id));
+      documentApproved = true;
+    }
+  }
   validatePublicationRelease({
     ...row,
-    documentApproved: false,
+    documentApproved,
     workCompleted: work?.state === "completed",
   });
 }
@@ -268,6 +297,7 @@ export async function transitionPublication(
           true,
         );
         checkVersion(row.version, input.expected_version);
+        const reason = row.kind === "financial_report" || row.requires_document ? content(input.reason, "причину действия") : null;
         let state = row.state, publishAt: string | null = null;
         if (
           action === "submit_approval" && row.state === "draft" &&
@@ -275,6 +305,7 @@ export async function transitionPublication(
         ) state = "pending_approval";
         else if (action === "approve" && row.state === "pending_approval") {
           content(input.approval_note, "основание внешнего согласования");
+          if (row.kind === "financial_report") await approveFinancialVersion(exec, actor, id, input.approval_note);
           await exec.query(
             "update publication set approved_by=$2,approval_note=$3 where id=$1",
             [id, actor.person.id, input.approval_note],
@@ -283,7 +314,7 @@ export async function transitionPublication(
         } else if (
           ["publish", "schedule"].includes(action) && row.state === "draft"
         ) {
-          await releaseChecks(exec, row);
+          await releaseChecks(exec, row, actor, action === "publish");
           if (action === "schedule") {
             publishAt = dateInput(input.publish_at);
             if (Date.parse(publishAt) <= Date.now()) {
@@ -323,8 +354,8 @@ export async function transitionPublication(
           );
         } else throw new ApiError("INVALID_TRANSITION");
         const [updated] = await exec.query<Publication>(
-          "update publication set state=$2,publish_at=$3,published_at=case when $2='published' then coalesce(published_at,now()) else published_at end,version=version+1 where id=$1 returning *",
-          [id, state, publishAt],
+          "update publication set state=$2,publish_at=$3,scheduled_by=case when $2='scheduled' then $4::uuid else null end,published_at=case when $2='published' then coalesce(published_at,now()) else published_at end,version=version+1 where id=$1 returning *",
+          [id, state, publishAt, actor.person.id],
         );
         await publicationLog(
           deps,
@@ -333,6 +364,7 @@ export async function transitionPublication(
           updated!,
           scope.map((s) => s.building_id),
           action,
+          reason,
         );
         if (state === "published") await broadcastPublication(exec, updated!);
         return updated!;

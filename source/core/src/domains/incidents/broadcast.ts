@@ -54,9 +54,12 @@ export async function fanoutBroadcasts(
       const people = await exec.query<{ id: string }>(
         `select distinct c.person_id as id from connection c join premises p on p.id=c.premises_id join person n on n.id=c.person_id
    where c.status='active' and n.status='active' and n.is_test=$1 and p.is_test=$1 and ($2::uuid is null or c.person_id>$2::uuid)
+   and (not exists(select 1 from publication f where f.id=$4 and f.kind='financial_report') or
+     (c.role='owner' and (c.start_date is null or c.start_date<=(now() at time zone 'Asia/Almaty')::date)
+      and (c.end_date is null or c.end_date>=(now() at time zone 'Asia/Almaty')::date)))
    and exists(select 1 from jsonb_array_elements($3::text::jsonb) s where p.building_id=(s->>'building_id')::uuid and
    (jsonb_array_length(s->'premises_ids')=0 or s->'premises_ids' ? p.id::text)) order by c.person_id limit 50`,
-        [row.is_test, row.cursor_person_id, JSON.stringify(scope)],
+        [row.is_test, row.cursor_person_id, JSON.stringify(scope), row.publication_id],
       );
       for (const person of people) {
         if (Date.now() >= deadline) break;
