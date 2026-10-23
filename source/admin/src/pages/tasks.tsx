@@ -423,7 +423,7 @@ export function TasksPage() {
     },
   ];
   const taskActions = card && (
-          <ProcessActions primary={taskGuidance(card).primary} secondary={["decline", "request_pause", "return", "problem"]}>
+          <ProcessActions primary={taskGuidance(card).primary}>
             {card.can_execute && card.state === "in_progress" && (
               <Button key="problem"
                 onClick={() => {
