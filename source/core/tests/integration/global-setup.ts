@@ -7,6 +7,7 @@ import { createDbClient } from "../../src/db/client.ts";
 
 import {
   acquireTestDatabaseLock,
+  clearTestData,
   applyMigrations,
   applyRlsShield,
   createTestDb,
@@ -39,6 +40,10 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   }
   const db = createTestDb();
   try {
+    // Повтор старых миграций временно возвращает прежние CHECK-ограничения.
+    // Остатки новых типов данных после оборванного теста не должны мешать
+    // подготовке. Сид применяют хуки уже после обновления всей схемы.
+    await clearTestData(db);
     const applied = await applyMigrations(db);
     console.log(
       `[integration] Миграции применены (операторов выполнено: ${applied})`,

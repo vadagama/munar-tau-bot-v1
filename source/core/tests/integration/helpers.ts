@@ -217,7 +217,7 @@ export async function applyRlsShield(exec: DbExecutor): Promise<void> {
  * отключает триггер и выдаёт себе TRUNCATE, после чего восстанавливает
  * исходное состояние защиты — та же модель доступа, что и в эксплуатации.
  */
-export async function resetTestData(exec: DbExecutor): Promise<void> {
+export async function clearTestData(exec: DbExecutor): Promise<void> {
   const tables = await exec.query<{ tablename: string }>(
     "select tablename from pg_tables where schemaname = 'public' order by tablename",
   );
@@ -225,14 +225,23 @@ export async function resetTestData(exec: DbExecutor): Promise<void> {
   // Защита снимается до truncate: каскад FK может задевать audit_log,
   // поэтому аудит-таблица должна быть в общем списке с уже выданным TRUNCATE.
   const list = tables.filter(t => !["time_rule", "time_rule_version", "request_category", "file_policy"].includes(t.tablename)).map((table) => `"${table.tablename}"`).join(", ");
-  await exec.query("alter table audit_log disable trigger audit_log_append_only_truncate");
-  await exec.query("grant truncate on audit_log to postgres");
+  const hasAudit = tables.some(table => table.tablename === "audit_log");
+  if (hasAudit) {
+    await exec.query("alter table audit_log disable trigger audit_log_append_only_truncate");
+    await exec.query("grant truncate on audit_log to postgres");
+  }
   try {
     await exec.query(`truncate table ${list} cascade`);
   } finally {
-    await exec.query("revoke truncate on audit_log from postgres");
-    await exec.query("alter table audit_log enable trigger audit_log_append_only_truncate");
+    if (hasAudit) {
+      await exec.query("revoke truncate on audit_log from postgres");
+      await exec.query("alter table audit_log enable trigger audit_log_append_only_truncate");
+    }
   }
+}
+
+export async function resetTestData(exec: DbExecutor): Promise<void> {
+  await clearTestData(exec);
   const seed = readFileSync(seedPath, "utf8");
   await exec.query(seed);
 }

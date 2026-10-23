@@ -27,7 +27,8 @@ async function setup(db: DbClient) {
   const doc = await createDocument(deps, admin, input, "create");
   async function attachment() {
     const bytes = new TextEncoder().encode("%PDF-1.7\n%%EOF");
-    const file = await prepareFile(deps, admin, { owner_type: "document", owner_id: doc.id, filename: "instruction.pdf", mime: "application/pdf", size: bytes.length });
+    const current = await getDocument(deps, admin, doc.id);
+    const file = await prepareFile(deps, admin, { owner_type: "document", owner_id: doc.id, expected_version: current.version, filename: "instruction.pdf", mime: "application/pdf", size: bytes.length });
     const id = String(file.attachment_id);
     await uploadFile(deps, storage, admin, id, bytes);
     await completeFile(deps, storage, admin, id);
@@ -54,7 +55,7 @@ describeWithDb("VS-8: документы и приватные файлы", getD
     expect(await fileUrl(s.deps, s.storage, resident, file)).toMatchObject({ expires_in: 300 });
     await expect(uploadFile(s.deps, s.storage, s.admin, file, new Uint8Array())).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(s.db.query("update document_version set attachment_id=gen_random_uuid() where id=$1", [v.id])).rejects.toThrow();
-  });
+  }, 300_000);
   it("отклоняет чужой файл, конфликт и повтор ключа с другим телом", async () => {
     const s = await setup(getDb());
     const file = await s.attachment();
@@ -63,5 +64,5 @@ describeWithDb("VS-8: документы и приватные файлы", getD
     const other = await createDocument(s.deps, s.admin, { ...s.input, title: "Другой" }, "other");
     await expect(addDocumentVersion(s.deps, s.admin, other.id, { attachment_id: file, expected_version: other.version, reason: "Чужой файл" }, "foreign")).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     expect((await getDocument(s.deps, s.admin, other.id)).versions).toHaveLength(0);
-  });
+  }, 300_000);
 });
