@@ -6,6 +6,7 @@ import type { Actor } from "../../pdp/types.ts";
 import type { AuditRepo } from "../audit/port.ts";
 import { buildAuditInput } from "../audit/entry.ts";
 import { ApiError } from "../../errors/api.ts";
+import { can } from "../../pdp/evaluate.ts";
 import { registryScope, requireBuilding } from "./access.ts";
 import {
   BASES,
@@ -97,11 +98,12 @@ export async function listRegistry(
         `select c.*,p.building_id,p.kind,p.number,n.full_name from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id join person n on n.id=c.person_id where ${filter} and n.is_test=$2 order by c.created_at desc`,
         [...params, actor.person.isTest],
       );
-    case "persons":
-      return deps.db.query<Row>(
+    case "persons": {
+      const rows = await deps.db.query<Row>(
         `select n.*,
           array(select distinct a.role::text from staff_assignment a where a.person_id=n.id and a.status='active' and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())) as staff_roles,
           (select pr.telegram_username from profile pr where pr.person_id=n.id and pr.archived_at is null order by pr.id desc limit 1) as telegram_username,
+          registration.id as registration_id, registration.version as registration_version,
           registration.state as registration_state, registration.created_at as registered_at,
           coalesce((select jsonb_agg(jsonb_build_object(
             'id',p.id,'building_id',b.id,'building_code',b.code,'building_name',b.name,
@@ -110,7 +112,7 @@ export async function listRegistry(
             where c.person_id=n.id and c.status='active' and p.is_test=$2 and ${filter}), '[]'::jsonb) as linked_premises
         from person n
         left join lateral (
-          select r.state,r.created_at from registration r
+          select r.id,r.version,r.state,r.created_at from registration r
           where r.person_id=n.id and r.is_test=$2 and r.superseded_by is null
           order by (r.premises_id is null) desc,(r.state<>'withdrawn') desc,r.created_at desc,r.id desc limit 1
         ) registration on true
@@ -120,6 +122,17 @@ export async function listRegistry(
         )) order by n.full_name`,
         [...params, actor.person.isTest],
       );
+      // Флаг подсказки для кабинета (кнопка удаления): PDP всё равно
+      // перепроверяет регистрацию на сервере (registration.manage).
+      const mayManage = can(actor, "registration.manage").allow;
+      return rows.map((row) => ({
+        ...row,
+        can_manage: Boolean(
+          mayManage && row.status === "active" && row.registration_id &&
+            row.registration_state !== "withdrawn",
+        ),
+      }));
+    }
   }
 }
 
