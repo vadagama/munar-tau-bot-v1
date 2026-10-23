@@ -1,3 +1,4 @@
+import { DeadlineInput } from "../components/deadline-input";
 import { ProcessOverview } from "../components/process-card";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
@@ -287,7 +288,7 @@ export function JobTemplates(
                 label="Срок задания (местное время)"
                 rules={required}
               >
-                <Input type="datetime-local" />
+                <DeadlineInput />
               </Form.Item>
             )
             : (

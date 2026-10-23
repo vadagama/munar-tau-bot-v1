@@ -1,3 +1,4 @@
+import { DeadlineDatePicker } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
 import { publicationGuidance, processActionHint } from "../components/process-guidance";
 import { DetailSection } from "../components/detail-section";
@@ -420,7 +421,9 @@ export function PublicationsPage() {
                         label={label}
                         rules={required}
                       >
-                        <DatePicker showTime format="DD.MM.YYYY HH:mm" />
+                        {name === "planned_end"
+                          ? <DeadlineDatePicker showTime format="DD.MM.YYYY HH:mm" />
+                          : <DatePicker showTime format="DD.MM.YYYY HH:mm" />}
                       </Form.Item>
                     ))}
                 </>
@@ -514,7 +517,9 @@ export function PublicationsPage() {
                   : "Новый срок окончания"}
                 rules={required}
               >
-                <DatePicker showTime format="DD.MM.YYYY HH:mm" />
+                {action === "restore"
+                  ? <DatePicker showTime format="DD.MM.YYYY HH:mm" />
+                  : <DeadlineDatePicker showTime format="DD.MM.YYYY HH:mm" />}
               </Form.Item>
               {action === "restore" && (
                 <Form.Item

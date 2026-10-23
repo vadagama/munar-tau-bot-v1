@@ -1,3 +1,4 @@
+import { DeadlineDatePicker } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
 import { incidentGuidance, processActionHint } from "../components/process-guidance";
 import { DetailSection } from "../components/detail-section";
@@ -733,7 +734,7 @@ export function IncidentsPage() {
                           label="Следующее обновление"
                           rules={required}
                         >
-                          <DatePicker showTime format="DD.MM.YYYY HH:mm" />
+                          <DeadlineDatePicker showTime format="DD.MM.YYYY HH:mm" />
                         </Form.Item>
                       )}
                       {action === "start_mitigation" && (
