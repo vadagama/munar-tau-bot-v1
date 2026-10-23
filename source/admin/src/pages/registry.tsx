@@ -1,12 +1,13 @@
 import { RegistryFilters, EMPTY_REGISTRY_FILTERS, filterRegistryRows, type RegistryFilterValues, type RegistrySection } from "./registry-filters";
 import { ProcessOverview } from "../components/process-card";
+import { REGISTRATION_REVIEWER_ROLES } from "../components/process-guidance";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { TelegramHandle } from "../components/telegram-handle";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { ActionPanel } from "./action-panel";
 import { CardDrawer } from "./card-drawer";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
@@ -152,6 +153,67 @@ const residentAddress = (row: Row): string => [...new Set(linkedPremises(row).ma
 const residentPremises = (row: Row): string => linkedPremises(row).map(p =>
   `${p.building_code} · ${displayKind(p.kind)} ${p.number} · ${displayRole(p.role)}`,
 ).join("; ") || "Помещения не привязаны";
+// Удаление жителя = удаление его основной анкеты (ADR-16): доступ закрывается
+// необратимо, поэтому требуются основание и ключ идемпотентности; сервер ещё раз
+// проверяет полномочия и версию анкеты (registration.manage).
+function DeleteResidentModal({ row, onClose, onDeleted }: {
+  row: Row;
+  onClose: () => void;
+  onDeleted: () => Promise<void> | void;
+}) {
+  const [form] = Form.useForm();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const deleteKey = useRef(crypto.randomUUID());
+  const submit = async () => {
+    try {
+      const values = await form.validateFields();
+      setBusy(true);
+      setError(null);
+      await apiFetch(`/v1/registrations/${row.registration_id}/manage`, {
+        method: "POST",
+        idempotencyKey: deleteKey.current,
+        body: { operation: "delete", expected_version: row.registration_version, reason: values.reason },
+      });
+      await onDeleted();
+      onClose();
+    } catch (e) {
+      if (e instanceof Error) setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      open
+      title={`Удаление жителя: ${String(row.full_name ?? "")}`}
+      okText="Удалить"
+      okButtonProps={{ danger: true, loading: busy }}
+      cancelText="Отмена"
+      onCancel={onClose}
+      onOk={() => void submit()}
+    >
+      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+        <ProcessOverview guidance={{
+          title: "Нужно подтвердить прекращение доступа",
+          description: "Проверьте человека и основание удаления. Сохранение прекратит доступ, роли и связи; обращения и история сохранятся.",
+          waitingFor: REGISTRATION_REVIEWER_ROLES,
+        }} />
+        <Alert showIcon type="warning" message="Доступ к боту и кабинету закроется. Связи с помещениями и служебные роли прекратятся. История обращений и операций сохранится." />
+        <Form name="resident-delete" form={form} layout="vertical">
+          <Form.Item
+            name="reason"
+            label="Основание удаления"
+            rules={[{ required: true, whitespace: true, message: "Укажите основание" }]}
+          >
+            <Input.TextArea maxLength={300} />
+          </Form.Item>
+        </Form>
+        {error && <Alert type="error" showIcon message={error} />}
+      </Space>
+    </Modal>
+  );
+}
 export function RegistryPage({ users, section = "premises" }: { users?: "residents" | "staff"; section?: RegistrySection }) {
   const entity: Entity = users ? "persons" : section;
   const [rows, setRows] = useState<Row[]>([]),
@@ -161,6 +223,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
     [saving, setSaving] = useState(false),
     [deleting, setDeleting] = useState<string | null>(null),
     [deleteBuilding, setDeleteBuilding] = useState<Row | null>(null),
+    [deleteResident, setDeleteResident] = useState<Row | null>(null),
     [buildings, setBuildings] = useState<Row[]>([]),
     [premises, setPremises] = useState<Row[]>([]),
     [persons, setPersons] = useState<Row[]>([]);
@@ -370,6 +433,11 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
               Удалить
             </Button>
           )}
+          {users === "residents" && Boolean(row.can_manage) && (
+            <Button danger size="small" onClick={() => setDeleteResident(row)}>
+              Удалить
+            </Button>
+          )}
           {canDelete && entity === "premises" && (
             <Popconfirm
               title="Удалить без возможности восстановления?"
@@ -512,6 +580,13 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
           </Form>
         )}
       </Modal>
+      {deleteResident && (
+        <DeleteResidentModal
+          row={deleteResident}
+          onClose={() => setDeleteResident(null)}
+          onDeleted={async () => { await load(); }}
+        />
+      )}
       <CardDrawer
         open={editing !== undefined || !!recovery}
         title={recovery ? "Восстановление Telegram" : `${editing ? "Изменить" : "Добавить"}: ${users === "staff" ? "Сотрудники" : LABELS[entity]}`}
