@@ -41,13 +41,13 @@ const DECISION_LABELS: Record<string, string> = {
   reject: "Отказать",
   dispute: "Открыть спор",
 };
+// Уточнение и спор временно скрыты (решение владельца 24.10.2026): эндпоинты
+// clarify/dispute сохранены — для возврата вернуть их в списки ниже.
 const decisionsFor = (r: Row): string[] =>
-  r.state === "approved"
-    ? (r.premises_id ? ["dispute"] : [])
-    : ["pending_review", "need_clarification", "disputed"].includes(
-        String(r.state),
-      )
-    ? ["approve", "clarify", "reject"]
+  ["pending_review", "need_clarification", "disputed"].includes(
+    String(r.state),
+  )
+    ? ["approve", "reject"]
     : [];
 const REASON_LABELS: Record<string, string> = {
   clarify: "Вопрос заявителю",
@@ -162,7 +162,8 @@ export function RegistrationsPage() {
       </Button>
     )),
     ...(r.can_manage ? [
-      <Button key="edit" onClick={() => openManagement(r, "edit")}>Исправить</Button>,
+      // Исправление временно скрыто (решение владельца 24.10.2026): manage с
+      // operation:"edit" сохранён — кнопка возвращается рядом с «Удалить».
       <Button key="delete" danger onClick={() => openManagement(r, "delete")}>Удалить</Button>,
     ] : []),
   ];
