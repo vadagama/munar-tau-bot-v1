@@ -15,6 +15,8 @@ it("TIM-02: все действующие регламенты имеют зак
       "dispute_total",
       "task_accept",
       "task_escalation",
+      "financial_monthly_publication",
+      "financial_annual_publication",
     ]
   ) {
     const contract = ruleContract(key);
