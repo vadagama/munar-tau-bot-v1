@@ -77,9 +77,10 @@ export function LoginPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        // Фон — визуализация ЖК (из карточки novostroyki-almaty.kz); полупрозрачный
-        // слой приглушает картинку ради читаемости карточки входа.
-        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), url(${loginBg})`,
+        // Фон — визуализация ЖК (из карточки novostroyki-almaty.kz). Картинка
+        // солнечная и используется без затемняющего слоя: белый карточке входа
+        // хватает собственной тени для читаемости.
+        backgroundImage: `url(${loginBg})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}

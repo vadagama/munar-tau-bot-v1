@@ -10,6 +10,7 @@ import { PageLayout } from "../components/page-layout";
 import { ProcessOverview } from "../components/process-card";
 import { MenuLabel } from "../layouts/app-layout";
 import { QueueBlock } from "./home";
+import { BoardView } from "./board";
 import { cabinetTheme, type CabinetVariant } from "../lib/cabinet-theme";
 import type { QueueRow } from "../lib/day-queue";
 
@@ -96,6 +97,16 @@ const VARIANT_LABELS: Record<CabinetVariant, string> = {
   neutral: "B — Нейтральный",
 };
 
+// Демо-строки доски: реальные состояния обращений — колонки переносятся,
+// внутренняя прокрутка не появляется.
+const BOARD_ROWS = [
+  { id: "b1", number: 1042, state: "work", topic: "Не работает домофон в подъезде 2" },
+  { id: "b2", number: 1041, state: "review", topic: "Протекает кровля над паркингом" },
+  { id: "b3", number: 1039, state: "new", topic: "Перегорели лампы во дворе" },
+  { id: "b4", number: 1036, state: "waiting", topic: "Шум ремонтных работ ночью" },
+  { id: "b5", number: 1031, state: "closed", topic: "Не открывается шлагбаум" },
+];
+
 export function ThemePreviewPage() {
   // Стартовый вариант можно задать параметром ?variant=neutral (для скриншотов);
   // в живой сессии вариант переключается сегментом на экране.
@@ -152,7 +163,7 @@ export function ThemePreviewPage() {
                 <Button size="small">Выйти</Button>
               </Space>
             </Header>
-            <Content style={{ margin: 24 }}>
+            <Content style={{ width: "100%", padding: "24px 24px 48px" }}>
               <PageLayout
                 title="Обращения"
                 actions={<Space wrap>
@@ -238,6 +249,31 @@ export function ThemePreviewPage() {
                     <Tag color="error">Ошибка</Tag>
                     <Tag color="success">Успех</Tag>
                   </Space>
+                </div>
+                <div style={{
+                  marginTop: 24, background: "#ffffff", border: "1px solid #eceef0",
+                  borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 16,
+                }}>
+                  <Typography.Text strong>Доска (демо)</Typography.Text>
+                  <BoardView
+                    columns={[
+                      { value: "new", label: "Новая" },
+                      { value: "review", label: "На рассмотрении" },
+                      { value: "work", label: "В работе" },
+                      { value: "waiting", label: "Ожидает жильца" },
+                      { value: "closed", label: "Закрыта" },
+                    ]}
+                    rows={BOARD_ROWS}
+                    stateOf={(r) => r.state}
+                    renderCard={(r) => (
+                      <>
+                        <Typography.Text strong style={{ fontSize: 13 }}>№{r.number}</Typography.Text>
+                        <Typography.Paragraph type="secondary" style={{ margin: 0, fontSize: 12 }} ellipsis>
+                          {r.topic}
+                        </Typography.Paragraph>
+                      </>
+                    )}
+                  />
                 </div>
                 <div style={{
                   marginTop: 24, background: "#ffffff", border: "1px solid #eceef0",
