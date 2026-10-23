@@ -63,10 +63,11 @@ export function RegistrationsPage() {
   const [rows, setRows] = useState<Row[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null),
-    [state, setState] = useState<string>(),
     [action, setAction] = useState<{ row: Row; decision: string } | null>(null),
     [persons, setPersons] = useState<Row[]>([]),
     [saving, setSaving] = useState(false);
+  const [state, setState] = useState<string>();
+  const [search, setSearch] = useState<string>("");
   const [failures, setFailures] = useState<Row[]>([]);
   const [form] = Form.useForm();
   const [manageForm] = Form.useForm();
@@ -164,11 +165,22 @@ export function RegistrationsPage() {
       <Button key="delete" danger onClick={() => openManagement(r, "delete")}>Удалить</Button>,
     ] : []),
   ];
-  const visible = rows.filter((r) => !state || r.state === state);
+  const visible = rows.filter((r) => {
+    if (state && r.state !== state) return false;
+    const searchTrim = search.trim().toLocaleLowerCase("ru-RU");
+    if (!searchTrim) return true;
+    const d = (r.draft as Row | undefined) ?? {};
+    const searchable = [d.full_name, d.phone_e164,
+      r.telegram_username ? `@${String(r.telegram_username)}` : "", placeText(r)]
+      .join(" ").toLocaleLowerCase("ru-RU");
+    return searchable.includes(searchTrim);
+  });
   return (
     <PageLayout title="Регистрации"
       extra={<ViewToggle kind={view} onChange={setView} />}
-      filters={<Space>
+      filters={<Space wrap>
+        <Input.Search aria-label="Поиск анкет" placeholder="ФИО, телефон, Telegram или помещение" value={search}
+          onChange={e => setSearch(e.target.value)} style={{ width: 320 }} />
         <Select
           aria-label="Состояние анкеты"
           allowClear
@@ -230,6 +242,11 @@ export function RegistrationsPage() {
                 <Typography.Text type="secondary" style={{ display: "block" }}>
                   {String(d.phone_e164 ?? "")}
                 </Typography.Text>
+                {r.telegram_username ? (
+                  <Typography.Text type="secondary" style={{ display: "block" }}>
+                    @{String(r.telegram_username)}
+                  </Typography.Text>
+                ) : null}
                 <Typography.Text style={{ display: "block" }}>
                   {placeText(r)}
                 </Typography.Text>
@@ -264,6 +281,7 @@ export function RegistrationsPage() {
           dataSource={visible}
           scroll={{ x: 1100 }}
           pagination={{ pageSize: 20 }}
+          locale={{ emptyText: rows.length ? "По выбранным условиям ничего не найдено" : "Анкет нет" }}
           columns={[
             {
               title: "Заявитель",
@@ -279,6 +297,11 @@ export function RegistrationsPage() {
                   </>
                 );
               },
+            },
+            {
+              title: "Telegram",
+              dataIndex: "telegram_username",
+              render: (v) => (v ? `@${String(v)}` : "—"),
             },
             {
               title: "Помещение",

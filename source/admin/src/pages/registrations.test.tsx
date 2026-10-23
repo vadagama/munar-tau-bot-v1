@@ -8,6 +8,7 @@ const registration = {
   id: "reg-1",
   state: "pending_review",
   draft: { full_name: "Иван Иванов", phone_e164: "+79990000002" },
+  telegram_username: "w84gr8",
   premises_id: "p1",
   building_code: "Д1",
   kind: "apartment",
@@ -40,8 +41,23 @@ it("доска регистраций: заявитель на карточке,
   expect(screen.getByText("Д1 · Квартира 12")).toBeInTheDocument();
   expect(screen.getByText(/Собственник/)).toBeInTheDocument();
   expect(screen.getByText("Ожидает проверки")).toBeInTheDocument();
+  // Имя в Telegram показывается и на карточке, и в таблице.
+  expect(screen.getAllByText("@w84gr8").length).toBeGreaterThanOrEqual(1);
   fireEvent.click(screen.getByRole("button", { name: "Отказать" }));
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
+});
+
+it("поиск анкет находит по Telegram-имени и фильтрует таблицу", async () => {
+  render(<RegistrationsPage />);
+  fireEvent.click(await screen.findByRole("radio", { name: "Таблица" }));
+  expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
+  expect(screen.getByText("@w84gr8")).toBeInTheDocument();
+  const search = screen.getByRole("searchbox", { name: "Поиск анкет" });
+  fireEvent.change(search, { target: { value: "@w84" } });
+  expect(screen.getByText("Иван Иванов")).toBeInTheDocument();
+  fireEvent.change(search, { target: { value: "нет такого" } });
+  expect(screen.getByText("По выбранным условиям ничего не найдено")).toBeInTheDocument();
+  expect(screen.queryByText("Иван Иванов")).toBeNull();
 });
 
 it("переключение на таблицу сохраняет прежний вид с фильтром состояний", async () => {

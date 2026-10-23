@@ -63,6 +63,32 @@ it("сотрудники загружаются отдельно, включая
   expect(screen.queryByRole("button", { name: "Добавить запись" })).toBeNull();
 });
 
+it("Telegram-имя в таблицах жителей и сотрудников, поиск по нему работает", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/staff")
+    ? [{ id: "staff-1", full_name: "Олег Краснов", phone_e164: "+77777771667", telegram_username: "oleg_san_krasnov", staff_roles: ["administrator"] }]
+    : path.endsWith("/persons")
+      ? [{ id: "p-1", full_name: "Житель Безымянный", phone_e164: "+77771165605", telegram_username: "w84gr8", staff_roles: [] }]
+      : [] }));
+  // Жители: колонка Telegram и поиск по имени в Telegram.
+  render(<RegistryPage users="residents" />);
+  expect(await screen.findByText("@w84gr8")).toBeInTheDocument();
+  fireEvent.change(screen.getByRole("searchbox", { name: "Поиск жителей" }), { target: { value: "@w84" } });
+  expect(screen.getByText("Житель Безымянный")).toBeInTheDocument();
+  fireEvent.change(screen.getByRole("searchbox", { name: "Поиск жителей" }), { target: { value: "нет такого" } });
+  expect(screen.getByText("По выбранным условиям ничего не найдено")).toBeInTheDocument();
+  cleanup();
+  // Сотрудники: отдельный поиск, находит и по Telegram, и по роли.
+  render(<RegistryPage users="staff" />);
+  expect(await screen.findByText("@oleg_san_krasnov")).toBeInTheDocument();
+  const staffSearch = screen.getByRole("searchbox", { name: "Поиск сотрудников" });
+  fireEvent.change(staffSearch, { target: { value: "oleg_san" } });
+  expect(screen.getByText("Олег Краснов")).toBeInTheDocument();
+  fireEvent.change(staffSearch, { target: { value: "администратор" } });
+  expect(screen.getByText("Олег Краснов")).toBeInTheDocument();
+  fireEvent.change(staffSearch, { target: { value: "исполнитель" } });
+  expect(screen.getByText("По выбранным условиям ничего не найдено")).toBeInTheDocument();
+});
+
 
 it("фильтрует здания по очереди, отсутствию очереди и возвращает все", async () => {
   const buildings = [

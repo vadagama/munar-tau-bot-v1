@@ -2,14 +2,15 @@ import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect, useState } from "react";
-import { Alert, Typography } from "antd";
+import { Alert, Input, Space, Typography } from "antd";
 import { apiFetch } from "../lib/api";
 import { displayKind, displayRole } from "./registry";
 type Row = Record<string, unknown>;
 export function InvitesPage() {
   const [rows, setRows] = useState<Row[]>([]),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState<string | null>(null);
+    [error, setError] = useState<string | null>(null),
+    [search, setSearch] = useState("");
   const load = async () => {
     setBusy(true);
     setError(null);
@@ -27,8 +28,25 @@ export function InvitesPage() {
   useEffect(() => {
     void load();
   }, []);
+  const visible = rows.filter((r) => {
+    const trim = search.trim().toLocaleLowerCase("ru-RU");
+    if (!trim) return true;
+    const searchable = [
+      r.created_by_name,
+      r.created_by_telegram ? `@${String(r.created_by_telegram)}` : "",
+      r.building_code,
+      displayKind(r.kind),
+      r.number,
+      displayRole(r.role),
+    ].join(" ").toLocaleLowerCase("ru-RU");
+    return searchable.includes(trim);
+  });
   return (
-    <PageLayout title="Приглашения">
+    <PageLayout title="Приглашения"
+      filters={<Space wrap>
+        <Input.Search aria-label="Поиск приглашений" placeholder="Кто пригласил, Telegram или помещение"
+          value={search} onChange={e => setSearch(e.target.value)} style={{ width: 320 }} />
+      </Space>}>
       <Typography.Paragraph type="secondary">
         Подтверждённый собственник создаёт приглашение в боте. Оно действует 72
         календарных часа по текущему регламенту. Приглашение не выдаёт статус
@@ -38,10 +56,16 @@ export function InvitesPage() {
       <ConfigurableTable storageKey="columns.invites" settingsPlacement="page"
         rowKey="id"
         loading={busy}
-        dataSource={rows}
+        dataSource={visible}
         scroll={{ x: 800 }}
+        locale={{ emptyText: rows.length ? "По выбранным условиям ничего не найдено" : "Записей пока нет" }}
         columns={[
           { title: "Пригласил", dataIndex: "created_by_name" },
+          {
+            title: "Telegram",
+            dataIndex: "created_by_telegram",
+            render: (v) => (v ? `@${String(v)}` : "—"),
+          },
           {
             title: "Помещение",
             render: (_, r) =>
