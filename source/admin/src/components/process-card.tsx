@@ -2,6 +2,7 @@ import { Children, cloneElement, Fragment, isValidElement, type ReactElement, ty
 import { Button, Space, Tag, Typography, theme } from "antd";
 import { DetailSection } from "./detail-section";
 import type { ProcessGuidance } from "./process-guidance";
+import { formatDateTime } from "../lib/format-date";
 import "./process-card.css";
 
 export function ProcessOverview({ guidance, state, due, dueLabel = "Срок", participant, participantLabel = "Ответственный", children }: {
@@ -9,13 +10,13 @@ export function ProcessOverview({ guidance, state, due, dueLabel = "Срок", p
 }) {
  const { token } = theme.useToken();
  const date = due ? new Date(String(due)) : null;
- return <section aria-label="Сейчас по процессу" className="process-overview" style={{borderColor:token.colorBorderSecondary,borderInlineStartColor:token.colorPrimary,background:token.colorBgContainer}}>
+ return <section aria-label="Сейчас по процессу" className="process-overview" style={{borderColor:token.colorBorderSecondary,background:token.colorBgContainer}}>
   <div className="process-overview__heading"><Typography.Title level={3}>Сейчас по процессу</Typography.Title>{state && <Tag>{state}</Tag>}</div>
   <Typography.Text strong>{guidance.title}</Typography.Text>
   <Typography.Paragraph>{guidance.description}</Typography.Paragraph>
   {participant && <Typography.Text>{participantLabel}: {participant}</Typography.Text>}
   <Space wrap size="large"><Typography.Text type="secondary">Кто действует дальше: {guidance.waitingFor}</Typography.Text>
-   {date && !Number.isNaN(date.getTime()) && <Typography.Text>{dueLabel}: {date.toLocaleString("ru-RU", {timeZone:"Asia/Almaty"})} (Алматы)</Typography.Text>}
+   {date && !Number.isNaN(date.getTime()) && <Typography.Text>{dueLabel}: {formatDateTime(date)} (Алматы)</Typography.Text>}
   </Space>
   {children}
  </section>;

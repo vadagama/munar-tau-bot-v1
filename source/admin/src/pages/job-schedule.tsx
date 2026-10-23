@@ -17,6 +17,7 @@ import {
   Typography,
 } from "antd";
 import { apiFetch } from "../lib/api";
+import { formatDateTime } from "../lib/format-date";
 type Row = Record<string, unknown>;
 const required = [{ required: true, message: "Заполните поле" }];
 function localInput(value: unknown) {
@@ -177,7 +178,7 @@ export function JobSchedule(
           {
             title: "Дата запуска",
             dataIndex: "scheduled_at",
-            render: (v) => new Date(String(v)).toLocaleString("ru-RU"),
+            render: (v) => formatDateTime(v),
           },
           { title: "Версия методички", dataIndex: "template_version" },
           {

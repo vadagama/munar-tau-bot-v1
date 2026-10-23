@@ -160,9 +160,13 @@ it("у зданий подтверждение предупреждает о к�
     ? [{ id: "b1", code: "ДОМ-1", construction_phase: 1 }] : [] }));
   render(<RegistryPage section="buildings" />);
   fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
-  const popover = await screen.findByRole("tooltip");
-  expect(within(popover).getByText(/Удалится дом вместе со всеми помещениями, связями, приглашениями и анкетами/)).toBeInTheDocument();
-  expect(within(popover).getByText(/недоступно при активных аварийных сигналах/)).toBeInTheDocument();
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText("Все помещения здания")).toBeInTheDocument();
+  expect(within(dialog).getByText(/недоступно при активных аварийных сигналах/)).toBeInTheDocument();
+  // Подтверждение — вводом обозначения здания; без него кнопка недоступна.
+  expect(within(dialog).getByRole("button", { name: "Удалить безвозвратно" })).toBeDisabled();
+  fireEvent.change(within(dialog).getByLabelText("Подтверждение удаления"), { target: { value: "ДОМ-1" } });
+  expect(within(dialog).getByRole("button", { name: "Удалить безвозвратно" })).toBeEnabled();
 });
 
 it("жители и сотрудники без кнопки удаления", async () => {
