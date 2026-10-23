@@ -69,9 +69,10 @@ it("Telegram-имя в таблицах жителей и сотрудников
     : path.endsWith("/persons")
       ? [{ id: "p-1", full_name: "Житель Безымянный", phone_e164: "+77771165605", telegram_username: "w84gr8", staff_roles: [] }]
       : [] }));
-  // Жители: колонка Telegram и поиск по имени в Telegram.
+  // Жители: колонка Telegram — кликабельное имя, поиск по нему.
   render(<RegistryPage users="residents" />);
-  expect(await screen.findByText("@w84gr8")).toBeInTheDocument();
+  const residentLink = await screen.findByRole("link", { name: "@w84gr8" });
+  expect(residentLink).toHaveAttribute("href", "https://t.me/w84gr8");
   fireEvent.change(screen.getByRole("searchbox", { name: "Поиск жителей" }), { target: { value: "@w84" } });
   expect(screen.getByText("Житель Безымянный")).toBeInTheDocument();
   fireEvent.change(screen.getByRole("searchbox", { name: "Поиск жителей" }), { target: { value: "нет такого" } });
@@ -79,7 +80,8 @@ it("Telegram-имя в таблицах жителей и сотрудников
   cleanup();
   // Сотрудники: отдельный поиск, находит и по Telegram, и по роли.
   render(<RegistryPage users="staff" />);
-  expect(await screen.findByText("@oleg_san_krasnov")).toBeInTheDocument();
+  const staffLink = await screen.findByRole("link", { name: "@oleg_san_krasnov" });
+  expect(staffLink).toHaveAttribute("href", "https://t.me/oleg_san_krasnov");
   const staffSearch = screen.getByRole("searchbox", { name: "Поиск сотрудников" });
   fireEvent.change(staffSearch, { target: { value: "oleg_san" } });
   expect(screen.getByText("Олег Краснов")).toBeInTheDocument();

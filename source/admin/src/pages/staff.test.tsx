@@ -55,6 +55,7 @@ const detail = {
   id: "worker",
   full_name: "Иван Тестов",
   phone_e164: "+70000000000",
+  telegram_username: "oleg_san_krasnov",
   roles: ["executor"],
   effective_roles: ["executor"],
   version: "v1",
@@ -87,6 +88,23 @@ function setup() {
     throw Error(path);
   });
 }
+it("Telegram-имя сотрудника — колонка ссылкой, поиск по нему, имя в карточке", async () => {
+  setup();
+  render(<StaffPage />);
+  const link = await screen.findByRole("link", { name: "@oleg_san_krasnov" });
+  expect(link).toHaveAttribute("href", "https://t.me/oleg_san_krasnov");
+  const search = screen.getByRole("searchbox", { name: "Поиск сотрудников" });
+  fireEvent.change(search, { target: { value: "oleg_san" } });
+  expect(screen.getByText("Иван Тестов")).toBeInTheDocument();
+  fireEvent.change(search, { target: { value: "нет такого" } });
+  expect(screen.getByText("Сотрудников не найдено")).toBeInTheDocument();
+  fireEvent.change(search, { target: { value: "" } });
+  fireEvent.click(await findButton("Иван Тестов"));
+  const drawer = await screen.findByRole("dialog");
+  const cardLink = await within(drawer).findByRole("link", { name: "@oleg_san_krasnov" });
+  expect(cardLink).toHaveAttribute("href", "https://t.me/oleg_san_krasnov");
+});
+
 it("редактирует перечень ролей в единственной шторке без домов и сроков", async () => {
   setup();
   render(<StaffPage />);

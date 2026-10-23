@@ -1,5 +1,6 @@
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
+import { TelegramHandle } from "../components/telegram-handle";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect, useState } from "react";
 import { Alert, Input, Space, Typography } from "antd";
@@ -64,7 +65,7 @@ export function InvitesPage() {
           {
             title: "Telegram",
             dataIndex: "created_by_telegram",
-            render: (v) => (v ? `@${String(v)}` : "—"),
+            render: (v) => <TelegramHandle username={v} />,
           },
           {
             title: "Помещение",

@@ -3,6 +3,7 @@ import { ProcessOverview } from "../components/process-card";
 import { ConfigurableTable } from "../components/configurable-table";
 import { CardDrawer } from "./card-drawer";
 import { PageLayout } from "../components/page-layout";
+import { TelegramHandle } from "../components/telegram-handle";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -244,7 +245,7 @@ export function RegistrationsPage() {
                 </Typography.Text>
                 {r.telegram_username ? (
                   <Typography.Text type="secondary" style={{ display: "block" }}>
-                    @{String(r.telegram_username)}
+                    <TelegramHandle username={r.telegram_username} />
                   </Typography.Text>
                 ) : null}
                 <Typography.Text style={{ display: "block" }}>
@@ -301,7 +302,7 @@ export function RegistrationsPage() {
             {
               title: "Telegram",
               dataIndex: "telegram_username",
-              render: (v) => (v ? `@${String(v)}` : "—"),
+              render: (v) => <TelegramHandle username={v} />,
             },
             {
               title: "Помещение",

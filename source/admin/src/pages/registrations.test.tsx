@@ -41,7 +41,9 @@ it("доска регистраций: заявитель на карточке,
   expect(screen.getByText("Д1 · Квартира 12")).toBeInTheDocument();
   expect(screen.getByText(/Собственник/)).toBeInTheDocument();
   expect(screen.getByText("Ожидает проверки")).toBeInTheDocument();
-  // Имя в Telegram показывается и на карточке, и в таблице.
+  // Имя в Telegram показывается и на карточке, и в таблице, и кликается.
+  const cardLink = screen.getByRole("link", { name: "@w84gr8" });
+  expect(cardLink).toHaveAttribute("href", "https://t.me/w84gr8");
   expect(screen.getAllByText("@w84gr8").length).toBeGreaterThanOrEqual(1);
   fireEvent.click(screen.getByRole("button", { name: "Отказать" }));
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
@@ -51,7 +53,8 @@ it("поиск анкет находит по Telegram-имени и фильт�
   render(<RegistrationsPage />);
   fireEvent.click(await screen.findByRole("radio", { name: "Таблица" }));
   expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
-  expect(screen.getByText("@w84gr8")).toBeInTheDocument();
+  const tableLink = screen.getByRole("link", { name: "@w84gr8" });
+  expect(tableLink).toHaveAttribute("href", "https://t.me/w84gr8");
   const search = screen.getByRole("searchbox", { name: "Поиск анкет" });
   fireEvent.change(search, { target: { value: "@w84" } });
   expect(screen.getByText("Иван Иванов")).toBeInTheDocument();
