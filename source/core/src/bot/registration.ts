@@ -29,7 +29,7 @@ import {
 import { manageRegistration, withdrawUnconfirmedRegistration } from "../domains/registrations/management.ts";
 import { ScenarioRegistry } from "./registry.ts";
 import { menuCommand, registrationHelp, welcomeText } from "./help.ts";
-import { type BotReply, btn } from "./keyboard.ts";
+import { type BotReply, btn, type InlineButton } from "./keyboard.ts";
 import {
   buildingCodeMatches,
   esc,
@@ -85,24 +85,26 @@ function roleFromWord(value: string | undefined): string | undefined {
   return ROLE_WORDS[value.trim().toLowerCase()];
 }
 
-/** Строка списка анкет: состояние, анкетные данные, помещение, роль, причина. */
+/** Строка анкеты: состояние, анкетные данные, помещение, роль, причина. */
+function registrationLine(r: Row, L: Lang, store?: TemplateStore): string {
+  const draft = r.draft ? jsonValue<Row>(r.draft) : {};
+  // Анкета-минимум (REG-01) без помещения и роли — только имя и состояние.
+  const place = r.premises_id
+    ? `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
+      esc(r.code ?? "—")
+    }/${esc(r.number ?? "—")}`
+    : esc(message(store, L, "registration.pomeschenie_ne_ukazano"));
+  return `<b>${esc(label(stateLabels, r.state, L))}</b>: ${
+    esc(draft.full_name ?? "—")
+  }, ${place}${
+    r.role ? `, ${esc(label(roleLabels, r.role, L))}` : ""
+  }${
+    r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""
+  }${r.confirmed_draft ? `\n${esc(message(store, L, "registration.previous_access_retained"))}` : ""}`;
+}
+
 function registrationLines(rows: Row[], L: Lang, store?: TemplateStore): string[] {
-  return rows.map((r) => {
-    const draft = r.draft ? jsonValue<Row>(r.draft) : {};
-    // Анкета-минимум (REG-01) без помещения и роли — только имя и состояние.
-    const place = r.premises_id
-      ? `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
-        esc(r.code ?? "—")
-      }/${esc(r.number ?? "—")}`
-      : esc(message(store, L, "registration.pomeschenie_ne_ukazano"));
-    return `<b>${esc(label(stateLabels, r.state, L))}</b>: ${
-      esc(draft.full_name ?? "—")
-    }, ${place}${
-      r.role ? `, ${esc(label(roleLabels, r.role, L))}` : ""
-    }${
-      r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""
-    }${r.confirmed_draft ? `\n${esc(message(store, L, "registration.previous_access_retained"))}` : ""}`;
-  });
+  return rows.map((r) => registrationLine(r, L, store));
 }
 
 function scopedDeps(deps: RegistryDeps, exec: DbExecutor): RegistryDeps {
@@ -154,7 +156,8 @@ export async function registrationStep(
       cmd = parts[0];
     if (cmd === "/cancel") {
       for (const key of Object.keys(state)) delete state[key];
-      return save(help());
+      // Отмена ведёт в главное меню (как /start), а не в справку.
+      return save(welcomeText(L, deps.templates));
     }
     if (cmd === "/start" && !parts[1]?.startsWith("invite_")) {
       for (const key of Object.keys(state)) delete state[key];
@@ -162,7 +165,7 @@ export async function registrationStep(
     }
     if (cmd === "/status") {
       const rows = await exec.query<Row>(
-        `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
+        `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.decided_at,r.created_at,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
         from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
         where (r.telegram_user_id=$1 or r.person_id=$2) and r.superseded_by is null order by r.created_at desc limit 20`,
         [telegramId, actor?.person.id ?? null],
@@ -171,39 +174,44 @@ export async function registrationStep(
         return message(deps.templates, L, "registration.anket_poka_net");
       }
       state.status_options = rows.map((r) => String(r.id));
-      // Кнопка доступна только редактируемым анкетам: /edit проверит и ответит.
+      // Операции адресованы актуальной анкете (первая строка): исправление —
+      // одна кнопка, дубли на исторические записи не выдаются; /edit проверит.
       const editable = new Set([
         "pending_review",
         "need_clarification",
         "rejected",
         "approved",
       ]);
-      const buttons = rows
-        .map((r, i) =>
-          editable.has(String(r.state))
-            ? [
-              btn(
-                messageButton(
-                  deps.templates,
-                  L,
-                  "message.registration.status",
-                  "edit",
-                ),
-                `/edit ${i + 1}`,
-              ),
-            ]
-            : undefined
-        )
-        .filter((row): row is NonNullable<typeof row> => !!row);
+      const buttons: InlineButton[][] = editable.has(String(rows[0]!.state))
+        ? [[
+          btn(
+            messageButton(
+              deps.templates,
+              L,
+              "message.registration.status",
+              "edit",
+            ),
+            "/edit 1",
+          ),
+        ]]
+        : [];
       if (rows.some(r => r.state !== "withdrawn")) buttons.push([
         btn(messageButton(deps.templates, L, "message.registration.status", "delete"), "/delete"),
       ]);
+      // Актуальный статус — вверху; остальные записи — история изменений
+      // статуса: дата решения (или подачи), статус и анкетные данные.
+      const history = rows.slice(1).reverse().map((r) =>
+        `${esc(fmtDate(r.decided_at ?? r.created_at))} — ${registrationLine(r, L, deps.templates)}`,
+      );
+      const status = message(deps.templates, L, "message.registration.status", {
+        registrations: safeBlock(registrationLine(rows[0]!, L, deps.templates)),
+      });
       return save({
-        text: message(deps.templates, L, "message.registration.status", {
-          registrations: safeBlock(
-            numbered(registrationLines(rows, L, deps.templates)),
-          ),
-        }),
+        text: history.length
+          ? `${status}\n\n${message(deps.templates, L, "message.registration.status_history", {
+            registrations: safeBlock(history.join("\n")),
+          })}`
+          : status,
         ...(buttons.length ? { buttons } : {}),
       });
     }

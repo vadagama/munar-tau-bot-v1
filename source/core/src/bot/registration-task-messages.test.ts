@@ -97,7 +97,7 @@ describe("Полные сообщения регистрации и задани
     );
     const result = await registrationStep(h.deps, "1", "/status", actor);
     expect(replyText(result)).toBe(
-      "<b>Ваши анкеты</b>\n1. <b>Ожидает проверки</b>: &lt;Алия&gt;, Квартира 1/4, Собственник\nВсе действия здесь",
+      "<b>Ваши анкеты</b>\n<b>Ожидает проверки</b>: &lt;Алия&gt;, Квартира 1/4, Собственник\nВсе действия здесь",
     );
     expect(result).toMatchObject({
       buttons: [[{ text: "Уточнить", data: "/edit 1" }], [{ text: "Удалить анкету", data: "/delete" }]],

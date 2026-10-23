@@ -754,6 +754,89 @@ describe("бот: анкета без помещения (/status, /fix)", () =>
   });
 });
 
+describe("бот: /status — актуальный статус и история изменений", () => {
+  const currentRow = () => ({
+    id: REG_ID,
+    state: "pending_review",
+    decided_reason: null,
+    decided_at: null,
+    created_at: "2026-10-21T09:00:00.000Z",
+    draft,
+    premises_id: "p1",
+    kind: "apartment",
+    code: "Ж1",
+    number: "1",
+    role: "owner",
+  });
+  const rejectedRow = () => ({
+    id: REG_ID_2,
+    state: "rejected",
+    decided_reason: "Нужна латиница в имени",
+    decided_at: "2026-10-20T10:00:00.000Z",
+    created_at: "2026-10-20T09:00:00.000Z",
+    draft,
+    premises_id: "p1",
+    kind: "apartment",
+    code: "Ж1",
+    number: "1",
+    role: "owner",
+  });
+  const pendingRow = () => ({
+    id: "33333333-3333-3333-3333-333333333333",
+    state: "pending_review",
+    decided_reason: null,
+    decided_at: null,
+    created_at: "2026-10-19T08:00:00.000Z",
+    draft,
+    premises_id: null,
+    role: null,
+  });
+
+  it("актуальный статус вверху без номера, история с датами, исправление — одна кнопка", async () => {
+    const h = harness({ registrations: [currentRow(), rejectedRow(), pendingRow()] });
+    const reply = await registrationStep(h.deps, "100", "/status");
+    const text = replyText(reply);
+    // Актуальная анкета — вверху, без нумерации.
+    expect(text).toContain("<b>Ожидает проверки</b>: Oleg Krasnov, Квартира Ж1/1, Собственник");
+    expect(text).not.toContain("1. ");
+    // История — хронологически, каждая запись: дата, статус и анкетные данные.
+    expect(text).toContain("История изменений статуса:");
+    expect(text).toContain(
+      "19.10.2026 13:00 — <b>Ожидает проверки</b>: Oleg Krasnov, помещение не указано",
+    );
+    expect(text).toContain(
+      "20.10.2026 15:00 — <b>Отказано</b>: Oleg Krasnov, Квартира Ж1/1, Собственник — Нужна латиница в имени",
+    );
+    expect(text.indexOf("<b>Ожидает проверки</b>")).toBeLessThan(text.indexOf("История изменений статуса:"));
+    // Операции адресованы только актуальной анкете.
+    expect(reply).toMatchObject({
+      buttons: [
+        [{ text: "Исправить анкету", data: "/edit 1" }],
+        [{ text: "Удалить анкету", data: "/delete" }],
+      ],
+    });
+  });
+
+  it("актуальная анкета в споре — кнопки исправления нет, удаление остаётся", async () => {
+    const h = harness({ registrations: [{ ...currentRow(), state: "disputed" }, rejectedRow()] });
+    const reply = await registrationStep(h.deps, "100", "/status");
+    if (typeof reply === "string") throw new Error("Ожидался ответ с кнопками");
+    const data = reply.buttons?.flat().map(button => button.data) ?? [];
+    expect(data).not.toContain("/edit 1");
+    expect(data).toContain("/delete");
+    expect(replyText(reply)).toContain("История изменений статуса:");
+  });
+
+  it("/cancel после /status очищает диалог и открывает главное меню", async () => {
+    const h = harness({ registrations: [currentRow(), rejectedRow()] });
+    await registrationStep(h.deps, "100", "/status");
+    expect(h.state.status_options).toEqual([REG_ID, REG_ID_2]);
+    const reply = await registrationStep(h.deps, "100", "/cancel");
+    expect(replyText(reply)).toContain("ОСИ ЖК «Мунар Тау»");
+    expect(h.state).toEqual({});
+  });
+});
+
 describe("бот: /add — добавление помещения", () => {
   const P1 = "aaaaaaaa-1111-1111-1111-111111111111";
   const P2 = "aaaaaaaa-2222-2222-2222-222222222222";
