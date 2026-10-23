@@ -49,6 +49,10 @@ export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {})
     if (action === "publication.approve") return chairman ? ALLOW : deny("Требуется председатель");
     if (action === "incident.link" || action === "publication.manage") return manager ? ALLOW : deny("Требуется администратор области");
     if (action === "incident.manage") return manager || duty ? ALLOW : deny("Требуется администратор или назначенный дежурный");
+    if (action === "publication.read" && resource.publicationAccess?.financial) {
+      const finance = actor.assignments.some(a => a.role === "finance" && inScope(a));
+      return manager || finance || (r.published && resource.publicationAccess.owner) ? ALLOW : deny("Нужна действующая собственность в области финансового отчёта");
+    }
     return manager || (action === "incident.read" && duty) || (r.published && r.member) ? ALLOW : deny("Объект недоступен");
   }
 

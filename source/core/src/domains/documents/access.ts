@@ -5,11 +5,25 @@ import type { Actor, ResourceRef } from "../../pdp/types.ts";
 import { requestAccess, requestLinkColumns, type RequestLinks, type RequestRow } from "../requests/access.ts";
 import { TASK_SELECT, type TaskRow, taskResource } from "../tasks/access.ts";
 import type { DocumentRow } from "./types.ts";
+import { financialDocumentGrants } from "./financial-grants.ts";
 export type DocumentAction = "document.read" | "document.prepare" | "document.review" | "document.manage";
+export function internalDocumentReader(actor: Actor, resource: ResourceRef) {
+  if ((["document.prepare", "document.review", "document.manage"] as const).some(action => can(actor, action, resource).allow)) return true;
+  const r = resource.documentAccess;
+  return !!r && (r.financial || r.audience === "finance") && can(actor, "document.read", {
+    documentAccess: { ...r, published: false, member: false, owner: false },
+  }).allow;
+}
+export function documentVersionReadable(actor: Actor, resource: ResourceRef, version: { id: string; state: string; was_published: boolean }) {
+  const r = resource.documentAccess;
+  return internalDocumentReader(actor, resource) || version.was_published || !!r?.financialVersionIds?.includes(version.id) ||
+    (!!r?.assignedTask && !r.financial && version.state === "approved");
+}
 interface AccessData {
   scopes: Map<string, string[]>; tasks: Map<string, TaskRow>;
   reports: Map<string, string[]>; requests: Map<string, RequestRow & RequestLinks>;
   membership: { building_id: string; owner: boolean }[];
+  financialGrants: Map<string, string[]>;
 }
 
 export async function documentResource(exec: DbExecutor, actor: Actor, row: DocumentRow, scopeOverride?: string[], data?: AccessData): Promise<ResourceRef> {
@@ -71,9 +85,10 @@ export async function documentResource(exec: DbExecutor, actor: Actor, row: Docu
       and (cardinality($3::uuid[])=0 or p.building_id=any($3::uuid[]))) as owner`,
     [actor.person.id, actor.person.isTest, ids],
   ))[0];
+  const financialVersionIds = (data?.financialGrants ?? await financialDocumentGrants(exec, actor, [row.id])).get(row.id) ?? [];
   return { documentAccess: {
     buildingIds: ids, isTest: row.is_test, audience: row.audience, financial: ["financial_report", "invoice", "receipt"].includes(row.kind),
-    published: row.published_version_id !== null, member: ids.length === 0 || !!membership?.member,
+    published: row.published_version_id !== null || financialVersionIds.length > 0, financialVersionIds, member: ids.length === 0 || !!membership?.member,
     owner: !!membership?.owner, sourceAllowed, sourceManageable,
     preparedById: row.prepared_by, reviewerId: row.reviewer_id, assignedTask, resultAuthorIds: authors, reviewSource,
   } };
@@ -95,7 +110,8 @@ export async function documentResources(exec: DbExecutor, actor: Actor, rows: Do
      and (c.start_date is null or c.start_date<=(now() at time zone 'Asia/Almaty')::date)
      and (c.end_date is null or c.end_date>=(now() at time zone 'Asia/Almaty')::date)`, [actor.person.id, actor.person.isTest]);
   const data: AccessData = { scopes: new Map(ids.map(id => [id, []])), tasks: new Map(tasks.map(t => [t.id, t])),
-    reports: new Map(), requests: new Map(requests.map(r => [r.id, r])), membership };
+    reports: new Map(), requests: new Map(requests.map(r => [r.id, r])), membership,
+    financialGrants: await financialDocumentGrants(exec, actor, ids) };
   for (const s of scopes) data.scopes.get(s.document_id)!.push(s.building_id);
   for (const r of reports) data.reports.set(r.task_id, [...(data.reports.get(r.task_id) ?? []), r.created_by]);
   return Promise.all(rows.map(row => documentResource(exec, actor, row, undefined, data)));

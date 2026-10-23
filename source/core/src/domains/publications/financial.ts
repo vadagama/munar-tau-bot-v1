@@ -63,7 +63,7 @@ export function financialInput(input: Row): FinancialInput {
   const disclosed = unique(input.disclosed_version_ids.map(uuid));
   if (!disclosed.includes(report) || disclosed.some(id => id !== report && !bases.some(b => b.document_version_id === id))) invalid("Раскрываемый комплект должен включать отчёт и только выбранные основания");
   return { obligation_id: uuid(input.obligation_id), period_from: from, period_to: to, report_version_id: report,
-    basis_versions: bases, disclosed_version_ids: disclosed, correction_note: input.correction_note == null || (typeof input.correction_note === "string" && !input.correction_note.trim()) ? "" : content(input.correction_note) };
+    basis_versions: bases.sort((a, b) => a.code.localeCompare(b.code)), disclosed_version_ids: disclosed.sort(), correction_note: input.correction_note == null || (typeof input.correction_note === "string" && !input.correction_note.trim()) ? "" : content(input.correction_note) };
 }
 export interface FinancialDocument {
   id: string; document_id: string; kind: string; state: string; is_test: boolean; audience: string;

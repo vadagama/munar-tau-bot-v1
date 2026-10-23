@@ -1,9 +1,22 @@
 import { expect, it, vi } from "vitest";
-import { documentResource, documentResources } from "./access.ts";
+import { documentResource, documentResources, internalDocumentReader, documentVersionReadable } from "./access.ts";
 import type { DbExecutor } from "../../db/client.ts";
 import type { DocumentRow } from "./types.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { B1, makeTestActor } from "../../testing/actors.ts";
+
+it("финансовый читатель видит версии и файлы, собственник — только раскрытые версии", () => {
+  const finance = makeTestActor("finance", [B1]);
+  const resource = { documentAccess: { buildingIds: [B1], isTest: finance.person.isTest, audience: "owner" as const,
+    financial: true, published: true, member: true, owner: true, sourceAllowed: true, sourceManageable: false,
+    preparedById: "other", reviewerId: "other", assignedTask: false, resultAuthorIds: [] } };
+  expect(internalDocumentReader(finance, resource)).toBe(true);
+  expect(internalDocumentReader({ ...finance, assignments: [] }, resource)).toBe(false);
+  const executor = makeTestActor("executor", [B1]);
+  const scoped = { documentAccess: { ...resource.documentAccess, assignedTask: true, financialVersionIds: ["v1"] } };
+  expect(documentVersionReadable(executor, scoped, { id: "v1", state: "approved", was_published: false })).toBe(true);
+  expect(documentVersionReadable(executor, scoped, { id: "v2", state: "approved", was_published: false })).toBe(false);
+});
 
 it("каталог из 500 общих документов не создаёт отдельные SQL-запросы на каждую строку", async () => {
   const query = vi.fn(async () => []);
@@ -31,6 +44,7 @@ it.each(["request", "complaint", "task", "finance"])("пакетный ресу�
     if (sql.includes("as participant")) return [{ participant: false, active_author: true }] as T[];
     if (sql.includes("as member")) return [{ member: false, owner: false }] as T[];
     if (sql.includes("select distinct p.building_id")) return [];
+    if (sql.includes("from financial_package_document")) return [];
     throw new Error(`Неожиданный SQL: ${sql}`);
   } };
   const [batched] = await documentResources(exec, actor, [row]);

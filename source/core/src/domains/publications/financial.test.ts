@@ -9,6 +9,11 @@ it("финансовая версия ссылается на конкретны
   expect(financialInput({ ...input, approved_by: "fake", approved: true })).toEqual(input);
   expect(financialInput({ ...input, correction_note: "" }).correction_note).toBe("");
 });
+it("порядок выбора оснований и раскрываемых файлов не меняет снимок", () => {
+  const extra = "44444444-4444-4444-8444-444444444444";
+  const first = { ...input, basis_versions: [{ code: "z_extra", document_version_id: extra }, ...input.basis_versions], disclosed_version_ids: [extra, report] };
+  expect(financialInput(first)).toEqual(financialInput({ ...first, basis_versions: [...first.basis_versions].reverse(), disclosed_version_ids: [...first.disclosed_version_ids].reverse() }));
+});
 it.each([{ period_from: "2026-02-31" }, { period_to: "2026-08-31" }, { disclosed_version_ids: [basis] }, { basis_versions: [{ code: "council", document_version_id: report }] }])("отклоняет противоречивый период или комплект %j", patch => {
   expect(() => financialInput({ ...input, ...patch })).toThrow();
 });

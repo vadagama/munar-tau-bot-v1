@@ -1,5 +1,5 @@
 import { requireTask, taskResource } from "../tasks/access.ts";
-import { documentResource, requireDocument } from "../documents/access.ts";
+import { documentResource, documentVersionReadable, internalDocumentReader, requireDocument } from "../documents/access.ts";
 import { checkVersion } from "./fsm.ts";
 import { can } from "../../pdp/evaluate.ts";
 import { ApiError } from "../../errors/api.ts";
@@ -229,12 +229,11 @@ async function fileAccess(
   if (!a) throw new ApiError("NOT_FOUND");
   if (a.owner_type === "document") {
     const doc = await requireDocument(deps.db, actor, String(a.owner_id), write ? "document.prepare" : "document.read");
-    const versions = await deps.db.query<{ was_published: boolean; state: string }>("select was_published,state from document_version where document_id=$1 and (attachment_id=$2 or signed_attachment_id=$2)", [doc.id, id]);
+    const versions = await deps.db.query<{ id: string; was_published: boolean; state: string }>("select id,was_published,state from document_version where document_id=$1 and (attachment_id=$2 or signed_attachment_id=$2)", [doc.id, id]);
     if (write && (versions.length || a.uploaded_by !== actor.person.id)) throw new ApiError("FORBIDDEN");
     if (!write) {
       const r = await documentResource(deps.db, actor, doc);
-      const internal = can(actor, "document.prepare", r).allow || can(actor, "document.review", r).allow || can(actor, "document.manage", r).allow;
-      if (!internal && !versions.some(v => v.was_published || (r.documentAccess?.assignedTask && v.state === "approved"))) throw new ApiError("NOT_FOUND");
+      if (!internalDocumentReader(actor, r) && !versions.some(v => documentVersionReadable(actor, r, v))) throw new ApiError("NOT_FOUND");
     }
     return a;
   }

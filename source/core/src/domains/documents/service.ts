@@ -9,7 +9,7 @@ import { invalid, type Row } from "../registry/validation.ts";
 import { content, idempotent } from "../requests/service.ts";
 import { checkVersion } from "../requests/fsm.ts";
 import { documentInput, versionInput } from "./input.ts";
-import { documentResource, documentResources, requireDocument } from "./access.ts";
+import { documentResource, documentResources, internalDocumentReader, requireDocument } from "./access.ts";
 import { documentTransition } from "./fsm.ts";
 import type { DocumentRow, DocumentVersionRow } from "./types.ts";
 import { notifyPerson } from "../registrations/notifications.ts";
@@ -132,8 +132,8 @@ export async function publishDocument(deps: RegistryDeps, actor: Actor, id: stri
 export async function getDocument(deps: RegistryDeps, actor: Actor, id: string) {
   const row = await requireDocument(deps.db, actor, id);
   const resource = await documentResource(deps.db, actor, row);
-  const internal = (["document.prepare", "document.review", "document.manage"] as const).some(a => can(actor, a, resource).allow);
-  const versions = await deps.db.query<DocumentVersionRow>("select * from document_version where document_id=$1 and ($2 or was_published or ($3 and state='approved')) order by version desc", [id, internal, resource.documentAccess!.assignedTask]);
+  const internal = internalDocumentReader(actor, resource);
+  const versions = await deps.db.query<DocumentVersionRow>("select * from document_version where document_id=$1 and ($2 or was_published or ($3 and state='approved') or id=any($4::uuid[])) order by version desc", [id, internal, resource.documentAccess!.assignedTask && !resource.documentAccess!.financial, resource.documentAccess!.financialVersionIds ?? []]);
   const scope = await deps.db.query<{ building_id: string }>("select building_id from document_scope where document_id=$1 order by building_id", [id]);
   const history = internal ? await deps.db.query("select action,document_version_id,reason,at from document_log where document_id=$1 order by id", [id]) : [];
   const visible = internal ? row : { id: row.id, title: row.title, kind: row.kind, audience: row.audience, version: row.version,

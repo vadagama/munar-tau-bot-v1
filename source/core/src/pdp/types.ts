@@ -87,13 +87,14 @@ export interface ResourceRef {
     audience: "resident" | "owner" | "staff" | "finance" | "service";
     published: boolean; member: boolean; owner: boolean;
     financial?: boolean;
+    financialVersionIds?: string[];
     sourceAllowed: boolean; sourceManageable: boolean;
     preparedById: string; reviewerId: string;
     assignedTask: boolean; resultAuthorIds: string[];
     reviewSource?: { isTest: boolean; draft: boolean; chairmanOnly: boolean; complaintSubjectId: string | null };
   };
   incidentAccess?: { buildingIds: string[]; isTest: boolean; responsibleId: string | null; member: boolean; published: boolean };
-  publicationAccess?: { buildingIds: string[]; isTest: boolean; member: boolean; published: boolean };
+  publicationAccess?: { buildingIds: string[]; isTest: boolean; member: boolean; published: boolean; financial?: boolean; owner?: boolean };
   taskAccess?: { buildingIds: string[]; assigneeId: string | null; isTest: boolean };
   requestAccess?: { chairmanOnly?: boolean; authorId: string; buildingId: string | null; state: string; isTest: boolean; participant: boolean; activeAuthor: boolean; complaintSubjectId: string | null };
   kind?: "audit" | "assignment" | "access_session" | "person" | "emulation";
