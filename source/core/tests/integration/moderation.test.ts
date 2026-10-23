@@ -6,6 +6,7 @@ import { actorForPerson } from "../../src/domains/documents/service.ts";
 import { submitInitiative,transitionInitiative } from "../../src/domains/initiatives/service.ts";
 import { addInitiativeComment,listInitiativeComments,readInitiativeComment } from "../../src/domains/initiatives/comments.ts";
 import { createModerationAction,appealModerationAction,resolveModerationAppeal } from "../../src/domains/initiatives/moderation.ts";
+import { getInitiative,listInitiatives,listModerationAppeals,getModerationAppeal } from "../../src/domains/initiatives/queries.ts";
 import { initiativeAudience } from "../../src/domains/initiatives/access.ts";
 import type { DbClient } from "../../src/db/client.ts";
 async function setup(db:DbClient) {
@@ -47,6 +48,19 @@ describeWithDb("VS8 MOD: приватность, оспаривание и ат�
   expect((await initiativeAudience(db,resident.person.id,true)).restricted).toBe(false);
   const [original]=await db.query<{original_until_at:Date}>("select original_until_at from moderation_action where id=$1",[action.id]);expect(new Date(original!.original_until_at).toISOString()).toBe(until);
   expect(await addInitiativeComment(deps,resident,item.id,{body:"Снова доступно",expected_version:2},"allowed")).toMatchObject({body:"Снова доступно"});
+ },240000);
+ it("API-чтение скрывает чужую область и частные аргументы до пагинации",async()=>{
+  const db=getDb(),{deps,chair,resident,item}=await setup(db);
+  const action=await createModerationAction(deps,chair,{initiative_id:item.id,kind:"restrict_author",reason:"Нарушение",until_at:new Date(Date.now()+86400000).toISOString(),expected_version:2},"restrict");
+  const appeal=await appealModerationAction(deps,resident,action.id,{reason:"Частный аргумент",expected_version:1},"appeal");
+  expect((await listModerationAppeals(deps,resident)).items.map(a=>a.id)).toContain(appeal.id);
+  expect((await getModerationAppeal(deps,chair,appeal.id)).reason).toBe("Частный аргумент");
+  const card=await getInitiative(deps,resident,item.id);
+  for(const field of ["author_person_id","decision_snapshot","supporters","phone_e164"])expect(card).not.toHaveProperty(field);
+  await db.query("update connection set status='revoked' where person_id=$1",[resident.person.id]);
+  expect((await listInitiatives(deps,resident,{limit:1})).items).toEqual([]);
+  expect((await listInitiatives(deps,chair,{limit:1})).items.map(i=>i.id)).toEqual([item.id]);
+  expect((await getModerationAppeal(deps,resident,appeal.id)).reason).toBe("Частный аргумент");
  },240000);
  it("новые таблицы закрыты RLS и GRANT",async()=>{
   const rows=await getDb().query<{relrowsecurity:boolean;exposed:boolean}>(`select c.relrowsecurity,

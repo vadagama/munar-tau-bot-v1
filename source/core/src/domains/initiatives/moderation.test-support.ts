@@ -28,6 +28,7 @@ export function moderationFixture(){
   else if(sql.startsWith("insert into moderation_appeal(")){const row={id:appealId,action_id:p[0],appellant_person_id:p[1],reason:p[2],status:"open",version:1,created_at:s.at};s.appeals.push(row);rows=[row];}
   else if(sql.startsWith("update moderation_action set")){const row=s.actions.find(a=>a.id===p[0])!;Object.assign(row,{until_at:p[1] instanceof Date?p[1].toISOString():p[1],revoked_at:p[2],version:Number(row.version)+1});rows=[row];}
   else if(sql.startsWith("update moderation_appeal set")){const row=s.appeals.find(a=>a.id===p[0])!;Object.assign(row,{status:"resolved",version:Number(row.version)+1});rows=[row];}
+  else if(sql.startsWith("select resolution,reason"))rows=[];
   else if(sql.startsWith("insert into moderation_decision("))s.decisions.push([...p]);
   else if(sql.startsWith("insert into outbox("))s.outbox.push(JSON.parse(String(p[0])));
   else throw new Error(`Unexpected SQL: ${sql}`);
