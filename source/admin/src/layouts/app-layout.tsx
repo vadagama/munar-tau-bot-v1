@@ -79,6 +79,7 @@ export function AppLayout() {
     ] }] : []),
     { key: "/incidents", label: "Аварии" },
     { key: "/publications", label: "Публикации" },
+    { key: "/documents", label: "Документы" },
     ...(manager ? [
       { key: "users", label: "Пользователи", children: [
         { key: "/users/residents", label: "Жители" },

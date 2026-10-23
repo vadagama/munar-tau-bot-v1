@@ -1,5 +1,6 @@
 import { RegistryPhasesPage } from "./pages/registry-phases";
 import { StaffPage } from "./pages/staff";
+import { DocumentsPage } from "./pages/documents";
 import { RequestSettingsPage } from "./pages/request-settings";
 import { TaskToolsPage } from "./pages/task-tools";
 import { TemplatesPage } from "./pages/templates";
@@ -52,6 +53,7 @@ export default function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/incidents" element={<IncidentsPage />} />
               <Route path="/publications" element={<PublicationsPage />} />
+              <Route path="/documents" element={<DocumentsPage />} />
               <Route path="/templates" element={<TemplatesPage />} />
               <Route path="/notifications" element={<Navigate to="/notifications/preferences" replace />} />
               <Route path="/notifications/preferences" element={<NotificationsPage key="preferences" section="preferences" />} />

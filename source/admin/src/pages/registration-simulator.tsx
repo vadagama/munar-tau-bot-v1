@@ -49,8 +49,9 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
   return (
     <Card title="Симулятор бота" style={{ marginBottom: 16 }}>
       <Space direction="vertical" style={{ width: "100%" }}>
-        <Select aria-label="Сценарий симулятора" value={scenario} onChange={setScenario} options={[{value:"registration",label:"Регистрация"},{value:"requests",label:"Обращения"},{value:"tasks",label:"Задания"},{value:"staff-requests",label:"Обращения сотрудников"},{value:"notifications",label:"Уведомления"},{value:"incidents",label:"Аварии и публикации"}]} />
+        <Select aria-label="Сценарий симулятора" value={scenario} onChange={setScenario} options={[{value:"registration",label:"Регистрация"},{value:"requests",label:"Обращения"},{value:"tasks",label:"Задания"},{value:"staff-requests",label:"Обращения сотрудников"},{value:"documents",label:"Документы"},{value:"notifications",label:"Уведомления"},{value:"incidents",label:"Аварии и публикации"}]} />
         {scenario === "notifications" && <Button disabled={!active || busy} onClick={()=>void send("/notifications")}>Настройки уведомлений</Button>}
+        {scenario === "documents" && <><Select aria-label="Канал документов" value={bot ?? "resident"} disabled={!active || busy} onChange={value => setBot(value === "worker" ? "worker" : undefined)} options={[{ value: "resident", label: "Бот жителей" }, { value: "worker", label: "Бот сотрудников" }]} /><Button disabled={!active || busy} onClick={()=>void send("/documents")}>Документы</Button></>}
         {scenario === "staff-requests" && <Button disabled={!active || busy} onClick={()=>void send("/staffrequests")}>Обращения сотрудников</Button>}
         {scenario === "tasks" && <Button disabled={!active || busy} onClick={()=>void send("/tasks")}>Мои задания</Button>}
         {scenario === "requests" && <Space wrap><Button disabled={!active || busy} onClick={()=>void send("/newrequest")}>Новое обращение</Button><Button disabled={!active || busy} onClick={()=>void send("/requests")}>Мои обращения</Button></Space>}

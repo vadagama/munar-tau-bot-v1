@@ -38,6 +38,8 @@ interface Rule {
   };
 }
 const names: Record<string, string> = {
+  document_prepare: "Подготовка обязательного документа до приёмки",
+  document_after_acceptance: "Документальное обязательство после приёмки",
   task_accept: "Ожидание принятия задания",
   task_escalation: "Повторная эскалация назначения",
   work_schedule: "Рабочий график",
