@@ -86,7 +86,12 @@ export function AppLayout() {
         { key: "/registrations", label: "Регистрации" },
         { key: "/invites", label: "Приглашения" },
       ] },
-      { key: "/registry", label: "Помещения" },
+      { key: "registry", label: "Объекты эксплуатации", children: [
+        { key: "/registry/buildings", label: "Здания" },
+        { key: "/registry/premises", label: "Помещения" },
+        { key: "/registry/connections", label: "Привязки помещений" },
+        { key: "/registry/phases", label: "Очереди" },
+      ] },
     ] : []),
     ...(!manager && roles.includes("tech_admin") ? [{ key: "/registrations", label: "Регистрации" }] : []),
     { key: "notifications", label: "Уведомления", children: [

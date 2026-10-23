@@ -1,3 +1,4 @@
+import { RegistryPhasesPage } from "./pages/registry-phases";
 import { StaffPage } from "./pages/staff";
 import { RequestSettingsPage } from "./pages/request-settings";
 import { TaskToolsPage } from "./pages/task-tools";
@@ -64,7 +65,11 @@ export default function App() {
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/common-works" element={<TaskToolsPage />} />
               <Route path="/job-templates" element={<TaskToolsPage templates />} />
-              <Route path="/registry" element={<RegistryPage />} />
+              <Route path="/registry" element={<Navigate to="/registry/premises" replace />} />
+              <Route path="/registry/buildings" element={<RegistryPage key="buildings" section="buildings" />} />
+              <Route path="/registry/premises" element={<RegistryPage key="premises" section="premises" />} />
+              <Route path="/registry/connections" element={<RegistryPage key="connections" section="connections" />} />
+              <Route path="/registry/phases" element={<RegistryPhasesPage />} />
               <Route path="/registrations" element={<RegistrationsPage />} />
               <Route path="/registry-import" element={<RegistryImportPage />} />
               <Route path="/audit" element={<AuditPage />} />
