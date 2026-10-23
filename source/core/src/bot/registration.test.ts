@@ -27,6 +27,8 @@ function harness(
   opts: {
     registrations?: Row[];
     buildings?: Row[];
+    /** Помещения шага «номер помещения»: поиск по номеру/uuid и подсказка. */
+    premiseNumbers?: Row[];
     editable?: Row | null;
     profile?: boolean;
     profileLanguage?: "ru" | "kk";
@@ -139,9 +141,19 @@ function harness(
         return Promise.resolve((opts.buildings ?? [
           { id: "b1", code: "Ж1" },
         ]) as T[]);
-      // Шаг «номер помещения»: одно активное помещение.
-      if (sql.startsWith("select id from premises"))
-        return Promise.resolve([{ id: "p1" }] as T[]);
+      // Шаг «номер помещения»: поиск по номеру или uuid из deep-link
+      // (params[3] — ввод), а также список для подсказки. ids списка —
+      // uuid, иначе ссылки не пройдут регекс premiseChoice при клике.
+      if (sql.startsWith("select id,number from premises"))
+        return Promise.resolve(
+          (opts.premiseNumbers ?? [{ id: "p1", number: "1" }]) as T[],
+        );
+      if (sql.startsWith("select id from premises")) {
+        const input = String(params?.[3] ?? "");
+        const found = (opts.premiseNumbers ?? [{ id: "p1", number: "1" }])
+          .filter((row) => row.number === input || row.id === input);
+        return Promise.resolve(found.map((row) => ({ id: row.id })) as T[]);
+      }
       // Шаг «роль»: адрес помещения для согласия (дом, код, номер).
       if (sql.startsWith("select p.number"))
         return Promise.resolve([
@@ -1110,4 +1122,33 @@ it("/add: только отмена, при ошибке — дома по оч�
   const stale=await registrationStep(h.deps,"100",link);
   expect(replyText(stale)).toContain("уже неактивен");
   expect(h.state.step).toBe("kind");
+});
+
+it("/add manual: при ошибке — номера помещений ссылками, ссылка выбирает помещение", async () => {
+  const pid="aaaaaaaa-0000-4000-8000-000000000004";
+  const h=harness({
+    profile:true,
+    premiseNumbers:[
+      {id:pid,number:"4"},
+      {id:"aaaaaaaa-0000-4000-8000-000000000005",number:"5"},
+      {id:"aaaaaaaa-0000-4000-8000-000000000006",number:"6"},
+    ],
+  });
+  await registrationStep(h.deps,"100","/add manual");
+  const kind=await registrationStep(h.deps,"100","ж 1");
+  expect(replyText(kind)).toContain("Тип помещения");
+  await registrationStep(h.deps,"100","1");
+  const hints=await registrationStep(h.deps,"100","999");
+  expect(replyText(hints)).toContain("Помещение не найдено");
+  expect(h.state.step).toBe("number");
+  expect(h.state.premise_choice_token).toBeTruthy();
+  expect(replyText(hints)).toContain(`?start=premise_${pid}_${h.state.premise_choice_token}`);
+  const link=`/start premise_${pid}_${h.state.premise_choice_token}`;
+  const result=await registrationStep(h.deps,"100",link);
+  expect(h.state.premises_id).toBe(pid);
+  expect(h.state.step).toBe("role");
+  expect(replyText(result)).toContain("Ваша роль");
+  const stale=await registrationStep(h.deps,"100",link);
+  expect(replyText(stale)).toContain("уже неактивен");
+  expect(h.state.step).toBe("role");
 });

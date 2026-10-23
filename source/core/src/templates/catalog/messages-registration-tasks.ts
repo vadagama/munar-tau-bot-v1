@@ -53,6 +53,7 @@ const values: Record<string, [string, string]> = {
   ],
   phase: ["Очередь строительства", "1"],
   buildings: ["Список доступных зданий", "1. Дом 1"],
+  numbers: ["Номера помещений выбранного типа в доме", "1, 2, 3"],
   kinds: [
     "Типы помещений",
     "1. Квартира\n2. Коммерческое помещение\n3. Парковочное место\n4. Кладовка",
@@ -158,7 +159,7 @@ function def(
   if ("accesses" in sample) {
     sample.accesses = "1. <b>Алия Омарова</b>: Квартира 4";
   }
-  const blocks = ["registrations", "tasks", "accesses", "buildings"].filter((name) =>
+  const blocks = ["registrations", "tasks", "accesses", "buildings", "numbers"].filter((name) =>
     name in sample
   );
   const sampleKk = { ...sample };
@@ -183,6 +184,12 @@ function def(
     const link = '<a href="https://t.me/munar_tau_user_bot?start=house_00000000-0000-4000-8000-000000000001_123456abcdef">102/1</a>';
     sample.buildings = "<b>Очередь 1</b>\n" + link;
     sampleKk.buildings = "<b>1-кезек</b>\n" + link;
+  }
+  if (key === "message.registration.premise_unknown") {
+    const link = (n: string) =>
+      `<a href="https://t.me/munar_tau_user_bot?start=premise_00000000-0000-4000-8000-000000000001_123456abcdef">${n}</a>`;
+    sample.numbers = [link("4"), link("5"), link("6")].join(", ");
+    sampleKk.numbers = sample.numbers;
   }
   let buttonRows: MessageExample["buttons"] = buttons?.length
     ? [
@@ -453,6 +460,15 @@ const defs: TemplateDef[] = [
     l => l === "kk" ? "Кезек көрсетілмеген" : "Очередь не указана"),
   def("message.registration.buildings_empty", "Нет домов для выбора", "/add", [],
     l => l === "kk" ? "Үйлер әлі қосылмаған. Кейінірек қайталап көріңіз." : "Дома пока не добавлены. Попробуйте позже."),
+  def("message.registration.premise_unknown", "Помещение не найдено — список номеров", "/add", [],
+    l => l === "kk"
+      ? "Нысан табылмады. Өз нөміріңізді тізімнен таңдаңыз:\n{numbers}"
+      : "Помещение не найдено. Выберите ваш номер из списка:\n{numbers}",
+    [{ id: "cancel", ru: "Отменить", kk: "Болдырмау" }]),
+  def("message.registration.premise_choice_expired", "Устаревшая ссылка выбора помещения", "/add", [],
+    l => l === "kk"
+      ? "Бұл нысанды таңдау енді белсенді емес. Ағымдағы диалогты жалғастырыңыз."
+      : "Этот выбор помещения уже неактивен. Продолжите текущий диалог."),
   def("message.registration.building_choice_expired", "Устаревшая ссылка выбора дома", "/add", [],
     l => l === "kk" ? "Бұл үйді таңдау енді белсенді емес. Ағымдағы диалогты жалғастырыңыз." : "Этот выбор дома уже неактивен. Продолжите текущий диалог."),
   def(
@@ -699,6 +715,11 @@ const overrides: Record<string, MessageButton[]> = {
     ru: "Подтвердить удаление",
     kk: "Жоюды растау",
   }, { id: "cancel", ru: "Отменить", kk: "Болдырмау" }],
+  "registration.pomeschenie_ne_naydeno_proverte_nomer_ili_obratites": [{
+    id: "cancel",
+    ru: "Отменить",
+    kk: "Болдырмау",
+  }],
   "tasks.kogda_predlozhite_vizit_napishite_odnim_soobscheniem_naprimer": [{
     id: "today",
     ru: "Сегодня",
