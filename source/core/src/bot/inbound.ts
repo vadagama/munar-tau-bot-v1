@@ -18,6 +18,7 @@ import type { Row } from "../domains/registry/validation.ts";
 import { type BotReply, replyText } from "./keyboard.ts";
 import { botErrorText } from "./bot-errors.ts";
 import { type Lang, langOf } from "./text.ts";
+import { syncTelegramUsername } from "./telegram-username.ts";
 
 /**
  * Маршрутизация шага внутри бота (ADR-009): файлы — в очередь загрузок,
@@ -225,6 +226,16 @@ export async function processInbound(
           `update:${update.update_id}:reply`,
           bot,
         );
+      }
+      // Имя в Telegram — display-only метаданные (ADR-001/004); синхронизация
+      // после сценария, чтобы снимок попал и во вновь созданную анкету. Сбой
+      // не должен ломать обработку обновления — savepoint + продолжение.
+      await exec.query("savepoint sync_telegram_username");
+      try {
+        await syncTelegramUsername(exec, String(from.id), from.username);
+      } catch (error) {
+        await exec.query("rollback to savepoint sync_telegram_username");
+        console.error("telegram_username sync failed", error);
       }
     }
     await exec.query(
