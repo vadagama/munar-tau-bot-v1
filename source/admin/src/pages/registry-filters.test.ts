@@ -24,7 +24,7 @@ it("очереди учитывают только загруженные зда
     { id: "b1", code: "107/1", name: "Первый дом", construction_phase: 1 },
     { id: "b2", code: "108/2", construction_phase: null },
   ], [{ id: "p1", building_id: "b1" }, { id: "p2", building_id: "b1" }, { id: "p3", building_id: "b2" }, { id: "hidden", building_id: "not-visible" }]);
-  expect(summary.find(row => row.phase === 1)).toMatchObject({ building_count: 1, premises_count: 2, buildings: "107/1 · Первый дом" });
+  expect(summary.find(row => row.phase === 1)).toMatchObject({ building_count: 1, premises_count: 2, buildings: "Первый дом" });
   expect(summary.find(row => row.phase === null)).toMatchObject({ building_count: 1, premises_count: 1 });
   expect(summary.find(row => row.phase === 5)).toMatchObject({ building_count: 0, premises_count: 0 });
 });

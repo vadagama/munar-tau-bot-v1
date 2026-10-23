@@ -90,7 +90,7 @@ export async function listRegistry(
       );
     case "premises":
       return deps.db.query<Row>(
-        `select p.*,b.code as building_code from premises p join building b on b.id=p.building_id where ${filter} and p.is_test=$2 order by b.code,p.kind,p.number`,
+        `select p.*,b.code as building_code,b.name as building_name from premises p join building b on b.id=p.building_id where ${filter} and p.is_test=$2 order by b.code,p.kind,p.number`,
         [...params, actor.person.isTest],
       );
     case "connections":
@@ -192,7 +192,13 @@ export async function mutateRegistry(
             "FORBIDDEN",
             "Структуру зданий задаёт председатель",
           );
-        data.code = text(data, "code");
+        // Название — основное обозначение здания (решение пользователя
+        // от 24.10.2026): кабинет отдельный код не спрашивает, поэтому code
+        // остаётся техническим ключом импорта и выводится из названия.
+        data.name = text(data, "name");
+        data.code = typeof data.code === "string" && data.code.trim() !== ""
+          ? text(data, "code")
+          : data.name;
         validateConstructionPhase(data.construction_phase);
         columns = ["code", "name", "construction_phase"];
         buildings = id ? [id] : [];

@@ -4,3 +4,17 @@
 .ant-descriptions-item-content {
   font-variant-numeric: tabular-nums;
 }
+
+/* Единый вертикальный ритм шторки: шаг 24px — как в .process-card-content,
+   поэтому алармы, процесс-блоки и формы не слипаются и не разъезжаются. */
+.ant-drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Свои отступы у прямых детей тела шторки гасим: шаг уже даёт gap. */
+.ant-drawer-body > .process-overview,
+.ant-drawer-body > .ant-typography {
+  margin-block-end: 0;
+}

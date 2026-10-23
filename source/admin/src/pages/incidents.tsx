@@ -221,7 +221,7 @@ export function IncidentsPage() {
   const scope = (card?.scope as Row[] | undefined) ?? [];
   const buildingOptions = buildings.map((b) => ({
       value: String(b.id),
-      label: String(b.code ?? b.id),
+      label: String(b.name ?? b.code ?? b.id),
     })
     ),
     personOptions = people.map((p) => ({

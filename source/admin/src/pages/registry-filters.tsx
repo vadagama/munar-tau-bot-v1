@@ -47,14 +47,14 @@ export function RegistryFilters({ section, values, onChange, buildings, kinds, r
   const update = (patch: Partial<RegistryFilterValues>) => onChange({ ...values, ...patch });
   return <Space wrap>
     <Input.Search aria-label="Поиск объектов" allowClear value={values.search}
-      placeholder={section === "buildings" ? "Обозначение или название здания" : section === "premises" ? "Здание, номер, подъезд или этаж" : "ФИО, телефон, здание или помещение"}
+      placeholder={section === "buildings" ? "Название здания" : section === "premises" ? "Здание, номер, подъезд или этаж" : "ФИО, телефон, здание или помещение"}
       onChange={event => update({ search: event.target.value })} style={{ width: 300, maxWidth: "100%" }} />
     <Select aria-label="Фильтр по очереди строительства" value={values.phase}
       onChange={phase => update({ phase })} options={PHASE_OPTIONS} style={{ width: 180 }} />
     {section !== "buildings" && <>
       <Select aria-label="Фильтр по зданию" placeholder="Все здания" allowClear showSearch optionFilterProp="label"
         value={values.building} onChange={building => update({ building })} style={{ width: 220 }}
-        options={buildings.map(b => ({ value: String(b.id), label: [b.code, b.name].filter(Boolean).join(" · ") }))} />
+        options={buildings.map(b => ({ value: String(b.id), label: String(b.name || b.code) }))} />
       <Select aria-label="Фильтр по типу помещения" placeholder="Все типы" allowClear value={values.kind}
         onChange={kind => update({ kind })} options={kinds} style={{ width: 220 }} />
       <Select aria-label="Фильтр по статусу" placeholder="Все статусы" allowClear value={values.status}

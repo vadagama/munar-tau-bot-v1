@@ -591,7 +591,7 @@ export function RequestsPage() {
       >
         {error && card && !action && !placeEdit && !create && !restricting && <Alert role="alert" type="error" showIcon message={error} />}
         {card && (
-          <Space key={String(card.id)} direction="vertical" size="large" style={{ width: "100%" }}>
+          <div key={String(card.id)} className="process-card-content">
             {requestOverdue(card) && (
               <Alert
                 role="alert"
@@ -1010,7 +1010,7 @@ export function RequestsPage() {
             {manage && ((card.delivery_failures as Row[] | undefined)?.length ?? 0) > 0 && (
               <Button danger href="/notifications/failures">Открыть журнал доставки</Button>
             )}
-          </Space>
+          </div>
         )}
       <ActionPanel
         form={placeForm}
