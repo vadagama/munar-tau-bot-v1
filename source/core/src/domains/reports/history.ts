@@ -16,7 +16,7 @@ export function requestCycles(input:RequestReportEvent[],asOf:string){
    current={number:cycles.length+1,from:e.at,to:null,wait:[]};cycles.push(current);closed=null;
   }
   if(e.to_state==="awaiting_confirmation"&&!waiting)waiting=e.at;
-  if(e.to_state==="closed"){if(current&&!current.to)current.to=e.at;closed=e.at;}
+  if(e.to_state==="closed"&&e.from_state!=="closed"){if(current&&!current.to)current.to=e.at;closed=e.at;}
   state=e.to_state;
  }
  if(waiting&&current)current.wait.push({from:waiting,to:asOf});

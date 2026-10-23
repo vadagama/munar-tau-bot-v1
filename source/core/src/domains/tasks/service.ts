@@ -85,7 +85,8 @@ export async function taskLog(
   await syncTaskTimers(exec,row,from);
   await exec.query(
     `insert into task_log(task_id,from_state,to_state,actor_person_id,reason,meta)
-    values ($1,$2,$3,$4,$5,$6::text::jsonb)`,
+    values ($1,$2,$3,$4,$5,($6::text::jsonb)||jsonb_build_object('report',
+      (select jsonb_build_object('assignee_person_id',t.assignee_person_id,'due_at',t.due_at,'acceptance_due_at',t.acceptance_due_at,'rework_due_at',t.rework_due_at) from task t where t.id=$1)))`,
     [
       row.id,
       from,

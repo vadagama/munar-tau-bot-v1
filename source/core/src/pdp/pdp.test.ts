@@ -96,6 +96,7 @@ describe("реестр действий", () => {
       "registry.rules.read",
       "registry.telegram.recovery",
       "registry.write",
+      "report.configure", "report.export", "report.incidents", "report.payments", "report.requests", "report.tasks",
       "request.author", "request.category.edit", "request.comment", "request.internal", "request.manage", "request.read", "request.use",
       "settings.templates.edit",
       "settings.templates.read",

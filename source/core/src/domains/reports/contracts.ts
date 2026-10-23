@@ -16,7 +16,7 @@ export function aggregate(values:number[]){
  return {mean:sorted.reduce((a,b)=>a+b,0)/sorted.length,median:sorted.length%2?sorted[middle]!:(sorted[middle-1]!+sorted[middle]!)/2,n:sorted.length};
 }
 export interface RequestReportFact {
- id:string;created_at:string;registered_at:string;final_closed_at:string|null;state_at_as_of:string|null;close_method:string|null;
+ id:string;created_at:string;registered_at:string|null;final_closed_at:string|null;state_at_as_of:string|null;close_method:string|null;
  rating:number|null;response_history_complete:boolean;first_response_at:string|null;first_response_working_minutes:number|null;
  overdue:boolean;rework_at:string[];is_test:boolean;is_pilot:boolean;
  canceled_at?:string|null;rejected_at?:string|null;
@@ -28,7 +28,7 @@ export function summarizeRequests(input:RequestReportFact[],period:ReportObserva
  const from=stamp(period.from),to=stamp(period.to),asOf=stamp(period.as_of);if(from>=to)invalid();
  const observed=(v:string|null|undefined)=>v!=null&&stamp(v)<asOf;
  const inside=(v:string|null|undefined)=>observed(v)&&stamp(v!)>=from&&stamp(v!)<to;
- const rows=unique(input).filter(r=>r.is_test===isTest&&observed(r.registered_at)),cohort=rows.filter(r=>inside(r.registered_at));
+ const rows=unique(input).filter(r=>r.is_test===isTest&&(r.registered_at===null?observed(r.created_at):observed(r.registered_at))),cohort=rows.filter(r=>inside(r.registered_at));
  const closed=rows.filter(r=>r.state_at_as_of==="closed"&&inside(r.final_closed_at)),author=closed.filter(r=>r.close_method==="author"),rated=author.filter(r=>r.rating!==null);
  const known=rows.filter(r=>r.state_at_as_of!==null),open=known.filter(r=>!["draft","closed","canceled","rejected"].includes(r.state_at_as_of!));
  const answered=cohort.filter(r=>r.response_history_complete&&observed(r.first_response_at)),calendar=answered.map(r=>calendarMinutes(r.registered_at,r.first_response_at)!).filter(v=>v>=0),working=answered.flatMap(r=>r.first_response_working_minutes===null?[]:[r.first_response_working_minutes]);
@@ -45,5 +45,5 @@ export function kpiPeople(rows:{person_id:string;confirmed:boolean;active_connec
 }
 export function kpiRequests(rows:RequestReportFact[],period:ReportPeriod) {
  const from=stamp(period.from),to=stamp(period.to);
- return unique(rows).filter(r=>!r.is_test&&!r.is_pilot&&r.state_at_as_of==="closed"&&r.close_method==="author"&&stamp(r.created_at)>=from&&stamp(r.created_at)<to&&stamp(r.registered_at)>=from&&stamp(r.registered_at)<to&&r.final_closed_at!==null&&stamp(r.final_closed_at)>=from&&stamp(r.final_closed_at)<to).length;
+ return unique(rows).filter(r=>!r.is_test&&!r.is_pilot&&r.state_at_as_of==="closed"&&r.close_method==="author"&&stamp(r.created_at)>=from&&stamp(r.created_at)<to&&r.registered_at!==null&&stamp(r.registered_at)>=from&&stamp(r.registered_at)<to&&r.final_closed_at!==null&&stamp(r.final_closed_at)>=from&&stamp(r.final_closed_at)<to).length;
 }

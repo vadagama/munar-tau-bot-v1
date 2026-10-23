@@ -28,3 +28,8 @@ it("занятый gate не задерживает доставку уведо�
  const calls:string[]=[];const db={async query<T>(sql:string):Promise<T[]>{calls.push(sql);return [{acquired:false}] as T[];},transaction:<T>(fn:(exec:import("../../db/client.ts").DbExecutor)=>Promise<T>)=>fn(db),close:async()=>{}};
  expect(await captureReportKpi(db)).toBe(0);expect(calls).toEqual(["select pg_try_advisory_xact_lock(814733,8) as acquired"]);
 });
+
+it("классификация closed→closed не переносит дату окончательного закрытия",()=>{
+ const rows=[event(1,null,"new","created",3),event(2,"new","closed","confirm_result",4),event(3,"closed","closed","classified",5)];
+ expect(requestCycles(rows,at(6))).toMatchObject({state_at_as_of:"closed",final_closed_at:at(4),cycles:[{from:at(3),to:at(4)}]});
+});

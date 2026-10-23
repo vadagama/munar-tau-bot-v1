@@ -1,3 +1,4 @@
+import { reportDecision } from "./reports.ts";
 // Оценка доступа can() — единственный способ проверки полномочий (LLD-01 §3.1).
 // Deny-by-default. Оценка детерминированная: часы БД и отзыв полномочий
 // проверяются при сборке Actor, здесь работают только собранные данные.
@@ -12,6 +13,7 @@ import { ALLOW, deny, type Actor, type Decision, type ResourceRef, type StaffRol
 /** can(actor, action, resource) — контракт LLD-01 §3.1. */
 export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {}): Decision {
   const spec: ActionSpec | undefined = ACTIONS[action];
+  if(action.startsWith("report."))return reportDecision(actor,action);
   if (!spec) return deny(`Неизвестное действие: ${action}`);
 
   // Эмуляция (HLD 10.8): права оцениваются по эмулируемой роли, но привилегированные
