@@ -40,6 +40,7 @@ const labels: Record<string, readonly [string, string]> = {
   ],
   incidents: ["Аварии", "Апаттар"],
   publications: ["Публикации", "Жарияланымдар"],
+  documents: ["Документы", "Құжаттар"],
   signals: ["Сигналы", "Сигналдар"],
   emergency: ["Аварийная служба", "Апаттық қызмет"],
   visits: ["Визиты", "Келулер"],

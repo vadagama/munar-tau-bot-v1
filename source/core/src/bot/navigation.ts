@@ -41,11 +41,13 @@ export function navigationReply(
       [b("requests", "/requests"), b("newrequest", "/newrequest")],
       [b("invite", "/invite"), b("accesses", "/accesses")],
       [b("incidents", "/incidents"), b("publications", "/publications")],
+      [b("documents", "/documents")],
       [b("emergency", "/emergency"), b("settings", "/notifications")],
     );
   }
   if(scenario==='registration'&&!existing.length&&['/start','/cancel'].includes(command))rows.push([b('pending','/pending')]);
   if(scenario==='tasks'&&!existing.length&&['/help','/start','/cancel'].includes(command))rows.push([b('signals','/signals'),b('publications','/publications')],[b('incidents','/incidents'),b('emergency','/emergency')]);
+  if(scenario==='tasks'&&!existing.length&&['/help','/start','/cancel'].includes(command))rows.push([b('documents','/documents')]);
   if (
     !rows.flat().some((b) =>
       b.data === "/cancel" || b.data === "/requestcancel"

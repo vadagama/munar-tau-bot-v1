@@ -1,4 +1,5 @@
 import { navigationReply } from "./navigation.ts";
+import { DOCUMENT_COMMANDS, documentStep, queueDocumentFile } from "./documents.ts";
 import { STAFF_REQUEST_COMMANDS, staffRequestStep } from "./staff-requests.ts";
 import { readDialog, saveDialog } from "./dialog.ts";
 import { t as templateText } from "../templates/store.ts";
@@ -42,6 +43,7 @@ async function routeStep(
   updateId: unknown,
 ): Promise<BotReply> {
   if (message.photo || message.document || message.video) {
+    if (state.scenario === "documents") return queueDocumentFile(deps, telegramId, message);
     return queueRequestFile(deps, telegramId, message, updateId, bot);
   }
   const text = String(message.text);
@@ -54,6 +56,8 @@ async function routeStep(
   const startPayload = command === "/start"
     ? text.trim().split(/\s+/)[1]
     : undefined;
+  if (startPayload?.startsWith("doc_")) return documentStep(deps, telegramId, `/doc ${startPayload.slice(4)}`);
+  if (DOCUMENT_COMMANDS.includes(command) || (state.scenario === "documents" && !isCommand)) return documentStep(deps, telegramId, text);
   if (startPayload?.startsWith("req_") && bot === "resident") {
     return requestStep(
       deps,

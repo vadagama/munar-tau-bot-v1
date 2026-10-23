@@ -1,4 +1,5 @@
 import { STAFF_REQUEST_COMMANDS } from "../../bot/staff-requests.ts";
+import { DOCUMENT_COMMANDS } from "../../bot/documents.ts";
 import { INCIDENT_COMMANDS } from "../../bot/incidents.ts";
 import { REQUEST_COMMANDS } from "../../bot/requests.ts";
 import { TASK_COMMANDS } from "../../bot/tasks.ts";
@@ -278,6 +279,7 @@ export async function simulate(
   if(input.bot && !['resident','worker'].includes(input.bot))throw new ApiError('VALIDATION_FAILED');
   const bot=['tasks','staff-requests'].includes(selectedScenario)?'worker':['registration','requests'].includes(selectedScenario)?'resident':input.bot==='worker'?'worker':'resident';
   const scenarioId = !command.startsWith("/") ? selectedScenario
+    : DOCUMENT_COMMANDS.includes(command) || (command === "/start" && /(?:^|\s)doc_/.test(input.text ?? "")) ? "documents"
     : STAFF_REQUEST_COMMANDS.includes(command) || (command==="/start" && /(?:sreq_|stsk_)/.test(input.text??"")) ? "staff-requests"
     : bot==="worker" && TASK_COMMANDS.includes(command) ? "tasks"
     : REQUEST_COMMANDS.includes(command) && bot!=="worker" ? "requests"

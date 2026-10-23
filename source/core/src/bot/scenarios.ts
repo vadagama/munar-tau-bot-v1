@@ -1,4 +1,5 @@
 import { loadDialog,saveDialog } from "./dialog.ts";
+import { documentStep } from "./documents.ts";
 import { navigationReply } from "./navigation.ts";
 import { staffRequestStep } from "./staff-requests.ts";
 import { workerHelp } from "./help.ts";
@@ -14,9 +15,9 @@ import type { RegistryDeps } from "../domains/registry/service.ts";
 import { ApiError } from "../errors/api.ts";
 export function botScenarios(deps: RegistryDeps) {
   const scenarios = registrationScenarios(deps);
-  for (const id of ["requests","tasks","incidents","staff-requests"]) scenarios.register({
+  for (const id of ["requests","tasks","incidents","staff-requests","documents"]) scenarios.register({
     id,
-    description: id === "requests" ? "REQ/SHR/MSG: обращения и переписка" : id === "incidents" ? "EMG/PUB: аварии и публикации" : "WRK: задания исполнителя",
+    description: id === "documents" ? "DOC/WRK: документы и обязанности" : id === "requests" ? "REQ/SHR/MSG: обращения и переписка" : id === "incidents" ? "EMG/PUB: аварии и публикации" : "WRK: задания исполнителя",
     run: async (input, ctx) => {
       if (
         !ctx.actor?.emulation || !ctx.actor.person.isTest
@@ -38,7 +39,7 @@ export function botScenarios(deps: RegistryDeps) {
           },
         }
         : deps;
-      const step = id === "staff-requests" ? staffRequestStep : id === "requests"
+      const step = id === "documents" ? documentStep : id === "staff-requests" ? staffRequestStep : id === "requests"
         ? requestStep
         : id === "incidents"
         ? incidentStep
@@ -52,7 +53,7 @@ export function botScenarios(deps: RegistryDeps) {
       const reply = id === "tasks" && ["/help", "/start", "/cancel"].includes(input.trim())
         ? workerHelp(ctx.actor.profile.language, templates)
         : await step({...d, templates}, String(profile.telegram_user_id), input, ctx.actor);
-      return withSimulatorMenu(navigationReply(reply,id,ctx.actor.profile.language,templates,input), id, ctx.actor.profile.language, templates);
+      return withSimulatorMenu(navigationReply(reply,id,ctx.actor.profile.language,templates,input), id === "documents" && d.bot === "worker" ? "tasks" : id, ctx.actor.profile.language, templates);
     },
   });
   scenarios.register({id:"notifications",description:"NTF: настройки уведомлений",run:async(input,ctx)=>{

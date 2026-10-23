@@ -1,5 +1,6 @@
 import { botUiTemplates } from "./bot-ui.ts";
 import { documentTemplates } from "./documents.ts";
+import { documentDialogTemplates } from "./document-dialogs.ts";
 import { staffRequestTemplates } from "./staff-requests.ts";
 import { staffTemplates } from "./staff.ts";
 import { requestsMessageTemplates } from "./messages-requests.ts";
@@ -44,6 +45,7 @@ const legacyCatalog: readonly TemplateDef[] = [
   },
 ];
 const messages = [
+  ...documentDialogTemplates,
   ...staffRequestTemplates,
   ...botUiTemplates,
   ...requestsMessageTemplates,
