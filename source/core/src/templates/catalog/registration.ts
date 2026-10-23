@@ -387,11 +387,11 @@ export const registrationTemplates: readonly TemplateDef[] = [
   {
     "key": "registration.vashe_imya_i_familiya",
     "section": "registration",
-    "title": "Ваше имя и фамилия:",
+    "title": "Укажите Ваши Фамилию Имя Отчество (ФИО):",
     "description": "Реплика registration",
     "variables": [],
-    "ru": "Ваше имя и фамилия:",
-    "kk": "Аты-жөніңіз:",
+    "ru": "Укажите Ваши Фамилию Имя Отчество (ФИО):",
+    "kk": "Тегіңізді, атыңызды және әкеңіздің атын (ФИО) көрсетіңіз:",
   },
   {
     "key": "registration.telefon_7",
