@@ -82,6 +82,7 @@ export function AppLayout() {
     { key: "/documents", label: "Документы" },
     { key: "/polls", label: "Опросы" },
     { key: "/initiatives", label: "Инициативы" },
+    ...(canSeeTasks(roles) ? [{key:"/reports",label:"Отчётность"}] : []),
     ...(manager ? [
       { key: "users", label: "Пользователи", children: [
         { key: "/users/residents", label: "Жители" },
