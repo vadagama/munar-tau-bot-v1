@@ -27,6 +27,9 @@ on conflict (code) do nothing;
 -- фейковые telegram_user_id 9000000000NN не существуют в Telegram, реальная
 -- отправка им невозможна (chat not found). is_test направляет их уведомления
 -- в канал simulator (без обращения к Telegram) до привязки реальных аккаунтов.
+-- Диапазон ≥ 900000000000 зарезервирован и закреплён CHECK-констрейнтом
+-- profile_placeholder_telegram_id_test (миграция 20261023193000): профиль с
+-- таким id обязан быть is_test.
 
 insert into person (id, full_name, phone_e164, is_test, comment)
 values
