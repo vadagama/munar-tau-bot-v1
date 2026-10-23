@@ -212,9 +212,11 @@ VS-8 (23.10.2026): [ADR-018](../decisions/018-vs8-documents-participation-report
 состояниями публикации, этапами IDEA-03 и отдельной модерацией. История аудитории
 сохраняет интервалы связей для расчёта на момент окончания опроса.
 
-- `document`: id PK, kind enum doc_kind {work_report, act, invoice, receipt, decision_basis, other}, audience enum audience {resident, owner, staff, finance, service} (аудитория определяется типом, модель процессов раздел 7), request_id FK NULL, task_id FK NULL, created_by, created_at.
+- `document`: id PK, title, kind {work_report, act, invoice, receipt, decision_basis, instruction, financial_report, other}, audience {resident, owner, staff, finance, service}, document_number, document_date, parties, request_id FK NULL, task_id FK NULL (не более одного источника), prepared_by/reviewer_id FK person, published_version_id, is_test, version, created_by, created_at. Invoice/receipt имеют финансовую аудиторию.
 - `document_scope`: document_id FK, building_id FK, PK (document_id, building_id).
-- `document_version`: id PK, document_id FK, version int, attachment_id FK attachment, state enum docv_state {draft, on_review, returned, approved, needs_fix} — схема раздела 7 модели процессов; prepared_by, reviewed_by FK person, review_comment text, created_at. Версии не перезаписываются (WRK-17–18, FIN-02–03).
+- `document_version`: id PK, document_id FK, version int, attachment_id FK attachment, signed_attachment_id FK attachment отдельно, signature_method/signature_basis, task_report_id FK, state {draft, on_review, returned, approved, needs_fix}, prepared_by, reviewed_by FK person, review_comment, reviewed_at, created_at, was_published. Содержание и файлы версии неизменяемы; переходы проверки записываются в append-only `document_log` (WRK-17–18, FIN-02–03).
+- `document_obligation`: ровно один request_id/task_id, kind, phase {before_acceptance, after_acceptance}, basis, prepared_by, reviewer_id, signed_required, rule_version_id FK, rule_snapshot, due_at, document_version_id FK, completed_at, reminded_at, escalated_at, version, is_test. Условия и срок неизменяемы; передача меняет сотрудников с аудитом, `needs_fix` открывает обязанность повторно. RLS закрывает все пять таблиц документов от прямого клиента.
+- `job_template.blueprint.document_requirements`: до 20 требований kind/phase/basis/prepared_by/reviewer_id/signed_required без длительностей. При создании/явной смене методички они применяются в той же транзакции задания. Снимок обязанности включает identity версии методички и TIM. Планировщик использует сохранённую методичку, старые обязанности не удаляются.
 - `publication`: id PK, kind enum pub_kind {announcement, outage, work_report, financial_report}, title, body text, document_version_id FK NULL, incident_id FK NULL, state enum pub_state {draft, pending_approval, scheduled, published, archived}, publish_at timestamptz NULL, created_by, approved_by FK person NULL (председатель — FIN-01–04), approval_note, created_at, version int.
 - `publication_scope`: publication_id FK, building_id FK, PK (publication_id, building_id).
 
@@ -404,7 +406,7 @@ VS-8 (23.10.2026): [ADR-018](../decisions/018-vs8-documents-participation-report
 
 `common_work.plan` и `due_at` фиксируют план и срок, `common_work_log.meta` —
 прежнюю дату завершения при возврате и незавершённые локальные задания заявителей.
-`task.document_required` обозначает обязательность акта; до VS-8 приёмка блокируется.
+`task.document_required` обозначает обязательность акта; VS-8 заменяет прежний безусловный запрет проверкой настроенного обязательства и актуальной одобренной версии акта.
 Версия шаблона копируется в task вместе с инструкцией/чек-листом, job_template_version
 неизменяема. Явное обновление методички сохраняет прежний снимок в task_log.
 
