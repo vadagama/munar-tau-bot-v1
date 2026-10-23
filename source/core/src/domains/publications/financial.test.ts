@@ -14,7 +14,7 @@ it.each([{ period_from: "2026-02-31" }, { period_to: "2026-08-31" }, { disclosed
 });
 it("регламент фиксирует форму, сотрудников, согласования и каждый канал", () => {
   expect(financialRuleInput({ ...rule, hours: 1 })).toEqual(rule);
-  for (const patch of [{ channels: [] }, { required_agreements: [] }, { reviewer_id: report }, { form: "unknown" }]) expect(() => financialRuleInput({ ...rule, ...patch })).toThrow();
+  for (const patch of [{ channels: [] }, { required_agreements: [] }, { reviewer_id: report }, { form: "unknown" }, { required_agreements: [{ ...rule.required_agreements[0], code: "report" }] }]) expect(() => financialRuleInput({ ...rule, ...patch })).toThrow();
 });
 it("комплект требует действительных оснований, подписей и полного охвата", () => {
   const documents = [{ id: report, document_id: "report", kind: "financial_report", state: "approved", is_test: true, audience: "owner", building_ids: [building], signed_attachment_id: "signed-report", prepared_by: report, reviewer_id: basis },

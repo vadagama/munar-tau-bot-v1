@@ -72,7 +72,7 @@ export async function documentResource(exec: DbExecutor, actor: Actor, row: Docu
     [actor.person.id, actor.person.isTest, ids],
   ))[0];
   return { documentAccess: {
-    buildingIds: ids, isTest: row.is_test, audience: row.audience,
+    buildingIds: ids, isTest: row.is_test, audience: row.audience, financial: ["financial_report", "invoice", "receipt"].includes(row.kind),
     published: row.published_version_id !== null, member: ids.length === 0 || !!membership?.member,
     owner: !!membership?.owner, sourceAllowed, sourceManageable,
     preparedById: row.prepared_by, reviewerId: row.reviewer_id, assignedTask, resultAuthorIds: authors, reviewSource,

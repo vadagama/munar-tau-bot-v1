@@ -13,6 +13,7 @@ function day(value: unknown): string {
 }
 function code(value: unknown): string {
   if (typeof value !== "string" || !/^[a-z][a-z0-9_]{0,49}$/.test(value)) invalid("Код содержит латинские буквы, цифры и подчёркивание");
+  if (value === "report") invalid("Код report зарезервирован для основного отчёта");
   return value;
 }
 function unique<T>(values: T[]): T[] {

@@ -20,6 +20,8 @@ export function documentDecision(actor: Actor, action: string, resource: Resourc
   if (!r.sourceAllowed && !delegatedReview) return no();
   const preparer = r.preparedById === actor.person.id && staff && r.assignedTask;
   const finance = scoped.some(a => ["chairman", "administrator", "deputy", "finance"].includes(a.role));
+  if (r.financial && !finance) return action === "document.read" && r.published &&
+    ((r.audience === "owner" && r.owner) || (r.audience === "resident" && r.member)) ? ALLOW : no();
   if (r.audience === "finance" && !finance) return no();
   if (r.audience === "service") return no(); // ROL-06: отдельного разрешения поддержки пока нет.
   if (action === "document.review") return reviewer && r.preparedById !== actor.person.id &&
@@ -27,7 +29,7 @@ export function documentDecision(actor: Actor, action: string, resource: Resourc
   if (action === "document.manage") return manager && r.sourceManageable ? ALLOW : no();
   if (action === "document.prepare") return (manager && r.sourceManageable) || preparer ? ALLOW : no();
   if (action !== "document.read") return no();
-  if (manager || reviewer || preparer || (r.assignedTask && staff) || (r.audience === "finance" && finance)) return ALLOW;
+  if (manager || reviewer || preparer || (r.assignedTask && staff) || ((r.financial || r.audience === "finance") && finance)) return ALLOW;
   if (!r.published) return no();
   if (r.audience === "resident" && r.member) return ALLOW;
   if (r.audience === "owner" && r.owner) return ALLOW;

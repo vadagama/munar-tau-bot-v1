@@ -12,7 +12,7 @@ function actor(role?: StaffRole): Actor {
 }
 const access = {
   buildingIds: ["b1"], isTest: true, audience: "resident" as "resident" | "owner" | "staff" | "finance" | "service",
-  published: true, member: true, owner: false, sourceAllowed: true,
+  published: true, member: true, owner: false, financial: false, sourceAllowed: true,
   sourceManageable: false, preparedById: "preparer", reviewerId: "reviewer",
   assignedTask: false, resultAuthorIds: [] as string[],
 };
@@ -46,6 +46,14 @@ describe("DOC-02/03: документ имеет собственную ауди
     expect(can(actor("executor"), "document.read", resource({ audience: "finance", assignedTask: true })).allow).toBe(false);
     expect(can(actor("finance"), "document.read", resource({ audience: "finance" })).allow).toBe(true);
     expect(can(actor("tech_admin"), "document.read", resource({ audience: "staff" })).allow).toBe(false);
+  });
+  it("финансовый отчёт не открывается через назначение или роль проверяющего", () => {
+    const r = resource({ financial: true, audience: "owner", assignedTask: true, reviewerId: "reader" });
+    expect(can(actor("executor"), "document.read", r).allow).toBe(false);
+    expect(can(actor("doc_reviewer"), "document.review", r).allow).toBe(false);
+    expect(can(actor("finance"), "document.read", r).allow).toBe(true);
+    expect(can(actor("tech_admin"), "document.read", resource({ financial: true, audience: "owner", owner: true })).allow).toBe(true);
+    expect(can(actor(), "document.read", resource({ financial: true, audience: "owner", owner: true, published: false })).allow).toBe(false);
   });
   it("проверяет назначенный проверяющий с запретом собственной приёмки", () => {
     const r = resource({ reviewerId: "reader", audience: "staff" });

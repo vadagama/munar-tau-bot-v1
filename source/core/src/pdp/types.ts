@@ -86,6 +86,7 @@ export interface ResourceRef {
     buildingIds: string[]; isTest: boolean;
     audience: "resident" | "owner" | "staff" | "finance" | "service";
     published: boolean; member: boolean; owner: boolean;
+    financial?: boolean;
     sourceAllowed: boolean; sourceManageable: boolean;
     preparedById: string; reviewerId: string;
     assignedTask: boolean; resultAuthorIds: string[];
