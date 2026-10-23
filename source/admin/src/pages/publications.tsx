@@ -24,6 +24,7 @@ import {
 import { apiFetch } from "../lib/api";
 import { useCabinetIdentity } from "../lib/identity";
 import { CardDrawer } from "./card-drawer";
+import { FinancialArchive, type FinancialArchiveVersion } from "./financial-archive";
 type Row = Record<string, unknown>;
 const required = [{ required: true, message: "Заполните поле" }];
 const kinds: Record<string, string> = {
@@ -324,6 +325,7 @@ export function PublicationsPage() {
             )}
           />
           </DetailSection>
+          {card.kind === "financial_report" && <FinancialArchive publicationId={String(card.id)} versions={(card.financial_versions as FinancialArchiveVersion[]) ?? []} onError={fail} />}
           <ProcessHistory>
           <List
             dataSource={(card.history as Row[]) ?? []}
