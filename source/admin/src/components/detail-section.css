@@ -3,6 +3,15 @@
   min-width: 0;
 }
 
+/* Шапка блока — как первая строка таблицы (headerBg темы, разделитель #eceef0). */
+.detail-section .ant-card {
+  overflow: hidden;
+}
+
+.detail-section .ant-card-head {
+  background: #fafbfb;
+}
+
 .detail-section .ant-card-body {
   display: flex;
   flex-direction: column;

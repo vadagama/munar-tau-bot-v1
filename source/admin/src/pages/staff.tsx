@@ -322,7 +322,7 @@ export function StaffPage() {
           />
         </ActionPanel>
         {card && (
-          <Space key={card.id} direction="vertical" style={{ width: "100%" }}>
+          <div key={card.id} className="process-card-content">
             <ProcessOverview guidance={{
               title: "Проверьте полномочия и открытые обязанности",
               description: "Изменения ролей требуют основания. Прекращение полномочий не передаёт открытые задания, обращения и расписания автоматически: их нужно передать явно.",
@@ -343,7 +343,7 @@ export function StaffPage() {
             )}
             </ProcessOverview>
             <StaffDetails card={card} />
-          </Space>
+          </div>
         )}
       </CardDrawer>
     </PageLayout>
