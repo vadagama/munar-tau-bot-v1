@@ -1,4 +1,11 @@
-import { buildingHints, houseChoice, validHouseChoice } from "./building-hints.ts";
+import {
+  buildingHints,
+  houseChoice,
+  premiseChoice,
+  premiseHints,
+  validHouseChoice,
+  validPremiseChoice,
+} from "./building-hints.ts";
 import { navigationReply } from "./navigation.ts";
 import { loadDialog, readDialog, saveDialog } from "./dialog.ts";
 import { message, messageButton, safeBlock } from "../templates/message.ts";
@@ -138,13 +145,22 @@ export async function registrationStep(
     const bot = deps.bot ?? "resident";
     const choiceAttempt = input.trim().startsWith("/start house_");
     const choice = houseChoice(input);
+    const premiseAttempt = input.trim().startsWith("/start premise_");
+    const premiseLink = premiseChoice(input);
     const expiredChoice = (language: Lang): BotReply => ({
       text: message(deps.templates, language, "message.registration.building_choice_expired"),
       buttons: [[btn(messageButton(deps.templates, language, "bot.controls", "cancel"), "/cancel")]],
     });
-    // Проверяем старую ссылку до loadDialog: она не должна переключать чужой сценарий.
+    const expiredPremiseChoice = (language: Lang): BotReply => ({
+      text: message(deps.templates, language, "message.registration.premise_choice_expired"),
+      buttons: [[btn(messageButton(deps.templates, language, "bot.controls", "cancel"), "/cancel")]],
+    });
+    // Проверяем старые ссылки до loadDialog: они не должны переключать чужой сценарий.
     if (choiceAttempt && !validHouseChoice(await readDialog(exec, telegramId, bot), choice)) {
       return expiredChoice(langOf(actor?.profile.language));
+    }
+    if (premiseAttempt && !validPremiseChoice(await readDialog(exec, telegramId, bot), premiseLink)) {
+      return expiredPremiseChoice(langOf(actor?.profile.language));
     }
     const state = await loadDialog(exec, telegramId, bot, actor?.profile.id ?? null, actor?.emulation?.sessionId ?? null, "registration");
     // Язык подачи: выбранный в диалоге, иначе язык профиля, иначе русский.
@@ -152,6 +168,10 @@ export async function registrationStep(
     if (choiceAttempt) {
       if (!validHouseChoice(state, choice)) return expiredChoice(L);
       input = choice!.id;
+    }
+    if (premiseAttempt) {
+      if (!validPremiseChoice(state, premiseLink)) return expiredPremiseChoice(L);
+      input = premiseLink!.id;
     }
     const help = () => registrationHelp(L, deps.templates);
     const save = async (reply: BotReply) => {
@@ -915,7 +935,7 @@ export async function registrationStep(
         // Роль и помещение берём заново: связи могли измениться между /add
         // и выбором номера. Роль связи сохраняется в анкете.
         const [conn] = await exec.query<Row>(
-          `select c.role,p.kind,p.number,b.code from connection c
+          `select c.role,p.kind,p.number,b.code,b.kind as b_kind from connection c
           join premises p on p.id=c.premises_id join building b on b.id=p.building_id
           where c.person_id=$1 and c.premises_id=$2 and c.status='pending'`,
           [actor?.person.id ?? null, id],
@@ -954,6 +974,7 @@ export async function registrationStep(
               {
                 full_name: state.full_name,
                 phone: state.phone_e164,
+                building: label(buildingLabels, conn.b_kind, L, "Дом"),
                 kind: label(premiseLabels, state.kind, L),
                 code: conn.code,
                 number: conn.number,
@@ -1023,22 +1044,65 @@ export async function registrationStep(
           message(deps.templates, L, "registration.nomer_pomescheniya"),
         );
       case "number": {
+        // Номер помещения текстом или кликом по deep-link (аналогично домам):
+        // id::text=$4 резолвит uuid из ссылки тем же запросом; при ошибке
+        // предлагаем кликабельные номера помещений выбранного типа в доме.
         const [premises] = await exec.query<Row>(
-          "select id from premises where building_id=$1 and kind=$2 and number=$3 and status='active' and is_test=$4",
+          "select id from premises where building_id=$1 and kind=$2 and status='active' and is_test=$3 and (number=$4 or id::text=$4)",
           [
             state.building_id,
             state.kind,
-            input.trim(),
             actor?.person.isTest ?? false,
+            input.trim(),
           ],
         );
         if (!premises) {
-          return message(
-            deps.templates,
-            L,
-            "registration.pomeschenie_ne_naydeno_proverte_nomer_ili_obratites",
+          const numbers = await exec.query<Row>(
+            "select id,number from premises where building_id=$1 and kind=$2 and status='active' and is_test=$3 order by number limit 30",
+            [state.building_id, state.kind, actor?.person.isTest ?? false],
           );
+          if (numbers.length === 0) {
+            return {
+              text: message(
+                deps.templates,
+                L,
+                "registration.pomeschenie_ne_naydeno_proverte_nomer_ili_obratites",
+              ),
+              buttons: [[
+                btn(
+                  messageButton(
+                    deps.templates,
+                    L,
+                    "registration.pomeschenie_ne_naydeno_proverte_nomer_ili_obratites",
+                    "cancel",
+                  ),
+                  "/cancel",
+                ),
+              ]],
+            };
+          }
+          // Токен связывает ссылки подсказки с текущим диалогом: чужая или
+          // устаревшая ссылка после смены шага/токена становится неактивной.
+          if (!state.premise_choice_token) {
+            state.premise_choice_token = crypto.randomUUID().replaceAll("-", "").slice(0, 12);
+          }
+          return save({
+            text: premiseHints(
+              numbers,
+              L,
+              String(state.premise_choice_token),
+              deps.templates,
+              deps.residentBotUsername,
+            ),
+            buttons: [[
+              btn(
+                messageButton(deps.templates, L, "message.registration.premise_unknown", "cancel"),
+                "/cancel",
+              ),
+            ]],
+          });
         }
+        delete state.premise_choice_token;
         state.premises_id = premises.id;
         state.step = "role";
         return save({
@@ -1059,7 +1123,14 @@ export async function registrationStep(
           ]),
         });
       }
-      case "role":
+      case "role": {
+        // Полный адрес для согласия: дом и номер берём из БД, а не из
+        // состояния — помещение могло быть переименовано между шагами.
+        const [premises] = await exec.query<Row>(
+          "select p.number,b.code,b.kind as b_kind from premises p join building b on b.id=p.building_id where p.id=$1 and p.status='active'",
+          [state.premises_id],
+        );
+        if (!premises) throw new ApiError("NOT_FOUND");
         state.role = (ROLE_OPTIONS[Number(input.trim()) - 1] ??
           input.trim()) as string;
         state.step = "consent";
@@ -1069,13 +1140,17 @@ export async function registrationStep(
             message(deps.templates, L, "message.registration.consent", {
               full_name: state.full_name,
               phone: state.phone_e164,
+              building: label(buildingLabels, premises.b_kind, L, "Дом"),
+              code: premises.code,
               kind: label(premiseLabels, state.kind, L),
+              number: premises.number,
               role: label(roleLabels, state.role, L),
             }),
             deps.templates,
             "message.registration.consent",
           ),
         );
+      }
       case "fix_name": {
         const name = input.trim() === "." ? "" : input.trim();
         if (name.length > 300) throw new ApiError("VALIDATION_FAILED");

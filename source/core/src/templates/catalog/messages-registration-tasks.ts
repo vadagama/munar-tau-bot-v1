@@ -22,6 +22,11 @@ const consentButtons: MessageButton[] = [
   { id: "confirm", ru: "Согласен (да)", kk: "Келісемін (иә)" },
   { id: "cancel", ru: "Отменить", kk: "Болдырмау" },
 ];
+/** Единая строка согласия для всех анкетных сценариев: данные + действие. */
+const consentLine = (lang: "ru" | "kk") =>
+  lang === "kk"
+    ? "Егер осы деректерді ОСИ-де өңдеуге келісетін болсаңыз, «Келісемін (иә)» түймесін басыңыз."
+    : "Если согласны на обработку этих данных в ОСИ, нажмите Согласен.";
 const taskButtons: MessageButton[] = [
   { id: "accept", ru: "Принять", kk: "Қабылдау" },
   { id: "start", ru: "Начать работу", kk: "Жұмысты бастау" },
@@ -48,6 +53,7 @@ const values: Record<string, [string, string]> = {
   ],
   phase: ["Очередь строительства", "1"],
   buildings: ["Список доступных зданий", "1. Дом 1"],
+  numbers: ["Номера помещений выбранного типа в доме", "1, 2, 3"],
   kinds: [
     "Типы помещений",
     "1. Квартира\n2. Коммерческое помещение\n3. Парковочное место\n4. Кладовка",
@@ -61,6 +67,7 @@ const values: Record<string, [string, string]> = {
   reason: ["Вопрос администратора", "Уточните имя"],
   full_name: ["Имя и фамилия", "Алия Омарова"],
   phone: ["Телефон", "+77001234567"],
+  building: ["Подпись здания: Дом или Парковка", "Дом"],
   kind: ["Тип помещения", "Квартира"],
   code: ["Код здания", "1"],
   number: ["Номер помещения или задания", "4"],
@@ -152,7 +159,7 @@ function def(
   if ("accesses" in sample) {
     sample.accesses = "1. <b>Алия Омарова</b>: Квартира 4";
   }
-  const blocks = ["registrations", "tasks", "accesses", "buildings"].filter((name) =>
+  const blocks = ["registrations", "tasks", "accesses", "buildings", "numbers"].filter((name) =>
     name in sample
   );
   const sampleKk = { ...sample };
@@ -177,6 +184,12 @@ function def(
     const link = '<a href="https://t.me/munar_tau_user_bot?start=house_00000000-0000-4000-8000-000000000001_123456abcdef">102/1</a>';
     sample.buildings = "<b>Очередь 1</b>\n" + link;
     sampleKk.buildings = "<b>1-кезек</b>\n" + link;
+  }
+  if (key === "message.registration.premise_unknown") {
+    const link = (n: string) =>
+      `<a href="https://t.me/munar_tau_user_bot?start=premise_00000000-0000-4000-8000-000000000001_123456abcdef">${n}</a>`;
+    sample.numbers = [link("4"), link("5"), link("6")].join(", ");
+    sampleKk.numbers = sample.numbers;
   }
   let buttonRows: MessageExample["buttons"] = buttons?.length
     ? [
@@ -447,6 +460,15 @@ const defs: TemplateDef[] = [
     l => l === "kk" ? "Кезек көрсетілмеген" : "Очередь не указана"),
   def("message.registration.buildings_empty", "Нет домов для выбора", "/add", [],
     l => l === "kk" ? "Үйлер әлі қосылмаған. Кейінірек қайталап көріңіз." : "Дома пока не добавлены. Попробуйте позже."),
+  def("message.registration.premise_unknown", "Помещение не найдено — список номеров", "/add", [],
+    l => l === "kk"
+      ? "Нысан табылмады. Өз нөміріңізді тізімнен таңдаңыз:\n{numbers}"
+      : "Помещение не найдено. Выберите ваш номер из списка:\n{numbers}",
+    [{ id: "cancel", ru: "Отменить", kk: "Болдырмау" }]),
+  def("message.registration.premise_choice_expired", "Устаревшая ссылка выбора помещения", "/add", [],
+    l => l === "kk"
+      ? "Бұл нысанды таңдау енді белсенді емес. Ағымдағы диалогты жалғастырыңыз."
+      : "Этот выбор помещения уже неактивен. Продолжите текущий диалог."),
   def("message.registration.building_choice_expired", "Устаревшая ссылка выбора дома", "/add", [],
     l => l === "kk" ? "Бұл үйді таңдау енді белсенді емес. Ағымдағы диалогты жалғастырыңыз." : "Этот выбор дома уже неактивен. Продолжите текущий диалог."),
   def(
@@ -526,13 +548,8 @@ const defs: TemplateDef[] = [
         "<b>" + old(R + "proverte", l) + "</b>: {full_name}, {phone}" +
         (name === "fix_consent"
           ? ". " + old(R + "pomeschenie_i_rol_sohraneny", l)
-          : ", {kind}" +
-            (name === "premises_consent" ? " {code}/{number}" : "") +
-            ", {role}.") +
-        "\n" +
-        (l === "kk"
-          ? "ОСИ тіркелуі үшін осы деректерді өңдеуге келісім."
-          : "Согласие на обработку этих данных для регистрации в ОСИ."),
+          : ", {building} {code}, {kind} {number}, {role}.") +
+        "\n\n" + consentLine(l),
       consentButtons,
     )
   ),
@@ -553,10 +570,8 @@ const defs: TemplateDef[] = [
     "/register",
     [],
     (l) =>
-      "<b>" + old(R + "proverte", l) + "</b>: {full_name}, {phone}.\n" +
-      (l === "kk"
-        ? "ОСИ тіркелуі үшін осы деректерді өңдеуге келісім."
-        : "Согласие на обработку этих данных для регистрации в ОСИ."),
+      "<b>" + old(R + "proverte", l) + "</b>: {full_name}, {phone}.\n\n" +
+      consentLine(l),
     consentButtons,
   ),
   def(
@@ -700,6 +715,11 @@ const overrides: Record<string, MessageButton[]> = {
     ru: "Подтвердить удаление",
     kk: "Жоюды растау",
   }, { id: "cancel", ru: "Отменить", kk: "Болдырмау" }],
+  "registration.pomeschenie_ne_naydeno_proverte_nomer_ili_obratites": [{
+    id: "cancel",
+    ru: "Отменить",
+    kk: "Болдырмау",
+  }],
   "tasks.kogda_predlozhite_vizit_napishite_odnim_soobscheniem_naprimer": [{
     id: "today",
     ru: "Сегодня",
