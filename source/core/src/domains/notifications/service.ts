@@ -16,10 +16,12 @@ import { recordAudit, type RegistryDeps } from "../registry/service.ts";
 import { SqlAdminRepo } from "../admin/repo.ts";
 import { buildActorForProfile } from "../admin/actor-service.ts";
 import { requireRequest } from "../requests/access.ts";
+import { requireDocument } from "../documents/access.ts";
 import { deliveryMode, type EventType, type PreferenceMode } from "./policy.ts";
 import type { BotKind } from "../../bot/bots.ts";
 
 export interface NoticeOptions {
+  documentId?: string;
   scope?: AudienceScope[];
   incidentId?: string;
   signalId?: string;
@@ -82,6 +84,13 @@ export async function noticeAllowed(
 ): Promise<boolean> {
   if (notice.isTest !== undefined && notice.isTest !== actor.person.isTest) {
     return false;
+  }
+  if (notice.documentId) {
+    try { await requireDocument(exec, actor, notice.documentId); }
+    catch (error) {
+      if (!(error instanceof ApiError) || !["NOT_FOUND", "FORBIDDEN"].includes(error.code)) throw error;
+      return false;
+    }
   }
   if (notice.registrationAccess) {
     const { premisesId, role } = notice.registrationAccess;
@@ -326,6 +335,7 @@ export async function dispatchNotices(
                 JSON.stringify({
                   scope: n.scope,
                   publicationId: n.publicationId,
+                  documentId: n.documentId,
                 }),
                 n.bot ?? null,
               ],
@@ -400,6 +410,7 @@ export async function dispatchNotices(
                     incidentId: n.incidentId,
                     signalId: n.signalId,
                     publicationId: n.publicationId,
+                    documentId: n.documentId,
                   }),
                   type === "staff.roles" || (n.important ?? type === "request.required"),
                   type === "incident" ? 0 : 1,

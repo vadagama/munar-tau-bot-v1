@@ -49,3 +49,6 @@ $$;
 -- VS-3: request/message/attachment/история включаются общим циклом выше.
 -- files-resident/files-internal — private; клиентских storage.objects policy нет.
 -- Выдача URL и загрузка выполняются Edge API после PDP по владельцу и аудитории.
+
+-- VS-8: document/document_scope/document_version/document_log закрыты тем же
+-- общим RLS/revoke; все версии, ссылки файлов и проверки — только через PDP API.

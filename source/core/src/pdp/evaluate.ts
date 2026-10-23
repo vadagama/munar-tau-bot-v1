@@ -22,7 +22,7 @@ export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {})
     }
   }
 
-  if (action.startsWith("document.")) return documentDecision(actor, action, resource);
+  if (action.startsWith("document.") && action !== "document.use") return documentDecision(actor, action, resource);
 
   if (action.startsWith("request.") && action !== "request.use" && action !== "request.category.edit") {
     const r = resource.requestAccess;

@@ -81,6 +81,7 @@ export async function sendNotifications(
             scope: ref.scope,
             incidentId: ref.incidentId,
             publicationId: ref.publicationId,
+            documentId: ref.documentId,
           }) ||
           await preference(
               deps.db,

@@ -1,5 +1,6 @@
 import { canManageStaff, canManageRole } from "../../core/src/pdp/roles.ts";
 import { STAFF_ROUTES } from "./staff-handlers.ts";
+import { DOCUMENT_ROUTES } from "./document-handlers.ts";
 import { TEMPLATE_ROUTES } from "./template-handlers.ts";
 import { PUBLICATION_ROUTES } from "./publication-handlers.ts";
 import { INCIDENT_ROUTES } from "./incident-handlers.ts";
@@ -530,6 +531,7 @@ async function handleEmulationSimulate(ctx: RouteContext): Promise<RouteResult> 
 // ── Таблица маршрутов VS-1 ─────────────────────────────────────────────────
 
 export const ROUTES: readonly Route[] = [
+  ...DOCUMENT_ROUTES,
   ...STAFF_ROUTES,
   ...NOTIFICATION_ROUTES,
   ...TEMPLATE_ROUTES,

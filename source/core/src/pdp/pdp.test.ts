@@ -56,7 +56,7 @@ function withRole(role: ActorAssignment["role"], scopeBuildingIds: string[] | un
 }
 
 describe("реестр действий", () => {
-  it("все действия VS-1–VS-7 зарегистрированы", () => {
+  it("все действия VS-1–VS-8 зарегистрированы", () => {
     expect(Object.keys(ACTIONS).sort()).toEqual([
       "admin.assignment.create",
       "admin.assignment.list",
@@ -65,6 +65,11 @@ describe("реестр действий", () => {
       "admin.session.list",
       "admin.session.revoke",
       "audit.read",
+      "document.manage",
+      "document.prepare",
+      "document.read",
+      "document.review",
+      "document.use",
       "emulation.person.create",
       "emulation.person.list",
       "emulation.person.role.revoke",

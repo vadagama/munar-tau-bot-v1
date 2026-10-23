@@ -1,4 +1,5 @@
 import { requireTask, taskResource } from "../tasks/access.ts";
+import { documentResource, requireDocument } from "../documents/access.ts";
 import { can } from "../../pdp/evaluate.ts";
 import { ApiError } from "../../errors/api.ts";
 import type { Actor } from "../../pdp/types.ts";
@@ -136,7 +137,7 @@ export async function prepareFile(
   return deps.db.transaction(async (exec) => {
     const ownerType = input.owner_type ?? "request";
     if (
-      !["request", "message", "task"].includes(String(ownerType)) ||
+      !["request", "message", "task", "document"].includes(String(ownerType)) ||
       typeof input.owner_id !== "string"
     ) invalid("Некорректный владелец вложения");
     const requestId = input.owner_id;
@@ -144,11 +145,15 @@ export async function prepareFile(
       // Отправленные сообщения неизменяемы: материалы добавляются следующим сообщением.
       invalid("Загрузите файл для обращения и приложите к новому сообщению");
     }
-    const bucket = input.bucket ?? (ownerType === "task" ? "internal" : "resident");
+    const document = ownerType === "document" ? await requireDocument(exec, actor, requestId, "document.prepare", true) : null;
+    const documentBucket = document && ["resident", "owner"].includes(document.audience) ? "resident" : "internal";
+    const bucket = input.bucket ?? (document ? documentBucket : ownerType === "task" ? "internal" : "resident");
     if (!["resident", "internal"].includes(String(bucket))) {
       throw new ApiError("FORBIDDEN");
     }
-    if (ownerType === "task") {
+    if (document) {
+      if (bucket !== documentBucket) throw new ApiError("FORBIDDEN");
+    } else if (ownerType === "task") {
       const task = await requireTask(exec, actor, requestId, "task.execute", true);
       if (task.state !== "in_progress" || bucket !== "internal") throw new ApiError("INVALID_TRANSITION", "Файлы отчёта доступны при выполнении задания");
     } else {
@@ -186,7 +191,8 @@ export async function prepareFile(
       !policy.extensions.includes(extension)
     ) throw new ApiError("FILE_LIMIT", "Файл не соответствует настройкам ОСИ");
     const [count] = await exec.query<{ n: string }>(
-      "select count(*)::text n from attachment where owner_id=$1 and owner_type=$4 and task_report_id is null and uploaded_by=$2 and bucket=$3",
+      `select count(*)::text n from attachment a where owner_id=$1 and owner_type=$4 and task_report_id is null and uploaded_by=$2 and bucket=$3
+       and ($4<>'document' or not exists(select 1 from document_version v where v.attachment_id=a.id or v.signed_attachment_id=a.id))`,
       [requestId, actor.person.id, bucket, ownerType],
     );
     if (Number(count!.n) >= policy.max_per_message) {
@@ -198,7 +204,7 @@ export async function prepareFile(
     const id = crypto.randomUUID();
     await exec.query(
       "insert into attachment(id,request_id,task_id,owner_type,owner_id,bucket,storage_path,filename,size_bytes,mime,uploaded_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
-      [id,ownerType === "task" ? null : requestId,ownerType === "task" ? requestId : null,ownerType,requestId,bucket,
+      [id,ownerType === "task" || document ? null : requestId,ownerType === "task" ? requestId : null,ownerType,requestId,bucket,
         `${requestId}/${id}`,f.filename,f.size,f.mime,actor.person.id],
     );
     return {
@@ -219,6 +225,17 @@ async function fileAccess(
     id,
   ]);
   if (!a) throw new ApiError("NOT_FOUND");
+  if (a.owner_type === "document") {
+    const doc = await requireDocument(deps.db, actor, String(a.owner_id), write ? "document.prepare" : "document.read");
+    const versions = await deps.db.query<{ was_published: boolean; state: string }>("select was_published,state from document_version where document_id=$1 and (attachment_id=$2 or signed_attachment_id=$2)", [doc.id, id]);
+    if (write && (versions.length || a.uploaded_by !== actor.person.id)) throw new ApiError("FORBIDDEN");
+    if (!write) {
+      const r = await documentResource(deps.db, actor, doc);
+      const internal = can(actor, "document.prepare", r).allow || can(actor, "document.review", r).allow || can(actor, "document.manage", r).allow;
+      if (!internal && !versions.some(v => v.was_published || (r.documentAccess?.assignedTask && v.state === "approved"))) throw new ApiError("NOT_FOUND");
+    }
+    return a;
+  }
   if (a.owner_type === "task") {
     const task = await requireTask(deps.db,actor,String(a.task_id),write ? "task.execute" : "task.read");
     if (write && (task.state !== "in_progress" || a.task_report_id || a.uploaded_by !== actor.person.id)) throw new ApiError("FORBIDDEN");
