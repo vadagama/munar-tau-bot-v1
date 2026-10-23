@@ -13,7 +13,7 @@ export function summarizePhases(buildings: RegistryRow[], premises: RegistryRow[
     return {
       id: phase ?? "unassigned", phase,
       name: phase == null ? "Не указана" : `${phase}-я очередь`,
-      buildings: members.map(building => [building.code, building.name].filter(Boolean).join(" · ")).join(", ") || "Нет зданий",
+      buildings: members.map(building => building.name || building.code).join(", ") || "Нет зданий",
       building_count: members.length,
       premises_count: premises.filter(premise => ids.has(premise.building_id)).length,
     };

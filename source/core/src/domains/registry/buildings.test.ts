@@ -37,12 +37,21 @@ it.each([
   expect(append).toHaveBeenCalledOnce();
 });
 
-it("создание без очереди сохраняет NULL", async () => {
+it("создание выводит код из названия, очередь — NULL", async () => {
   const { deps, query } = setup();
-  await mutateRegistry(deps, chairman, "buildings", { code: "ДОМ-2" });
+  await mutateRegistry(deps, chairman, "buildings", { name: "ДОМ-2" });
   expect(query).toHaveBeenCalledWith(
     "insert into building (code,name,construction_phase) values ($1,$2,$3) returning *",
-    ["ДОМ-2", null, null],
+    ["ДОМ-2", "ДОМ-2", null],
+  );
+});
+
+it("явный код сохраняется: технический ключ импорта не теряется", async () => {
+  const { deps, query } = setup();
+  await mutateRegistry(deps, chairman, "buildings", { code: "КЛЮЧ", name: "Дом 2" });
+  expect(query).toHaveBeenCalledWith(
+    "insert into building (code,name,construction_phase) values ($1,$2,$3) returning *",
+    ["КЛЮЧ", "Дом 2", null],
   );
 });
 

@@ -94,9 +94,9 @@ it("Telegram-имя в таблицах жителей и сотрудников
 
 it("фильтрует здания по очереди, отсутствию очереди и возвращает все", async () => {
   const buildings = [
-    { id: "b1", code: "ДОМ-1", construction_phase: 1 },
-    { id: "b2", code: "ДОМ-2", construction_phase: 2 },
-    { id: "b3", code: "ДОМ-3", construction_phase: null },
+    { id: "b1", code: "ДОМ-1", name: "ДОМ-1", construction_phase: 1 },
+    { id: "b2", code: "ДОМ-2", name: "ДОМ-2", construction_phase: 2 },
+    { id: "b3", code: "ДОМ-3", name: "ДОМ-3", construction_phase: null },
   ];
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings") ? buildings : [] }));
   render(<RegistryPage section="buildings" />);
@@ -123,38 +123,38 @@ it("сохраняет выбранную очередь здания и явн�
   fireEvent.click(screen.getByText("Добавить запись", {selector:"button > span"}));
   // Поля выбираются по связанной метке с selector=input: одноимённые
   // сортируемые заголовки таблицы не участвуют в поиске формы.
-  const code = screen.getByLabelText("Обозначение", {selector:"input"});
-  const drawer = code.closest('[role="dialog"]')!;
-  fireEvent.change(code, { target: { value: "НОВЫЙ-1" } });
+  const name = screen.getByLabelText("Название", {selector:"input"});
+  const drawer = name.closest('[role="dialog"]')!;
+  fireEvent.change(name, { target: { value: "НОВЫЙ-1" } });
   fireEvent.mouseDown(screen.getByLabelText("Очередь строительства", {selector:"input"}));
   fireEvent.click(await screen.findByText("5-я очередь", { selector: ".ant-select-item-option-content" }));
   fireEvent.click(screen.getByText("Сохранить", {selector:"button > span"}));
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registry/buildings", expect.objectContaining({
-    method: "POST", body: expect.objectContaining({ construction_phase: 5 }),
+    method: "POST", body: expect.objectContaining({ name: "НОВЫЙ-1", construction_phase: 5 }),
   })));
   await waitFor(() => expect(drawer).not.toBeVisible());
   fireEvent.click(screen.getByText("Добавить запись", {selector:"button > span"}));
-  fireEvent.change(screen.getByLabelText("Обозначение", {selector:"input"}), { target: { value: "НОВЫЙ-2" } });
+  fireEvent.change(screen.getByLabelText("Название", {selector:"input"}), { target: { value: "НОВЫЙ-2" } });
   fireEvent.click(screen.getByText("Сохранить", {selector:"button > span"}));
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registry/buildings", expect.objectContaining({
-    method: "POST", body: expect.objectContaining({ code: "НОВЫЙ-2", construction_phase: null }),
+    method: "POST", body: expect.objectContaining({ name: "НОВЫЙ-2", construction_phase: null }),
   })));
 });
 
 
 it("очистка очереди существующего здания отправляет null, фон не сбрасывает черновик", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings")
-    ? [{ id: "b1", code: "ДОМ-1", construction_phase: 3 }] : [] }));
+    ? [{ id: "b1", code: "ДОМ-1", name: "ДОМ-1", construction_phase: 3 }] : [] }));
   render(<RegistryPage section="buildings" />);
   fireEvent.click(await screen.findByText("Изменить", {selector:"button > span"}));
-  fireEvent.change(screen.getByLabelText("Обозначение", {selector:"input"}), { target: { value: "ДОМ-ИЗМЕНЁН" } });
+  fireEvent.change(screen.getByLabelText("Название", {selector:"input"}), { target: { value: "ДОМ-ИЗМЕНЁН" } });
   const phase = screen.getByLabelText("Очередь строительства", {selector:"input"});
   fireEvent.mouseDown(phase.closest(".ant-select")!.querySelector(".ant-select-clear")!);
   fireEvent(window, new Event("cabinet:refresh-page"));
-  await waitFor(() => expect(screen.getByLabelText("Обозначение", {selector:"input"})).toHaveValue("ДОМ-ИЗМЕНЁН"));
+  await waitFor(() => expect(screen.getByLabelText("Название", {selector:"input"})).toHaveValue("ДОМ-ИЗМЕНЁН"));
   fireEvent.click(screen.getByText("Сохранить", {selector:"button > span"}));
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registry/buildings/b1", expect.objectContaining({
-    method: "PATCH", body: expect.objectContaining({ code: "ДОМ-ИЗМЕНЁН", construction_phase: null }),
+    method: "PATCH", body: expect.objectContaining({ name: "ДОМ-ИЗМЕНЁН", construction_phase: null }),
   })));
 });
 
@@ -185,13 +185,13 @@ it("ошибка удаления помещения видна в общей о
 
 it("у зданий подтверждение предупреждает о каскаде и аварийных сигналах", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings")
-    ? [{ id: "b1", code: "ДОМ-1", construction_phase: 1 }] : [] }));
+    ? [{ id: "b1", code: "ДОМ-1", name: "ДОМ-1", construction_phase: 1 }] : [] }));
   render(<RegistryPage section="buildings" />);
   fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
   const dialog = await screen.findByRole("dialog");
   expect(within(dialog).getByText("Все помещения здания")).toBeInTheDocument();
   expect(within(dialog).getByText(/недоступно при активных аварийных сигналах/)).toBeInTheDocument();
-  // Подтверждение — вводом обозначения здания; без него кнопка недоступна.
+  // Подтверждение — вводом названия здания; без него кнопка недоступна.
   expect(within(dialog).getByRole("button", { name: "Удалить безвозвратно" })).toBeDisabled();
   fireEvent.change(within(dialog).getByLabelText("Подтверждение удаления"), { target: { value: "ДОМ-1" } });
   expect(within(dialog).getByRole("button", { name: "Удалить безвозвратно" })).toBeEnabled();
@@ -221,8 +221,8 @@ it("жители: адрес, статус основной анкеты и пр
   expect(screen.getByRole("columnheader", { name: /Адрес/ })).toBeInTheDocument();
   expect(screen.getByRole("columnheader", { name: /Статус регистрации/ })).toBeInTheDocument();
   expect(screen.getByRole("columnheader", { name: /Привязанные помещения/ })).toBeInTheDocument();
-  expect(screen.getByText("Улица Мира, 107/1 (107-1)")).toBeInTheDocument();
-  expect(screen.getByText("107-1 · Квартира 4 · Собственник")).toBeInTheDocument();
+  expect(screen.getByText("Улица Мира, 107/1")).toBeInTheDocument();
+  expect(screen.getByText("Улица Мира, 107/1 · Квартира 4 · Собственник")).toBeInTheDocument();
   expect(screen.getByText("Нет анкеты")).toBeInTheDocument();
 });
 

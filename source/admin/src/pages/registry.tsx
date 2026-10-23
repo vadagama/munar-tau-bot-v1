@@ -47,7 +47,6 @@ const LABELS: Record<string, string> = {
   full_name: "ФИО",
   phone_e164: "Телефон",
   telegram_username: "Telegram",
-  code: "Обозначение",
   name: "Название",
   construction_phase: "Очередь строительства",
   kind: "Тип",
@@ -83,22 +82,22 @@ const REGISTRATION_STATES: Record<string, string> = {
 };
 const linkedPremises = (row: Row): Row[] => Array.isArray(row.linked_premises) ? row.linked_premises : [];
 
-// Каскадное необратимое удаление здания: подтверждение вводом обозначения
+// Каскадное необратимое удаление здания: подтверждение вводом названия
 // и явный список последствий — защита соответствует цене ошибки.
 function DeleteBuildingModal({ row, onClose, onDeleted }: {
   row: Row;
   onClose: () => void;
   onDeleted: () => Promise<void> | void;
 }) {
-  const code = String(row.code ?? "").trim();
+  const name = String(row.name ?? row.code ?? "").trim();
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const ready = code !== "" && confirm.trim() === code;
+  const ready = name !== "" && confirm.trim() === name;
   return (
     <Modal
       open
-      title={`Удаление здания «${code || (row.name ?? "без названия")}»`}
+      title={`Удаление здания «${name || "без названия"}»`}
       okText="Удалить безвозвратно"
       okButtonProps={{ danger: true, disabled: !ready, loading: busy }}
       cancelText="Отмена"
@@ -132,11 +131,11 @@ function DeleteBuildingModal({ row, onClose, onDeleted }: {
           Обращения сохранятся без привязки к зданию. Удаление недоступно при активных аварийных сигналах.
         </Typography.Text>
         <Typography.Text>
-          Для подтверждения введите обозначение здания: <Typography.Text strong>{code}</Typography.Text>
+          Для подтверждения введите название здания: <Typography.Text strong>{name}</Typography.Text>
         </Typography.Text>
         <Input
           aria-label="Подтверждение удаления"
-          placeholder={code}
+          placeholder={name}
           value={confirm}
           onChange={(event) => setConfirm(event.target.value)}
           autoComplete="off"
@@ -147,11 +146,10 @@ function DeleteBuildingModal({ row, onClose, onDeleted }: {
   );
 }
 const residentAddress = (row: Row): string => [...new Set(linkedPremises(row).map(p =>
-  p.building_name && p.building_name !== p.building_code
-    ? `${p.building_name} (${p.building_code})` : String(p.building_code ?? "—"),
+  String(p.building_name ?? p.building_code ?? "—"),
 ))].join(", ") || "Адрес не указан";
 const residentPremises = (row: Row): string => linkedPremises(row).map(p =>
-  `${p.building_code} · ${displayKind(p.kind)} ${p.number} · ${displayRole(p.role)}`,
+  `${String(p.building_name ?? p.building_code ?? "—")} · ${displayKind(p.kind)} ${p.number} · ${displayRole(p.role)}`,
 ).join("; ") || "Помещения не привязаны";
 // Удаление жителя = удаление его основной анкеты (ADR-16): доступ закрывается
 // необратимо, поэтому требуются основание и ключ идемпотентности; сервер ещё раз
@@ -361,7 +359,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
   };
   const keys =
     entity === "buildings"
-      ? ["code", "name", "construction_phase"]
+      ? ["name", "construction_phase"]
       : entity === "premises"
         ? ["building_code", "kind", "number", "entrance", "floor", "status"]
         : entity === "persons"
@@ -391,9 +389,11 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
       title: LABELS[key],
       dataIndex: key,
       key,
-      render: (v: unknown) =>
+      render: (v: unknown, row: Row) =>
         key === "construction_phase" ? (
           v == null ? "Не указана" : `${v}-я очередь`
+        ) : key === "building_code" ? (
+          String(row.building_name ?? v ?? "—")
         ) : key === "kind" ? (
           displayKind(v)
         ) : key === "role" ? (
@@ -469,7 +469,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
   const directoryRows = rows.map(row => {
     const building = buildingById.get(row.building_id);
     const person = personById.get(row.person_id);
-    return { ...row, building_code: row.building_code ?? building?.code,
+    return { ...row, building_code: row.building_code ?? building?.name ?? building?.code,
       building_name: building?.name, construction_phase: row.construction_phase ?? building?.construction_phase,
       phone_e164: row.phone_e164 ?? person?.phone_e164 };
   });
@@ -606,8 +606,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
         {editing !== undefined && <Form name="registry-record" form={form} layout="vertical">
           {entity === "buildings" && (
             <>
-              {field("code")}
-              {field("name", false)}
+              {field("name")}
               <Form.Item name="construction_phase" label={LABELS.construction_phase}>
                 <Select allowClear placeholder="Не указана" options={CONSTRUCTION_PHASES} />
               </Form.Item>
@@ -620,7 +619,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
                 label="Здание"
                 rules={[{ required: true }]}
               >
-                <Select options={options(buildings, (r) => String(r.code))} />
+                <Select options={options(buildings, (r) => String(r.name || r.code))} />
               </Form.Item>
               <Form.Item
                 name="kind"
@@ -655,7 +654,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
                       options={options(
                         premises,
                         (r) =>
-                          `${r.building_code} · ${displayKind(r.kind)} ${r.number}`,
+                          `${r.building_name || r.building_code} · ${displayKind(r.kind)} ${r.number}`,
                       )}
                     />
                   </Form.Item>
@@ -691,7 +690,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
                   options={options(
                     premises,
                     (r) =>
-                      `${r.building_code} · ${displayKind(r.kind)} ${r.number}`,
+                      `${r.building_name || r.building_code} · ${displayKind(r.kind)} ${r.number}`,
                   )}
                 />
               </Form.Item>

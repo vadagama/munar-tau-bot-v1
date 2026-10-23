@@ -368,7 +368,7 @@ export function PublicationsPage() {
                   mode="multiple"
                   options={buildings.map((b) => ({
                     value: String(b.id),
-                    label: String(b.code),
+                    label: String(b.name ?? b.code),
                   }))}
                 />
               </Form.Item>
@@ -459,9 +459,11 @@ export function PublicationsPage() {
                   options={((card?.building_ids as string[]) ?? []).map(
                     (value) => ({
                       value,
-                      label: buildings.find((b) =>
+                      label: (buildings.find((b) =>
                         b.id === value
-                      )?.code as string ?? "Объект публикации",
+                      )?.name ?? buildings.find((b) =>
+                        b.id === value
+                      )?.code) as string ?? "Объект публикации",
                     }),
                   )}
                 />
