@@ -1,0 +1,6 @@
+/* Табличные цифры: числовые колонки таблиц и описаний выравниваются
+   по разрядам (attio-мир, FINISH «crisp rhythm»). */
+.ant-table,
+.ant-descriptions-item-content {
+  font-variant-numeric: tabular-nums;
+}

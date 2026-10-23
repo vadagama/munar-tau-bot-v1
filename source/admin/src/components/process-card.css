@@ -1,10 +1,9 @@
 .process-overview {
  display: flex; flex-direction: column; gap: 12px; padding: 16px;
  border: 1px solid;
- border-inline-start: 3px solid;
- border-radius: 8px; margin-block-end: 24px;
+ border-radius: 12px; margin-block-end: 24px;
 }
-.process-overview__heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.process-overview__heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-block-end: 10px; border-block-end: 1px solid #eceef0; margin-block-end: 2px; }
 .process-overview .ant-typography { margin: 0; }
 .process-overview__heading h3.ant-typography { font-size: 16px; }
 .process-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; }

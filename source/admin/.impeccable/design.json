@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-23",
+  "title": "Design System: Кабинет ОСИ «Мунар Тау»",
+  "extensions": {
+    "colorMeta": {
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Серо-ледяной фон",
+        "canonical": "oklch(97.6% 0.0017 247.8)",
+        "tonalRamp": ["oklch(15% 0.0017 248)", "oklch(26% 0.0017 248)", "oklch(38% 0.0017 248)", "oklch(49% 0.0017 248)", "oklch(60% 0.0017 248)", "oklch(72% 0.0017 248)", "oklch(83% 0.0017 248)", "oklch(95% 0.0017 248)"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Белая поверхность",
+        "canonical": "oklch(100% 0 0)",
+        "tonalRamp": ["oklch(15% 0 0)", "oklch(26% 0 0)", "oklch(38% 0 0)", "oklch(49% 0 0)", "oklch(60% 0 0)", "oklch(72% 0 0)", "oklch(83% 0 0)", "oklch(95% 0 0)"]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Волосяной разделитель",
+        "canonical": "oklch(94.8% 0.0034 247.9)",
+        "tonalRamp": ["oklch(15% 0.0034 248)", "oklch(26% 0.0034 248)", "oklch(38% 0.0034 248)", "oklch(49% 0.0034 248)", "oklch(60% 0.0034 248)", "oklch(72% 0.0034 248)", "oklch(83% 0.0034 248)", "oklch(95% 0.0034 248)"]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Контурный бордер",
+        "canonical": "oklch(89.3% 0.0064 255.5)",
+        "tonalRamp": ["oklch(15% 0.0064 256)", "oklch(26% 0.0064 256)", "oklch(38% 0.0064 256)", "oklch(49% 0.0064 256)", "oklch(60% 0.0064 256)", "oklch(72% 0.0064 256)", "oklch(83% 0.0064 256)", "oklch(95% 0.0064 256)"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Основной текст",
+        "canonical": "oklch(27.9% 0.0132 253)",
+        "tonalRamp": ["oklch(15% 0.0132 253)", "oklch(26% 0.0132 253)", "oklch(38% 0.0132 253)", "oklch(49% 0.0132 253)", "oklch(60% 0.0132 253)", "oklch(72% 0.0132 253)", "oklch(83% 0.0132 253)", "oklch(95% 0.0132 253)"]
+      },
+      "ink-secondary": {
+        "role": "neutral",
+        "displayName": "Второстепенный текст",
+        "canonical": "oklch(48.5% 0.0196 251)",
+        "tonalRamp": ["oklch(15% 0.0196 251)", "oklch(26% 0.0196 251)", "oklch(38% 0.0196 251)", "oklch(49% 0.0196 251)", "oklch(60% 0.0196 251)", "oklch(72% 0.0196 251)", "oklch(83% 0.0196 251)", "oklch(95% 0.0196 251)"]
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Приглушённый текст",
+        "canonical": "oklch(56.5% 0.0189 251)",
+        "tonalRamp": ["oklch(15% 0.0189 251)", "oklch(26% 0.0189 251)", "oklch(38% 0.0189 251)", "oklch(49% 0.0189 251)", "oklch(60% 0.0189 251)", "oklch(72% 0.0189 251)", "oklch(83% 0.0189 251)", "oklch(95% 0.0189 251)"]
+      },
+      "graphite": {
+        "role": "primary",
+        "displayName": "Графит-интерактив",
+        "canonical": "oklch(25.4% 0.0111 254)",
+        "tonalRamp": ["oklch(15% 0.0111 254)", "oklch(26% 0.0111 254)", "oklch(38% 0.0111 254)", "oklch(49% 0.0111 254)", "oklch(60% 0.0111 254)", "oklch(72% 0.0111 254)", "oklch(83% 0.0111 254)", "oklch(95% 0.0111 254)"]
+      },
+      "wash": {
+        "role": "neutral",
+        "displayName": "Тихая заливка",
+        "canonical": "oklch(97% 0.0017 247.8)",
+        "tonalRamp": ["oklch(15% 0.0017 248)", "oklch(26% 0.0017 248)", "oklch(38% 0.0017 248)", "oklch(49% 0.0017 248)", "oklch(60% 0.0017 248)", "oklch(72% 0.0017 248)", "oklch(83% 0.0017 248)", "oklch(95% 0.0017 248)"]
+      },
+      "wash-deep": {
+        "role": "neutral",
+        "displayName": "Глубокая заливка",
+        "canonical": "oklch(94.5% 0.0034 247.9)",
+        "tonalRamp": ["oklch(15% 0.0034 248)", "oklch(26% 0.0034 248)", "oklch(38% 0.0034 248)", "oklch(49% 0.0034 248)", "oklch(60% 0.0034 248)", "oklch(72% 0.0034 248)", "oklch(83% 0.0034 248)", "oklch(95% 0.0034 248)"]
+      },
+      "success": {
+        "role": "tertiary",
+        "displayName": "Тихий успех",
+        "canonical": "oklch(52.4% 0.1401 148)",
+        "tonalRamp": ["oklch(15% 0.14 148)", "oklch(26% 0.14 148)", "oklch(38% 0.14 148)", "oklch(49% 0.14 148)", "oklch(60% 0.14 148)", "oklch(72% 0.14 148)", "oklch(83% 0.14 148)", "oklch(95% 0.14 148)"]
+      },
+      "brand-green": {
+        "role": "secondary",
+        "displayName": "Фирменный зелёный",
+        "canonical": "oklch(38.4% 0.0482 177.1)",
+        "tonalRamp": ["oklch(15% 0.048 177)", "oklch(26% 0.048 177)", "oklch(38% 0.048 177)", "oklch(49% 0.048 177)", "oklch(60% 0.048 177)", "oklch(72% 0.048 177)", "oklch(83% 0.048 177)", "oklch(95% 0.048 177)"]
+      }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Заголовок страницы", "purpose": "Один на страницу — заголовок PageLayout (Title level 2, 30px/38px, 600)." },
+      "title": { "displayName": "Заголовок шелла", "purpose": "Шапка кабинета (18px/32px); на странице входа — 20px." },
+      "subtitle": { "displayName": "Заголовок секции", "purpose": "Карточки, панель процесса, DetailSection (16px, 600)." },
+      "body": { "displayName": "Базовый текст", "purpose": "Весь интерфейс: таблицы, меню, контролы (14px/1.5714)." },
+      "caption": { "displayName": "Подпись", "purpose": "Группы меню и мелкие пояснения (12px)." },
+      "numeric": { "displayName": "Числовые данные", "purpose": "tabular-nums для числовых колонок таблиц и Descriptions." }
+    },
+    "shadows": [
+      { "name": "box-shadow", "value": "0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.06)", "purpose": "Базовая тень всплывающих элементов — выпадающие меню, попапы (токен boxShadow)." },
+      { "name": "box-shadow-secondary", "value": "0 4px 12px rgba(16, 24, 40, 0.08)", "purpose": "Плавающие белые карточки поверх контента — карточка входа (token boxShadowSecondary)." }
+    ],
+    "motion": [
+      { "name": "antd-default", "value": "0.2s ease", "purpose": "Собственных motion-токенов нет: переходы состояний — дефолт AntD (motionDurationMid ≈ 0.2s)." }
+    ],
+    "breakpoints": [
+      { "name": "lg", "value": "992px", "purpose": "AntD breakpoint сайдбара: ниже — сайдбар сворачивается (collapsedWidth 0) и открывается fixed-слоем поверх контента (100dvh)." },
+      { "name": "process-compact", "value": "600px", "purpose": "Панель процесса (process-card.css): паддинг 16→12px, кнопки действий в столбец." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Главное действие: графитовая кнопка 32px, радиус 8, вес 500; наведение светлеет до #323436.",
+      "html": "<button class=\"ds-btn-primary\">Новое обращение</button>",
+      "css": ".ds-btn-primary { background: #1f2328; color: #ffffff; border: none; border-radius: 8px; height: 32px; padding: 4px 15px; font: 500 14px/22px -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; cursor: pointer; transition: background 0.2s ease; } .ds-btn-primary:hover { background: #323436; } .ds-btn-primary:active { background: #020203; } .ds-btn-primary:focus-visible { outline: 2px solid rgba(31, 35, 40, 0.3); outline-offset: 1px; }"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Второстепенное действие: белый фон, граница #d9dce0; при наведении текст и граница светлеют к #323436.",
+      "html": "<button class=\"ds-btn-default\">Экспорт</button>",
+      "css": ".ds-btn-default { background: #ffffff; color: #24292f; border: 1px solid #d9dce0; border-radius: 8px; height: 32px; padding: 4px 15px; font: 500 14px/22px -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; cursor: pointer; transition: color 0.2s ease, border-color 0.2s ease; } .ds-btn-default:hover { color: #323436; border-color: #323436; } .ds-btn-default:focus-visible { outline: 2px solid rgba(31, 35, 40, 0.3); outline-offset: 1px; }"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Текстовое поле фильтров: белое, граница #d9dce0, радиус 8, placeholder #6e7781, фокус — графитовый ореол.",
+      "html": "<input class=\"ds-input\" placeholder=\"Номер, описание или инициатор\" />",
+      "css": ".ds-input { background: #ffffff; color: #24292f; border: 1px solid #d9dce0; border-radius: 8px; height: 32px; padding: 4px 11px; font: 400 14px/22px -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; transition: border-color 0.2s ease, box-shadow 0.2s ease; } .ds-input::placeholder { color: #6e7781; } .ds-input:hover { border-color: #323436; } .ds-input:focus { border-color: #1f2328; box-shadow: 0 0 0 2px rgba(31, 35, 40, 0.1); outline: none; }"
+    },
+    {
+      "name": "Menu Item / Navigation",
+      "kind": "nav",
+      "refersTo": "menu-item",
+      "description": "Пункт меню светлого сайдбара: прозрачный фон, радиус 8, выбранное — заливка #ebedef без цветной активной полосы; счётчик — тихий Badge.",
+      "html": "<nav class=\"ds-nav\"><div class=\"ds-menu-group\">Настройки</div><div class=\"ds-menu-item\">Публикации</div><div class=\"ds-menu-item is-selected\">Обращения <span class=\"ds-menu-badge\">7</span></div></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; } .ds-menu-group { font-size: 12px; color: #57606a; padding: 8px 16px; } .ds-menu-item { background: transparent; color: #57606a; border-radius: 8px; height: 40px; padding: 0 16px; display: flex; align-items: center; gap: 6px; font-size: 14px; line-height: 22px; cursor: pointer; } .ds-menu-item:hover { background: rgba(36, 41, 47, 0.04); color: #24292f; } .ds-menu-item.is-selected { background: #ebedef; color: #24292f; } .ds-menu-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #57606a; color: #ffffff; font-size: 12px; line-height: 20px; }"
+    },
+    {
+      "name": "Status Tag",
+      "kind": "chip",
+      "refersTo": "tag-status-new",
+      "description": "Статусные теги-пиллы: 5 состояний с прозрачной границей; цвет держат фон и текст; незнакомый статус — нейтральная пара.",
+      "html": "<div class=\"ds-tagrow\"><span class=\"ds-tag\">Новая</span><span class=\"ds-tag ds-tag--review\">На рассмотрении</span><span class=\"ds-tag ds-tag--work\">В работе</span><span class=\"ds-tag ds-tag--waiting\">Ожидает жильца</span><span class=\"ds-tag ds-tag--closed\">Закрыта</span></div>",
+      "css": ".ds-tagrow { display: flex; flex-wrap: wrap; gap: 8px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; } .ds-tag { display: inline-flex; align-items: center; border: 1px solid transparent; border-radius: 6px; padding: 0 7px; font-size: 12px; line-height: 20px; background: #eef0f2; color: #57606a; } .ds-tag--review { background: #e8edf6; color: #275089; } .ds-tag--work { background: #e6f2ec; color: #1a6b45; } .ds-tag--waiting { background: #faf1e2; color: #8a5a10; } .ds-tag--closed { background: #f2f3f4; color: #57606a; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Белая карточка на серо-ледяном фоне: радиус 14, граница 1px #eceef0, паддинг 24; глубина — границей, не тенью.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card__title\">Обращения: новые <span class=\"ds-card__badge\">5</span></div><div class=\"ds-card__body\">З-1042 · Не работает домофон в подъезде 2</div><a class=\"ds-card__link\">Открыть список →</a></div>",
+      "css": ".ds-card { background: #ffffff; border: 1px solid #eceef0; border-radius: 14px; padding: 24px; color: #24292f; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; } .ds-card__title { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 16px; font-weight: 600; margin-bottom: 12px; } .ds-card__body { font-size: 14px; margin-bottom: 12px; } .ds-card__link { font-size: 14px; color: #1f2328; text-decoration: none; } .ds-card__link:hover { text-decoration: underline; } .ds-card__badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 8px; border-radius: 999px; background: #57606a; color: #ffffff; font-size: 12px; line-height: 20px; font-weight: 400; }"
+    },
+    {
+      "name": "Process Overview Panel",
+      "kind": "custom",
+      "refersTo": "process-panel",
+      "description": "Подписной блок процесса: белая панель с 1px границей #eceef0, радиус 12, волосяная линия под заголовком, главная кнопка primary + остальные default.",
+      "html": "<section class=\"ds-process\"><div class=\"ds-process__heading\"><h3>Сейчас по процессу</h3><span class=\"ds-process__pill\">В работе</span></div><p class=\"ds-process__title\">Обращение в работе</p><p class=\"ds-process__desc\">Ожидаем выполнения работ и итогового ответа ОСИ. Проверьте связанные задания и материалы.</p><div class=\"ds-process__meta\"><span>Кто действует дальше: Исполнители связанных заданий</span><span>Срок: 24.10.2026, 18:00 (Алматы)</span></div><div class=\"ds-process__actions\"><button class=\"ds-process__btn ds-process__btn--primary\">Проверить задания</button><button class=\"ds-process__btn ds-process__btn--default\">История</button></div></section>",
+      "css": ".ds-process { display: flex; flex-direction: column; gap: 12px; padding: 16px; background: #ffffff; border: 1px solid #eceef0; border-radius: 12px; color: #24292f; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; } .ds-process__heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-block-end: 10px; border-block-end: 1px solid #eceef0; } .ds-process__heading h3 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; } .ds-process__pill { display: inline-flex; align-items: center; border: 1px solid transparent; border-radius: 6px; padding: 0 7px; font-size: 12px; line-height: 20px; background: #e6f2ec; color: #1a6b45; } .ds-process__title { margin: 0; font-size: 14px; font-weight: 600; } .ds-process__desc { margin: 0; font-size: 14px; line-height: 1.5714; } .ds-process__meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 14px; color: #57606a; } .ds-process__actions { display: flex; flex-wrap: wrap; gap: 12px; } .ds-process__btn { border-radius: 8px; min-height: 32px; padding: 4px 15px; font: 500 14px/22px -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; cursor: pointer; white-space: normal; height: auto; transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease; } .ds-process__btn--primary { background: #1f2328; color: #ffffff; border: none; } .ds-process__btn--primary:hover { background: #323436; } .ds-process__btn--default { background: #ffffff; color: #24292f; border: 1px solid #d9dce0; } .ds-process__btn--default:hover { color: #323436; border-color: #323436; }"
+    },
+    {
+      "name": "Badge Counter",
+      "kind": "custom",
+      "refersTo": "badge-counter",
+      "description": "Тихий счётчик работы: графитово-серый #57606a, высота 20, полный радиус, показывается только при наличии работы.",
+      "html": "<span class=\"ds-badge\">7</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 8px; border-radius: 999px; background: #57606a; color: #ffffff; font: 400 12px/20px -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Спокойный пульт управления домом",
+    "overview": "Кабинет — рабочее место сотрудников ОСИ: обращения, задания, аварии, сроки и эскалации. Красота здесь — в порядке, а не в декоре: ровные сетки, тихая палитра, предсказуемые блоки. Интерфейс сканируется взглядом — номер, состояние, срок, ответственный — и не требует «расшифровки» стиля. Реализованный мир — светлое монохромно-нейтральное «бумажное» пространство attio-направления: белые поверхности на серо-ледяном фоне (#f6f7f8), тонкие 1px-разделители вместо теней, глубина через контраст поверхностей, а не через объём. Интерактив — графит #1f2328 (выбранный пользователем вариант B «нейтральный»); фирменный зелёный #244c43 — дозированно: только в логотипе и в запасной теме «green». Плотность деловая: база 14px, таблицы среднего размера с табличными цифрами, единый шелл (сайдбар 240px, хедер 56px, контент до 1400px) и единая анатомия страницы.",
+    "keyCharacteristics": [
+      "Белые карточки на серо-ледяном фоне (#ffffff на #f6f7f8); глубина — через 1px-разделители (#eceef0), не тени",
+      "Графитовый интерактив (#1f2328); зелёный бренд (#244c43) — только в логотипе",
+      "Лестница радиусов 6/8/12/14: контролы 8px, панель процесса 12px, карточки 14px",
+      "Тихая серая шкала заливок (#f4f5f6 → #ebedef) вместо цветных акцентов",
+      "Табличные цифры (tabular-nums) в таблицах и описаниях",
+      "Единый шелл и анатомия страницы: сайдбар 240px → хедер 56px → контент max 1400px"
+    ],
+    "rules": [
+      { "name": "The Neutral Pointer Rule", "body": "Интерактив — графит, а не цвет: primary, ссылки и фокус — оттенки #1f2328. Цвет означает только состояние (success/error/warning), никогда — действие.", "section": "colors" },
+      { "name": "The Dosed Green Rule", "body": "#244c43 живёт только в логотипе (и в запасной теме «green»); ни один интерактивный элемент нейтрального варианта его не использует.", "section": "colors" },
+      { "name": "The Explicit Info Rule", "body": "Полутона info-семьи заданы вручную (#f4f5f6 / #eef0f1 / #e5e8ea / #d9dde0): генерация палитры AntD от тёмного primary даёт грязные оттенки — на неё не полагаемся.", "section": "colors" },
+      { "name": "The Aligned Digits Rule", "body": "Числа в таблицах и Descriptions — tabular-nums: суммы, номера и сроки выстраиваются по разрядам, ритм данных «crisp».", "section": "typography" },
+      { "name": "The One Anatomy Rule", "body": "Каждая страница — один PageLayout: заголовок → действия → фильтры → рабочая область; самодельных шапок не заводим.", "section": "layout" },
+      { "name": "The Hairline Rule", "body": "Разделение поверхностей — 1px-линии (#eceef0/#d9dce0); тень не рисует структуру, а лишь приподнимает всплывающее.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do держите анатомию страницы PageLayout: заголовок → действия → фильтры → рабочая область; вертикальный ритм 24px.",
+      "Do разделяйте поверхности 1px-линиями (#eceef0 для карточек и шелла, #d9dce0 для контролов) — не тенями.",
+      "Do статусы показывайте картой статусных тегов (5 состояний, прозрачная граница); незнакомый статус — нейтральная пара #eef0f2/#57606a.",
+      "Do числа в таблицах и Descriptions — tabular-nums.",
+      "Do счётчики работы — тихий Badge (#57606a), только при наличии работы.",
+      "Do радиусы по лестнице: контролы 8px, панель процесса 12px, карточки 14px."
+    ],
+    "donts": [
+      "Don't цветные боковые рамки и активные полосы в меню — активность показываем только заливкой #ebedef (activeBarBorderWidth: 0).",
+      "Don't зелёный #244c43 в интерактиве нейтрального варианта — он живёт только в логотипе (и в запасной теме «green»).",
+      "Don't тёмная тема — только светлый defaultAlgorithm.",
+      "Don't градиентный текст, kicker/eyebrow и декоративные акценты — красота в порядке сеток и предсказуемых блоков.",
+      "Don't новые акцентные цвета сверх семей success/error/warning и карты статусных тегов."
+    ]
+  }
+}

@@ -17,6 +17,7 @@ import {
   Typography,
 } from "antd";
 import { apiFetch } from "../lib/api";
+import { formatDateTime } from "../lib/format-date";
 import { displayKind, displayRole } from "./registry";
 import { BoardView, ViewToggle, useBoardView } from "./board";
 type Row = Record<string, unknown>;
@@ -235,7 +236,7 @@ export function RegistrationsPage() {
                 <Typography.Text type="secondary" style={{ display: "block" }}>
                   {r.role ? displayRole(r.role) : ""}
                   {r.stage_due_at
-                    ? ` · до ${new Date(String(r.stage_due_at)).toLocaleString("ru-RU")}`
+                    ? ` · до ${formatDateTime(r.stage_due_at)}`
                     : ""}
                 </Typography.Text>
                 {!!r.confirmed_draft && <Tag color="blue">Исправления на проверке · прежний доступ сохранён</Tag>}

@@ -17,6 +17,7 @@ import {
 } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import { apiFetch } from "../lib/api";
+import { formatDateTime } from "../lib/format-date";
 import { canSeeTemplates, useCabinetIdentity } from "../lib/identity";
 interface Version {
   version: number;
@@ -400,9 +401,7 @@ export function TemplatesPage() {
                       dataIndex: ["active", "created_at"],
                       render: (_, row) =>
                         row.active
-                          ? new Date(row.active.created_at).toLocaleString(
-                            "ru-RU",
-                          )
+                          ? formatDateTime(row.active.created_at)
                           : "—",
                     }]}
                   />
@@ -716,7 +715,7 @@ export function TemplatesPage() {
               items={versions.map((v) => ({
                 key: String(v.version),
                 label: `Версия ${v.version} · ${v.author ?? v.created_by} · ${
-                  new Date(v.created_at).toLocaleString("ru-RU")
+                  formatDateTime(v.created_at)
                 }`,
                 children: (
                   <Space direction="vertical">

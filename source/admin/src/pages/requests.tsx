@@ -2,6 +2,7 @@ import { DeadlineInput } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions } from "../components/process-card";
 import { requestGuidance, processActionHint } from "../components/process-guidance";
 import { ConfigurableTable } from "../components/configurable-table";
+import { App as AntApp } from "antd";
 import type { TableColumnsType } from "antd";
 import { taskAssigneeOptions } from "./task-assignees";
 import { REQUEST_ACTION_ICONS } from "./request-action-icons";
@@ -9,6 +10,7 @@ import { TASK_STATE_TEXT } from "../../../core/src/locales/tasks";
 import { DetailSection } from "../components/detail-section";
 import { PageLayout } from "../components/page-layout";
 import { requestOverdue, requestOverdueDetails } from "./request-overdue";
+import { formatDateTime } from "../lib/format-date";
 import "./requests.css";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { isVersionConflict, VERSION_CONFLICT_MESSAGE } from "./version-conflict";
@@ -103,6 +105,7 @@ const BOARD_COLUMNS = Object.entries(REQUEST_STATES).map(([value, label]) => ({
 }));
 export function RequestsPage() {
   const { identity, roles } = useCabinetIdentity();
+  const { message: antMessage } = AntApp.useApp();
   const [view, setView] = useBoardView("view.requests");
   const staff = roles.some((r) =>
     ["chairman", "administrator", "deputy"].includes(r)
@@ -120,9 +123,11 @@ export function RequestsPage() {
     [from, setFrom] = useState(""),
     [to, setTo] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
-  const [search, setSearch] = useState(""),
-    [state, setState] = useState<string>(),
-    [channel, setChannel] = useState("resident"),
+  const [search, setSearch] = useState("");
+  // Состояние можно задать ссылкой вида /requests?state=new (очередь дня на главной).
+  const [state, setState] = useState<string | undefined>(
+    () => new URLSearchParams(window.location.search).get("state") ?? undefined);
+  const [channel, setChannel] = useState("resident"),
     [message, setMessage] = useState("");
   const [cardEditing, setCardEditing] = useState(false);
   const [restricting, setRestricting] = useState<Row | null>(null);
@@ -448,7 +453,7 @@ export function RequestsPage() {
       title: "Первый ответ до",
       key: "first_response_due_at", dataIndex: "first_response_due_at",
       render: (v) =>
-        v ? new Date(String(v)).toLocaleString("ru-RU") : "—",
+        v ? formatDateTime(v) : "—",
     },
   ];
   return (
@@ -545,11 +550,7 @@ export function RequestsPage() {
                   type={requestOverdue(r) ? "danger" : "secondary"}
                   title={requestOverdue(r) ? "Обращение просрочено" : "Дата и время подачи обращения"}
                 >
-                  {new Date(String(r.open_at ?? r.created_at)).toLocaleString("ru-RU", {
-                      timeZone: "Asia/Almaty",
-                      year: "numeric", month: "2-digit", day: "2-digit",
-                      hour: "2-digit", minute: "2-digit",
-                    })}
+                  {formatDateTime(r.open_at ?? r.created_at)}
                   {requestOverdue(r) && <span role="img" aria-label="Просрочено"> ⚠</span>}
                 </Typography.Text>
               )}
@@ -728,6 +729,7 @@ export function RequestsPage() {
                             method: "PATCH",
                             body: { expected_version: card.version, urgency },
                           });
+                          antMessage.success("Срочность обновлена");
                           await refresh();
                         } catch (e) {
                           setError(errorText(e));
@@ -751,6 +753,7 @@ export function RequestsPage() {
                               category_id: value,
                             },
                           });
+                          antMessage.success("Категория обновлена");
                           await refresh();
                         } catch (e) {
                           setError(errorText(e));
@@ -888,7 +891,7 @@ export function RequestsPage() {
                   >
                     <List.Item.Meta
                       title={`${m.channel === "internal" ? "Внутреннее · " : ""}${
-                        new Date(String(m.created_at)).toLocaleString("ru-RU")
+                        formatDateTime(m.created_at)
                       }`}
                       description={
                         <Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>
@@ -998,7 +1001,7 @@ export function RequestsPage() {
                         ? "Исправлено место или классификация"
                         : REQUEST_STATES[String(l.to_state)]}
                       {l.reason ? `: ${String(l.reason)}` : ""} ·{" "}
-                      {new Date(String(l.at)).toLocaleString("ru-RU")}
+                      {formatDateTime(l.at)}
                     </List.Item>
                   )}
                 />

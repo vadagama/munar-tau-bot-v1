@@ -12,6 +12,8 @@ import {
   Form,
   Input,
   InputNumber,
+  List,
+  Modal,
   Popconfirm,
   Select,
   Space,
@@ -77,6 +79,70 @@ const REGISTRATION_STATES: Record<string, string> = {
   rejected: "Отказано", disputed: "Спор", withdrawn: "Отозвана", none: "Нет анкеты",
 };
 const linkedPremises = (row: Row): Row[] => Array.isArray(row.linked_premises) ? row.linked_premises : [];
+
+// Каскадное необратимое удаление здания: подтверждение вводом обозначения
+// и явный список последствий — защита соответствует цене ошибки.
+function DeleteBuildingModal({ row, onClose, onDeleted }: {
+  row: Row;
+  onClose: () => void;
+  onDeleted: () => Promise<void> | void;
+}) {
+  const code = String(row.code ?? "").trim();
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ready = code !== "" && confirm.trim() === code;
+  return (
+    <Modal
+      open
+      title={`Удаление здания «${code || (row.name ?? "без названия")}»`}
+      okText="Удалить безвозвратно"
+      okButtonProps={{ danger: true, disabled: !ready, loading: busy }}
+      cancelText="Отмена"
+      onCancel={onClose}
+      onOk={async () => {
+        try {
+          setBusy(true);
+          setError(null);
+          await apiFetch(`/v1/registry/buildings/${row.id}`, { method: "DELETE" });
+          await onDeleted();
+          onClose();
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Не удалось удалить здание");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+        <Typography.Text>Удаление необратимо. Будут удалены:</Typography.Text>
+        <List
+          size="small"
+          dataSource={[
+            "Все помещения здания",
+            "Привязки жителей к помещениям",
+            "Приглашения и анкеты регистрации",
+          ]}
+          renderItem={(item) => <List.Item style={{ paddingBlock: 2 }}>{item}</List.Item>}
+        />
+        <Typography.Text type="secondary">
+          Обращения сохранятся без привязки к зданию. Удаление недоступно при активных аварийных сигналах.
+        </Typography.Text>
+        <Typography.Text>
+          Для подтверждения введите обозначение здания: <Typography.Text strong>{code}</Typography.Text>
+        </Typography.Text>
+        <Input
+          aria-label="Подтверждение удаления"
+          placeholder={code}
+          value={confirm}
+          onChange={(event) => setConfirm(event.target.value)}
+          autoComplete="off"
+        />
+        {error && <Alert type="error" showIcon message={error} />}
+      </Space>
+    </Modal>
+  );
+}
 const residentAddress = (row: Row): string => [...new Set(linkedPremises(row).map(p =>
   p.building_name && p.building_name !== p.building_code
     ? `${p.building_name} (${p.building_code})` : String(p.building_code ?? "—"),
@@ -92,6 +158,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
   const [editing, setEditing] = useState<Row | null | undefined>(undefined),
     [saving, setSaving] = useState(false),
     [deleting, setDeleting] = useState<string | null>(null),
+    [deleteBuilding, setDeleteBuilding] = useState<Row | null>(null),
     [buildings, setBuildings] = useState<Row[]>([]),
     [premises, setPremises] = useState<Row[]>([]),
     [persons, setPersons] = useState<Row[]>([]);
@@ -256,7 +323,12 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
               Восстановить Telegram
             </Button>
           )}
-          {canDelete && (
+          {canDelete && entity === "buildings" && (
+            <Button danger size="small" onClick={() => setDeleteBuilding(row)}>
+              Удалить
+            </Button>
+          )}
+          {canDelete && entity === "premises" && (
             <Popconfirm
               title="Удалить без возможности восстановления?"
               description={deleteHint}
@@ -349,6 +421,13 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
         pagination={{ pageSize: 20, showSizeChanger: true, ...(!users ? { current: page, onChange: setPage } : {}) }}
         locale={{ emptyText: rows.length ? "По выбранным условиям ничего не найдено" : "Записей пока нет" }}
       />
+      {deleteBuilding && (
+        <DeleteBuildingModal
+          row={deleteBuilding}
+          onClose={() => setDeleteBuilding(null)}
+          onDeleted={async () => { await load(); }}
+        />
+      )}
       <CardDrawer
         open={editing !== undefined || !!recovery}
         title={recovery ? "Восстановление Telegram" : `${editing ? "Изменить" : "Добавить"}: ${users === "staff" ? "Сотрудники" : LABELS[entity]}`}
