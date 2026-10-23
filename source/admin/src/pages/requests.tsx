@@ -609,8 +609,7 @@ export function RequestsPage() {
               <section aria-label="Действия по процессу">
                 {manage && stateName === "in_work" && !requestGuidance(card, manage, own).primary &&
                   <Button type="primary" href="#request-tasks">Проверить связанные задания</Button>}
-                <ProcessActions primary={requestGuidance(card, manage, own).primary} secondary={["ask_clarification", "return_result", "reject_cancel"]}
-                  showAll={manage && stateName === "reviewing" && !card.cancel_request}>
+                <ProcessActions primary={requestGuidance(card, manage, own).primary}>
                   {[...new Set(actions)].map((a) => (
                     <Button
                       key={a}
