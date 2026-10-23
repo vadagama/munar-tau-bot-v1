@@ -521,6 +521,54 @@ it("показывает инициатора, сортирует по имен�
     expect.objectContaining({ body: expect.objectContaining({ search: "Соколова", cursor: undefined }) })));
 });
 
+it("принятие на рассмотрение выполняется одним нажатием без панели подтверждения", async () => {
+  const row = setup(true);
+  row.state = "new";
+  row.author_person_id = "resident";
+  const original = vi.mocked(apiFetch).getMockImplementation()!;
+  let finish!: () => void;
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => {
+    if (path === "/v1/requests/r/transitions") {
+      await new Promise<void>(resolve => { finish = resolve; });
+      row.state = "reviewing";
+      row.version++;
+      return row;
+    }
+    return original(path, options);
+  });
+  render(<RequestsPage />);
+  fireEvent.click(await findButton("З-26-00001"));
+  const button = await findButton("Принять на рассмотрение");
+  fireEvent.click(button);
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/requests/r/transitions", expect.objectContaining({
+    method: "POST", body: expect.objectContaining({ action: "start_review", expected_version: 4 }),
+  })));
+  expect(screen.queryByRole("region", { name: "Принять на рассмотрение" })).not.toBeInTheDocument();
+  expect(button).toBeDisabled();
+  fireEvent.click(button);
+  expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path.endsWith("/transitions"))).toHaveLength(1);
+  await act(async () => { finish(); });
+  await waitFor(() => expect(button).not.toBeInTheDocument());
+  expect(screen.getAllByText("На рассмотрении").length).toBeGreaterThan(0);
+});
+
+it("ошибка прямого принятия остаётся в карточке и позволяет повторить действие", async () => {
+  const row = setup(true);
+  row.state = "new";
+  row.author_person_id = "resident";
+  const original = vi.mocked(apiFetch).getMockImplementation()!;
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => {
+    if (path === "/v1/requests/r/transitions") throw new Error("Не удалось принять обращение");
+    return original(path, options);
+  });
+  render(<RequestsPage />);
+  fireEvent.click(await findButton("З-26-00001"));
+  fireEvent.click(await findButton("Принять на рассмотрение"));
+  expect(await screen.findByText("Не удалось принять обращение")).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Принять на рассмотрение" })).not.toBeInTheDocument();
+  expect(await findButton("Принять на рассмотрение")).toBeEnabled();
+});
+
 it.each(["request", "question"])("на рассмотрении %s: пять действий видны сразу в согласованном порядке", async kind => {
   const row = setup(true);
   row.state = "reviewing";

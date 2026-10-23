@@ -260,15 +260,16 @@ export function RequestsPage() {
   const own = card?.author_person_id === identity?.me.person.id &&
     card?.can_act_as_author !== false;
   const manage = card?.can_manage === true;
-  const perform = async () => {
-    if (!card || !action) return;
+  const perform = async (directAction?: "start_review") => {
+    const nextAction = directAction ?? action;
+    if (!card || !nextAction || saving || fileBusy || (directAction && cardEditing)) return;
     try {
-      const values = await actionForm.validateFields();
+      const values = directAction ? {} : await actionForm.validateFields();
       setSaving(true);
       setError(null);
       const payload = {
         ...values,
-        ...(action === "reject" && card.work_started_at
+        ...(nextAction === "reject" && card.work_started_at
           ? { stop_resolution: values.reason }
           : {}),
         confirmation_version: card.confirmation_version,
@@ -280,7 +281,7 @@ export function RequestsPage() {
           ? new Date(values.next_action_at).toISOString()
           : undefined,
       };
-      if (action === "start_work") {
+      if (nextAction === "start_work") {
         await apiFetch(`/v1/requests/${card.id}/start-work`, {
           method: "POST",
           body: { expected_version: card.version, plan: values.plan,
@@ -291,12 +292,12 @@ export function RequestsPage() {
       } else await apiFetch(`/v1/requests/${card.id}/transitions`, {
         method: "POST",
         body: {
-          action,
+          action: nextAction,
           expected_version: card.version,
-          reason: action === "ask_clarification" ? values.question : values.reason,
+          reason: nextAction === "ask_clarification" ? values.question : values.reason,
           payload,
         },
-        idempotencyKey: action === "submit"
+        idempotencyKey: nextAction === "submit"
           ? `submit:${card.id}:${card.version}`
           : undefined,
       });
@@ -609,13 +610,18 @@ export function RequestsPage() {
               <section aria-label="Действия по процессу">
                 {manage && stateName === "in_work" && !requestGuidance(card, manage, own).primary &&
                   <Button type="primary" href="#request-tasks">Проверить связанные задания</Button>}
-                <ProcessActions primary={requestGuidance(card, manage, own).primary} secondary={["ask_clarification", "return_result", "reject_cancel"]}
-                  showAll={manage && stateName === "reviewing" && !card.cancel_request}>
+                <ProcessActions primary={requestGuidance(card, manage, own).primary}>
                   {[...new Set(actions)].map((a) => (
                     <Button
                       key={a}
                       icon={REQUEST_ACTION_ICONS[a]}
+                      disabled={saving || fileBusy || cardEditing}
+                      loading={saving && a === "start_review"}
                       onClick={() => {
+                        if (a === "start_review") {
+                          void perform("start_review");
+                          return;
+                        }
                         actionForm.resetFields();
                         if (a === "start_work") {
                           startWorkKey.current = crypto.randomUUID();
