@@ -502,12 +502,13 @@ export async function reviewRegistration(
           );
         if (!existing.length)
           await exec.query(
-            "insert into profile(person_id,telegram_user_id,language,is_test) values ($1,$2,$3,$4)",
+            "insert into profile(person_id,telegram_user_id,language,is_test,telegram_username) values ($1,$2,$3,$4,$5)",
             [
               personId,
               row.telegram_user_id,
               draft.language,
               actor.person.isTest,
+              row.telegram_username ?? null,
             ],
           );
       }
@@ -966,8 +967,8 @@ export async function recoverTelegram(
     );
     const draft = jsonValue<Row>(registration.draft);
     const [profile] = await exec.query<Row>(
-      "insert into profile(person_id,telegram_user_id,language,is_test) values ($1,$2,$3,$4) returning id",
-      [personId, registration.telegram_user_id, draft.language, person.is_test],
+      "insert into profile(person_id,telegram_user_id,language,is_test,telegram_username) values ($1,$2,$3,$4,$5) returning id",
+      [personId, registration.telegram_user_id, draft.language, person.is_test, registration.telegram_username ?? null],
     );
     await exec.query(
       "update registration set person_id=$2,state='approved',checker_id=$3,decided_at=now(),decided_reason=$4 where id=$1",
