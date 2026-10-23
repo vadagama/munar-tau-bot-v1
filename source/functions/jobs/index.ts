@@ -1,3 +1,4 @@
+import { processReportExports } from "../../core/src/domains/reports/jobs.ts";
 import { captureReportKpi } from "../../core/src/domains/reports/history.ts";
 import { reconcileInitiativeSupport } from "../../core/src/domains/initiatives/reconcile.ts";
 import { reconcileOpenPolls } from "../../core/src/domains/polls/reconcile.ts";
@@ -172,6 +173,8 @@ export async function handle(
           (await reconcileOpenPolls(actual,backgroundDeadline)) +
           (await reconcileInitiativeSupport(actual,backgroundDeadline)) +
           (await captureReportKpi(actual.db,backgroundDeadline)) +
+          (!deps && env("SUPABASE_URL") && env("SUPABASE_SERVICE_ROLE_KEY")
+            ? await processReportExports(actual,new SupabaseFileStorage(requireEnv(env,"SUPABASE_URL"),requireEnv(env,"SUPABASE_SERVICE_ROLE_KEY")),backgroundDeadline) : 0) +
           (await sweepDocumentObligations(actual,backgroundDeadline)) +
           (await reopenFinancialObligations(actual,backgroundDeadline)) +
           (await sweepFinancialObligations(actual,backgroundDeadline)) +

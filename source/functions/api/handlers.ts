@@ -1,3 +1,4 @@
+import { REPORT_ROUTES } from "./report-handlers.ts";
 import { INITIATIVE_ROUTES } from "./initiative-handlers.ts";
 import { POLL_ROUTES } from "./poll-handlers.ts";
 import { canManageStaff, canManageRole } from "../../core/src/pdp/roles.ts";
@@ -536,6 +537,7 @@ export const ROUTES: readonly Route[] = [
   ...DOCUMENT_ROUTES,
   ...POLL_ROUTES,
   ...INITIATIVE_ROUTES,
+  ...REPORT_ROUTES,
   ...STAFF_ROUTES,
   ...NOTIFICATION_ROUTES,
   ...TEMPLATE_ROUTES,
