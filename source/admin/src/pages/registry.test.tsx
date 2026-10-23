@@ -292,3 +292,28 @@ it("привязки ищутся по телефону, зданию и ФИО 
   fireEvent.click(await screen.findByText("Арендатор", {selector:".ant-select-item-option-content"}));
   expect(screen.getByText("По выбранным условиям ничего не найдено")).toBeVisible();
 });
+
+it("привязки: «Отвязать» прекращает действующую связь с обязательной причиной", async () => {
+  const connection = {id:"c1",person_id:"n1",full_name:"Иван Петров",building_id:"b1",building_code:"107/1",kind:"apartment",number:"12",role:"owner",status:"active",basis:"ownership"};
+  vi.mocked(apiFetch).mockImplementation(async path => ({items: path.endsWith("/buildings")
+    ? [{id:"b1",code:"107/1",construction_phase:1}]
+    : path.endsWith("/persons") ? [{id:"n1",full_name:"Иван Петров",phone_e164:"+77011112233"}]
+    : path.endsWith("/connections") ? [connection,
+        {...connection, id:"c2", full_name:"Пётр Иванов", status:"revoked"}] : []}));
+  render(<RegistryPage section="connections" />);
+  expect(await screen.findByText("Иван Петров", {selector:"td"})).toBeVisible();
+  // Прекращённую связь не меняют — кнопка только у действующей.
+  expect(screen.getAllByRole("button", {name:"Отвязать"})).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", {name:"Отвязать"}));
+  const dialog = screen.getByRole("dialog");
+  // Для собственника предупреждение о зависимых связях.
+  expect(within(dialog).getByText(/подтверждённые этим собственником/)).toBeInTheDocument();
+  // Без причины отправка невозможна.
+  fireEvent.click(within(dialog).getByRole("button", {name:"Отвязать"}));
+  expect(vi.mocked(apiFetch).mock.calls.some(([,opts]) => opts?.method === "PATCH")).toBe(false);
+  fireEvent.change(within(dialog).getByLabelText("Причина отвязки"), {target:{value:"Продал квартиру"}});
+  fireEvent.click(within(dialog).getByRole("button", {name:"Отвязать"}));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  const call = vi.mocked(apiFetch).mock.calls.find(([path]) => path === "/v1/registry/connections/c1");
+  expect(call?.[1]).toMatchObject({method:"PATCH", body:{status:"revoked", revoked_reason:"Продал квартиру"}});
+});
