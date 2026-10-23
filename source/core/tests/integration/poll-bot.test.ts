@@ -1,0 +1,54 @@
+import { expect, it } from "vitest";
+import { describeWithDb } from "./with-db.ts";
+import { SEED } from "./helpers.ts";
+import { actorForPerson } from "../../src/domains/documents/service.ts";
+import { SqlAuditRepo } from "../../src/domains/audit/repo.ts";
+import { SqlAdminRepo } from "../../src/domains/admin/repo.ts";
+import { SqlEmulationRepo } from "../../src/domains/emulation/repo.ts";
+import { startEmulation, resolveEffectiveActor, simulate } from "../../src/domains/emulation/service.ts";
+import { botScenarios } from "../../src/bot/scenarios.ts";
+import { getPoll } from "../../src/domains/polls/service.ts";
+
+describeWithDb("POL общий сценарий симулятора", getDb => {
+  it("ru/kk: одна личность с двумя помещениями, исключение и повторное участие, старый сеанс и приватный аудит", async () => {
+    const db = getDb(), audit = new SqlAuditRepo(), deps = { db, audit };
+    const emulation = { admin: new SqlAdminRepo(), emulation: new SqlEmulationRepo(), audit, tx: db, scenarios: botScenarios(deps) };
+    const tech = await actorForPerson(db, SEED.techAdminPersonId, false);
+    const resident = await actorForPerson(db, SEED.testExecutorPersonId, true);
+    const premises = await db.query<{id:string}>("insert into premises(building_id,kind,number,is_test) values($1,'apartment','POL-bot-1',true),($1,'apartment','POL-bot-2',true) returning id", [SEED.building1]);
+    await db.query("insert into connection(person_id,premises_id,role,basis,status) select $1,id,'resident','family','active' from premises where id=any($2::uuid[])", [resident.person.id,premises.map(p=>p.id)]);
+    const [poll] = await db.query<{id:string}>(`insert into poll(question,options,building_ids,closes_at,is_test,created_by)
+      values('<b>Встреча</b>','[{"key":"private_sat","label":"Суббота"},{"key":"private_sun","label":"Воскресенье"}]',array[$1::uuid],clock_timestamp()+interval '1 hour',true,$2) returning id`, [SEED.building1,SEED.testAdminPersonId]);
+    const id=poll!.id;
+    await db.query("update poll set state='open',opened_at=clock_timestamp(),version=version+1 where id=$1",[id]);
+    await startEmulation(emulation,tech,{emulatedProfileId:resident.profile.id},new Date());
+    let activeActor = await resolveEffectiveActor(emulation,db,tech,new Date());
+    const step = async (text:string) => simulate(emulation,activeActor,{scenarioId:"registration",text});
+    const first=await step(`/start poll_${id}`);
+    expect(first.scenarioId).toBe("polls");expect(first.reply).toContain("&lt;b&gt;Встреча&lt;/b&gt;");
+    const command=first.buttons!.flat().find(b=>b.text==="Суббота")!.data;
+    expect((await step(command)).reply).toContain("Ваш ответ: Суббота");
+    await expect(step(command)).rejects.toMatchObject({code:"CONCURRENT_MODIFICATION"});
+    await db.query("update connection set status='revoked' where person_id=$1 and premises_id=$2",[resident.person.id,premises[0]!.id]);
+    expect((await getPoll(deps,activeActor,id)).own_answer?.included).toBe(true);
+    await db.query("update connection set status='revoked' where person_id=$1",[resident.person.id]);
+    const excluded=await step(`/poll ${id}`);
+    expect(excluded.reply).toContain("исключён");expect(excluded.buttons!.flat().some(b=>b.data.startsWith("/pc "))).toBe(false);
+    await db.query("update connection set status='active' where person_id=$1 and premises_id=$2",[resident.person.id,premises[1]!.id]);
+    await db.query("update profile set language='kk' where id=$1",[resident.profile.id]);
+    activeActor=await resolveEffectiveActor(emulation,db,tech,new Date());
+    const restored=await step(`/poll ${id}`);
+    expect(restored.reply).toContain("есептен шығарылды");
+    const changed=await step(restored.buttons!.flat().find(b=>b.text==="Воскресенье")!.data);
+    expect(changed.reply).toContain("Жауабыңыз: Воскресенье");
+    const answer=await db.query<{version:number}>("select version from poll_answer where poll_id=$1",[id]);
+    expect(answer).toEqual([{version:2}]);
+    const old=changed.buttons!.flat().find(b=>b.text==="Суббота")!.data;
+    await startEmulation(emulation,tech,{emulatedProfileId:resident.profile.id},new Date());
+    activeActor=await resolveEffectiveActor(emulation,db,tech,new Date());
+    await expect(step(old)).rejects.toMatchObject({code:"CONCURRENT_MODIFICATION"});
+    const logs=await db.query("select meta,before,after from audit_log where action like 'poll.%' or action='emulation.simulate'");
+    const json=JSON.stringify(logs);expect(json).not.toContain("private_sat");expect(json).not.toContain("private_sun");expect(json).not.toContain("Суббота");
+    expect(await db.query("select id from notification where channel='telegram'")).toHaveLength(0);
+  },240000);
+});

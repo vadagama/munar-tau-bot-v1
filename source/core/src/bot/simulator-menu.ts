@@ -6,6 +6,7 @@ import type { TemplateStore } from "../templates/store.ts";
 /** Меню Telegram с явным сценарием для транспорта симулятора. */
 export function withSimulatorMenu(reply: BotReply, scenario: string, lang: Lang, templates: TemplateStore): BotReply {
   const scenarios: Record<string, string> = {
+    "/polls": "polls",
     "/documents": "documents",
     "/newrequest": "requests", "/requests": "requests", "/objects": "registration",
     "/staffrequests":"staff-requests", "/add": "registration", "/notifications": "notifications", "/tasks": "tasks",

@@ -130,3 +130,12 @@ it("ссылка дома выбирает его в сценарии регис
  await waitFor(()=>expect(apiFetch).toHaveBeenLastCalledWith('/v1/emulation/simulate',{method:'POST',body:{scenario:'registration',input:`/start ${payload}`}}));
  expect(await screen.findByText('Тип помещения')).toBeInTheDocument();
 });
+it("переходит в опросы и отправляет точную кнопку личного ответа",async()=>{
+  vi.mocked(apiFetch).mockResolvedValueOnce({scenario_id:"polls",reply:"Информационный опрос",buttons:[[{text:"Суббота",data:"/pc nonce 0"}]]}).mockResolvedValueOnce({scenario_id:"polls",reply:"Ваш ответ сохранён"});
+  render(<RegistrationSimulator active/>);
+  fireEvent.change(screen.getByRole("textbox",{name:"Сообщение симулятору"}),{target:{value:"/polls"}});
+  fireEvent.click(screen.getByRole("button",{name:"Отправить шаг"}));
+  fireEvent.click(await screen.findByRole("button",{name:"Суббота"}));
+  await waitFor(()=>expect(apiFetch).toHaveBeenLastCalledWith("/v1/emulation/simulate",{method:"POST",body:{scenario:"polls",input:"/pc nonce 0"}}));
+  expect(await screen.findByText("Ваш ответ сохранён")).toBeInTheDocument();
+});

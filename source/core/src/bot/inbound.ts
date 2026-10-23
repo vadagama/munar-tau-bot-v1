@@ -1,5 +1,6 @@
 import { lockAudience } from "../domains/registry/audience-lock.ts";
 import { navigationReply } from "./navigation.ts";
+import { POLL_COMMANDS, pollStep } from "./polls.ts";
 import { DOCUMENT_COMMANDS, documentStep, queueDocumentFile } from "./documents.ts";
 import { STAFF_REQUEST_COMMANDS, staffRequestStep } from "./staff-requests.ts";
 import { readDialog, saveDialog } from "./dialog.ts";
@@ -44,6 +45,7 @@ async function routeStep(
   updateId: unknown,
 ): Promise<BotReply> {
   if (message.photo || message.document || message.video) {
+    if (state.scenario === "polls") return pollStep(deps, telegramId, "");
     if (state.scenario === "documents") return queueDocumentFile(deps, telegramId, message);
     return queueRequestFile(deps, telegramId, message, updateId, bot);
   }
@@ -57,6 +59,8 @@ async function routeStep(
   const startPayload = command === "/start"
     ? text.trim().split(/\s+/)[1]
     : undefined;
+  if (startPayload?.startsWith("poll_")) return pollStep(deps, telegramId, `/poll ${startPayload.slice(5)}`);
+  if (POLL_COMMANDS.includes(command) || (state.scenario === "polls" && !isCommand)) return pollStep(deps, telegramId, text);
   if (startPayload?.startsWith("doc_")) return documentStep(deps, telegramId, `/doc ${startPayload.slice(4)}`);
   if (DOCUMENT_COMMANDS.includes(command) || (state.scenario === "documents" && !isCommand)) return documentStep(deps, telegramId, text);
   if (startPayload?.startsWith("req_") && bot === "resident") {

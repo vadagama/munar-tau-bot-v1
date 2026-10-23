@@ -1,3 +1,4 @@
+import { POLL_COMMANDS } from "../../bot/polls.ts";
 import { lockAudience } from "../registry/audience-lock.ts";
 import { STAFF_REQUEST_COMMANDS } from "../../bot/staff-requests.ts";
 import { DOCUMENT_COMMANDS } from "../../bot/documents.ts";
@@ -284,6 +285,7 @@ export async function simulate(
   if(input.bot && !['resident','worker'].includes(input.bot))throw new ApiError('VALIDATION_FAILED');
   const bot=['tasks','staff-requests'].includes(selectedScenario)?'worker':['registration','requests'].includes(selectedScenario)?'resident':input.bot==='worker'?'worker':'resident';
   const scenarioId = !command.startsWith("/") ? selectedScenario
+    : POLL_COMMANDS.includes(command) || (command === "/start" && /(?:^|\s)poll_/.test(input.text ?? "")) ? "polls"
     : DOCUMENT_COMMANDS.includes(command) || (command === "/start" && /(?:^|\s)doc_/.test(input.text ?? "")) ? "documents"
     : STAFF_REQUEST_COMMANDS.includes(command) || (command==="/start" && /(?:sreq_|stsk_)/.test(input.text??"")) ? "staff-requests"
     : bot==="worker" && TASK_COMMANDS.includes(command) ? "tasks"

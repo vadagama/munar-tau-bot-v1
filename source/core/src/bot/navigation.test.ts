@@ -10,7 +10,7 @@ it.each(["/start", "Старт"])("главное меню жителя откр
   expect(reply.buttons?.map(row => row.map(button => button.data))).toEqual([
     ["/status", "/register", "/help"], ["/objects", "/add"],
     ["/requests", "/newrequest"], ["/invite", "/accesses"],
-    ["/incidents", "/publications"], ["/documents", "/financial"], ["/emergency", "/notifications"],
+    ["/incidents", "/publications"], ["/documents", "/financial"], ["/polls"], ["/emergency", "/notifications"],
     ["/pending"], ["/cancel"],
   ]);
 });

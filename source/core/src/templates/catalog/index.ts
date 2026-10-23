@@ -1,4 +1,4 @@
-import { pollTemplates } from "./polls.ts";
+import { pollTemplates, pollDialogTemplates } from "./polls.ts";
 import { botUiTemplates } from "./bot-ui.ts";
 import { documentTemplates } from "./documents.ts";
 import { financialTemplates } from "./financial.ts";
@@ -28,6 +28,7 @@ const legacyCatalog: readonly TemplateDef[] = [
   ...financialTemplates,
   ...financialPublicationTemplates,
   ...pollTemplates,
+  ...pollDialogTemplates,
   ...staffTemplates,
   ...errors,
   ...commonTemplates,
