@@ -140,6 +140,10 @@ function def(
       ? "1. <b>Алия Омарова</b>, +77001234567; Квартира 4"
       : key.endsWith("fix_select")
       ? "1. <b>Нужно уточнение</b> — Уточните имя"
+      : key === "message.registration.status"
+      ? "<b>Ожидает проверки</b>: Алия Омарова, Квартира 1/4, Собственник"
+      : key === "message.registration.status_history"
+      ? "22.10.2026 18:30 — <b>Отказано</b>: Алия Омарова, Квартира 1/4, Собственник — Неправильный номер"
       : "1. <b>Ожидает проверки</b>: Алия Омарова, Квартира 1/4, Собственник";
   }
   if ("tasks" in sample) {
@@ -157,6 +161,10 @@ function def(
       ? "1. <b>Алия Омарова</b>, +77001234567; Пәтер 4"
       : key.endsWith("fix_select")
       ? "1. <b>Нақтылау қажет</b> — Атыңызды нақтылаңыз"
+      : key === "message.registration.status"
+      ? "<b>Тексерілуде</b>: Алия Омарова, Пәтер 1/4, Меншік иесі"
+      : key === "message.registration.status_history"
+      ? "22.10.2026 18:30 — <b>Бас тартылды</b>: Алия Омарова, Пәтер 1/4, Меншік иесі — Дұрыс емес нөмір"
       : "1. <b>Тексерілуде</b>: Алия Омарова, Пәтер 1/4, Меншік иесі";
   }
   if ("tasks" in sampleKk) {
@@ -253,6 +261,16 @@ const defs: TemplateDef[] = [
         ? "Өтінім күйі:\n{registrations}"
         : "Статус анкеты:\n{registrations}",
     [{ id: "edit", ru: "Исправить анкету", kk: "Өтінімді түзету" }, { id: "delete", ru: "Удалить анкету", kk: "Өтінімді жою" }],
+  ),
+  def(
+    "message.registration.status_history",
+    "История изменений статуса анкеты",
+    "/status",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Өтінім күйінің өзгеру тарихы:\n{registrations}"
+        : "История изменений статуса:\n{registrations}",
   ),
   def(
     "message.registration.pending",
