@@ -11,6 +11,8 @@ import { checkedDocumentVersions } from "../../src/domains/documents/provider.ts
 import { checkFinancialRelease } from "../../src/domains/publications/financial-store.ts";
 import { publishScheduled } from "../../src/domains/publications/jobs.ts";
 import { fanoutBroadcasts } from "../../src/domains/incidents/broadcast.ts";
+import { recordFinancialPlacement } from "../../src/domains/publications/financial-placements.ts";
+import { reopenFinancialObligations } from "../../src/domains/publications/financial-jobs.ts";
 
 /** Только проверка ограничений схемы; бизнес-разрешение проверяет сервис FIN. */
 async function schemaFixture(db: DbClient) {
@@ -56,6 +58,51 @@ async function businessFixture(db: DbClient) {
 }
 
 describeWithDb("FIN-01…04: изоляция и неизменяемость версии комплекта", getDb => {
+  it("закрывает обязанность только доказательством размещения текущей выпущенной версии", async () => {
+    const db = getDb(), { s, chairman, input, deps } = await businessFixture(db);
+    let row = await savePublication(deps, chairman, s.publicationId, { ...input, expected_version: 1, title: "Отчёт", body: "Период", kind: "financial_report", requires_document: true, building_ids: [SEED.building1] }, "placement-save");
+    for (const action of ["submit_approval", "approve", "publish"]) row = await transitionPublication(deps, chairman, s.publicationId, { action, expected_version: row.version, reason: "Тест размещений", approval_note: "Основания проверены" }, `placement-${action}`);
+    const [before] = await db.query<{ version: number; due_at: string }>("select version,due_at from financial_obligation where id=$1", [input.obligation_id]);
+    const placement = { financial_version_id: row.financial_version_id, channel: "bot", placed_at: "2026-10-22T10:00:00Z", evidence: "Проверена карточка и архив", reason: "Ручная проверка", expected_version: before!.version };
+    await expect(recordFinancialPlacement(deps, chairman, input.obligation_id, { ...placement, channel: "unknown" }, "placement-unknown")).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    const done = await recordFinancialPlacement(deps, chairman, input.obligation_id, placement, "placement-proof");
+    expect(done.completed_at).toBeTruthy();
+    expect(done.due_at).toEqual(before!.due_at);
+    expect((await recordFinancialPlacement(deps, chairman, input.obligation_id, placement, "placement-proof")).id).toBe(done.id);
+    const [newFile] = await db.query<{ id: string }>(`insert into attachment(owner_type,owner_id,bucket,storage_path,filename,size_bytes,mime,status,uploaded_by)
+      select a.owner_type,a.owner_id,a.bucket,$2,a.filename,a.size_bytes,a.mime,a.status,a.uploaded_by from attachment a
+      join document_version v on v.attachment_id=a.id where v.id=$1 returning id`, [s.versions[1], crypto.randomUUID()]);
+    const [newBasis] = await db.query<{ id: string }>(`insert into document_version(document_id,version,attachment_id,prepared_by)
+      select document_id,2,$2,prepared_by from document_version where id=$1 returning id`, [s.versions[1], newFile!.id]);
+    await db.query("update document_version set state='on_review' where id=$1", [newBasis!.id]);
+    await db.query("update document_version set state='approved',reviewed_by=$2,reviewed_at=now() where id=$1", [newBasis!.id, chairman.person.id]);
+    const correction = await savePublication(deps, chairman, s.publicationId, { ...input, basis_versions: [{ code: "council", document_version_id: newBasis!.id }], expected_version: row.version, title: "Исправленный отчёт", body: "Период", kind: "financial_report", requires_document: true, building_ids: [SEED.building1], correction_note: "Поправка" }, "placement-correction");
+    const [opened] = await db.query<{ version: number; completed_at: string | null }>("select version,completed_at from financial_obligation where id=$1", [input.obligation_id]);
+    expect(opened!.completed_at).toBeNull();
+    const historical = await recordFinancialPlacement(deps, chairman, input.obligation_id, { ...placement, expected_version: opened!.version }, "placement-history");
+    expect(historical.completed_at).toBeNull();
+    expect(correction.financial_version_id).not.toBe(placement.financial_version_id);
+    expect(await db.query("select id from financial_placement where obligation_id=$1", [input.obligation_id])).toHaveLength(2);
+    row = correction;
+    for (const action of ["submit_approval", "approve", "publish"]) row = await transitionPublication(deps, chairman, s.publicationId, { action, expected_version: row.version, reason: "Исправленный выпуск", approval_note: "Новое основание проверено" }, `placement-correction-${action}`);
+    const [current] = await db.query<{ version: number }>("select version from financial_obligation where id=$1", [input.obligation_id]);
+    const corrected = await recordFinancialPlacement(deps, chairman, input.obligation_id, { ...placement, financial_version_id: row.financial_version_id, expected_version: current!.version }, "placement-current");
+    expect(corrected.completed_at).toBeTruthy();
+    await db.query("update document_version set state='needs_fix' where id=$1", [s.versions[1]]);
+    const oldProof = await recordFinancialPlacement(deps, chairman, input.obligation_id, { ...placement, expected_version: corrected.version }, "placement-old-needs-fix");
+    expect(oldProof.completed_at).toEqual(corrected.completed_at);
+    expect(oldProof.due_at).toEqual(before!.due_at);
+    expect(await reopenFinancialObligations(deps)).toBe(0);
+    await db.query("update document_version set state='needs_fix' where id=$1", [newBasis!.id]);
+    expect(await reopenFinancialObligations(deps)).toBe(1);
+    expect(await reopenFinancialObligations(deps)).toBe(0);
+    const [reopened] = await db.query<{ version: number; completed_at: string | null; due_at: string }>("select version,completed_at,due_at from financial_obligation where id=$1", [input.obligation_id]);
+    expect(reopened!.completed_at).toBeNull();
+    expect(reopened!.due_at).toEqual(before!.due_at);
+    expect(await db.query("select id from financial_issue where financial_version_id=$1", [row.financial_version_id])).toHaveLength(1);
+    const invalidProof = await recordFinancialPlacement(deps, chairman, input.obligation_id, { ...placement, financial_version_id: row.financial_version_id, expected_version: reopened!.version }, "placement-unfit-current");
+    expect(invalidProof.completed_at).toBeNull();
+  }, 600_000);
   it("одновременные разрешение и замена комплекта сохраняют одно решение и один конфликт", async () => {
     const db = getDb(), { s, chairman, input, deps } = await businessFixture(db);
     const values = { ...input, expected_version: 1, title: "Отчёт", body: "Период", kind: "financial_report", requires_document: true, building_ids: [SEED.building1] };

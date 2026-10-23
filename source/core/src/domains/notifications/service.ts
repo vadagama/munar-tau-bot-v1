@@ -4,6 +4,7 @@ import { btn, inlineMarkup } from "../../bot/keyboard.ts";
 import { type NoticeText, renderNotice } from "../../templates/notice.ts";
 import { loadTemplateStore } from "../../templates/store.ts";
 import { financialOwnerBuildings, publicFinancialHeads } from "../publications/financial-access.ts";
+import { financialScope } from "../publications/financial-rules.ts";
 import { requireIncident } from "../incidents/access.ts";
 import { audienceMember, type AudienceScope } from "../incidents/audience.ts";
 import { requireTask } from "../tasks/access.ts";
@@ -22,6 +23,7 @@ import { deliveryMode, type EventType, type PreferenceMode } from "./policy.ts";
 import type { BotKind } from "../../bot/bots.ts";
 
 export interface NoticeOptions {
+  financialObligationId?: string;
   documentId?: string;
   scope?: AudienceScope[];
   incidentId?: string;
@@ -85,6 +87,13 @@ export async function noticeAllowed(
 ): Promise<boolean> {
   if (notice.isTest !== undefined && notice.isTest !== actor.person.isTest) {
     return false;
+  }
+  if (notice.financialObligationId) {
+    const [duty] = await exec.query<{ building_ids: string[]; is_test: boolean; completed_at: string | null; prepared_by: string; reviewer_id: string; publisher_id: string }>(
+      "select building_ids,is_test,completed_at,prepared_by,reviewer_id,publisher_id from financial_obligation where id=$1", [notice.financialObligationId]);
+    if (!duty || duty.completed_at || !financialScope(actor, duty.building_ids, duty.is_test)) return false;
+    if (![duty.prepared_by, duty.reviewer_id, duty.publisher_id].includes(actor.person.id) &&
+      !can(actor, "publication.approve", { publicationAccess: { buildingIds: duty.building_ids, isTest: duty.is_test, published: false, member: false } }).allow) return false;
   }
   if (notice.documentId) {
     try { await requireDocument(exec, actor, notice.documentId); }
@@ -342,6 +351,7 @@ export async function dispatchNotices(
                   scope: n.scope,
                   publicationId: n.publicationId,
                   documentId: n.documentId,
+                  financialObligationId: n.financialObligationId,
                 }),
                 n.bot ?? null,
               ],
@@ -417,6 +427,7 @@ export async function dispatchNotices(
                     signalId: n.signalId,
                     publicationId: n.publicationId,
                     documentId: n.documentId,
+                    financialObligationId: n.financialObligationId,
                   }),
                   type === "staff.roles" || (n.important ?? type === "request.required"),
                   type === "incident" ? 0 : 1,

@@ -1,5 +1,6 @@
 import { botUiTemplates } from "./bot-ui.ts";
 import { documentTemplates } from "./documents.ts";
+import { financialTemplates } from "./financial.ts";
 import { documentDialogTemplates } from "./document-dialogs.ts";
 import { staffRequestTemplates } from "./staff-requests.ts";
 import { staffTemplates } from "./staff.ts";
@@ -21,6 +22,7 @@ import { errors } from "./errors.ts";
 import type { TemplateDef } from "./types.ts";
 const legacyCatalog: readonly TemplateDef[] = [
   ...documentTemplates,
+  ...financialTemplates,
   ...staffTemplates,
   ...errors,
   ...commonTemplates,

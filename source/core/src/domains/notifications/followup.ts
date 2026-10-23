@@ -1,5 +1,6 @@
 import { requireTask } from "../tasks/access.ts";
 import { requireDocument } from "../documents/access.ts";
+import { requireFinancialObligation } from "../publications/financial-obligations.ts";
 import { registryScope } from "../registry/access.ts";
 import type { Actor } from "../../pdp/types.ts";
 import { can } from "../../pdp/evaluate.ts";
@@ -13,7 +14,11 @@ async function failureAllowed(exec: DbExecutor, actor: Actor, n: Row) {
     !can(actor, "notification.failures").allow ||
     actor.person.isTest !== n.is_test
   ) return false;
-  const ref = jsonValue<{ documentId?: string }>(n.event_ref);
+  const ref = jsonValue<{ documentId?: string; financialObligationId?: string }>(n.event_ref);
+  if (ref.financialObligationId) {
+    try { await requireFinancialObligation(exec, actor, ref.financialObligationId, true); return true; }
+    catch (error) { if (error instanceof ApiError && ["FORBIDDEN", "NOT_FOUND"].includes(error.code)) return false; throw error; }
+  }
   if (ref.documentId) {
     try { await requireDocument(exec, actor, ref.documentId, "document.manage"); return true; }
     catch (error) { if (error instanceof ApiError && ["FORBIDDEN", "NOT_FOUND"].includes(error.code)) return false; throw error; }
