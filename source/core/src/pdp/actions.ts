@@ -6,7 +6,7 @@ import { STAFF_ROLES, type SpecialRights, type StaffRole } from "./types.ts";
 
 export type ActionKey =
   | "moderation.read" | "moderation.appeal" | "moderation.resolve"
-  | "initiative.use" | "initiative.create" | "initiative.read" | "initiative.manage" | "initiative.support" | "initiative.comment" | "initiative.moderate"
+  | "initiative.attach" | "initiative.use" | "initiative.create" | "initiative.read" | "initiative.manage" | "initiative.support" | "initiative.comment" | "initiative.moderate"
   | "poll.use" | "poll.read" | "poll.manage" | "poll.answer" | "poll.results"
   | "document.use" | "document.read" | "document.prepare" | "document.review" | "document.manage" | "document.obligations"
   | "staff.read" | "staff.edit"
@@ -67,6 +67,7 @@ export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
   "moderation.read": {privileged:false},
   "moderation.appeal": {privileged:false},
   "moderation.resolve": {privileged:false},
+  "initiative.attach": { privileged: false },
   "initiative.use": { privileged: false },
   "initiative.create": { privileged: false },
   "initiative.read": { privileged: false },

@@ -11,7 +11,7 @@ function context(deps:unknown,actor:unknown,body:Record<string,unknown>,value=id
 }
 function handler(method:string,path:string) {return INITIATIVE_ROUTES.find(r=>r.method===method&&r.path===path)!.handler;}
 Deno.test("IDEA/MOD: маршруты эффективной персоны, оригиналы не редактируются",()=>{
- assertEquals(INITIATIVE_ROUTES.length,18);
+ assertEquals(INITIATIVE_ROUTES.length,20);
  for(const r of INITIATIVE_ROUTES){assertEquals(r.action,"initiative.use");assertEquals(r.evaluateAs,"effective");assertEquals(matchRoute(r.method,r.path.replace(":id",id))?.route.path,r.path);}
  assertEquals(matchRoute("PATCH",`/v1/initiative-comments/${commentId}`),null);assertEquals(matchRoute("DELETE",`/v1/initiatives/${id}`),null);
 });

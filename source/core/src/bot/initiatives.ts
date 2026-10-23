@@ -1,3 +1,5 @@
+import { listInitiativePhotos,discardInitiativePhoto } from "../domains/initiatives/files.ts";
+import { fileUrl } from "../domains/requests/files.ts";
 import { ApiError } from "../errors/api.ts";
 import type { Actor } from "../pdp/types.ts";
 import type { RegistryDeps } from "../domains/registry/service.ts";
@@ -10,10 +12,10 @@ import { appealModerationAction } from "../domains/initiatives/moderation.ts";
 import { actorForTelegram } from "./registration.ts";
 import { loadDialog,saveDialog } from "./dialog.ts";
 import { btn,type BotReply,type InlineButton } from "./keyboard.ts";
-import { fmtDate } from "./text.ts";
-import { message,messageButton } from "../templates/message.ts";
+import { esc,fmtDate } from "./text.ts";
+import { message,messageButton,safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
-export const INITIATIVE_COMMANDS=["/initiatives","/initiative","/inew","/ia","/ic","/im","/imods"];
+export const INITIATIVE_COMMANDS=["/ip","/if","/initiatives","/initiative","/inew","/ia","/ic","/im","/imods"];
 const nonce=()=>crypto.randomUUID().replaceAll("-","").slice(0,16);
 function uuid(value:string|undefined):string {if(!value||!/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(value))throw new ApiError("VALIDATION_FAILED");return value.toLowerCase();}
 function offset(value:string|undefined,maximum=100000){const n=Number(value??0);if(!Number.isSafeInteger(n)||n<0||n>maximum)throw new ApiError("VALIDATION_FAILED");return n;}
@@ -53,8 +55,22 @@ export async function initiativeStep(deps:RegistryDeps,telegram:string,input:str
   const rows:InlineButton[][]=[];
   if(bot==="resident"&&card.can_support)rows.push([b(card.own_support.supported?"withdraw":"support",`/ia ${state.idea_token} ${card.own_support.supported?"withdraw":"support"}`)]);
   if(bot==="resident"&&card.can_comment)rows.push([b("comment",`/ia ${state.idea_token} comment`)]);
+  rows.push([b("photos",`/ip ${card.id}`)]);
   rows.push([b("comments",`/ic ${card.id} 0`)],[b("refresh",`/initiative ${card.id}`)],listButton());
   return {text:t("card",{title:card.title,body:card.body,location:card.location_text,stage:t(`state.${card.stage??card.publication_state}`),count:card.support_count,reason:card.stage_reason??card.review_reason??"—"}),buttons:rows};
+ }
+ if(command==="/ip"){
+  const card=await getInitiative(deps,actor,uuid(arg)),photos=await listInitiativePhotos(deps,actor,card.id);clear();state.idea_id=card.id;state.idea_version=card.version;state.idea_token=nonce();state.idea_step="photos";state.idea_photos=photos.map(p=>p.id);await save();
+  const rows:InlineButton[][]=[];
+  for(const [n,p] of photos.entries()){
+   if(p.status==="complete")rows.push([b("photo_open",`/if ${p.id}`,{title:p.filename})]);
+   if(bot==="resident"&&card.can_attach)rows.push([b("photo_remove",`/ia ${state.idea_token} photoremove ${n}`,{title:p.filename})]);
+  }
+  return {text:t(bot==="resident"&&card.can_attach?"photo_prompt":"photo_list"),buttons:[...rows,[b("refresh",`/ip ${card.id}`)],[b("back",`/initiative ${card.id}`)],listButton()]};
+ }
+ if(command==="/if"){
+  if(!deps.fileStorage)throw new ApiError("INVALID_TRANSITION");const result=await fileUrl(deps,deps.fileStorage,actor,uuid(arg));
+  return {text:t("photo_link",{body:safeBlock(`<a href="${esc(String(result.url))}">${esc(messageButton(deps.templates,lang,"initiatives.controls","photos"))}</a>`)}),buttons:[listButton()]};
  }
  if(command==="/ic"){
   const id=uuid(arg),at=offset(action,10000),result=await listInitiativeComments(deps,actor,id,at);clear();await save();
@@ -70,7 +86,13 @@ export async function initiativeStep(deps:RegistryDeps,telegram:string,input:str
  if(command==="/ia"){
   if(bot!=="resident")throw new ApiError("FORBIDDEN");if(!arg||arg!==state.idea_token)throw new ApiError("CONCURRENT_MODIFICATION");
   const step=String(state.idea_step),token=String(state.idea_token);
+  if(action==="photoremove"&&step==="photos"){
+   const at=offset(index,9),photo=(state.idea_photos as string[])[at];if(!photo)throw new ApiError("VALIDATION_FAILED");
+   await discardInitiativePhoto(deps,actor,String(state.idea_id),photo,{expected_version:state.idea_version},`initiative-photo-discard:${token}:${photo}`);
+   return initiativeStep(deps,telegram,`/ip ${state.idea_id}`,actor);
+  }
   if(action==="resume"){
+   if(step==="photos")return initiativeStep(deps,telegram,`/ip ${state.idea_id}`,actor);
    if(step==="card")return initiativeStep(deps,telegram,`/initiative ${state.idea_id}`,actor);
    if(step==="moderation")return initiativeStep(deps,telegram,`/im ${state.idea_action}`,actor);
    if(step==="houses")return houses();
@@ -118,5 +140,5 @@ export async function initiativeStep(deps:RegistryDeps,telegram:string,input:str
    return {text:t("text_preview",{body:text}),buttons:[[b("confirm",`/ia ${token} ${step}confirm`)],listButton()]};
   }
  }
- return {text:t("buttons_only"),buttons:[...(state.idea_token?[[b("resume",`/ia ${state.idea_token} resume`)]]:[]),listButton()]};
+ return {text:t("buttons_only"),buttons:[...(bot==="resident"&&state.idea_token?[[b("resume",`/ia ${state.idea_token} resume`)]]:[]),listButton()]};
 }

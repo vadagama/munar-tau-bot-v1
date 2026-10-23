@@ -1,3 +1,4 @@
+import { listInitiativePhotos,discardInitiativePhoto } from "../../core/src/domains/initiatives/files.ts";
 import { requireInitiative } from "../../core/src/domains/initiatives/access.ts";
 import { listTaskAssignees } from "../../core/src/domains/tasks/assignees.ts";
 import type { Route,RouteContext } from "./handlers.ts";
@@ -14,6 +15,8 @@ const id=(c:RouteContext)=>initiativeUuid(c.params.id,"идентификато�
 const page=(c:RouteContext)=>({offset:Number(c.url.searchParams.get("offset")??0),limit:Number(c.url.searchParams.get("limit")??20),state:c.url.searchParams.get("state")??undefined});
 function route(method:Route["method"],path:string,handler:Route["handler"]):Route {return {method,path,action:"initiative.use",evaluateAs:"effective",handler:c=>databaseValidation(()=>handler(c))};}
 export const INITIATIVE_ROUTES:Route[]=[
+ route("GET","/v1/initiatives/:id/photos",async c=>({body:{items:await listInitiativePhotos(deps(c),c.actor,id(c))}})),
+ route("POST","/v1/initiatives/:id/photos/:fileId/discard",async c=>({body:await discardInitiativePhoto(deps(c),c.actor,id(c),initiativeUuid(c.params.fileId,"файл"),c.body,key(c))})),
  route("GET","/v1/initiatives",async c=>({body:await listInitiatives(deps(c),c.actor,page(c))})),
  route("POST","/v1/initiatives",async c=>({status:201,body:await submitInitiative(deps(c),c.actor,c.body,key(c))})),
  route("GET","/v1/initiatives/:id",async c=>({body:await getInitiative(deps(c),c.actor,id(c))})),

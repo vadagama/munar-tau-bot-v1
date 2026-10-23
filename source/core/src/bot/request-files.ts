@@ -1,3 +1,5 @@
+import { lockAudience } from "../domains/registry/audience-lock.ts";
+import { initiativeUploadActor,advanceInitiativePhotos } from "../domains/initiatives/files.ts";
 import { loadDialog, saveDialog } from "./dialog.ts";
 import { templateNotice } from "../templates/notice.ts";
 import { t as templateText } from "../templates/store.ts";
@@ -131,7 +133,7 @@ export async function processRequestUploads(
   while (Date.now() < deadline - 10000 && count < 3) {
     const job = await deps.db.transaction(async (exec) => {
       const [row] = await exec.query<Row>(
-        `select j.*,a.bucket,a.storage_path,a.size_bytes,a.mime,a.request_id,a.filename from request_upload_job j join attachment a on a.id=j.attachment_id
+        `select j.*,a.bucket,a.storage_path,a.size_bytes,a.mime,a.request_id,a.filename,a.owner_type,a.owner_id from request_upload_job j join attachment a on a.id=j.attachment_id
     where (j.state='queued' or (j.state='processing' and j.lease_until<now())) and j.attempts<3 order by j.created_at for update of j skip locked limit 1`,
       );
       if (!row) return null;
@@ -144,6 +146,7 @@ export async function processRequestUploads(
     if (!job) break;
     count++;
     try {
+      if(job.owner_type==="initiative")await deps.db.transaction(async exec=>{await lockAudience(exec);await initiativeUploadActor(exec,String(job.attachment_id),String(job.person_id));});
       // Файл скачивается токеном того бота, который его принял: file_id
       // в Telegram привязан к боту-получателю.
       const token = botTokens[(job.bot as BotKind) ?? "resident"];
@@ -219,21 +222,23 @@ export async function processRequestUploads(
         throw new Error("FILE_TRANSFER_FAILED");
       }
       await deps.db.transaction(async (exec) => {
+        let photo:Awaited<ReturnType<typeof initiativeUploadActor>>|null=null;
+        if(job.owner_type==="initiative"){await lockAudience(exec);photo=await initiativeUploadActor(exec,String(job.attachment_id),String(job.person_id));}
         const claimed = await exec.query(
           "update request_upload_job set state='complete',lease_until=null where attachment_id=$1 and state='processing' and attempts=$2 returning attachment_id",
           [job.attachment_id, job.attempts],
         );
         if (!claimed.length) return;
-        await exec.query(
-          "update attachment set status='complete' where id=$1",
-          [job.attachment_id],
-        );
+        if(!photo||photo.attachment.status!=="complete"){
+          await exec.query("update attachment set status='complete' where id=$1",[job.attachment_id]);
+          if(photo)await advanceInitiativePhotos(deps,exec,photo.actor,photo.row,"initiative.photo.complete");
+        }
         await notifyPerson(
           exec,
           String(job.person_id),
           templateNotice("notices.bot_request-files_process_request_uploads_101", {}),
           `file:${job.attachment_id}:complete`,
-          { bot: (job.bot as BotKind) ?? "resident" },
+          { bot: (job.bot as BotKind) ?? "resident",...(job.owner_type==="initiative"?{initiativeId:String(job.owner_id)}:{}) },
         );
       });
     } catch {
@@ -249,7 +254,7 @@ export async function processRequestUploads(
             String(job.person_id),
             templateNotice("notices.bot_request-files_process_request_uploads_102", {}),
             `file:${job.attachment_id}:failed`,
-            { bot: (job.bot as BotKind) ?? "resident" },
+            { bot: (job.bot as BotKind) ?? "resident",...(job.owner_type==="initiative"?{initiativeId:String(job.owner_id)}:{}) },
           );
         }
       });

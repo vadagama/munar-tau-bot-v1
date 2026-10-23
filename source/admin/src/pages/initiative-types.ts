@@ -4,7 +4,7 @@ export const initiativeStates:Record<string,string>={submitted:"На рассм�
 export const initiativeNext:Record<string,string[]>={submitted:["publish","reject"],collecting:["assessing","rejected","deferred"],assessing:["planned","rejected","deferred"],planned:["implementing","rejected","deferred"],implementing:["completed","rejected","deferred"],deferred:["assessing","rejected"]};
 export const transitionNames:Record<string,string>={...initiativeStates,publish:"Опубликовать",reject:"Отказать в публикации"};
 export interface InitiativeView {
- buildings?:{id:string;label:string}[];id:string;title:string;body:string;location_text:string;publication_state:string;stage:string|null;version:number;
+ can_attach?:boolean;buildings?:{id:string;label:string}[];id:string;title:string;body:string;location_text:string;publication_state:string;stage:string|null;version:number;
  requested_building_ids:string[];approved_building_ids:string[];review_reason:string|null;stage_reason:string|null;
  can_manage:boolean;can_comment:boolean;can_support:boolean;can_moderate:boolean;support_count:number;own_support:{version:number;supported:boolean};
  plan_basis:string|null;responsible_name:string|null;responsible_person_id?:string|null;estimated_due_at:string|null;owner_decision_required:boolean;decision_document_version_id?:string|null;

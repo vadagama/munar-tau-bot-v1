@@ -78,7 +78,7 @@ describe("реестр действий", () => {
       "emulation.session.start",
       "emulation.simulate",
       "incident.link", "incident.manage", "incident.read", "incident.use",
-      "initiative.comment", "initiative.create", "initiative.manage", "initiative.moderate", "initiative.read", "initiative.support", "initiative.use",
+      "initiative.attach", "initiative.comment", "initiative.create", "initiative.manage", "initiative.moderate", "initiative.read", "initiative.support", "initiative.use",
       "meta.dictionary",
       "meta.me",
       "moderation.appeal", "moderation.read", "moderation.resolve",

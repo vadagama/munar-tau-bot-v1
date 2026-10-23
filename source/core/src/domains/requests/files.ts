@@ -1,3 +1,6 @@
+import { lockAudience } from "../registry/audience-lock.ts";
+import { requireInitiative } from "../initiatives/access.ts";
+import { advanceInitiativePhotos,requireInitiativePhoto } from "../initiatives/files.ts";
 import { requireTask, taskResource } from "../tasks/access.ts";
 import { documentResource, documentVersionReadable, internalDocumentReader, requireDocument } from "../documents/access.ts";
 import { checkVersion } from "./fsm.ts";
@@ -137,8 +140,9 @@ export async function prepareFile(
 ): Promise<Row> {
   return deps.db.transaction(async (exec) => {
     const ownerType = input.owner_type ?? "request";
+    if(ownerType === "initiative")await lockAudience(exec);
     if (
-      !["request", "message", "task", "document"].includes(String(ownerType)) ||
+      !["request", "message", "task", "document", "initiative"].includes(String(ownerType)) ||
       typeof input.owner_id !== "string"
     ) invalid("Некорректный владелец вложения");
     const requestId = input.owner_id;
@@ -146,13 +150,16 @@ export async function prepareFile(
       // Отправленные сообщения неизменяемы: материалы добавляются следующим сообщением.
       invalid("Загрузите файл для обращения и приложите к новому сообщению");
     }
+    const initiative = ownerType === "initiative" ? await requireInitiative(exec,actor,requestId,"initiative.attach",true) : null;
+    if(initiative)checkVersion(initiative.version,input.expected_version);
     const document = ownerType === "document" ? await requireDocument(exec, actor, requestId, "document.prepare", true) : null;
     const documentBucket = document && ["resident", "owner"].includes(document.audience) ? "resident" : "internal";
     const bucket = input.bucket ?? (document ? documentBucket : ownerType === "task" ? "internal" : "resident");
     if (!["resident", "internal"].includes(String(bucket))) {
       throw new ApiError("FORBIDDEN");
     }
-    if (document) {
+    if(initiative){if(bucket!=="resident")throw new ApiError("FORBIDDEN");}
+    else if (document) {
       checkVersion(document.version, input.expected_version);
       if (bucket !== documentBucket) throw new ApiError("FORBIDDEN");
     } else if (ownerType === "task") {
@@ -185,6 +192,7 @@ export async function prepareFile(
       input.size ?? input.size_bytes,
       input.mime || FILE_TYPES[extension]?.[0],
     );
+    if(initiative && !["image/jpeg","image/png","image/webp","image/heic","image/heif"].includes(f.mime))throw new ApiError("FILE_LIMIT","К инициативе можно приложить фотографии");
     const [policy] = await exec.query<
       { max_bytes: number; max_per_message: number; extensions: string[] }
     >("select * from file_policy where singleton");
@@ -193,11 +201,11 @@ export async function prepareFile(
       !policy.extensions.includes(extension)
     ) throw new ApiError("FILE_LIMIT", "Файл не соответствует настройкам ОСИ");
     const [count] = await exec.query<{ n: string }>(
-      `select count(*)::text n from attachment a where owner_id=$1 and owner_type=$4 and task_report_id is null and uploaded_by=$2 and bucket=$3
+      `select count(*)::text n from attachment a where owner_id=$1 and owner_type=$4 and task_report_id is null and discarded_at is null and uploaded_by=$2 and bucket=$3
        and ($4<>'document' or not exists(select 1 from document_version v where v.attachment_id=a.id or v.signed_attachment_id=a.id))`,
       [requestId, actor.person.id, bucket, ownerType],
     );
-    if (Number(count!.n) >= policy.max_per_message) {
+    if (Number(count!.n) >= (initiative?Math.min(10,policy.max_per_message):policy.max_per_message)) {
       throw new ApiError(
         "FILE_LIMIT",
         "К одному сообщению до 10 файлов. Отправьте принятые вложения следующим сообщением.",
@@ -206,10 +214,12 @@ export async function prepareFile(
     const id = crypto.randomUUID();
     await exec.query(
       "insert into attachment(id,request_id,task_id,owner_type,owner_id,bucket,storage_path,filename,size_bytes,mime,uploaded_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
-      [id,ownerType === "task" || document ? null : requestId,ownerType === "task" ? requestId : null,ownerType,requestId,bucket,
+      [id,ownerType === "task" || document || initiative ? null : requestId,ownerType === "task" ? requestId : null,ownerType,requestId,bucket,
         `${requestId}/${id}`,f.filename,f.size,f.mime,actor.person.id],
     );
+    const version=initiative?await advanceInitiativePhotos(deps,exec,actor,initiative,"initiative.photo.prepare"):undefined;
     return {
+      ...(version?{initiative_version:version}:{}),
       attachment_id: id,
       upload_path: `/v1/files/${id}/upload`,
       expires_in: 300,
@@ -227,6 +237,7 @@ async function fileAccess(
     id,
   ]);
   if (!a) throw new ApiError("NOT_FOUND");
+  if(a.owner_type === "initiative"){await requireInitiativePhoto(deps.db,actor,a,write);return a;}
   if (a.owner_type === "document") {
     const doc = await requireDocument(deps.db, actor, String(a.owner_id), write ? "document.prepare" : "document.read");
     const versions = await deps.db.query<{ id: string; was_published: boolean; state: string }>("select id,was_published,state from document_version where document_id=$1 and (attachment_id=$2 or signed_attachment_id=$2)", [doc.id, id]);
@@ -330,6 +341,11 @@ export async function uploadFile(
     throw new ApiError("FILE_LIMIT", "Размер не совпадает с заявленным");
   }
   verifyFileHeader(String(a.filename), bytes);
+  if(a.owner_type === "initiative"){
+    try{const info=await storage.info(String(a.bucket),String(a.storage_path));
+      if(info.size===a.size_bytes&&info.mime===a.mime)return {attachment_id:id,status:"incomplete"};
+    }catch{ /* первая попытка: объекта ещё нет */ }
+  }
   await storage.put(
     String(a.bucket),
     String(a.storage_path),
@@ -352,6 +368,15 @@ export async function completeFile(
       "Хранилище вернуло другой размер или формат",
     );
   }
+  if(a.owner_type === "initiative")return deps.db.transaction(async exec=>{
+    await lockAudience(exec);const row=await requireInitiativePhoto(exec,actor,a,true);
+    const [current]=await exec.query<Row>("select * from attachment where id=$1 for update",[id]);
+    if(!current)throw new ApiError("NOT_FOUND");await requireInitiativePhoto(exec,actor,current,true);
+    if(current.status==="complete")return {attachment_id:id,status:"complete",initiative_version:row.version};
+    await exec.query("update attachment set status='complete' where id=$1",[id]);
+    const version=await advanceInitiativePhotos(deps,exec,actor,row,"initiative.photo.complete");
+    return {attachment_id:id,status:"complete",initiative_version:version};
+  });
   await deps.db.query("update attachment set status='complete' where id=$1", [
     id,
   ]);
@@ -379,6 +404,14 @@ export async function retryFile(
   id: string,
 ): Promise<Row> {
   const a = await fileAccess(deps, actor, id, true);
+  if(a.owner_type === "initiative")return deps.db.transaction(async exec=>{
+    await lockAudience(exec);await requireInitiativePhoto(exec,actor,a,true);
+    const [current]=await exec.query<Row>("select * from attachment where id=$1 for update",[id]);
+    if(!current)throw new ApiError("NOT_FOUND");await requireInitiativePhoto(exec,actor,current,true);
+    if(current.status!=="incomplete")throw new ApiError("INVALID_TRANSITION");
+    await exec.query("update attachment set upload_expires_at=now()+interval '5 minutes' where id=$1",[id]);
+    return {attachment_id:id,upload_path:`/v1/files/${id}/upload`,expires_in:300};
+  });
   if (a.status !== "incomplete") throw new ApiError("INVALID_TRANSITION");
   await deps.db.query(
     "update attachment set upload_expires_at=now()+interval '5 minutes' where id=$1",

@@ -33,6 +33,7 @@ export function fixture(){
     else if(sql.startsWith("insert into idempotency_key"))s.keys.set(String(params[0]),{request_hash:params[2],response:JSON.parse(String(params[3]))});
     else if(sql.startsWith("select * from initiative where"))rows=s.row?[structuredClone(s.row)]:[];
     else if(sql.startsWith("select id,coalesce(name"))rows=[{id:B1,label:"Дом 1"},{id:B2,label:"Дом 2"}];
+    else if(sql.startsWith("select id from attachment where owner_type='initiative'"))rows=[];
     else if(sql.startsWith("select id from building"))rows=[{id:B1},{id:B2}];
     else if(sql.startsWith("insert into initiative(")){
       s.row={id,author_person_id:params[0],title:params[1],body:params[2],location_text:params[3],requested_building_ids:params[4],approved_building_ids:[],is_test:false,

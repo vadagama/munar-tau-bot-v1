@@ -1,3 +1,4 @@
+import { queueInitiativePhoto } from "./initiative-files.ts";
 import { INITIATIVE_COMMANDS,initiativeStep } from "./initiatives.ts";
 import { lockAudience } from "../domains/registry/audience-lock.ts";
 import { navigationReply } from "./navigation.ts";
@@ -46,7 +47,7 @@ async function routeStep(
   updateId: unknown,
 ): Promise<BotReply> {
   if (message.photo || message.document || message.video) {
-    if (state.scenario === "initiatives") return initiativeStep(deps, telegramId, "");
+    if (state.scenario === "initiatives") return queueInitiativePhoto(deps,telegramId,message,updateId);
     if (state.scenario === "polls") return pollStep(deps, telegramId, "");
     if (state.scenario === "documents") return queueDocumentFile(deps, telegramId, message);
     return queueRequestFile(deps, telegramId, message, updateId, bot);

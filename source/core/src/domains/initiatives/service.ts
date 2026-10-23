@@ -50,6 +50,8 @@ export async function transitionInitiative(deps:RegistryDeps,actor:Actor,id:stri
         initiativeFields(input,action==="publish"?["expected_version","reason","building_ids","owner_decision_required"]:["expected_version","reason"]);
         patch.publication_state=publicationTransition(row.publication_state,action);patch.review_reason=reason;
         if(action==="publish") {
+          const pending=await exec.query("select id from attachment where owner_type='initiative' and owner_id=$1 and discarded_at is null and status<>'complete' limit 1",[id]);
+          if(pending.length)throw new ApiError("INVALID_TRANSITION","Дождитесь сохранения фотографий или исключите незавершённые");
           const author=await initiativeAudience(exec,row.author_person_id,row.is_test);
           if(!author.active || !row.requested_building_ids.every(id=>author.building_ids.includes(id)))throw new ApiError("INVALID_TRANSITION");
           const ids=initiativeBuildings(input.building_ids),buildings=await exec.query<{id:string}>("select id from building order by id");

@@ -581,3 +581,13 @@ TIM-02: `GET /v1/registry/time-rules` дополнительно возвращ�
 - `POST /v1/staff/:id/roles` — `{roles, reason, expected_version}` + Idempotency-Key. Пустой roles прекращает служебные полномочия. 409 сохраняет ввод клиента и требует явного повторного подтверждения.
 - `/v1/meta/me` дополнительно возвращает assigned_roles/effective_roles; assignments содержит только прямые назначения.
 - Каждое изменение ставит обязательное персональное событие staff.roles в outbox для worker-бота, включая отзыв последней роли. Текст — каталог notices.staff.roles_changed, оба языка, время Алматы и причина.
+
+
+### Фото инициатив (IDEA-01/FIL-01, VS-8)
+
+GET /v1/initiatives/{id}/photos возвращает явный DTO файлов без storage_path.
+POST /v1/initiatives/{id}/photos/{fileId}/discard требует expected_version
+и Idempotency-Key, доступен только автору действующей подачи. Состав
+публикации заморожен. Общий FIL upload-url принимает owner_type=initiative
+с expected_version; prepare/complete возвращают initiative_version.
+Подписанная ссылка доступна пять минут, PDP повторяется при её получении.

@@ -21,7 +21,7 @@ function scope(actor:Actor) {
 const scopeIds="(case when i.publication_state='published' then i.approved_building_ids else i.requested_building_ids end)";
 const managed=`($3::boolean or exists(select 1 from jsonb_array_elements($4::text::jsonb) s(value) where ${scopeIds}<@array(select jsonb_array_elements_text(s.value)::uuid)))`;
 function flags(actor:Actor,resource:Awaited<ReturnType<typeof initiativeResource>>) {
- return {can_manage:can(actor,"initiative.manage",resource).allow,can_comment:can(actor,"initiative.comment",resource).allow,
+ return {can_attach:can(actor,"initiative.attach",resource).allow,can_manage:can(actor,"initiative.manage",resource).allow,can_comment:can(actor,"initiative.comment",resource).allow,
   can_support:can(actor,"initiative.support",resource).allow,can_moderate:can(actor,"initiative.moderate",resource).allow};
 }
 export async function listInitiatives(deps:RegistryDeps,actor:Actor,options:InitiativePage={}) {

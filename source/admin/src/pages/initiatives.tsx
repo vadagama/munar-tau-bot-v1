@@ -1,3 +1,4 @@
+import { InitiativePhotos } from "./initiative-photos";
 import { useEffect,useRef,useState } from "react";
 import { Alert,Button,Descriptions,Empty,Select,Space,Spin,Tabs,Tag,Typography } from "antd";
 import { PageLayout } from "../components/page-layout";
@@ -55,6 +56,7 @@ export function InitiativesPage(){
     {card.plan_basis&&<Typography.Paragraph>План: {card.plan_basis}. Ответственный: {card.responsible_name??"Не указан"}. Срок: {pollDate(card.estimated_due_at)}.</Typography.Paragraph>}
    </DetailSection>
    <Space wrap>{card.can_manage&&(initiativeNext[card.stage??card.publication_state]??[]).map(next=><Button key={next} onClick={()=>{cardGeneration.current++;setAction(next);}}>{transitionNames[next]}</Button>)}{card.can_moderate&&<Button danger onClick={()=>{cardGeneration.current++;setModeration({kind:"restrict_author"});}}>Ограничить автора инициативы</Button>}</Space>
+   <InitiativePhotos key={`photos:${identityKey}:${card.id}`} item={card} onChanged={()=>void open(card.id,true)}/>
    <InitiativeHistory key={`history:${card.id}`} id={card.id} version={card.version}/>
    <InitiativeDiscussion key={`discussion:${card.id}`} item={card} onChanged={()=>void open(card.id,true)} onModerate={(commentId,kind)=>{cardGeneration.current++;setModeration({commentId,kind});}}/>
    {action&&<InitiativeEditor key={`${identityKey}:${card.id}:${action}`} item={card} action={action} onCancel={()=>setAction(null)} onSaved={saved}/>}

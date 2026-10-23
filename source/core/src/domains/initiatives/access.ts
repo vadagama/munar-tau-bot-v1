@@ -34,7 +34,7 @@ export async function initiativeResource(exec:DbExecutor,actor:Actor,row:Initiat
     member:current.active && ids.some(id=>current.building_ids.includes(id)),
     allRequestedMember:current.active && row.requested_building_ids.every(id=>current.building_ids.includes(id)),restricted:current.restricted}};
 }
-export type InitiativeAction="initiative.read"|"initiative.manage"|"initiative.support"|"initiative.comment"|"initiative.moderate";
+export type InitiativeAction="initiative.attach"|"initiative.read"|"initiative.manage"|"initiative.support"|"initiative.comment"|"initiative.moderate";
 export async function requireInitiative(exec:DbExecutor,actor:Actor,id:string,action:InitiativeAction="initiative.read",lock=false) {
   const row=await initiativeRow(exec,id,lock);
   if(!can(actor,action,await initiativeResource(exec,actor,row)).allow)throw new ApiError("NOT_FOUND");

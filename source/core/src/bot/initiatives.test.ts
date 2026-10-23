@@ -1,3 +1,6 @@
+import { queueInitiativePhoto } from "./initiative-files.ts";
+import { actorForTelegram } from "./registration.ts";
+import { listInitiativePhotos,discardInitiativePhoto } from "../domains/initiatives/files.ts";
 import { beforeEach,expect,it,vi } from "vitest";
 import { botScenarios } from "./scenarios.ts";
 import { initiativeStep } from "./initiatives.ts";
@@ -16,6 +19,7 @@ vi.mock("../domains/initiatives/service.ts",()=>({submitInitiative:vi.fn()}));
 vi.mock("../domains/initiatives/support.ts",()=>({setInitiativeSupport:vi.fn()}));
 vi.mock("../domains/initiatives/comments.ts",()=>({addInitiativeComment:vi.fn(),listInitiativeComments:vi.fn(async()=>({items:[],has_more:false})),readInitiativeComment:vi.fn()}));
 vi.mock("../domains/initiatives/moderation.ts",()=>({appealModerationAction:vi.fn()}));
+vi.mock("../domains/initiatives/files.ts",()=>({listInitiativePhotos:vi.fn(async()=>[]),discardInitiativePhoto:vi.fn()}));
 const id="10000000-0000-4000-8000-000000000001",actionId="40000000-0000-4000-8000-000000000001";
 const card={id,title:"<b>Освещение</b>",body:"Двор",location_text:"У подъезда",publication_state:"published",stage:"collecting",version:2,can_comment:true,can_support:true,support_count:3,own_support:{version:1,supported:false},stage_reason:null,review_reason:null};
 const buttons=(r:BotReply)=>typeof r==="string"?[]:r.buttons?.flat()??[];
@@ -92,4 +96,21 @@ it("симулятор запускает тот же сценарий с тес
  const scenario=botScenarios(h.deps).get("initiatives")!;expect(scenario).toBeDefined();
  const reply=await scenario.run(`/initiative ${id}`,{actor,profileId:actor.profile.id,personId:actor.person.id,fullName:actor.person.fullName,bot:"resident"});
  expect(replyText(reply)).toContain("&lt;b&gt;Освещение&lt;/b&gt;");expect(buttons(reply).some(b=>b.data.endsWith(" support"))).toBe(true);
+});
+
+it("фото: удаление привязано к версии/nonce, worker только читает",async()=>{
+ const h=fixture(),actor=makeTestActor("executor",[B1]);vi.mocked(getInitiative).mockResolvedValue({...card,publication_state:"submitted",can_attach:true} as never);
+ vi.mocked(listInitiativePhotos).mockResolvedValue([{id:actionId,filename:"photo.jpg",status:"complete"}]);
+ const result=await initiativeStep(h.deps,"123",`/ip ${id}`,actor),remove=buttons(result).find(b=>b.data.includes(" photoremove "))!;expect(remove).toBeDefined();
+ expect(buttons(result).every(b=>new TextEncoder().encode(b.data).length<=64)).toBe(true);
+ await initiativeStep(h.deps,"123",remove.data,actor);expect(discardInitiativePhoto).toHaveBeenCalledWith(h.deps,actor,id,actionId,{expected_version:2},expect.any(String));
+ await expect(initiativeStep(h.deps,"123",remove.data,actor)).rejects.toMatchObject({code:"CONCURRENT_MODIFICATION"});
+ h.deps.bot="worker";expect(buttons(await initiativeStep(h.deps,"123",`/ip ${id}`,actor)).some(b=>b.data.includes(" photoremove "))).toBe(false);
+});
+
+it("тестовое фото в симуляторе не попадает в очередь Telegram",async()=>{
+ const h=fixture(),actor=makeTestActor("executor",[B1],{isTest:true});vi.mocked(actorForTelegram).mockResolvedValue(actor);vi.mocked(getInitiative).mockResolvedValue({...card,can_attach:true} as never);
+ await initiativeStep(h.deps,"123",`/ip ${id}`,actor);const query=vi.spyOn(h.deps.db,"query");
+ const result=await queueInitiativePhoto(h.deps,"123",{photo:[{file_id:"test-only",file_size:3}]},900);
+ expect(replyText(result)).toContain("тестовый Telegram-файл наружу не передаётся");expect(query.mock.calls.some(([sql])=>sql.startsWith("insert into request_upload_job")||sql.startsWith("insert into attachment"))).toBe(false);
 });
