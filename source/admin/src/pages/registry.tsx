@@ -537,7 +537,7 @@ export function RegistryPage({ users }: { users?: "residents" | "staff" }) {
         <ProcessOverview guidance={{
           title: "Нужно проверить личность и новую анкету",
           description: "Проверьте личность вне системы. Выберите анкету с нового Telegram и укажите, как проверена личность. Прежняя привязка и все прежние сеансы будут отозваны. История, идентификатор человека и роли сохранятся.",
-          waitingFor: "Уполномоченный сотрудник",
+          waitingFor: "Администратор, председатель ОСИ или техадминистратор",
         }} />
         <Form name="registry-recovery" form={recoveryForm} layout="vertical">
           <Form.Item

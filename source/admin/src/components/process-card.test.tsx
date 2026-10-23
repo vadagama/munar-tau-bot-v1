@@ -21,3 +21,10 @@ it("не создаёт кнопку при недоступном перехо�
  expect(document.querySelector(".ant-btn-primary")).toBeNull();
  expect(screen.getByText("Прошлое событие").closest("details")).not.toHaveAttribute("open");
 });
+
+it("различает исполнителя задания и того, кто выполняет следующий шаг", () => {
+ render(<ProcessOverview participant="Виктор Пелевин" participantLabel="Исполнитель" guidance={{title:"Выполнение приостановлено",description:"Проверьте причину остановки",waitingFor:"Администратор, заместитель или председатель ОСИ"}} />);
+ expect(screen.getByText("Исполнитель: Виктор Пелевин")).toBeVisible();
+ expect(screen.getByText(/Кто действует дальше:/)).toHaveTextContent("Администратор, заместитель или председатель ОСИ");
+ expect(screen.queryByText(/Управляющий/)).toBeNull();
+});

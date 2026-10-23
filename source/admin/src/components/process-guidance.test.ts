@@ -48,3 +48,22 @@ describe("подсказки процесса", () => {
   expect(requestGuidance({state:"future"},true,false).primary).toBeUndefined();
  });
 });
+
+ it("называет действующие роли вместо вымышленного управляющего", () => {
+  const roles = "Администратор, заместитель или председатель ОСИ";
+  expect(taskGuidance({state:"suspended",assignee_name:"Виктор Пелевин"}).waitingFor).toBe(roles);
+  expect(requestGuidance({state:"reviewing"},true,false).waitingFor).toBe(roles);
+  expect(publicationGuidance({state:"draft"},true,false).waitingFor).toBe(roles);
+  expect(incidentGuidance({state:"confirmed"}).waitingFor).toContain("Назначенный дежурный");
+ });
+ it("на шаге исполнителя указывает имя, а на проверке не назначает его проверяющим", () => {
+  expect(taskGuidance({state:"in_progress",assignee_name:"Виктор Пелевин"}).waitingFor).toBe("Исполнитель: Виктор Пелевин");
+  const review=taskGuidance({state:"on_review",assignee_name:"Виктор Пелевин",can_manage:true,can_approve:false});
+  expect(review.waitingFor).toContain("не исполнитель и не автор отчёта");
+  expect(review.waitingFor).not.toContain("Виктор");
+  expect(review.primary).toBeUndefined();
+ });
+ it("для обращения учитывает автора и рассмотрение только председателем", () => {
+  expect(requestGuidance({state:"awaiting_confirmation",author_name:"Иван Тестов"},false,true).waitingFor).toBe("Автор обращения: Иван Тестов");
+  expect(requestGuidance({state:"reviewing",complaint_route:"chairman"},false,true).waitingFor).toBe("Председатель ОСИ");
+ });

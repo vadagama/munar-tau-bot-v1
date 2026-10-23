@@ -1,3 +1,4 @@
+import { PROCESS_MANAGER_ROLES } from "../components/process-guidance";
 import { ProcessOverview } from "../components/process-card";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
@@ -266,7 +267,7 @@ export function NotificationsPage({ section = "preferences" }: { section?: "pref
         {active && <ProcessOverview state="Требуется связаться" guidance={{
           title: "Нужно записать результат связи с получателем",
           description: "Свяжитесь с получателем доступным способом и зафиксируйте итог. Сохранение завершит задачу контакта, но не подтвердит прочтение уведомления или согласие с результатом работ.",
-          waitingFor: "Ответственный сотрудник",
+          waitingFor: PROCESS_MANAGER_ROLES,
         }} />}
         <Form form={form} layout="vertical">
           <Form.Item
