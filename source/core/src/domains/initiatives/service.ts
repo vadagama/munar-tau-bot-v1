@@ -1,3 +1,4 @@
+import { enqueueInitiativeReview,enqueueInitiativeState } from "./events.ts";
 import { ApiError } from "../../errors/api.ts";
 import { can } from "../../pdp/evaluate.ts";
 import type { Actor } from "../../pdp/types.ts";
@@ -32,6 +33,7 @@ export async function submitInitiative(deps:RegistryDeps,actor:Actor,input:Row,k
         values($1,$2,$3,$4,$5,$6) returning *`,[actor.person.id,data.title,data.body,data.location_text,data.building_ids,actor.person.isTest]);
       if(!row)throw new Error("Инициатива не сохранена");
       await history(exec,actor,row,"submit","Подача инициативы");
+      await enqueueInitiativeReview(exec,row);
       await recordAudit(deps,exec,actor,"initiative.submit","initiative",row.id,row.requested_building_ids,null,{version:row.version},"Подача инициативы");
       return initiativeCard(row);
     },response=>requireInitiative(exec,actor,response.id));
@@ -99,6 +101,7 @@ export async function transitionInitiative(deps:RegistryDeps,actor:Actor,id:stri
         where initiative.id=$1 and original.id=initiative.id returning initiative.*`,[id,JSON.stringify(patch)]);
       if(!updated)throw new Error("Инициатива не изменена");
       await history(exec,actor,updated,action,reason);
+      await enqueueInitiativeState(exec,updated);
       await recordAudit(deps,exec,actor,`initiative.${action}`,"initiative",id,updated.approved_building_ids.length?updated.approved_building_ids:updated.requested_building_ids,
         {version:row.version,publication_state:row.publication_state,stage:row.stage},{version:updated.version,publication_state:updated.publication_state,stage:updated.stage},reason);
       return initiativeCard(updated);

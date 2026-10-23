@@ -6,9 +6,10 @@ const notices:[string,string,string][]=[
  ["shorten","Председатель сократил ограничение до {until} (Алматы).\nОснование: {reason}","Төраға шектеу мерзімін {until} дейін қысқартты (Алматы).\nНегізі: {reason}"],
  ["revoke","Председатель отменил решение модерации. Ограничение или скрытие комментария по этому решению снято.\nОснование: {reason}","Төраға модерация шешімін жойды. Осы шешім бойынша шектеу немесе пікірді жасыру алынды.\nНегізі: {reason}"],
 ];
-export const initiativeTemplates:readonly TemplateDef[]=notices.map(([key,ru,kk])=>({
+const moderationTemplates:readonly TemplateDef[]=notices.map(([key,ru,kk])=>({
  key:`notices.initiatives.moderation_${key}`,section:"notices",title:`Модерация: ${key}`,scenario:"Инициативы",
  description:"Персональный вид, срок и основание решения модерации; текст комментария не дублируется.",
+ buttons:[{id:"open",ru:"Открыть решение",kk:"Шешімді ашу"}],
  variables:[{name:"reason",description:"Основание решения",example:"Нарушение правил обсуждения"},{name:"until",description:"Срок в Алматы",example:"24.10.2026 15:00"}],ru,kk,
 }));
 const dialogVariables=[
@@ -52,3 +53,15 @@ const dialogs:[string,string,string][]=[
  ["state.submitted","На рассмотрении","Қаралуда"],["state.published","Опубликована","Жарияланды"],["state.collecting","Сбор поддержки","Қолдау жинау"],["state.assessing","Оценка","Бағалау"],["state.planned","В плане","Жоспарда"],["state.implementing","В реализации","Іске асырылуда"],["state.completed","Выполнена","Орындалды"],["state.rejected","Отклонена","Қабылданбады"],["state.deferred","Отложена","Кейінге қалдырылды"],
 ];
 export const initiativeDialogTemplates:readonly TemplateDef[]=dialogs.map(([key,ru,kk])=>({key:`initiatives.${key}`,section:"common",title:`Инициативы: ${key}`,scenario:"Инициативы",description:"Кнопочный путь инициатив и собственного оспаривания.",variables:dialogVariables,ru,kk,...(key==="controls"?{buttons}: {})}));
+
+const stageLabels:[string,string,string][]=[
+ ["published","Опубликована","Жарияланды"],["collecting","Сбор поддержки","Қолдау жинау"],["assessing","На оценке","Бағалауда"],["planned","В плане","Жоспарда"],["implementing","В реализации","Іске асырылуда"],["completed","Выполнена","Орындалды"],["rejected","Отклонена","Қабылданбады"],["deferred","Отложена","Кейінге қалдырылды"],
+];
+const eventVariables=[{name:"title",description:"Название инициативы",example:"Освещение"},{name:"reason",description:"Основание этапа",example:"Проверено"}];
+const eventButtons=[{id:"open",ru:"Открыть инициативу",kk:"Бастаманы ашу"}];
+export const initiativeTemplates:readonly TemplateDef[]=[...moderationTemplates,{
+ key:"notices.initiatives.review",section:"notices",title:"Инициатива на рассмотрение",scenario:"Инициативы",description:"Управляющему с повторной проверкой области.",variables:eventVariables,buttons:eventButtons,
+ ru:"Поступила инициатива «{title}». Проверьте её перед публикацией в кабинете.",kk:"«{title}» бастамасы түсті. Жариялау алдында оны кабинетте тексеріңіз.",
+},...stageLabels.map(([state,ru,kk]):TemplateDef=>({key:`notices.initiatives.state.${state}`,section:"notices",title:`Инициатива: ${ru}`,scenario:"Инициативы",description:"Автору; доступ к актуальной карточке проверяется перед доставкой.",variables:eventVariables,buttons:eventButtons,
+ ru:`Инициатива «{title}»: ${ru}.\nОснование: {reason}`,kk:`«{title}» бастамасы: ${kk}.\nНегізі: {reason}`,
+}))];

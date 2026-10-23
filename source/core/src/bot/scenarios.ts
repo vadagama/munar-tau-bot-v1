@@ -55,7 +55,7 @@ export function botScenarios(deps: RegistryDeps) {
       const reply = id === "tasks" && ["/help", "/start", "/cancel"].includes(input.trim())
         ? workerHelp(ctx.actor.profile.language, templates)
         : await step({...d, templates}, String(profile.telegram_user_id), input, ctx.actor);
-      return withSimulatorMenu(navigationReply(reply,id,ctx.actor.profile.language,templates,input), id === "documents" && d.bot === "worker" ? "tasks" : id, ctx.actor.profile.language, templates);
+      return withSimulatorMenu(navigationReply(reply,id,ctx.actor.profile.language,templates,input), ["documents","initiatives"].includes(id) && d.bot === "worker" ? "tasks" : id, ctx.actor.profile.language, templates);
     },
   });
   scenarios.register({id:"notifications",description:"NTF: настройки уведомлений",run:async(input,ctx)=>{

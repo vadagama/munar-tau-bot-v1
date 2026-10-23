@@ -1,4 +1,4 @@
-import { moderationNoticeAllowed } from "../initiatives/notices.ts";
+import { initiativeNoticeAllowed,moderationNoticeAllowed } from "../initiatives/notices.ts";
 import { pollNoticeAllowed } from "../polls/notices.ts";
 import { messageButton } from "../../templates/message.ts";
 import { getTemplate } from "../../templates/catalog/index.ts";
@@ -26,6 +26,8 @@ import { deliveryMode, type EventType, type PreferenceMode } from "./policy.ts";
 import type { BotKind } from "../../bot/bots.ts";
 
 export interface NoticeOptions {
+  initiativeId?: string;
+  initiativeReview?: boolean;
   moderationActionId?: string;
   pollId?: string;
   pollEvent?: "opened" | "closed" | "canceled";
@@ -104,6 +106,7 @@ export async function noticeAllowed(
   if (notice.isTest !== undefined && notice.isTest !== actor.person.isTest) {
     return false;
   }
+  if(notice.initiativeId || notice.initiativeReview!==undefined){if(!notice.initiativeId || !await initiativeNoticeAllowed(exec,actor,notice.initiativeId,notice.initiativeReview))return false;}
   if(notice.moderationActionId && !await moderationNoticeAllowed(exec,actor,notice.moderationActionId))return false;
   if(notice.pollId || notice.pollEvent){
     if(!notice.pollId || !notice.pollEvent || !await pollNoticeAllowed(exec,actor,notice.pollId,notice.pollEvent))return false;
@@ -379,7 +382,7 @@ export async function dispatchNotices(
                   documentId: n.documentId,
                   financialObligationId: n.financialObligationId,
                   financialVersionId: n.financialVersionId,
-                  pollId:n.pollId,pollEvent:n.pollEvent,moderationActionId:n.moderationActionId,
+                  pollId:n.pollId,pollEvent:n.pollEvent,moderationActionId:n.moderationActionId,initiativeId:n.initiativeId,initiativeReview:n.initiativeReview,
                 }),
                 n.bot ?? null,
               ],
@@ -438,6 +441,8 @@ export async function dispatchNotices(
                     : entryMarkup("task", t.number, actor.profile.language);
               }
             }
+            if(n.initiativeId)markup=inlineMarkup([[btn(messageButton(templates,actor.profile.language,n.template??"notices.initiatives.review","open"),`/initiative ${n.initiativeId}`)]]);
+            if(n.moderationActionId)markup=inlineMarkup([[btn(messageButton(templates,actor.profile.language,n.template??"notices.initiatives.moderation_hidden","open"),`/im ${n.moderationActionId}`)]]);
             if(n.pollId){
               markup=inlineMarkup([[btn(messageButton(templates,actor.profile.language,n.template??"notices.polls.closed","open"),`/poll ${n.pollId}`)]]);
             }
@@ -465,7 +470,7 @@ export async function dispatchNotices(
                     documentId: n.documentId,
                     financialObligationId: n.financialObligationId,
                     financialVersionId: n.financialVersionId,
-                  pollId:n.pollId,pollEvent:n.pollEvent,moderationActionId:n.moderationActionId,
+                  pollId:n.pollId,pollEvent:n.pollEvent,moderationActionId:n.moderationActionId,initiativeId:n.initiativeId,initiativeReview:n.initiativeReview,
                   }),
                   type === "staff.roles" || (n.important ?? type === "request.required"),
                   type === "incident" ? 0 : 1,
@@ -506,7 +511,7 @@ export async function dispatchNotices(
               JSON.stringify({
                 buildingIds: n.buildingIds ?? [],
                 registrationAccess: n.registrationAccess,
-                pollId:n.pollId,pollEvent:n.pollEvent,moderationActionId:n.moderationActionId,
+                pollId:n.pollId,pollEvent:n.pollEvent,moderationActionId:n.moderationActionId,initiativeId:n.initiativeId,initiativeReview:n.initiativeReview,
               }),
               n.type === "staff.roles" || (n.important ?? n.type === "request.required"),
               n.requestId ?? null,

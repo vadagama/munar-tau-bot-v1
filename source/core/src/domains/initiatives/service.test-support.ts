@@ -8,10 +8,15 @@ export const id="10000000-0000-4000-8000-000000000001";
 export const body={title:"Встреча",body:"Обсуждение двора",location_text:"Двор",building_ids:[B1]};
 const t=Date.parse("2026-10-23T10:00:00Z")*1000;
 export function fixture(){
-  const s:{row:InitiativeRow|null;members:string[];audit:string[];keys:Map<string,unknown>;logs:unknown[][];support:Record<string,unknown>|null;supportLogs:unknown[][];events:Record<string,unknown>[];now:number}={row:null,members:[B1],audit:[],keys:new Map(),logs:[],support:null,supportLogs:[],now:t,events:[{id:"1",connection_id:"link",person_id:person,building_id:B1,is_test:false,enabled:true,effective_at:String(t-1000),valid_from:null,valid_until:null}]};
+  const s:{row:InitiativeRow|null;members:string[];audit:string[];keys:Map<string,unknown>;logs:unknown[][];support:Record<string,unknown>|null;supportLogs:unknown[][];events:Record<string,unknown>[];now:number;outbox:unknown[]}={outbox:[],row:null,members:[B1],audit:[],keys:new Map(),logs:[],support:null,supportLogs:[],now:t,events:[{id:"1",connection_id:"link",person_id:person,building_id:B1,is_test:false,enabled:true,effective_at:String(t-1000),valid_from:null,valid_until:null}]};
   const exec:DbExecutor={async query<T>(sql:string,params:readonly unknown[]=[]):Promise<T[]>{
     let rows:unknown[]=[];
     if(sql.startsWith("select public.audience_clock") || sql.startsWith("select pg_advisory"))rows=[];
+    else if(sql.startsWith("select distinct p.id from person"))rows=[];
+    else if(sql.startsWith("insert into outbox("))s.outbox.push(JSON.parse(String(params[0])));
+    else if(sql.startsWith("select i.id from initiative"))rows=s.row&&s.row.publication_state==="published"&&!["completed","rejected"].includes(s.row.stage??"")?[{id}]:[];
+    else if(sql.startsWith("insert into initiative_reconciliation"))rows=[];
+    else if(sql.startsWith("select person_id,version"))rows=s.support&&!s.support.withdrawn_at?[{person_id:person,version:s.support.version,supported_us:s.support.supported_us}]:[];
     else if(sql.startsWith("with initiative_clock"))rows=[{at:new Date(s.now/1000),at_text:new Date(s.now/1000).toISOString(),us:String(s.now),building_ids:s.members,active:true,restricted:false}];
     else if(sql.includes("from audience_history_meta"))rows=[{starts_at:String(t-2000),starts_us:String(t-2000)}];
     else if(sql.includes("from audience_connection_event e"))rows=s.events;
@@ -21,7 +26,8 @@ export function fixture(){
     }else if(sql.startsWith("update initiative_support set withdrawn_at")){
       s.support={...s.support,version:Number(s.support!.version)+1,withdrawn_at:new Date(s.now/1000),withdrawn_us:String(s.now)};rows=[s.support];
     }else if(sql.startsWith("insert into initiative_support_log")){
-      if(!s.supportLogs.some(l=>l[2]===params[2]&&l[3]===params[3]))s.supportLogs.push([...params]);
+      const logs=sql.includes("jsonb_to_recordset")?(JSON.parse(String(params[1])) as {person_id:string;support_version:number;lost_us:number}[]).map(e=>[params[0],e.person_id,e.support_version,"excluded",e.lost_us]):[[...params]];
+      for(const log of logs)if(!s.supportLogs.some(l=>l[1]===log[1]&&l[2]===log[2]&&l[3]===log[3]))s.supportLogs.push(log);
     }
     else if(sql.startsWith("select request_hash,response"))rows=s.keys.has(String(params[0]))?[s.keys.get(String(params[0]))]:[];
     else if(sql.startsWith("insert into idempotency_key"))s.keys.set(String(params[0]),{request_hash:params[2],response:JSON.parse(String(params[3]))});
