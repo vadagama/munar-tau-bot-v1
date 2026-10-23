@@ -1,3 +1,4 @@
+import { lockAudience } from "../registry/audience-lock.ts";
 import { templateNotice } from "../../templates/notice.ts";
 import { notifyPerson, notifyTelegram } from "./notifications.ts";
 import { label, premiseLabels, stateLabels } from "../../locales/registry.ts";
@@ -87,6 +88,7 @@ export async function submitRegistration(
       "Подтвердите согласие на обработку данных",
     );
   return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     const adminSubmission = input.person_id !== undefined;
     // Анкета-минимум (REG-01): заявитель может подать анкету без помещения и
     // роли; заявка от сотрудника всегда привязана к помещению реестра.
@@ -278,6 +280,7 @@ export async function editRegistration(
   deps: RegistryDeps, actor: Actor, id: string, input: Row,
 ): Promise<Row> {
   return deps.db.transaction(async exec => {
+    await lockAudience(exec);
     const [row] = await exec.query<Row>("select * from registration where id=$1 and person_id=$2 for update", [id, actor.person.id]);
     if (!row || row.is_test !== actor.person.isTest) throw new ApiError("NOT_FOUND");
     return reviseRegistration(deps, exec, actor, row, { ...jsonValue<Row>(row.draft), ...input });
@@ -301,6 +304,7 @@ export async function reviewRegistration(
       ? null
       : text(input, "reason");
   return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     const [row] = await exec.query<Row>(
       "select * from registration where id=$1 for update",
       [id],
@@ -607,6 +611,7 @@ export async function createInvite(
   input: Row,
 ): Promise<Row> {
   return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     const premises = await getPremises(exec, text(input, "premises_id"));
     await activeOwner(exec, actor, String(premises.id));
     validateConnectionRole(String(premises.kind), input.role);
@@ -650,6 +655,7 @@ export async function acceptInvite(
   token: string,
 ): Promise<Row> {
   return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     const [person] = await exec.query<Row>("select id,is_test,status from person where id=$1 for update", [actor.person.id]);
     if (!person || person.status !== "active" || person.is_test !== actor.person.isTest) throw new ApiError("NOT_FOUND");
 
@@ -775,6 +781,7 @@ export async function acceptInviteForNewTelegram(
   if (input.consent !== true)
     throw new ApiError("VALIDATION_FAILED", "Требуется согласие");
   return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     const [invite] = await exec.query<Row>(
       "select * from invite where token=$1 and status='active' and expires_at>now() for update",
       [token],
@@ -825,6 +832,7 @@ export async function revokeOwnConnection(
   if (!reason.trim())
     throw new ApiError("VALIDATION_FAILED", "Укажите причину");
   await deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     const [row] = await exec.query<Row>(
       "select * from connection where id=$1 for update",
       [id],
@@ -876,6 +884,7 @@ export async function recoverTelegram(
   const reason = text(input, "verified_basis"),
     registrationId = text(input, "registration_id");
   return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     const [person] = await exec.query<Row>(
       "select * from person where id=$1 for update",
       [personId],

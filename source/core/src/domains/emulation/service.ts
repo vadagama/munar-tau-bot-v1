@@ -1,3 +1,4 @@
+import { lockAudience } from "../registry/audience-lock.ts";
 import { STAFF_REQUEST_COMMANDS } from "../../bot/staff-requests.ts";
 import { DOCUMENT_COMMANDS } from "../../bot/documents.ts";
 import { INCIDENT_COMMANDS } from "../../bot/incidents.ts";
@@ -75,6 +76,7 @@ export async function createTestPerson(
     throw new ApiError("VALIDATION_FAILED", "Укажите имя тестовой персоны");
   }
   return deps.tx.transaction(async (exec) => {
+    await lockAudience(exec);
     const record = await deps.emulation.createTestPerson(exec, { fullName });
     await deps.audit.append(exec, buildAuditInput(actor, {
       action: "emulation.person.create",
@@ -102,6 +104,7 @@ export async function startEmulation(
   now: Date,
 ): Promise<EmulationSessionRecord> {
   return deps.tx.transaction(async (exec) => {
+    await lockAudience(exec);
     const target = await deps.admin.getProfile(exec, input.emulatedProfileId);
     if (!target) {
       throw new ApiError("NOT_FOUND", "Профиль не найден");
@@ -160,6 +163,7 @@ export async function revokeTestPersonRole(
     throw new ApiError("FORBIDDEN", "Управление ролями недоступно в эмуляции");
   }
   return deps.tx.transaction(async (exec) => {
+    await lockAudience(exec);
     const assignment = await deps.admin.getAssignment(exec, assignmentId);
     if (!assignment) {
       throw new ApiError("NOT_FOUND", "Назначение не найдено");
@@ -229,6 +233,7 @@ export async function endEmulation(
   now: Date,
 ): Promise<EmulationSessionRecord> {
   return deps.tx.transaction(async (exec) => {
+    await lockAudience(exec);
     const session = await deps.emulation.getSession(exec, sessionId);
     if (!session || session.techAdminProfileId !== actor.profile.id) {
       throw new ApiError("NOT_FOUND", "Сеанс эмуляции не найден");
@@ -293,6 +298,7 @@ export async function simulate(
     throw new ApiError("NOT_FOUND", "Сценарий не найден");
   }
   return deps.tx.transaction(async (exec) => {
+    await lockAudience(exec);
     const reply = await scenario.run(input.text ?? "", {
       actor,
       bot,

@@ -49,7 +49,8 @@ it("создание без очереди сохраняет NULL", async () =>
 it("неверная очередь отклоняется до записи и аудита", async () => {
   const { deps, query, append } = setup();
   await expect(mutateRegistry(deps, chairman, "buildings", { construction_phase: 6 }, "b1")).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-  expect(query).toHaveBeenCalledTimes(1); // Только чтение прежней записи.
+  expect(query).toHaveBeenCalledTimes(2); // Gate и чтение прежней записи.
+  expect(query).toHaveBeenNthCalledWith(1, "select public.audience_clock()");
   expect(append).not.toHaveBeenCalled();
 });
 

@@ -1,3 +1,4 @@
+import { lockAudience } from "../domains/registry/audience-lock.ts";
 import { navigationReply } from "./navigation.ts";
 import { DOCUMENT_COMMANDS, documentStep, queueDocumentFile } from "./documents.ts";
 import { STAFF_REQUEST_COMMANDS, staffRequestStep } from "./staff-requests.ts";
@@ -151,6 +152,7 @@ export async function processInbound(
     throw new ApiError("VALIDATION_FAILED", "Некорректный update_id");
   }
   return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     // update_id уникален внутри одного бота; ключ дедупликации — пара (bot, update_id).
     const inserted = await exec.query(
       "insert into bot_inbound(bot,update_id,payload) values ($1,$2,$3::text::jsonb) on conflict do nothing returning update_id",

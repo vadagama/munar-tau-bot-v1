@@ -1,3 +1,4 @@
+import { lockAudience } from "../domains/registry/audience-lock.ts";
 import { buildingHints, houseChoice, validHouseChoice } from "./building-hints.ts";
 import { navigationReply } from "./navigation.ts";
 import { loadDialog, readDialog, saveDialog } from "./dialog.ts";
@@ -125,6 +126,7 @@ export async function registrationStep(
   providedActor?: Actor,
 ): Promise<BotReply> {
   return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     const d = scopedDeps(deps, exec);
     const actor = providedActor ?? (await actorForTelegram(d, telegramId));
     const bot = deps.bot ?? "resident";

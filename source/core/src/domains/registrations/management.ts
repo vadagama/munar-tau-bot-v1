@@ -1,3 +1,4 @@
+import { lockAudience } from "../registry/audience-lock.ts";
 import type { Actor, StaffRole } from "../../pdp/types.ts";
 import { can } from "../../pdp/evaluate.ts";
 import { canManageStaff } from "../../pdp/roles.ts";
@@ -85,6 +86,7 @@ export async function manageRegistration(
     throw new ApiError("VALIDATION_FAILED", "Нужна версия анкеты");
   }
   return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     // Авторизацию проверяем и для повторного Idempotency-Key.
     const load = async () => {
       const [row] = await exec.query<Row>(
@@ -232,6 +234,7 @@ export async function withdrawUnconfirmedRegistration(
   expectedVersion: number,
 ): Promise<void> {
   await deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     const [row] = await exec.query<Row>(
       "select * from registration where id=$1 and telegram_user_id=$2 for update",
       [id, telegramId],

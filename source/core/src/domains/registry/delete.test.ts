@@ -51,7 +51,8 @@ it("помещение удаляется с каскадом, обращени�
   });
   const result = await deleteRegistry(deps, administrator, "premises", "prem-1");
   expect(result).toEqual({ connections: 2, invites: 1, registrations: 0, requests_detached: 1 });
-  const sqls = calls.map((c) => c.sql);
+  expect(calls[0]?.sql).toBe("select public.audience_clock()");
+  const sqls = calls.slice(1).map((c) => c.sql);
   expect(sqls).toEqual([
     "select * from premises where id=$1 for update",
     "delete from connection where premises_id=$1 returning id",
@@ -81,7 +82,8 @@ it("здание удаляется председателем: каскад п�
   const result = await deleteRegistry(deps, chairman, "buildings", "b1");
   // Каскад выполняется для каждого помещения; фейк возвращает по одной связи.
   expect(result).toEqual({ connections: 2, invites: 0, registrations: 0, requests_detached: 1 });
-  const sqls = calls.map((c) => c.sql);
+  expect(calls[0]?.sql).toBe("select public.audience_clock()");
+  const sqls = calls.slice(1).map((c) => c.sql);
   expect(sqls[0]).toBe("select * from building where id=$1 for update");
   expect(sqls[1]).toBe("select 1 from emergency_signal where building_id=$1 limit 1");
   // Каскад по каждому из двух помещений.

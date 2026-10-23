@@ -204,12 +204,12 @@
 
 ## P01. Сохранять историю права участия
 
-- [ ] **P01 выполнена**
+- [x] **P01 выполнена**
 - Критерий: История интервалов покрывает изменение/отзыв/архивирование/каскадное удаление связей и помещений, start/end даты и is_test.
 - Критерий: Расчёт на closes_at отличает отзыв до и после срока; миграция не выдумывает историю до внедрения.
-- Проверка: npm test -w core -- src/domains/polls/audience.test.ts; SQL-интеграция сохранена для отдельного запуска.
+- Проверка: npm test -w @munar/core -- audience-history.test.ts; SQL-интеграция: 6 сценариев прошли на разрешённом Sydney, включая baseline/replay и два соединения.
 - Зависимости: F06. Объём: M (4 основных файлов).
-- Файлы: `source/db/migrations/20261023101000_vs8_audience_history.sql`, `source/core/src/domains/polls/audience.ts`, `source/core/src/domains/polls/audience.test.ts`, `source/core/tests/integration/poll-audience-history.test.ts`.
+- Файлы: `source/db/migrations/20261023101000_vs8_audience_history.sql`, `source/core/src/domains/registry/audience-history.ts`, `source/core/src/domains/registry/audience-history.test.ts`, `source/core/src/domains/registry/audience-lock.ts`, `source/core/tests/integration/audience-history.test.ts`.
 
 ## P02. Добавить опросы и личный ответ
 

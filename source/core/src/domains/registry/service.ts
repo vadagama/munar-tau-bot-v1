@@ -1,3 +1,4 @@
+import { lockAudience } from "./audience-lock.ts";
 import { templateNotice } from "../../templates/notice.ts";
 import type { TemplateStore } from "../../templates/store.ts";
 import { notifyPerson } from "../registrations/notifications.ts";
@@ -155,6 +156,7 @@ export async function mutateRegistry(
   id?: string,
 ): Promise<Row> {
   return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     const table = TABLES[entity];
     const [before] = id
       ? await exec.query<Row>(`select * from ${table} where id=$1 for update`, [
@@ -433,6 +435,7 @@ export async function deleteRegistry(
     throw new ApiError("VALIDATION_FAILED", "Удаление доступно только для зданий и помещений");
   }
   return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
     if (entity === "premises") {
       const [premises] = await exec.query<Row>("select * from premises where id=$1 for update", [id]);
       if (!premises) throw new ApiError("NOT_FOUND");

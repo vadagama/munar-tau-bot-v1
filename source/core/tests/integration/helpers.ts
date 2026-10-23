@@ -224,7 +224,7 @@ export async function clearTestData(exec: DbExecutor): Promise<void> {
   if (tables.length === 0) return;
   // Защита снимается до truncate: каскад FK может задевать audit_log,
   // поэтому аудит-таблица должна быть в общем списке с уже выданным TRUNCATE.
-  const list = tables.filter(t => !["time_rule", "time_rule_version", "request_category", "file_policy"].includes(t.tablename)).map((table) => `"${table.tablename}"`).join(", ");
+  const list = tables.filter(t => !["time_rule", "time_rule_version", "request_category", "file_policy", "audience_history_meta"].includes(t.tablename)).map((table) => `"${table.tablename}"`).join(", ");
   const hasAudit = tables.some(table => table.tablename === "audit_log");
   if (hasAudit) {
     await exec.query("alter table audit_log disable trigger audit_log_append_only_truncate");

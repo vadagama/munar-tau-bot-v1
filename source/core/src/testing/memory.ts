@@ -38,6 +38,7 @@ import {
 export class MemoryDb implements DbClient {
   public readonly outbox: unknown[] = [];
   public async query<T>(sql: string, params?: readonly unknown[]): Promise<T[]> {
+    if (sql === "select public.audience_clock()") return [];
     if(sql.startsWith("insert into outbox(")){this.outbox.push(params);return [];}
     throw new Error("MemoryDb не исполняет SQL — используйте фейки репозиториев");
   }
