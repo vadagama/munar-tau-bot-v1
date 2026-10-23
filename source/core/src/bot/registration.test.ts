@@ -157,7 +157,7 @@ function harness(
       // Шаг «роль»: адрес помещения для согласия (дом, код, номер).
       if (sql.startsWith("select p.number"))
         return Promise.resolve([
-          { number: "4", code: "107/2", b_kind: "house" },
+          { number: "4", code: "107/2" },
         ] as T[]);
       if (sql.startsWith("insert into privacy_request"))
         return Promise.resolve([
@@ -858,8 +858,8 @@ describe("бот: /add — добавление помещения", () => {
   const P1 = "aaaaaaaa-1111-1111-1111-111111111111";
   const P2 = "aaaaaaaa-2222-2222-2222-222222222222";
   const connections = [
-    { premises_id: P1, role: "owner", kind: "apartment", number: "12", code: "Ж1", b_kind: "house" },
-    { premises_id: P2, role: "owner", kind: "parking_slot", number: "3", code: "П1", b_kind: "parking" },
+    { premises_id: P1, role: "owner", kind: "apartment", number: "12", code: "Ж1" },
+    { premises_id: P2, role: "owner", kind: "parking_slot", number: "3", code: "П1" },
   ];
 
   it("есть связанные помещения — список, анкетные данные предзаполнены, вопросы о языке/имени/телефоне не задаются", async () => {
@@ -868,7 +868,7 @@ describe("бот: /add — добавление помещения", () => {
     const text = replyText(reply);
     expect(text).toContain("связанные с вами");
     expect(text).toContain("Дом Ж1, Квартира 12 — Собственник");
-    expect(text).toContain("Парковка П1, Парковочное место 3 — Собственник");
+    expect(text).toContain("Дом П1, Парковочное место 3 — Собственник");
     expect(text).not.toContain("Ваше имя");
     expect(text).not.toContain("Телефон");
     expect(h.state.step).toBe("add_select");
@@ -903,7 +903,7 @@ describe("бот: /add — добавление помещения", () => {
     const reply = await registrationStep(h.deps, "100", "2");
     const text = replyText(reply);
     expect(text).toContain("Проверьте");
-    expect(text).toContain("Парковка П1, Парковочное место 3");
+    expect(text).toContain("Дом П1, Парковочное место 3");
     expect(text).toContain("Собственник");
     expect(h.state.step).toBe("consent");
     expect(h.state.premises_id).toBe(P2);

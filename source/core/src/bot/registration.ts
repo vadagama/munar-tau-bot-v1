@@ -98,7 +98,7 @@ function premisesAddress(r: Row, L: Lang, store?: TemplateStore): string {
   if (!r.premises_id) {
     return esc(message(store, L, "registration.pomeschenie_ne_ukazano"));
   }
-  return `${esc(label(buildingLabels, r.b_kind, L, "Дом"))} ${esc(r.code ?? "—")}, ${
+  return `${esc(label(buildingLabels, "house", L, "Дом"))} ${esc(r.code ?? "—")}, ${
     esc(label(premiseLabels, r.kind, L, "помещение"))
   } ${esc(r.number ?? "—")}`;
 }
@@ -192,7 +192,7 @@ export async function registrationStep(
     }
     if (cmd === "/status") {
       const rows = await exec.query<Row>(
-        `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.decided_at,r.created_at,r.draft,r.role,r.premises_id,p.kind,p.number,b.code,b.kind as b_kind
+        `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.decided_at,r.created_at,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
         from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
         where (r.telegram_user_id=$1 or r.person_id=$2) and r.superseded_by is null order by r.created_at desc limit 20`,
         [telegramId, actor?.person.id ?? null],
@@ -360,7 +360,7 @@ export async function registrationStep(
         return save(registerPrompt(deps.templates, L));
       }
       const rows = await exec.query<Row>(
-        "select c.id,c.premises_id,c.role,c.status,p.kind,p.number,b.code,b.kind as b_kind from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1",
+        "select c.id,c.premises_id,c.role,c.status,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1",
         [actor.person.id],
       );
       if (!rows.length) {
@@ -600,7 +600,7 @@ export async function registrationStep(
       // импорт не подтверждает доступ автоматически), без действующей связи
       // и без анкеты в работе — их и предлагаем списком.
       const rows = await exec.query<Row>(
-        `select c.premises_id,c.role,p.kind,p.number,b.code,b.kind as b_kind
+        `select c.premises_id,c.role,p.kind,p.number,b.code
         from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id
         where c.person_id=$1 and c.status='pending' and p.status='active' and p.is_test=$2
         and not exists(select 1 from connection a where a.person_id=c.person_id and a.premises_id=c.premises_id and a.status='active')
@@ -935,7 +935,7 @@ export async function registrationStep(
         // Роль и помещение берём заново: связи могли измениться между /add
         // и выбором номера. Роль связи сохраняется в анкете.
         const [conn] = await exec.query<Row>(
-          `select c.role,p.kind,p.number,b.code,b.kind as b_kind from connection c
+          `select c.role,p.kind,p.number,b.code from connection c
           join premises p on p.id=c.premises_id join building b on b.id=p.building_id
           where c.person_id=$1 and c.premises_id=$2 and c.status='pending'`,
           [actor?.person.id ?? null, id],
@@ -974,7 +974,7 @@ export async function registrationStep(
               {
                 full_name: state.full_name,
                 phone: state.phone_e164,
-                building: label(buildingLabels, conn.b_kind, L, "Дом"),
+                building: label(buildingLabels, "house", L, "Дом"),
                 kind: label(premiseLabels, state.kind, L),
                 code: conn.code,
                 number: conn.number,
@@ -1127,7 +1127,7 @@ export async function registrationStep(
         // Полный адрес для согласия: дом и номер берём из БД, а не из
         // состояния — помещение могло быть переименовано между шагами.
         const [premises] = await exec.query<Row>(
-          "select p.number,b.code,b.kind as b_kind from premises p join building b on b.id=p.building_id where p.id=$1 and p.status='active'",
+          "select p.number,b.code from premises p join building b on b.id=p.building_id where p.id=$1 and p.status='active'",
           [state.premises_id],
         );
         if (!premises) throw new ApiError("NOT_FOUND");
@@ -1140,7 +1140,7 @@ export async function registrationStep(
             message(deps.templates, L, "message.registration.consent", {
               full_name: state.full_name,
               phone: state.phone_e164,
-              building: label(buildingLabels, premises.b_kind, L, "Дом"),
+              building: label(buildingLabels, "house", L, "Дом"),
               code: premises.code,
               kind: label(premiseLabels, state.kind, L),
               number: premises.number,
