@@ -8,6 +8,7 @@ import { fileUrl } from "../../src/domains/requests/files.ts";
 import { getPublication, listPublications, savePublication, transitionPublication } from "../../src/domains/publications/service.ts";
 import { publicationFile } from "../../src/domains/publications/media.ts";
 import { checkedDocumentVersions } from "../../src/domains/documents/provider.ts";
+import { listDocumentVersionOptions } from "../../src/domains/documents/version-options.ts";
 import { checkFinancialRelease } from "../../src/domains/publications/financial-store.ts";
 import { publishScheduled } from "../../src/domains/publications/jobs.ts";
 import { fanoutBroadcasts } from "../../src/domains/incidents/broadcast.ts";
@@ -201,6 +202,7 @@ describeWithDb("FIN-01…04: изоляция и неизменяемость в
   }, 600_000);
   it("провайдер проверяет конкретные версии, область, исходный PDP и состояние файла", async () => {
     const db = getDb(), s = await schemaFixture(db);
+    const deps = { db, audit: new SqlAuditRepo() };
     await db.query("insert into staff_assignment(person_id,role) values($1,'administrator')", [SEED.testAdminPersonId]);
     const admin = await actorForPerson(db, SEED.testAdminPersonId, true);
     await db.query("update document_version set state='on_review' where id=any($1::uuid[])", [s.versions]);
@@ -208,9 +210,12 @@ describeWithDb("FIN-01…04: изоляция и неизменяемость в
     const checked = await db.transaction(exec => checkedDocumentVersions(exec, admin, s.versions, [SEED.building1]));
     expect(checked.map(d => d.id).sort()).toEqual([...s.versions].sort());
     expect(checked.every(d => d.state === "approved" && d.attachment_id && d.document_date)).toBe(true);
+    expect((await listDocumentVersionOptions(deps, admin)).items.map(v => v.id).sort()).toEqual([...s.versions].sort());
     const resident = { ...admin, assignments: [] };
+    expect((await listDocumentVersionOptions(deps, resident)).items).toEqual([]);
     await expect(db.transaction(exec => checkedDocumentVersions(exec, resident, s.versions, [SEED.building1]))).rejects.toMatchObject({ code: "NOT_FOUND" });
     await db.query("update document_version set state='needs_fix' where id=$1", [s.versions[1]]);
+    expect((await listDocumentVersionOptions(deps, admin)).items.map(v => v.id)).toEqual([s.versions[0]]);
     await expect(db.transaction(exec => checkedDocumentVersions(exec, admin, s.versions, [SEED.building1]))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
   }, 300_000);
   it("все финансовые таблицы закрыты от прямых клиентов", async () => {

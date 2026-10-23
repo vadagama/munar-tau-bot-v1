@@ -1,6 +1,7 @@
 import type { Route, RouteContext } from "./handlers.ts";
 import { databaseValidation } from "../../core/src/domains/registry/validation.ts";
 import { createDocument, addDocumentVersion, transitionDocumentVersion, publishDocument, listDocuments, getDocument } from "../../core/src/domains/documents/service.ts";
+import { listDocumentVersionOptions } from "../../core/src/domains/documents/version-options.ts";
 import { listTaskAssignees } from "../../core/src/domains/tasks/assignees.ts";
 import { can } from "../../core/src/pdp/evaluate.ts";
 import { ApiError } from "../../core/src/errors/api.ts";
@@ -11,6 +12,7 @@ function route(method: Route["method"], path: string, handler: Route["handler"])
   return { method, path, action: "document.use", evaluateAs: "effective", handler: c => databaseValidation(() => handler(c)) };
 }
 export const DOCUMENT_ROUTES: Route[] = [
+  route("GET", "/v1/documents/version-options", async c => ({ body: await listDocumentVersionOptions(deps(c), c.actor, Number(c.url.searchParams.get("offset") ?? 0)) })),
   route("GET", "/v1/documents/obligations", async c => ({ body: await listObligations(deps(c), c.actor, { requestId: c.url.searchParams.get("request_id") ?? undefined, taskId: c.url.searchParams.get("task_id") ?? undefined }) })),
   route("POST", "/v1/documents/obligations", async c => ({ status: 201, body: await createObligation(deps(c), c.actor, c.body, key(c)) })),
   route("POST", "/v1/documents/obligations/:id/fulfill", async c => ({ body: await fulfillObligation(deps(c), c.actor, c.params.id!, c.body, key(c)) })),
