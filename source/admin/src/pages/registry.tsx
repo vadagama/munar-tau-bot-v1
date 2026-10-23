@@ -44,6 +44,7 @@ const LABELS: Record<string, string> = {
   connections: "Привязки помещений",
   full_name: "ФИО",
   phone_e164: "Телефон",
+  telegram_username: "Telegram",
   code: "Обозначение",
   name: "Название",
   construction_phase: "Очередь строительства",
@@ -163,6 +164,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
     [premises, setPremises] = useState<Row[]>([]),
     [persons, setPersons] = useState<Row[]>([]);
   const [residentSearch, setResidentSearch] = useState("");
+  const [staffSearch, setStaffSearch] = useState("");
   const [registrationState, setRegistrationState] = useState<string>();
   const [residentBuilding, setResidentBuilding] = useState<string>();
   const [hasPremises, setHasPremises] = useState<string>();
@@ -269,7 +271,9 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
       : entity === "premises"
         ? ["building_code", "kind", "number", "entrance", "floor", "status"]
         : entity === "persons"
-          ? ["full_name", "phone_e164", "comment"]
+          ? users
+            ? ["full_name", "phone_e164", "telegram_username", "comment"]
+            : ["full_name", "phone_e164", "comment"]
           : ["full_name", "phone_e164", "building_code", "kind", "number", "role", "basis", "status"];
   const remove = async (row: Row) => {
     try {
@@ -300,6 +304,8 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
           displayKind(v)
         ) : key === "role" ? (
           displayRole(v)
+        ) : key === "telegram_username" ? (
+          v ? `@${String(v)}` : "—"
         ) : key === "status" ? (
           <Tag>{STATUS[String(v)] ?? String(v)}</Tag>
         ) : (
@@ -366,7 +372,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
   const visibleRows = users === "residents" ? rows.filter(row => {
     const links = linkedPremises(row);
     const search = residentSearch.trim().toLocaleLowerCase("ru-RU");
-    const searchable = [row.full_name, row.phone_e164, residentAddress(row), residentPremises(row)].join(" ").toLocaleLowerCase("ru-RU");
+    const searchable = [row.full_name, row.phone_e164, row.telegram_username ? `@${row.telegram_username}` : "", residentAddress(row), residentPremises(row)].join(" ").toLocaleLowerCase("ru-RU");
     const date = row.registered_at ? new Date(String(row.registered_at)).toLocaleDateString("en-CA", { timeZone: "Asia/Almaty" }) : "";
     return (!search || searchable.includes(search))
       && (!registrationState || (row.registration_state ?? "none") === registrationState)
@@ -374,12 +380,19 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
       && (!hasPremises || (hasPremises === "yes" ? links.length > 0 : links.length === 0))
       && (!registeredFrom || !!date && date >= registeredFrom)
       && (!registeredTo || !!date && date <= registeredTo);
+  }) : users === "staff" ? rows.filter(row => {
+    const search = staffSearch.trim().toLocaleLowerCase("ru-RU");
+    if (!search) return true;
+    const roles = (row.staff_roles as string[] | undefined) ?? [];
+    const searchable = [row.full_name, row.phone_e164, row.telegram_username ? `@${row.telegram_username}` : "", row.comment,
+      ...roles.map(role => ROLE_LABELS[role] ?? role)].join(" ").toLocaleLowerCase("ru-RU");
+    return searchable.includes(search);
   }) : users ? rows : filterRegistryRows(directoryRows, filters, KINDS, ROLES, STATUS);
   return (
     <PageLayout title={users === "staff" ? "Сотрудники" : users ? "Жители" : LABELS[entity]}
       actions={users !== "staff" ? <Button type="primary" onClick={() => open(null)}>Добавить запись</Button> : null}
       filters={users === "residents" ? <Space wrap>
-        <Input.Search aria-label="Поиск жителей" placeholder="ФИО, телефон или адрес" value={residentSearch}
+        <Input.Search aria-label="Поиск жителей" placeholder="ФИО, телефон, Telegram или адрес" value={residentSearch}
           onChange={e => setResidentSearch(e.target.value)} style={{ width: 280 }} />
         <Select aria-label="Статус регистрации" placeholder="Все статусы" allowClear value={registrationState}
           onChange={setRegistrationState} style={{ width: 230 }}
@@ -395,6 +408,9 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
           onChange={e => setRegisteredFrom(e.target.value)} style={{ width: 155 }} />
         <Input aria-label="Период регистрации по" type="date" value={registeredTo}
           onChange={e => setRegisteredTo(e.target.value)} style={{ width: 155 }} />
+      </Space> : users === "staff" ? <Space wrap>
+        <Input.Search aria-label="Поиск сотрудников" placeholder="ФИО, телефон, Telegram или роль" value={staffSearch}
+          onChange={e => setStaffSearch(e.target.value)} style={{ width: 320 }} />
       </Space> : !users && <RegistryFilters section={section} values={filters}
         onChange={values => { setFilters(values); setPage(1); }} buildings={buildings} kinds={KINDS} roles={ROLES} statuses={STATUS} />}> <Typography.Paragraph type="secondary">
           {users === "staff" ? "Пользователи с действующими служебными полномочиями в доступной области." : users

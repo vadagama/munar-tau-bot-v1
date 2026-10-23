@@ -17,10 +17,11 @@ interface Capture {
   sql: string;
 }
 
-function harness(opts: { profile?: boolean } = {}) {
+function harness(opts: { profile?: boolean; failUsernameSync?: boolean } = {}) {
   const delivered = new Set<string>();
   const notifications: Capture[] = [];
   const dialogSaves: Capture[] = [];
+  const usernameSyncs: Capture[] = [];
   const dialogState: Row = {};
   const exec: DbExecutor = {
     query: <T>(sql: string, params?: unknown[]): Promise<T[]> => {
@@ -40,6 +41,12 @@ function harness(opts: { profile?: boolean } = {}) {
       }
       if (sql.startsWith("update bot_dialog_channel set state")) {
         dialogSaves.push({ sql, params });
+        return Promise.resolve([] as T[]);
+      }
+      if (sql.startsWith("update profile set telegram_username") ||
+        sql.startsWith("update registration set telegram_username")) {
+        if (opts.failUsernameSync) return Promise.reject(new Error("sync down"));
+        usernameSyncs.push({ sql, params });
         return Promise.resolve([] as T[]);
       }
       if (opts.profile) {
@@ -84,6 +91,7 @@ function harness(opts: { profile?: boolean } = {}) {
     notifications,
     dialogState,
     dialogSaves,
+    usernameSyncs,
   };
 }
 
@@ -211,6 +219,52 @@ const textUpdate = (updateId: number, text: string): Row => ({
 
 const replyOf = (h: ReturnType<typeof harness>): string =>
   h.notifications[0]!.params![1] as string;
+
+describe("processInbound: имя в Telegram (display-only метаданные)", () => {
+  it("username из обновления уходит в профиль и снимок активных анкет", async () => {
+    const h = harness();
+    const update = textUpdate(40, "/help");
+    ((update.message as Row).from as Row).username = "w84gr8";
+    expect(await processInbound(h.deps, update, "resident")).toBe(true);
+    expect(h.usernameSyncs.length).toBe(2);
+    expect(h.usernameSyncs[0]!.sql.startsWith("update profile set telegram_username")).toBe(true);
+    expect(h.usernameSyncs[0]!.params).toEqual(["100", "w84gr8"]);
+    expect(h.usernameSyncs[1]!.sql.startsWith("update registration set telegram_username")).toBe(true);
+    expect(h.usernameSyncs[1]!.params).toEqual(["100", "w84gr8"]);
+  });
+
+  it("username из callback_query тоже синхронизируется", async () => {
+    const h = harness();
+    const update = helpCallback(41);
+    ((update.callback_query as Row).from as Row).username = "oleg_san_krasnov";
+    expect(await processInbound(h.deps, update, "resident")).toBe(true);
+    expect(h.usernameSyncs[0]!.params).toEqual(["100", "oleg_san_krasnov"]);
+  });
+
+  it("сообщение без username очищает сохранённое имя (null)", async () => {
+    const h = harness();
+    expect(await processInbound(h.deps, textUpdate(42, "/help"), "resident")).toBe(true);
+    expect(h.usernameSyncs.map((s) => s.params)).toEqual([["100", null], ["100", null]]);
+  });
+
+  it("некорректный username не попадает в базу", async () => {
+    const h = harness();
+    const update = textUpdate(42, "/help");
+    ((update.message as Row).from as Row).username = "не username!";
+    expect(await processInbound(h.deps, update, "resident")).toBe(true);
+    expect(h.usernameSyncs.map((s) => s.params)).toEqual([["100", null], ["100", null]]);
+  });
+
+  it("сбой синхронизации имени не ломает обработку обновления", async () => {
+    const h = harness({ failUsernameSync: true });
+    const update = textUpdate(43, "/help");
+    ((update.message as Row).from as Row).username = "w84gr8";
+    expect(await processInbound(h.deps, update, "resident")).toBe(true);
+    // Ответ пользователю ушёл, несмотря на отказ синхронизации.
+    expect(h.notifications.length).toBe(1);
+    expect(h.usernameSyncs.length).toBe(0);
+  });
+});
 
 describe("processInbound: команды не глотаются активным сценарием", () => {
   it("кнопка Помощь открывает сгруппированную справку из активного диалога", async () => {

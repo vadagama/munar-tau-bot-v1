@@ -101,6 +101,7 @@ export async function listRegistry(
       return deps.db.query<Row>(
         `select n.*,
           array(select distinct a.role::text from staff_assignment a where a.person_id=n.id and a.status='active' and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())) as staff_roles,
+          (select pr.telegram_username from profile pr where pr.person_id=n.id and pr.archived_at is null order by pr.id desc limit 1) as telegram_username,
           registration.state as registration_state, registration.created_at as registered_at,
           coalesce((select jsonb_agg(jsonb_build_object(
             'id',p.id,'building_id',b.id,'building_code',b.code,'building_name',b.name,
@@ -127,6 +128,7 @@ export async function listStaff(deps: RegistryDeps, actor: Actor): Promise<Row[]
   const scope = registryScope(actor);
   return deps.db.query<Row>(
     `select n.id,n.full_name,n.phone_e164,n.comment,
+      (select pr.telegram_username from profile pr where pr.person_id=n.id and pr.archived_at is null order by pr.id desc limit 1) as telegram_username,
       array_agg(distinct a.role::text order by a.role::text) as staff_roles
      from person n join staff_assignment a on a.person_id=n.id
      where n.is_test=$2 and a.status='active'
