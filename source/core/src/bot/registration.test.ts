@@ -47,6 +47,8 @@ function harness(
     objectsRows?: Row[];
     /** Связь для revokeOwnConnection (select * from connection … for update). */
     revokeRow?: Row | null;
+    /** Активные связи персоны для /status и guard /register (premises_id, kind, number, code). */
+    personConnections?: Row[];
     openPrivacyRequests?: Row[];
   } = {},
 ) {
@@ -113,6 +115,10 @@ function harness(
       // /accesses: выданные доступы собственника.
       if (sql.startsWith("select c.id,c.confirmed_by,n.full_name")) {
         return Promise.resolve((opts.accessRows ?? []) as T[]);
+      }
+      // Активные связи персоны: список помещений в /status и guard /register.
+      if (sql.startsWith("select c.premises_id,p.kind,p.number,b.code from connection c")) {
+        return Promise.resolve((opts.personConnections ?? []) as T[]);
       }
       // /objects: помещения пользователя; фильтр статуса связи берётся из SQL.
       if (sql.startsWith("select c.id,c.premises_id,c.role")) {
@@ -627,17 +633,24 @@ describe("бот: /register при существующей анкете (guard)
     }] });
     const reply = await registrationStep(h.deps, "100", "/register");
     expect(replyText(reply)).toBe(language === "ru"
-      ? "&lt;Евгений&gt;, Вы зарегистрированы 21.10.2026 03:30, помещения пока не прикреплены к анкете.\nПовторная регистрация не нужна."
-      : "&lt;Евгений&gt;, Сіз 21.10.2026 03:30 күні тіркелдіңіз, сауалнамаға үй-жайлар әлі байланыстырылмаған.\nҚайта тіркелудің қажеті жоқ.");
+      ? "Статус анкеты\n&lt;Евгений&gt;, Вы зарегистрированы 21.10.2026 03:30\nПомещения пока не прикреплены\n\nПовторная регистрация не нужна"
+      : "Өтінім күйі\n&lt;Евгений&gt;, Сіз 21.10.2026 03:30 күні тіркелдіңіз\nҮй-жайлар әлі байланыстырылмаған\n\nҚайта тіркелудің қажеті жоқ");
     expect(typeof reply !== "string" && reply.buttons?.map(row => row.map(button => button.data)))
       .toEqual([["/status"], ["/fix"], ["/add"], ["/delete"]]);
   });
 
-  it("не сообщает об отсутствии помещений при действующей привязке", async () => {
+  it("при действующей привязке показывает список помещений", async () => {
     const h = harness({ registrations: [{ id: REG_ID, state: "approved", draft,
-      premises_id: null, has_active_premises: true, created_at: "2026-10-20T10:00:00Z" }] });
+      premises_id: null, person_id: "pers-9", created_at: "2026-10-20T10:00:00Z" }],
+      personConnections: [
+        { premises_id: "p9", kind: "apartment", number: "4", code: "107/1" },
+        { premises_id: "p8", kind: "parking_slot", number: "25", code: "107/1" },
+      ] });
     const text = replyText(await registrationStep(h.deps, "100", "/register"));
-    expect(text).not.toContain("помещения пока не прикреплены");
+    expect(text).not.toContain("Помещения пока не прикреплены");
+    expect(text).toContain("Прикрепленные помещения:");
+    expect(text).toContain("- Дом 107/1, Квартира 4");
+    expect(text).toContain("- Дом 107/1, Парковочное место 25");
     expect(text).toContain("Повторная регистрация не нужна");
   });
 
@@ -748,7 +761,7 @@ describe("бот: анкета без помещения (/status, /fix)", () =>
     expect(replyText(registered)).toContain("Вы зарегистрированы");
     expect(h.state.step).toBeUndefined();
     const status = await registrationStep(h.deps, "100", "/status");
-    expect(replyText(status)).toContain("Доступ подтверждён");
+    expect(replyText(status)).toContain("Помещения пока не прикреплены");
 
     const fix = await registrationStep(h.deps, "100", "/fix");
     expect(replyText(fix)).toContain("имя и фамилию");
@@ -803,8 +816,9 @@ describe("бот: анкета без помещения (/status, /fix)", () =>
     const reply = await registrationStep(h.deps, "100", "/status");
     const text = replyText(reply);
     expect(text).toContain("Oleg Krasnov");
-    expect(text).toContain("помещение не указано");
     expect(text).toContain("Ожидает проверки");
+    // Основная анкета без помещения — без строки «помещение не указано».
+    expect(text).not.toContain("помещение не указано");
   });
 
   it("/fix на анкете без помещения — premises_id и роль не предзаполняются", async () => {
@@ -833,57 +847,68 @@ describe("бот: анкета без помещения (/status, /fix)", () =>
 describe("бот: /status — актуальный статус и история изменений", () => {
   const currentRow = () => ({
     id: REG_ID,
-    state: "pending_review",
+    state: "approved",
     decided_reason: null,
-    decided_at: null,
+    decided_at: "2026-10-21T10:00:00.000Z",
     created_at: "2026-10-21T09:00:00.000Z",
     draft,
-    premises_id: "p1",
-    kind: "apartment",
-    code: "Ж1",
-    number: "1",
-    role: "owner",
+    confirmed_draft: draft,
+    person_id: "pers-1",
+    premises_id: null,
+    role: null,
+  });
+  const withdrawnRow = () => ({
+    id: REG_ID_2,
+    state: "withdrawn",
+    decided_reason: null,
+    decided_at: "2026-10-17T15:19:00.000Z",
+    created_at: "2026-10-17T10:00:00.000Z",
+    draft,
+    premises_id: null,
+    role: null,
   });
   const rejectedRow = () => ({
-    id: REG_ID_2,
+    id: "33333333-3333-3333-3333-333333333333",
     state: "rejected",
     decided_reason: "Нужна латиница в имени",
     decided_at: "2026-10-20T10:00:00.000Z",
     created_at: "2026-10-20T09:00:00.000Z",
     draft,
+    premises_id: null,
+    role: null,
+  });
+  // Отдельная анкета привязки помещения — факт привязки, не статус профиля.
+  const premiseRow = () => ({
+    id: "44444444-4444-4444-4444-444444444444",
+    state: "pending_review",
+    decided_reason: null,
+    decided_at: null,
+    created_at: "2026-10-20T12:00:00.000Z",
+    draft,
     premises_id: "p1",
     kind: "apartment",
     code: "Ж1",
     number: "1",
     role: "owner",
   });
-  const pendingRow = () => ({
-    id: "33333333-3333-3333-3333-333333333333",
-    state: "pending_review",
-    decided_reason: null,
-    decided_at: null,
-    created_at: "2026-10-19T08:00:00.000Z",
-    draft,
-    premises_id: null,
-    role: null,
-  });
 
-  it("актуальный статус вверху без номера, история с датами, исправление — одна кнопка", async () => {
-    const h = harness({ registrations: [currentRow(), rejectedRow(), pendingRow()] });
+  it("актуальный статус как в /register, история — только профильные решения", async () => {
+    const h = harness({ registrations: [currentRow(), premiseRow(), rejectedRow(), withdrawnRow()] });
     const reply = await registrationStep(h.deps, "100", "/status");
     const text = replyText(reply);
-    // Актуальная анкета — вверху, без нумерации.
-    expect(text).toContain("<b>Ожидает проверки</b>: Oleg Krasnov, Дом Ж1, Квартира 1, Собственник");
-    expect(text).not.toContain("1. ");
-    // История — хронологически, каждая запись: дата, статус и анкетные данные.
+    // Актуальный статус — как в /register: имя, дата и помещения (или их отсутствие).
+    expect(text).toContain(
+      "Статус анкеты\nOleg Krasnov, Вы зарегистрированы 21.10.2026 14:00\nПомещения пока не прикреплены",
+    );
+    // История — хронологически, только решения по профилю.
     expect(text).toContain("История изменений статуса:");
+    expect(text).toContain("17.10.2026 20:19 — <b>Отозвана</b>: Oleg Krasnov");
     expect(text).toContain(
-      "19.10.2026 13:00 — <b>Ожидает проверки</b>: Oleg Krasnov, помещение не указано",
+      "20.10.2026 15:00 — <b>Отказано</b>: Oleg Krasnov — Нужна латиница в имени",
     );
-    expect(text).toContain(
-      "20.10.2026 15:00 — <b>Отказано</b>: Oleg Krasnov, Дом Ж1, Квартира 1, Собственник — Нужна латиница в имени",
-    );
-    expect(text.indexOf("<b>Ожидает проверки</b>")).toBeLessThan(text.indexOf("История изменений статуса:"));
+    // Анкеты привязок помещений в историю не попадают.
+    expect(text).not.toContain("Дом Ж1");
+    expect(text.indexOf("Вы зарегистрированы")).toBeLessThan(text.indexOf("История изменений статуса:"));
     // Операции адресованы только актуальной анкете.
     expect(reply).toMatchObject({
       buttons: [
@@ -906,10 +931,21 @@ describe("бот: /status — актуальный статус и истори�
   it("/cancel после /status очищает диалог и открывает главное меню", async () => {
     const h = harness({ registrations: [currentRow(), rejectedRow()] });
     await registrationStep(h.deps, "100", "/status");
-    expect(h.state.status_options).toEqual([REG_ID, REG_ID_2]);
+    expect(h.state.status_options).toEqual([REG_ID, "33333333-3333-3333-3333-333333333333"]);
     const reply = await registrationStep(h.deps, "100", "/cancel");
     expect(replyText(reply)).toContain("ОСИ ЖК «Мунар Тау»");
     expect(h.state).toEqual({});
+  });
+
+  it("подтверждённая привязка показывается в списке помещений актуального статуса", async () => {
+    const h = harness({
+      registrations: [currentRow()],
+      personConnections: [{ premises_id: "p1", kind: "apartment", number: "4", code: "107/1" }],
+    });
+    const text = replyText(await registrationStep(h.deps, "100", "/status"));
+    expect(text).toContain("Прикрепленные помещения:");
+    expect(text).toContain("- Дом 107/1, Квартира 4");
+    expect(text).not.toContain("Помещения пока не прикреплены");
   });
 });
 
