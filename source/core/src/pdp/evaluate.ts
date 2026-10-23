@@ -3,6 +3,7 @@
 // проверяются при сборке Actor, здесь работают только собранные данные.
 
 import { ACTIONS, type ActionKey, type ActionSpec } from "./actions.ts";
+import { moderationDecision } from "./moderation.ts";
 import { initiativeDecision } from "./initiatives.ts";
 import { pollDecision } from "./polls.ts";
 import { documentDecision } from "./documents.ts";
@@ -24,6 +25,7 @@ export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {})
     }
   }
 
+  if(action.startsWith("moderation."))return moderationDecision(actor,action,resource);
   if(action==="initiative.use")return actor.person.status==="active"?ALLOW:deny("Учётная запись недоступна");
   if(action.startsWith("initiative."))return initiativeDecision(actor,action,resource);
 

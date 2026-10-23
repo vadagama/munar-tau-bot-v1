@@ -3,8 +3,8 @@ import type { DbExecutor,DbClient } from "../../db/client.ts";
 import { makeTestActor } from "../../testing/actors.ts";
 import { completeFollowup,listFailures } from "./followup.ts";
 const chairman=makeTestActor("chairman",[],{isTest:true});
-it("председатель не получает участников через журнал ошибок или прямой followup UUID",async()=>{
-  const privateRow={id:"notice",recipient_person_id:"resident",is_test:true,event_ref:{pollId:"poll",pollEvent:"closed"},followup_state:"open"};
+it.each([{pollId:"poll",pollEvent:"closed"},{moderationActionId:"action"}])("персональные POL/MOD данные скрыты в ошибках доставки и прямом followup UUID (%j)",async event_ref=>{
+  const privateRow={id:"notice",recipient_person_id:"resident",is_test:true,event_ref,followup_state:"open"};
   let personReads=0,writes=0;
   const exec:DbExecutor={async query<T>(sql:string){
     if(sql.startsWith("select full_name")){personReads++;return [{full_name:"Имя",phone_e164:"+7"}] as T[];}

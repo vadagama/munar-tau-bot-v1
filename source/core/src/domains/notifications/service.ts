@@ -1,3 +1,4 @@
+import { moderationNoticeAllowed } from "../initiatives/notices.ts";
 import { pollNoticeAllowed } from "../polls/notices.ts";
 import { messageButton } from "../../templates/message.ts";
 import { getTemplate } from "../../templates/catalog/index.ts";
@@ -25,6 +26,7 @@ import { deliveryMode, type EventType, type PreferenceMode } from "./policy.ts";
 import type { BotKind } from "../../bot/bots.ts";
 
 export interface NoticeOptions {
+  moderationActionId?: string;
   pollId?: string;
   pollEvent?: "opened" | "closed" | "canceled";
   financialVersionId?: string;
@@ -102,6 +104,7 @@ export async function noticeAllowed(
   if (notice.isTest !== undefined && notice.isTest !== actor.person.isTest) {
     return false;
   }
+  if(notice.moderationActionId && !await moderationNoticeAllowed(exec,actor,notice.moderationActionId))return false;
   if(notice.pollId || notice.pollEvent){
     if(!notice.pollId || !notice.pollEvent || !await pollNoticeAllowed(exec,actor,notice.pollId,notice.pollEvent))return false;
   }
@@ -376,7 +379,7 @@ export async function dispatchNotices(
                   documentId: n.documentId,
                   financialObligationId: n.financialObligationId,
                   financialVersionId: n.financialVersionId,
-                  pollId:n.pollId,pollEvent:n.pollEvent,
+                  pollId:n.pollId,pollEvent:n.pollEvent,moderationActionId:n.moderationActionId,
                 }),
                 n.bot ?? null,
               ],
@@ -462,7 +465,7 @@ export async function dispatchNotices(
                     documentId: n.documentId,
                     financialObligationId: n.financialObligationId,
                     financialVersionId: n.financialVersionId,
-                  pollId:n.pollId,pollEvent:n.pollEvent,
+                  pollId:n.pollId,pollEvent:n.pollEvent,moderationActionId:n.moderationActionId,
                   }),
                   type === "staff.roles" || (n.important ?? type === "request.required"),
                   type === "incident" ? 0 : 1,
@@ -503,7 +506,7 @@ export async function dispatchNotices(
               JSON.stringify({
                 buildingIds: n.buildingIds ?? [],
                 registrationAccess: n.registrationAccess,
-                pollId:n.pollId,pollEvent:n.pollEvent,
+                pollId:n.pollId,pollEvent:n.pollEvent,moderationActionId:n.moderationActionId,
               }),
               n.type === "staff.roles" || (n.important ?? n.type === "request.required"),
               n.requestId ?? null,
