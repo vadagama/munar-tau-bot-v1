@@ -81,9 +81,9 @@ const ACTIONS: Record<string, string> = {
 const STAFF: Record<string, string[]> = {
   new: ["start_review", "ask_clarification", "reject"],
   reviewing: [
-    "ask_clarification",
     "start_work",
     "submit_result",
+    "ask_clarification",
     "hold",
     "reject",
   ],
@@ -609,7 +609,8 @@ export function RequestsPage() {
               <section aria-label="Действия по процессу">
                 {manage && stateName === "in_work" && !requestGuidance(card, manage, own).primary &&
                   <Button type="primary" href="#request-tasks">Проверить связанные задания</Button>}
-                <ProcessActions primary={requestGuidance(card, manage, own).primary} secondary={["ask_clarification", "return_result", "reject_cancel"]}>
+                <ProcessActions primary={requestGuidance(card, manage, own).primary} secondary={["ask_clarification", "return_result", "reject_cancel"]}
+                  showAll={manage && stateName === "reviewing" && !card.cancel_request}>
                   {[...new Set(actions)].map((a) => (
                     <Button
                       key={a}

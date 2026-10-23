@@ -29,13 +29,13 @@ function buttons(children: ReactNode): ReactElement<ComponentProps<typeof Button
   return child.type === Button ? [child as ReactElement<ComponentProps<typeof Button>>] : [];
  });
 }
-export function ProcessActions({ primary, secondary = [], children }: {primary?: string; secondary?: string[]; children: ReactNode}) {
+export function ProcessActions({ primary, secondary = [], showAll = false, children }: {primary?: string; secondary?: string[]; showAll?: boolean; children: ReactNode}) {
  const [more, setMore] = useState(false);
  const all = buttons(children);
  // Children.toArray экранирует React key; сравниваем исходный суффикс ключа.
  const keyOf = (button: ReactElement) => String(button.key).split("$").at(-1);
  const main = all.find(button => keyOf(button) === primary);
- const frequent = all.filter(button => button !== main && secondary.includes(keyOf(button) ?? ""));
+ const frequent = all.filter(button => button !== main && (showAll || secondary.includes(keyOf(button) ?? "")));
  const other = all.filter(button => button !== main && !frequent.includes(button));
  if (!all.length) return null;
  return <div className="process-actions">
