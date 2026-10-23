@@ -159,7 +159,7 @@ export function AppLayout() {
             </Button>
           </Space>
         </Header>
-        <Content style={{ margin: "0 auto", width: "100%", maxWidth: 1400, padding: "24px 24px 48px" }}>
+        <Content style={{ width: "100%", padding: "24px 24px 48px" }}>
           <EmulationBanner />
           <Outlet key={location.pathname === "/emulation" ? "emulation" : identity?.me.profile.id} />
         </Content>

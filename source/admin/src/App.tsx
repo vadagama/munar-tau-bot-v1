@@ -35,7 +35,7 @@ export default function App() {
   return (
     <ConfigProvider
       locale={ruRU}
-      theme={cabinetTheme("neutral")}
+      theme={cabinetTheme("green")}
     >
       <AntApp>
       <BrowserRouter>
