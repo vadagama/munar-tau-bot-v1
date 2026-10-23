@@ -33,7 +33,7 @@ export async function publicFinancialHeads(exec: DbExecutor, actor: Actor, ids: 
 export async function financialArchive(exec: DbExecutor, actor: Actor, id: string) {
   const owners = await financialOwnerBuildings(exec, actor);
   const rows = await exec.query<Version>(
-    `select f.id,f.publication_id,f.version,f.title,f.body,f.building_ids,f.package_snapshot,to_char(f.period_from,'YYYY-MM-DD') as period_from,
+    `select f.id,f.publication_id,f.obligation_id,f.version,f.title,f.body,f.building_ids,f.package_snapshot,to_char(f.period_from,'YYYY-MM-DD') as period_from,
      to_char(f.period_to,'YYYY-MM-DD') as period_to,f.published_at,f.replaced_at,f.correction_note,f.approval_id
      from financial_publication_version f join publication p on p.id=f.publication_id
      where p.id=$1 and p.is_test=$2 order by f.version desc`, [id, actor.person.isTest]);
@@ -51,6 +51,7 @@ export async function financialArchive(exec: DbExecutor, actor: Actor, id: strin
   const versions = parts.length ? await exec.query<{ id: string; document_id: string; state: string; was_published: boolean; attachment_id: string; signed_attachment_id: string | null }>("select id,document_id,state,was_published,attachment_id,signed_attachment_id from document_version where id=any($1::uuid[])", [parts.map(p => p.document_version_id)]) : [];
   return allowed.map(({ row, internal }) => ({
     id: row.id, version: row.version, title: row.title, body: row.body, building_ids: row.building_ids,
+    ...(internal ? { obligation_id: row.obligation_id } : {}),
     period_from: row.period_from, period_to: row.period_to, correction_note: row.correction_note,
     published_at: row.published_at, replaced_at: row.replaced_at, approved: !!row.approval_id,
     needs_fix: parts.some(p => p.financial_version_id === row.id && versions.find(v => v.id === p.document_version_id)?.state === "needs_fix"),
@@ -59,7 +60,7 @@ export async function financialArchive(exec: DbExecutor, actor: Actor, id: strin
       const access = doc && accessByDocument.get(doc.id);
       if (!doc || !version || !access || !can(actor, "document.read", access).allow || !documentVersionReadable(actor, access, version)) return [];
       const pinned = jsonValue<{ documents: { id: string; title: string }[] }>(row.package_snapshot).documents.find(d => d.id === version.id);
-      return [{ document_id: doc.id, document_version_id: version.id, title: pinned?.title ?? doc.title, code: p.code, state: version.state,
+      return [{ document_id: doc.id, document_version_id: version.id, title: pinned?.title ?? doc.title, code: p.code, disclosed: p.disclosed, state: version.state,
         attachment_id: version.attachment_id, signed_attachment_id: version.signed_attachment_id }];
     }),
   }));

@@ -152,6 +152,9 @@ describeWithDb("FIN-01…04: изоляция и неизменяемость в
     const db = getDb(), { s, chairman, input, deps } = await businessFixture(db);
     const saved = await savePublication(deps, chairman, s.publicationId, { ...input, expected_version: 1, title: "Отчёт", body: "Период", kind: "financial_report", requires_document: true, building_ids: [SEED.building1] }, "save-package");
     expect(saved.financial_version_id).toBeTruthy();
+    expect(await getPublication(deps, chairman, s.publicationId)).toMatchObject({ financial_versions: [{ obligation_id: input.obligation_id,
+      documents: expect.arrayContaining([{ code: "report", disclosed: true, document_version_id: s.versions[0], document_id: expect.any(String), title: expect.any(String), state: "approved", attachment_id: expect.any(String), signed_attachment_id: null },
+        { code: "council", disclosed: false, document_version_id: s.versions[1], document_id: expect.any(String), title: expect.any(String), state: "approved", attachment_id: expect.any(String), signed_attachment_id: null }]) }] });
     const [version] = await db.query<{ id: string; version: number }>("select id,version from financial_publication_version where id=$1", [saved.financial_version_id]);
     await expect(db.transaction(exec => checkFinancialRelease(exec, chairman, s.publicationId))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     const submitted = await transitionPublication(deps, chairman, s.publicationId, { action: "submit_approval", expected_version: saved.version, reason: "Передача председателю" }, "submit-package");
@@ -174,6 +177,7 @@ describeWithDb("FIN-01…04: изоляция и неизменяемость в
     expect(report!.was_published).toBe(false); // FIN не расширяет самостоятельную аудиторию документа.
     expect((await getDocument(deps, owner, report!.document_id)).versions).toHaveLength(1);
     expect(await getPublication(deps, owner, s.publicationId)).toMatchObject({ title: "Отчёт", state: "published", financial_versions: [{ version: 1 }] });
+    expect(JSON.stringify(await getPublication(deps, owner, s.publicationId))).not.toContain(input.obligation_id);
     expect(JSON.stringify(await getPublication(deps, owner, s.publicationId))).not.toContain(s.versions[1]);
     await expect(getPublication(deps, otherOwner, s.publicationId)).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(getDocument(deps, otherOwner, report!.document_id)).rejects.toMatchObject({ code: "NOT_FOUND" });
