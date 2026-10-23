@@ -59,7 +59,12 @@ export async function saveFinancialRule(deps: RegistryDeps, actor: Actor, id: st
   }, row => requireFinancialRule(exec, actor, row.id, true)));
 }
 export async function listFinancialRules(deps: RegistryDeps, actor: Actor) {
-  const rows = await deps.db.query<FinancialRuleRow>("select * from financial_rule where is_test=$1 order by created_at desc,id", [actor.person.isTest]);
+  const rows = await deps.db.query<FinancialRuleRow>(`select f.*,p.full_name as prepared_name,r.full_name as reviewer_name,u.full_name as publisher_name
+    from financial_rule f left join person p on p.id::text=f.definition->>'prepared_by' and p.is_test=f.is_test
+    left join person r on r.id::text=f.definition->>'reviewer_id' and r.is_test=f.is_test
+    left join person u on u.id::text=f.definition->>'publisher_id' and u.is_test=f.is_test
+    where f.is_test=$1 order by f.created_at desc,f.id`, [actor.person.isTest]);
   return rows.map(row => ({ ...row, definition: jsonValue<FinancialRule>(row.definition) }))
-    .filter(row => financialScope(actor, row.definition.building_ids ?? [], row.is_test));
+    .filter(row => financialScope(actor, row.definition.building_ids ?? [], row.is_test))
+    .map(row => ({ ...row, can_manage: financialScope(actor, row.definition.building_ids, row.is_test, true) }));
 }

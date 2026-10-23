@@ -72,3 +72,50 @@ it("конфликт разрешения сохраняет служебную 
   expect(screen.getByLabelText("Служебная причина")).toHaveValue("Выпуск за сентябрь");
   expect(screen.getByLabelText("Основание внешних согласований")).toHaveValue("Решение совета проверено");
 }, 15000);
+it("редактирование обычной публикации восстанавливает основание вне первой страницы выбора", async () => {
+  const ordinary = { id: "pub", title: "Правила", body: "Текст", kind: "announcement", state: "draft", version: 2, requires_document: true, building_ids: ["house"], document_version_ids: ["basis"], document_versions: [{ id: "basis", document_id: "doc", title: "Утверждённые правила", version: 2, available: true }], document_selection_incomplete: true };
+  vi.mocked(apiFetch).mockImplementation(async (path, request) => {
+    if (request?.method) return ordinary;
+    if (path === "/v1/publications") return { items: [ordinary] };
+    if (path === "/v1/publications/pub") return ordinary;
+    if (path === "/v1/registry/buildings") return { items: [{ id: "house", code: "Дом 1" }] };
+    if (path === "/v1/incidents/context") return { persons: [] };
+    return { items: [], has_more: false };
+  });
+  render(<PublicationsPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Редактировать" }));
+  const editor = within(await screen.findByRole("region", { name: "Редактирование публикации" }));
+  expect(await editor.findByText("Утверждённые правила · версия 2")).toBeInTheDocument();
+  fireEvent.change(editor.getByLabelText("Служебная причина"), { target: { value: "Уточнение текста" } });
+  fireEvent.click(editor.getByRole("button", { name: "Сохранить изменения" }));
+  expect(await screen.findByText("Подтвердите замену недоступных оснований")).toBeInTheDocument();
+  expect(vi.mocked(apiFetch).mock.calls.some(([, request]) => request?.method)).toBe(false);
+  fireEvent.click(editor.getByLabelText("Заменить недоступные основания выбранным комплектом"));
+  fireEvent.click(editor.getByRole("button", { name: "Сохранить изменения" }));
+  await vi.waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/publications/pub", expect.objectContaining({ body: expect.objectContaining({ document_version_ids: ["basis"], reason: "Уточнение текста" }) })));
+  const body = vi.mocked(apiFetch).mock.calls.find(([, request]) => request?.method)?.[1]?.body as Record<string, unknown>;
+  expect(body).not.toHaveProperty("replace_unavailable_documents");
+}, 15000);
+it("недействительное закреплённое основание можно убрать и заменить проверенным", async () => {
+  const ordinary = { id: "pub", title: "Правила", body: "Текст", kind: "announcement", state: "draft", version: 2, requires_document: true, building_ids: ["house"], document_version_ids: ["old"], document_versions: [{ id: "old", document_id: "doc", title: "Старое основание", version: 1, available: false }] };
+  vi.mocked(apiFetch).mockImplementation(async (path, request) => {
+    if (request?.method) return ordinary;
+    if (path === "/v1/publications") return { items: [ordinary] };
+    if (path === "/v1/publications/pub") return ordinary;
+    if (path === "/v1/registry/buildings") return { items: [{ id: "house", code: "Дом 1" }] };
+    if (path === "/v1/documents/version-options") return { items: [{ id: "new", document_id: "doc-new", title: "Новое основание", version: 2 }], has_more: false };
+    if (path === "/v1/incidents/context") return { persons: [] };
+    return { items: [], has_more: false };
+  });
+  render(<PublicationsPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Редактировать" }));
+  const editor = within(await screen.findByRole("region", { name: "Редактирование публикации" }));
+  fireEvent.click(await editor.findByRole("button", { name: "Убрать недействительное основание: Старое основание · версия 1" }));
+  fireEvent.mouseDown(editor.getByLabelText("Проверенные документальные основания"));
+  fireEvent.click(await screen.findByText("Новое основание · версия 2"));
+  fireEvent.change(editor.getByLabelText("Служебная причина"), { target: { value: "Заменено основание" } });
+  fireEvent.click(editor.getByRole("button", { name: "Сохранить изменения" }));
+  await vi.waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/publications/pub", expect.objectContaining({ body: expect.objectContaining({ document_version_ids: ["new"] }) })));
+}, 15000);

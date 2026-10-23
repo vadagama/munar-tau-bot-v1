@@ -7,6 +7,13 @@ vi.mock("../lib/api",()=>({apiFetch:vi.fn()}));
 const computed=window.getComputedStyle.bind(window);
 beforeEach(()=>{vi.spyOn(window,"getComputedStyle").mockImplementation(element=>computed(element));});
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.clearAllMocks();});
+it("FIN-04: ненастроенные сроки финансовых отчётов имеют понятные названия",async()=>{
+ vi.mocked(apiFetch).mockResolvedValue({items:["financial_monthly_publication","financial_annual_publication"].map(key=>({id:null,key,version:null,params:null,contract:ruleContract(key)}))});
+ render(<TimeRulesPage/>);
+ expect(await screen.findByText("Размещение месячного финансового отчёта")).toBeInTheDocument();
+ expect(screen.getByText("Размещение годового финансового отчёта")).toBeInTheDocument();
+ expect(screen.getAllByText(/Не настроен/)).toHaveLength(2);
+});
 it("TIM-02: условия видны, новая длительность не отправляет клиентский контракт",async()=>{
  const contract=ruleContract("author_reminder");
  vi.mocked(apiFetch).mockResolvedValue({items:[{id:"rule",key:"author_reminder",version:2,kind:"operational",created_at:"2026-10-17T10:00:00Z",params:{hours:48,clock:"calendar",contract},contract}]});

@@ -17,6 +17,7 @@ import { validatePublicationRelease } from "./policy.ts";
 import { financialArchive, publicFinancialHeads } from "./financial-access.ts";
 import { prepareFinancialVersion, approveFinancialVersion, checkFinancialRelease, markFinancialPublished } from "./financial-store.ts";
 import { checkedDocumentVersions } from "../documents/provider.ts";
+import { publicationDocumentSelection } from "./pinned-documents.ts";
 export interface Publication extends Row {
   id: string;
   kind: string;
@@ -448,6 +449,7 @@ export async function getPublication(
   if (can(actor, "publication.manage", resource).allow) {
     return {
       ...row,
+      ...await publicationDocumentSelection(deps.db, actor, id),
       available_files: row.common_work_id
         ? await deps.db.query(
           "select a.id,a.filename from attachment a join task t on t.id=a.task_id where t.common_work_id=$1 and t.state='accepted_admin' and a.task_report_id=(select r.id from task_report r where r.task_id=t.id order by r.version desc limit 1) and a.status='complete' and (a.mime like 'image/%' or a.mime like 'video/%')",

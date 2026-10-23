@@ -14,6 +14,7 @@ import { publishScheduled } from "../../src/domains/publications/jobs.ts";
 import { fanoutBroadcasts } from "../../src/domains/incidents/broadcast.ts";
 import { recordFinancialPlacement } from "../../src/domains/publications/financial-placements.ts";
 import { reopenFinancialObligations } from "../../src/domains/publications/financial-jobs.ts";
+import { getFinancialObligation } from "../../src/domains/publications/financial-queries.ts";
 
 /** Только проверка ограничений схемы; бизнес-разрешение проверяет сервис FIN. */
 async function schemaFixture(db: DbClient) {
@@ -69,6 +70,8 @@ describeWithDb("FIN-01…04: изоляция и неизменяемость в
     const done = await recordFinancialPlacement(deps, chairman, input.obligation_id, placement, "placement-proof");
     expect(done.completed_at).toBeTruthy();
     expect(done.due_at).toEqual(before!.due_at);
+    expect(await getFinancialObligation(deps, chairman, input.obligation_id)).toMatchObject({ prepared_name: "Тест: исполнитель", reviewer_name: "Тест: администратор", publisher_name: "Тест: администратор", rule_version: 1,
+      placements: [expect.objectContaining({ financial_version: 1, channel: "bot", evidence: placement.evidence })] });
     expect((await recordFinancialPlacement(deps, chairman, input.obligation_id, placement, "placement-proof")).id).toBe(done.id);
     const [newFile] = await db.query<{ id: string }>(`insert into attachment(owner_type,owner_id,bucket,storage_path,filename,size_bytes,mime,status,uploaded_by)
       select a.owner_type,a.owner_id,a.bucket,$2,a.filename,a.size_bytes,a.mime,a.status,a.uploaded_by from attachment a
@@ -103,6 +106,7 @@ describeWithDb("FIN-01…04: изоляция и неизменяемость в
     expect(await db.query("select id from financial_issue where financial_version_id=$1", [row.financial_version_id])).toHaveLength(1);
     const invalidProof = await recordFinancialPlacement(deps, chairman, input.obligation_id, { ...placement, financial_version_id: row.financial_version_id, expected_version: reopened!.version }, "placement-unfit-current");
     expect(invalidProof.completed_at).toBeNull();
+    expect((await getFinancialObligation(deps, chairman, input.obligation_id)).placements.at(-1)).toMatchObject({ financial_version: 2, financial_version_id: row.financial_version_id });
   }, 600_000);
   it("одновременные разрешение и замена комплекта сохраняют одно решение и один конфликт", async () => {
     const db = getDb(), { s, chairman, input, deps } = await businessFixture(db);
@@ -215,11 +219,15 @@ describeWithDb("FIN-01…04: изоляция и неизменяемость в
     expect(checked.map(d => d.id).sort()).toEqual([...s.versions].sort());
     expect(checked.every(d => d.state === "approved" && d.attachment_id && d.document_date)).toBe(true);
     expect((await listDocumentVersionOptions(deps, admin)).items.map(v => v.id).sort()).toEqual([...s.versions].sort());
+    await db.query("update publication set kind='announcement',requires_document=true where id=$1", [s.publicationId]);
+    for (const version of s.versions) await db.query("insert into publication_document(publication_id,document_version_id) values($1,$2)", [s.publicationId, version]);
+    expect(await getPublication(deps, admin, s.publicationId)).toMatchObject({ document_version_ids: [...s.versions].sort(), document_selection_incomplete: false });
     const resident = { ...admin, assignments: [] };
     expect((await listDocumentVersionOptions(deps, resident)).items).toEqual([]);
     await expect(db.transaction(exec => checkedDocumentVersions(exec, resident, s.versions, [SEED.building1]))).rejects.toMatchObject({ code: "NOT_FOUND" });
     await db.query("update document_version set state='needs_fix' where id=$1", [s.versions[1]]);
     expect((await listDocumentVersionOptions(deps, admin)).items.map(v => v.id)).toEqual([s.versions[0]]);
+    expect(await getPublication(deps, admin, s.publicationId)).toMatchObject({ document_versions: expect.arrayContaining([expect.objectContaining({ id: s.versions[1], available: false })]) });
     await expect(db.transaction(exec => checkedDocumentVersions(exec, admin, s.versions, [SEED.building1]))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
   }, 300_000);
   it("все финансовые таблицы закрыты от прямых клиентов", async () => {

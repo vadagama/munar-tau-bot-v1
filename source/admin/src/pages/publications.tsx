@@ -27,6 +27,7 @@ import { CardDrawer } from "./card-drawer";
 import { FinancialArchive, type FinancialArchiveVersion } from "./financial-archive";
 import { FinancialPackageFields, type DocumentVersionOption } from "./financial-package-fields";
 import { financialEditValues, financialPublicationValues } from "./financial-package-values";
+import { FinancialPublication } from "./financial-publication";
 type Row = Record<string, unknown>;
 const required = [{ required: true, message: "Заполните поле" }];
 const kinds: Record<string, string> = {
@@ -66,7 +67,7 @@ export function PublicationsPage() {
     [busy, setBusy] = useState(false),
     [action, setAction] = useState<string | null>(null),
     [form] = Form.useForm();
-  const kind = Form.useWatch("kind", form), requiresDocument = Form.useWatch("requires_document", form),
+  const kind = Form.useWatch("kind", form), requiresDocument = Form.useWatch("requires_document", form), documentIds = Form.useWatch("document_version_ids", form) as string[] | undefined,
     key = useRef(crypto.randomUUID()),
     generation = useRef(0), cardGeneration = useRef(0), versionOffset = useRef(0), obligationOffset = useRef(0);
   const financial = card?.kind === "financial_report";
@@ -146,7 +147,8 @@ export function PublicationsPage() {
           setBuildings(b.items);
           setWorks(w.items.filter((x) => x.state === "completed"));
           setPeople(p.persons);
-          setVersions(v.items); setMoreVersions(v.has_more); versionOffset.current = 0;
+          const selected = a === "edit" && card?.kind !== "financial_report" ? (card?.document_versions as DocumentVersionOption[]) ?? [] : [];
+          setVersions([...new Map([...v.items, ...selected].map(item => [item.id, item])).values()]); setMoreVersions(v.has_more); versionOffset.current = 0;
           setObligations(o.items); setMoreObligations(o.has_more); obligationOffset.current = 0;
         } catch (e) {
           fail(e);
@@ -157,7 +159,7 @@ export function PublicationsPage() {
   async function loadMoreVersions() {
     setBusy(true); const g = cardGeneration.current;
     try { const next = await apiFetch<{ items: DocumentVersionOption[]; has_more: boolean }>(`/v1/documents/version-options?offset=${versionOffset.current + 200}`);
-      if (g === cardGeneration.current) { versionOffset.current += 200; setVersions(old => [...old, ...next.items]); setMoreVersions(next.has_more); } }
+      if (g === cardGeneration.current) { versionOffset.current += 200; setVersions(old => [...old, ...next.items.filter(item => !old.some(previous => previous.id === item.id))]); setMoreVersions(next.has_more); } }
     catch (e) { if (g === cardGeneration.current) fail(e); } finally { if (g === cardGeneration.current) setBusy(false); }
   }
   async function loadMoreObligations() {
@@ -169,6 +171,7 @@ export function PublicationsPage() {
   async function submit() {
     try {
       const values = financialPublicationValues(await form.validateFields());
+      delete values.replace_unavailable_documents;
       for (
         const name of [
           "planned_start",
@@ -247,6 +250,7 @@ export function PublicationsPage() {
           ),
         }]}
       />
+      {roles.some(r => ["finance", "chairman", "administrator", "deputy"].includes(r)) && <FinancialPublication manager={manager} />}
       <CardDrawer
         open={!!card || !!action}
         title={card ? String(card.title) : "Новая публикация"}
@@ -419,7 +423,14 @@ export function PublicationsPage() {
                 <FinancialPackageFields form={form} obligations={obligations.filter(o => o.publication_id == null || o.publication_id === card?.id)} versions={versions} existing={(currentPackage?.documents as Row[]) ?? []} />
                 {moreObligations && <Button onClick={() => void loadMoreObligations()}>Ещё обязанности</Button>}
                 <Form.Item name="correction_note" label="Публичное пояснение исправления" rules={action === "edit" && ((card?.financial_versions as Row[]) ?? []).some(v => !!v.published_at) ? required : []}><Input.TextArea /></Form.Item>
-              </> : requiresDocument === true && <Form.Item name="document_version_ids" label="Проверенные документальные основания" rules={required}><Select mode="multiple" showSearch optionFilterProp="label" options={versions.map(v => ({ value: v.id, label: `${v.title} · версия ${v.version}` }))} /></Form.Item>}
+              </> : requiresDocument === true && <>
+                {card?.document_selection_incomplete === true && <>
+                  <Alert type="warning" showIcon message="Часть прежних оснований недоступна. Выберите полный комплект заново и явно подтвердите замену." />
+                  <Form.Item name="replace_unavailable_documents" valuePropName="checked" rules={[{ validator: async (_, value) => { if (value !== true) throw new Error("Подтвердите замену недоступных оснований"); } }]}><Checkbox>Заменить недоступные основания выбранным комплектом</Checkbox></Form.Item>
+                </>}
+                <Form.Item name="document_version_ids" label="Проверенные документальные основания" rules={required}><Select mode="multiple" showSearch optionFilterProp="label" options={versions.map(v => ({ value: v.id, label: `${v.title} · версия ${v.version}${v.available === false ? " · недоступно для выпуска" : ""}`, disabled: v.available === false }))} /></Form.Item>
+                {versions.filter(v => v.available === false && documentIds?.includes(v.id)).map(v => <Button key={v.id} onClick={() => form.setFieldValue("document_version_ids", (documentIds ?? []).filter(id => id !== v.id))}>Убрать недействительное основание: {v.title} · версия {v.version}</Button>)}
+              </>}
               {(kind === "financial_report" || requiresDocument === true) && moreVersions && <Button onClick={() => void loadMoreVersions()}>Ещё версии документов</Button>}
               {kind === "work_report" && (
                 <Form.Item

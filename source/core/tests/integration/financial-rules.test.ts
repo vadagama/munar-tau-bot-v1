@@ -59,6 +59,7 @@ describeWithDb("FIN-04: версионный регламент", getDb => {
     const tech = await actorForPerson(db, SEED.testExecutorPersonId, true);
     expect(await listFinancialRules(deps, tech)).toEqual([]);
     await expect(saveFinancialRule(deps, tech, null, input, "tech-rule")).rejects.toMatchObject({ code: "FORBIDDEN" });
-    expect((await listFinancialRules(deps, chairman))[0]!.version).toBe(edited.version);
+    expect((await listFinancialRules(deps, chairman))[0]).toMatchObject({ version: edited.version, can_manage: true,
+      prepared_name: "Тест: исполнитель", reviewer_name: "Тест: администратор", publisher_name: "Тест: администратор" });
   }, 600_000);
 });
