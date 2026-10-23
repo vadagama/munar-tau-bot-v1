@@ -1,3 +1,4 @@
+import { INITIATIVE_COMMANDS,initiativeStep } from "./initiatives.ts";
 import { lockAudience } from "../domains/registry/audience-lock.ts";
 import { navigationReply } from "./navigation.ts";
 import { POLL_COMMANDS, pollStep } from "./polls.ts";
@@ -45,6 +46,7 @@ async function routeStep(
   updateId: unknown,
 ): Promise<BotReply> {
   if (message.photo || message.document || message.video) {
+    if (state.scenario === "initiatives") return initiativeStep(deps, telegramId, "");
     if (state.scenario === "polls") return pollStep(deps, telegramId, "");
     if (state.scenario === "documents") return queueDocumentFile(deps, telegramId, message);
     return queueRequestFile(deps, telegramId, message, updateId, bot);
@@ -59,6 +61,8 @@ async function routeStep(
   const startPayload = command === "/start"
     ? text.trim().split(/\s+/)[1]
     : undefined;
+  if (startPayload?.startsWith("idea_")||startPayload?.startsWith("mod_")) return initiativeStep(deps,telegramId,text);
+  if (INITIATIVE_COMMANDS.includes(command)||(state.scenario==="initiatives"&&!isCommand)) return initiativeStep(deps,telegramId,text);
   if (startPayload?.startsWith("poll_")) return pollStep(deps, telegramId, `/poll ${startPayload.slice(5)}`);
   if (POLL_COMMANDS.includes(command) || (state.scenario === "polls" && !isCommand)) return pollStep(deps, telegramId, text);
   if (startPayload?.startsWith("doc_")) return documentStep(deps, telegramId, `/doc ${startPayload.slice(4)}`);

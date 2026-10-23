@@ -42,7 +42,7 @@ export function navigationReply(
       [b("invite", "/invite"), b("accesses", "/accesses")],
       [b("incidents", "/incidents"), b("publications", "/publications")],
       [b("documents", "/documents"), b("financial", "/financial")],
-      [b("polls", "/polls")],
+      [b("polls", "/polls"),b("initiatives","/initiatives")],
       [b("emergency", "/emergency"), b("settings", "/notifications")],
     );
   }

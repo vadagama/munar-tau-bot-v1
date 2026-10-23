@@ -68,7 +68,8 @@ export async function listModerationActions(deps:RegistryDeps,actor:Actor,option
 export async function getModerationAction(deps:RegistryDeps,actor:Actor,id:string) {
  const row=await requireModeration(deps.db,actor,id);
  const decisions=await deps.db.query<Row>("select resolution,reason,before_version,after_version,until_at,created_at from moderation_decision where action_id=$1 order by after_version desc limit 50",[id]);
- return {...moderationCard(row),decisions,can_appeal:can(actor,"moderation.appeal",await moderationResource(deps.db,row)).allow&&!row.revoked_at};
+ const open=await deps.db.query("select id from moderation_appeal where action_id=$1 and status='open'",[id]);
+ return {...moderationCard(row),decisions,can_appeal:can(actor,"moderation.appeal",await moderationResource(deps.db,row)).allow&&!row.revoked_at&&!open.length};
 }
 export async function listModerationAppeals(deps:RegistryDeps,actor:Actor,options:InitiativePage={}) {
  const {offset,limit,state}=page(options,["open","resolved"]);
@@ -86,4 +87,10 @@ export async function getModerationAppeal(deps:RegistryDeps,actor:Actor,id:strin
  if(!resolve&&!can(actor,"moderation.appeal",resource).allow)throw new ApiError("NOT_FOUND");
  const decisions=await deps.db.query<Row>("select resolution,reason,before_version,after_version,until_at,created_at from moderation_decision where appeal_id=$1",[id]);
  return {...appealCard(row),action:moderationCard(action),decisions,can_resolve:resolve&&row.status==="open"};
+}
+/** В форме подачи доступны только дома собственных действующих связей. */
+export async function initiativeSubmissionOptions(deps:RegistryDeps,actor:Actor) {
+ const state=await initiativeAudience(deps.db,actor.person.id,actor.person.isTest);
+ if(!state.active||state.restricted||!state.building_ids.length||actor.person.status!=="active")throw new ApiError("FORBIDDEN");
+ return deps.db.query<{id:string;label:string}>("select id,coalesce(name,'Дом '||code) as label from building where id=any($1::uuid[]) order by code limit 100",[state.building_ids]);
 }
