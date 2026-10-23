@@ -217,7 +217,7 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
           {!!(card.tasks as Row[] | undefined)?.length && ["planned", "in_progress"].includes(String(card.state)) &&
             <Button type="primary" href="#common-work-tasks">Проверить задания</Button>}
           {!["completed", "canceled"].includes(String(card.state)) && (
-            <ProcessActions primary={(card.tasks as Row[] | undefined)?.length ? (card.state === "on_review" ? "complete" : undefined) : "add_task"} secondary={["add_task"]}>
+            <ProcessActions primary={(card.tasks as Row[] | undefined)?.length ? (card.state === "on_review" ? "complete" : undefined) : "add_task"}>
               <Button key="add_task"
                 onClick={() =>
                   onTask(String(card.id))}

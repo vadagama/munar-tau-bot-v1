@@ -224,7 +224,7 @@ export function PublicationsPage() {
         {card && (
           <div key={String(card.id)} className="process-card-content">
           <ProcessOverview guidance={publicationGuidance(card, manager, roles.includes("chairman"))} state={states[String(card.state)]} due={card.publish_at} dueLabel="Публикация">
-            <ProcessActions primary={publicationGuidance(card, manager, roles.includes("chairman")).primary} secondary={["edit", "problem", "update_outage"]}>
+            <ProcessActions primary={publicationGuidance(card, manager, roles.includes("chairman")).primary}>
           {card.kind === "work_report" && card.state === "published" && (
             <Button key="problem" onClick={() => void begin("problem")}>
               Сообщить о проблеме с этой работой
