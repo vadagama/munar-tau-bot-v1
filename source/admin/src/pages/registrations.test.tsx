@@ -45,6 +45,8 @@ it("доска регистраций: заявитель на карточке,
   const cardLink = screen.getByRole("link", { name: "@w84gr8" });
   expect(cardLink).toHaveAttribute("href", "https://t.me/w84gr8");
   expect(screen.getAllByText("@w84gr8").length).toBeGreaterThanOrEqual(1);
+  // Уточнение временно скрыто (решение владельца 24.10.2026).
+  expect(screen.queryByText("Уточнить")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Отказать" }));
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
 });
@@ -118,19 +120,17 @@ it("анкета без помещения: подтверждение созд�
   expect(dialog).not.toHaveTextContent("подтверждается доступ:");
 });
 
-it("исправление подтверждённой анкеты отправляет предложение с версией и причиной", async () => {
+it("подтверждённая анкета: уточнение, спор и исправление скрыты, удаление доступно", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/registrations"
-    ? { items: [{ ...liteRegistration, state: "approved", version: 3, can_manage: true }] } : { items: [] });
+    ? { items: [{ ...registration, state: "approved", version: 3, can_manage: true }] } : { items: [] });
   render(<RegistrationsPage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Исправить" }));
-  const name = await screen.findByRole("textbox", { name: "Имя и фамилия" });
-  fireEvent.change(name, { target: { value: "Новое имя" } });
-  fireEvent.change(screen.getByRole("textbox", { name: "Причина" }), { target: { value: "Исправление опечатки" } });
-  fireEvent.click(screen.getByRole("button", { name: "Отправить на проверку" }));
-  await vi.waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registrations/reg-2/manage", expect.objectContaining({
-    method: "POST", idempotencyKey: expect.any(String),
-    body: expect.objectContaining({ operation: "edit", expected_version: 3, full_name: "Новое имя", reason: "Исправление опечатки" }),
-  })));
+  expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
+  // Временно скрыты (решение владельца 24.10.2026): эндпоинты clarify/dispute
+  // и manage(operation:"edit") сохранены — кнопки возвращаются в decisionButtons.
+  expect(screen.queryByText("Уточнить")).toBeNull();
+  expect(screen.queryByText("Открыть спор")).toBeNull();
+  expect(screen.queryByText("Исправить")).toBeNull();
+  expect(screen.getByRole("button", { name: "Удалить" })).toBeInTheDocument();
 });
 
 it("удаление предупреждает о закрытии доступа и требует причину", async () => {
