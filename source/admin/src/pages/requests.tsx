@@ -1,3 +1,4 @@
+import { DeadlineInput } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions } from "../components/process-card";
 import { requestGuidance, processActionHint } from "../components/process-guidance";
 import { ConfigurableTable } from "../components/configurable-table";
@@ -80,9 +81,9 @@ const ACTIONS: Record<string, string> = {
 const STAFF: Record<string, string[]> = {
   new: ["start_review", "ask_clarification", "reject"],
   reviewing: [
-    "ask_clarification",
     "start_work",
     "submit_result",
+    "ask_clarification",
     "hold",
     "reject",
   ],
@@ -609,7 +610,7 @@ export function RequestsPage() {
               <section aria-label="Действия по процессу">
                 {manage && stateName === "in_work" && !requestGuidance(card, manage, own).primary &&
                   <Button type="primary" href="#request-tasks">Проверить связанные задания</Button>}
-                <ProcessActions primary={requestGuidance(card, manage, own).primary} secondary={["ask_clarification", "return_result", "reject_cancel"]}>
+                <ProcessActions primary={requestGuidance(card, manage, own).primary}>
                   {[...new Set(actions)].map((a) => (
                     <Button
                       key={a}
@@ -1258,7 +1259,7 @@ export function RequestsPage() {
               validator: (_, value) => !value || Date.parse(value) > Date.now()
                 ? Promise.resolve() : Promise.reject(new Error("Срок должен быть в будущем")),
             }]}>
-              <Input type="datetime-local" />
+              <DeadlineInput />
             </Form.Item>
           </>}
           {["start_work", "plan_rework"].includes(action ?? "") && (
@@ -1286,7 +1287,7 @@ export function RequestsPage() {
                 label="Следующее действие"
                 rules={[{ required: true }]}
               >
-                <Input type="datetime-local" />
+                <DeadlineInput />
               </Form.Item>
               <Form.Item
                 name="responsible_person_id"

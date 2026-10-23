@@ -1,3 +1,4 @@
+import { DeadlineInput } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
 import { taskGuidance, processActionHint } from "../components/process-guidance";
 import { DetailSection } from "../components/detail-section";
@@ -422,7 +423,7 @@ export function TasksPage() {
     },
   ];
   const taskActions = card && (
-          <ProcessActions primary={taskGuidance(card).primary} secondary={["decline", "request_pause", "return", "problem"]}>
+          <ProcessActions primary={taskGuidance(card).primary}>
             {card.can_execute && card.state === "in_progress" && (
               <Button key="problem"
                 onClick={() => {
@@ -749,7 +750,7 @@ export function TasksPage() {
             label="Срок (местное время)"
             rules={required}
           >
-            <Input type="datetime-local" />
+            <DeadlineInput />
           </Form.Item>
           <Form.Item name="assignee_person_id" label="Исполнитель">
             <Select
@@ -898,7 +899,7 @@ export function TasksPage() {
                 label="Срок исправления"
                 rules={required}
               >
-                <Input type="datetime-local" />
+                <DeadlineInput />
               </Form.Item>
               {card?.state === "accepted_admin" && (
                 <Form.Item
@@ -992,7 +993,7 @@ export function TasksPage() {
                 label="Дата следующего действия"
                 rules={required}
               >
-                <Input type="datetime-local" />
+                <DeadlineInput />
               </Form.Item>
             </>
           )}

@@ -1,3 +1,4 @@
+import { DeadlineDatePicker } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
 import { incidentGuidance, processActionHint } from "../components/process-guidance";
 import { DetailSection } from "../components/detail-section";
@@ -406,7 +407,7 @@ export function IncidentsPage() {
         {card && typeof card.number === "string" && (
           <div key={String(card.id)} className="process-card-content">
           <ProcessOverview guidance={incidentGuidance(card)} state={INCIDENT_STATES[String(card.state)]} due={card.next_update_at} dueLabel="Следующее обновление до">
-          <ProcessActions primary={incidentGuidance(card).primary} secondary={["mark_unconfirmed", "fail_check", "update"]}>
+          <ProcessActions primary={incidentGuidance(card).primary}>
             {((card.actions as string[] | undefined) ?? []).map((a) => (
               <Button
                 key={a}
@@ -733,7 +734,7 @@ export function IncidentsPage() {
                           label="Следующее обновление"
                           rules={required}
                         >
-                          <DatePicker showTime format="DD.MM.YYYY HH:mm" />
+                          <DeadlineDatePicker showTime format="DD.MM.YYYY HH:mm" />
                         </Form.Item>
                       )}
                       {action === "start_mitigation" && (

@@ -1,4 +1,4 @@
-import { useState, Children, cloneElement, Fragment, isValidElement, type ReactElement, type ReactNode, type ComponentProps } from "react";
+import { Children, cloneElement, Fragment, isValidElement, type ReactElement, type ReactNode, type ComponentProps } from "react";
 import { Button, Space, Tag, Typography, theme } from "antd";
 import { DetailSection } from "./detail-section";
 import type { ProcessGuidance } from "./process-guidance";
@@ -29,18 +29,15 @@ function buttons(children: ReactNode): ReactElement<ComponentProps<typeof Button
   return child.type === Button ? [child as ReactElement<ComponentProps<typeof Button>>] : [];
  });
 }
-export function ProcessActions({ primary, secondary = [], children }: {primary?: string; secondary?: string[]; children: ReactNode}) {
- const [more, setMore] = useState(false);
+export function ProcessActions({ primary, children }: {primary?: string; children: ReactNode}) {
  const all = buttons(children);
  // Children.toArray экранирует React key; сравниваем исходный суффикс ключа.
  const keyOf = (button: ReactElement) => String(button.key).split("$").at(-1);
  const main = all.find(button => keyOf(button) === primary);
- const frequent = all.filter(button => button !== main && secondary.includes(keyOf(button) ?? ""));
- const other = all.filter(button => button !== main && !frequent.includes(button));
+ const remaining = all.filter(button => button !== main);
  if (!all.length) return null;
  return <div className="process-actions">
-  <Space wrap>{main && cloneElement(main, {type:"primary"})}{frequent.map(button => cloneElement(button, {type:"default"}))}</Space>
-  {!!other.length && <div className="process-actions__other"><Button type="text" aria-expanded={more} onClick={() => setMore(!more)}>Другие действия</Button><div hidden={!more}><Space wrap>{other.map(button => cloneElement(button, {type:"default"}))}</Space></div></div>}
+  <Space wrap>{main && cloneElement(main, {type:"primary"})}{remaining.map(button => cloneElement(button, {type:"default"}))}</Space>
  </div>;
 }
 export function ProcessHistory({title = "История", children}: {title?: string; children: ReactNode}) {

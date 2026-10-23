@@ -1,3 +1,4 @@
+import { DeadlineInput } from "../components/deadline-input";
 import { processActionHint } from "../components/process-guidance";
 import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
 import { DetailSection } from "../components/detail-section";
@@ -216,7 +217,7 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
           {!!(card.tasks as Row[] | undefined)?.length && ["planned", "in_progress"].includes(String(card.state)) &&
             <Button type="primary" href="#common-work-tasks">Проверить задания</Button>}
           {!["completed", "canceled"].includes(String(card.state)) && (
-            <ProcessActions primary={(card.tasks as Row[] | undefined)?.length ? (card.state === "on_review" ? "complete" : undefined) : "add_task"} secondary={["add_task"]}>
+            <ProcessActions primary={(card.tasks as Row[] | undefined)?.length ? (card.state === "on_review" ? "complete" : undefined) : "add_task"}>
               <Button key="add_task"
                 onClick={() =>
                   onTask(String(card.id))}
@@ -316,7 +317,7 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
                 label="Срок (местное время)"
                 rules={required}
               >
-                <Input type="datetime-local" />
+                <DeadlineInput />
               </Form.Item>
               <Form.Item name="building_ids" label="Дома" rules={required}>
                 <Select

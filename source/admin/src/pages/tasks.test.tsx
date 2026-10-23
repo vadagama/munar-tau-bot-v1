@@ -396,7 +396,6 @@ it("управляющему показывает ожидание принят�
  const process=await screen.findByRole("region",{name:"Сейчас по процессу"});
  expect(process).toHaveTextContent("Ожидаем принятия задания");
  expect(within(process).queryByRole("button",{name:"Принять"})).toBeNull();
- expect(within(process).queryByRole("button",{name:"Отменить"})).toBeNull();
- fireEvent.click(within(process).getByRole("button",{name:"Другие действия"}));
+ expect(within(process).queryByRole("button",{name:"Другие действия"})).toBeNull();
  expect(within(process).getByRole("button",{name:"Отменить"})).toBeVisible();
 });
