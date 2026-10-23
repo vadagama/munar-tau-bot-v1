@@ -1,3 +1,5 @@
+import { requireInitiative } from "../../core/src/domains/initiatives/access.ts";
+import { listTaskAssignees } from "../../core/src/domains/tasks/assignees.ts";
 import type { Route,RouteContext } from "./handlers.ts";
 import { databaseValidation,invalid } from "../../core/src/domains/registry/validation.ts";
 import { initiativeUuid } from "../../core/src/domains/initiatives/input.ts";
@@ -15,6 +17,7 @@ export const INITIATIVE_ROUTES:Route[]=[
  route("GET","/v1/initiatives",async c=>({body:await listInitiatives(deps(c),c.actor,page(c))})),
  route("POST","/v1/initiatives",async c=>({status:201,body:await submitInitiative(deps(c),c.actor,c.body,key(c))})),
  route("GET","/v1/initiatives/:id",async c=>({body:await getInitiative(deps(c),c.actor,id(c))})),
+ route("GET","/v1/initiatives/:id/planning-options",async c=>{const row=await requireInitiative(c.deps.db,c.actor,id(c),"initiative.manage");return {body:{items:await listTaskAssignees(c.deps.db,row.is_test,row.approved_building_ids)}};}),
  route("GET","/v1/initiatives/:id/history",async c=>({body:await getInitiativeHistory(deps(c),c.actor,id(c),page(c))})),
  route("POST","/v1/initiatives/:id/transitions",async c=>{
   const {action,...input}=c.body;if(typeof action!=="string"||!["publish","reject","assessing","planned","implementing","completed","rejected","deferred"].includes(action))invalid("Неизвестный переход инициативы");

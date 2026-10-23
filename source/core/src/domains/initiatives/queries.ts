@@ -1,7 +1,7 @@
 import type { Actor } from "../../pdp/types.ts";
 import { can } from "../../pdp/evaluate.ts";
 import { ApiError } from "../../errors/api.ts";
-import { invalid,type Row } from "../registry/validation.ts";
+import { invalid,jsonValue,type Row } from "../registry/validation.ts";
 import { lockAudience } from "../registry/audience-lock.ts";
 import type { RegistryDeps } from "../registry/service.ts";
 import { initiativeAudience,initiativeCard,initiativeResource,requireInitiative } from "./access.ts";
@@ -29,12 +29,12 @@ export async function listInitiatives(deps:RegistryDeps,actor:Actor,options:Init
  if(!can(actor,"initiative.use").allow)throw new ApiError("FORBIDDEN");
  return deps.db.transaction(async exec=>{await lockAudience(exec);
   const clock=await initiativeAudience(exec,actor.person.id,actor.person.isTest),s=scope(actor);
-  const rows=await exec.query<InitiativeRow>(`select i.* from initiative i where i.is_test=$2
+  const rows=await exec.query<InitiativeRow>(`select i.*,coalesce((select jsonb_agg(jsonb_build_object('id',b.id,'label',coalesce(b.name,'Дом '||b.code)) order by b.code) from building b where b.id=any(i.requested_building_ids||i.approved_building_ids)),'[]'::jsonb) as buildings from initiative i where i.is_test=$2
    and (${managed} or (i.publication_state='published' and i.approved_building_ids && $5::uuid[]) or (i.author_person_id=$1 and i.publication_state<>'published'))
    and ($6::text is null or i.publication_state=$6 or i.stage=$6) order by i.created_at desc,i.id limit $7 offset $8`,
    [actor.person.id,actor.person.isTest,s.all,s.scopes,clock.active?clock.building_ids:[],state,limit+1,offset]);
   const items=[];
-  for(const row of rows.slice(0,limit)){const resource=await initiativeResource(exec,actor,row,clock);if(can(actor,"initiative.read",resource).allow)items.push({...initiativeCard(row),...flags(actor,resource)});}
+  for(const row of rows.slice(0,limit)){const resource=await initiativeResource(exec,actor,row,clock);if(can(actor,"initiative.read",resource).allow)items.push({...initiativeCard(row),buildings:jsonValue<{id:string;label:string}[]>(row.buildings??[]),...flags(actor,resource)});}
   return {items,has_more:rows.length>limit};
  });
 }
@@ -47,7 +47,8 @@ export async function getInitiative(deps:RegistryDeps,actor:Actor,id:string) {
   const support=await initiativeSupportState(exec,row,at,!!row.support_closed_at);
   const [own]=await exec.query<{version:number;supported_at:Date;withdrawn_at:Date|null}>("select version,supported_at,withdrawn_at from initiative_support where initiative_id=$1 and person_id=$2",[id,actor.person.id]);
   const [responsible]=row.responsible_person_id?await exec.query<{full_name:string}>("select full_name from person where id=$1",[row.responsible_person_id]):[];
-  return {...initiativeCard(row),...capabilities,support_count:row.final_support_count??support.count,
+  const buildings=await exec.query<{id:string;label:string}>("select id,coalesce(name,'Дом '||code) as label from building where id=any($1::uuid[]) order by code",[[...new Set([...row.requested_building_ids,...row.approved_building_ids])]]);
+  return {...initiativeCard(row),buildings,...capabilities,support_count:row.final_support_count??support.count,
    own_support:{version:own?.version??0,supported:support.people.includes(actor.person.id)},responsible_name:responsible?.full_name??null,
    ...(capabilities.can_manage?{responsible_person_id:row.responsible_person_id,decision_document_version_id:row.decision_document_version_id}: {})};
  });

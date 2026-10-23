@@ -81,6 +81,7 @@ export function AppLayout() {
     { key: "/publications", label: "Публикации" },
     { key: "/documents", label: "Документы" },
     { key: "/polls", label: "Опросы" },
+    { key: "/initiatives", label: "Инициативы" },
     ...(manager ? [
       { key: "users", label: "Пользователи", children: [
         { key: "/users/residents", label: "Жители" },
