@@ -11,6 +11,18 @@ export const TASK_STATE_TEXT: Record<string, { ru: string; kk: string }> = {
   canceled: { ru: "Отменено", kk: "Болдырылмады" },
 };
 
+/**
+ * Задание в активной работе исполнителя: тот же набор, по которому визиты
+ * разрешают no_access/no_show (domains/tasks/visits.ts). Визиты и аварийный
+ * сигнал показываются на карточке только для этих состояний.
+ */
+export const TASK_ACTIVE_WORK_STATES: readonly string[] = [
+  "accepted",
+  "in_progress",
+  "suspended",
+  "rework",
+];
+
 /** Подпись состояния задания на языке получателя. */
 export function taskStateText(state: unknown, lang: "ru" | "kk"): string {
   return TASK_STATE_TEXT[String(state)]?.[lang] ?? String(state ?? "");

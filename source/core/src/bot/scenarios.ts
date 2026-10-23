@@ -2,7 +2,6 @@ import { loadDialog,saveDialog } from "./dialog.ts";
 import { navigationReply } from "./navigation.ts";
 import { staffRequestStep } from "./staff-requests.ts";
 import { workerHelp } from "./help.ts";
-import { withSimulatorMenu } from "./simulator-menu.ts";
 import { loadTemplateStore } from "../templates/store.ts";
 import { incidentStep } from "./incidents.ts";
 import { notificationStep } from "./notifications.ts";
@@ -52,7 +51,7 @@ export function botScenarios(deps: RegistryDeps) {
       const reply = id === "tasks" && ["/help", "/start", "/cancel"].includes(input.trim())
         ? workerHelp(ctx.actor.profile.language, templates)
         : await step({...d, templates}, String(profile.telegram_user_id), input, ctx.actor);
-      return withSimulatorMenu(navigationReply(reply,id,ctx.actor.profile.language,templates,input), id, ctx.actor.profile.language, templates);
+      return navigationReply(reply,id,ctx.actor.profile.language,templates,input);
     },
   });
   scenarios.register({id:"notifications",description:"NTF: настройки уведомлений",run:async(input,ctx)=>{
@@ -63,7 +62,7 @@ export function botScenarios(deps: RegistryDeps) {
     const [profile]=await d.db.query<{telegram_user_id:string}>("select telegram_user_id from profile where id=$1 and is_test=true",[ctx.profileId]);
     if(!profile)throw new ApiError('FORBIDDEN');
     const reply = await notificationStep({...d, templates,bot:ctx.bot},String(profile.telegram_user_id),input,ctx.actor);
-    return withSimulatorMenu(reply, "notifications", ctx.actor.profile.language, templates);
+    return reply;
   }});
   return scenarios;
 }

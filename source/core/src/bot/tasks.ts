@@ -25,7 +25,7 @@ import {
   transitionTask,
 } from "../domains/tasks/service.ts";
 import { submitTaskReport } from "../domains/tasks/reports.ts";
-import { TASK_STATE_TEXT } from "../locales/tasks.ts";
+import { TASK_STATE_TEXT, TASK_ACTIVE_WORK_STATES } from "../locales/tasks.ts";
 import { type BotReply, btn, type InlineButton } from "./keyboard.ts";
 export const TASK_COMMANDS = [
   ...VISIT_COMMANDS,
@@ -57,6 +57,9 @@ const taskMessageKey = (base: string, state: unknown) =>
 
 const stateLabel = (state: unknown, lang: Lang): string =>
   TASK_STATE_TEXT[String(state)]?.[lang] ?? String(state);
+
+/** Задание в активной работе исполнителя — набор из визитов (no_access/no_show). */
+const ACTIVE_WORK_STATES = TASK_ACTIVE_WORK_STATES;
 
 /** Кнопки карточки задания: ровно те же команды, что в подсказке «Действия». */
 function taskButtons(
@@ -218,7 +221,12 @@ export async function taskStep(
           ),
           due_at: fmtDate(t.due_at),
         }),
-        buttons: [...taskButtons(t, L, deps.templates, cardKey),[btn(messageButton(deps.templates,L,"bot.controls","visits"),`/taskvisits ${t.number}`),btn(messageButton(deps.templates,L,"bot.controls","emergency"),`/danger ${t.number}`)]],
+        buttons: [...taskButtons(t, L, deps.templates, cardKey),
+          // Визиты и аварийный сигнал — только пока задание в активной работе:
+          // тот же набор «принято исполнителем», что в visits.ts (no_access/no_show).
+          ...((ACTIVE_WORK_STATES as string[]).includes(String(t.state))
+            ? [[btn(messageButton(deps.templates,L,"bot.controls","visits"),`/taskvisits ${t.number}`),btn(messageButton(deps.templates,L,"bot.controls","emergency"),`/danger ${t.number}`)]]
+            : [])],
       });
     }
     const action = ({

@@ -140,7 +140,11 @@ export function taskActions(
   }
 }
 
-/** Подписи кнопок reply-меню на двух языках; ключ — команда без слэша. */
+/**
+ * Исторические подписи кнопок reply-меню (ADR-011): reply-меню больше не
+ * отправляется, но подписи остаются источником маршрутизации — старые клиенты
+ * продолжают присылать их текстом, и они обязаны резолвиться в команды.
+ */
 type MenuKey =
   | "newrequest"
   | "requests"
@@ -179,35 +183,6 @@ const MENU_COMMANDS: Record<string, string> = Object.fromEntries(
     Object.entries(labels).map(([key, labelText]) => [labelText, `/${key}`])
   ),
 );
-
-/** Reply-меню жителя: подписи с иконками на языке профиля. */
-export function residentMenu(
-  lang: Lang = "ru",
-  store?: TemplateStore,
-  key = "help.welcome_text",
-): string[][] {
-  const l = Object.fromEntries(
-    (Object.keys(MENU_LABELS.ru) as MenuKey[]).filter((id) => id !== "tasks" && id !== "staffrequests")
-      .map((id) => [id, messageButton(store, lang, key, id)]),
-  );
-  return [
-    [l.newrequest!, l.requests!],
-    [l.objects!, l.add!],
-    [l.notifications!, l.help!],
-  ];
-}
-
-/** Reply-меню сотрудника: задания и справка. */
-export function workerMenu(
-  lang: Lang = "ru",
-  store?: TemplateStore,
-): string[][] {
-  const l = {
-    tasks: messageButton(store, lang, "help.worker_help", "tasks"),
-    help: messageButton(store, lang, "help.worker_help", "help"),
-  };
-  return [[l.tasks, messageButton(store,lang,"help.worker_help","staffrequests")], [messageButton(store,lang,"help.worker_help","notifications"),l.help]];
-}
 
 /**
  * Текст входящего сообщения → команда reply-меню (иначе — как есть).

@@ -145,7 +145,6 @@ export async function sweepRegistrations(
           templateNotice("notices.registrations_jobs_sweep_registrations_3", {}),
           `${timer.id}:applicant`,
           "resident",
-          undefined,
           templates,
         );
       }

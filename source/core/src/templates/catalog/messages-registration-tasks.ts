@@ -8,7 +8,7 @@ import type {
 import { registrationTemplates } from "./registration.ts";
 import { tasksTemplates } from "./tasks.ts";
 import { helpTemplates } from "./help.ts";
-import { TASK_STATE_TEXT } from "../../locales/tasks.ts";
+import { TASK_STATE_TEXT, TASK_ACTIVE_WORK_STATES } from "../../locales/tasks.ts";
 import { commonTemplates } from "./common.ts";
 const originals = [
   ...registrationTemplates,
@@ -733,7 +733,10 @@ const completeDefs = defs.flatMap((d) => {
       "{actions}",
       state === "on_review" ? "\n" + old(actionKey!, "kk") : "",
     );
-    const rows=state==='awaiting_acceptance'?[['accept','decline'],['visits','emergency']]:state==='in_progress'?[['report','pause'],['problem','files'],['visits','emergency']]:state==='suspended'?[['visits','emergency']]:[[stateButton[state]].filter((id):id is string=>!!id),['visits','emergency']].filter(row=>row.length);
+    const rows=state==='awaiting_acceptance'?[['accept','decline']]:state==='in_progress'?[['report','pause'],['problem','files']]:state==='suspended'?[]:[[stateButton[state]].filter((id):id is string=>!!id)].filter(row=>row.length);
+    // Визиты и аварийный сигнал — только в активной работе (TASK_ACTIVE_WORK_STATES),
+    // как и фактические кнопки карточки в bot/tasks.ts.
+    if ((TASK_ACTIVE_WORK_STATES as string[]).includes(state)) rows.push(['visits','emergency']);
     const buttons = taskButtons.filter(b=>rows.flat().includes(b.id));
     return {
       ...d,
