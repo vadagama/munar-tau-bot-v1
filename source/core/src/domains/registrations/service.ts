@@ -265,11 +265,15 @@ export async function listRegistrations(
   if (!can(actor, "registration.review").allow) throw new ApiError("FORBIDDEN");
   const scope = actor.assignments.some(a => a.role === "tech_admin") ? null : registryScope(actor);
   const rows = await deps.db.query<Row>(
-    `select r.*,p.building_id,p.kind,p.number,b.code as building_code from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
+    `select r.*,p.building_id,p.kind,p.number,b.code as building_code,
+    (select pr.telegram_username from profile pr where pr.person_id=r.person_id and pr.archived_at is null order by pr.id desc limit 1) as profile_telegram_username
+    from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
     where ($1::uuid[] is null or r.premises_id is null or p.building_id=any($1::uuid[])) and r.is_test=$2 and r.superseded_by is null order by r.created_at desc`,
     [scope, actor.person.isTest],
   );
-  return rows.map((row) => ({ ...row, draft: jsonValue<Row>(row.draft),
+  return rows.map(({ profile_telegram_username, ...row }) => ({ ...row,
+    telegram_username: profile_telegram_username ?? row.telegram_username,
+    draft: jsonValue<Row>(row.draft),
     confirmed_draft: row.confirmed_draft ? jsonValue<Row>(row.confirmed_draft) : null,
     can_manage: row.state !== "withdrawn" && can(actor, "registration.manage").allow,
   }));

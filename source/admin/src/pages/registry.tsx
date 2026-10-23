@@ -2,6 +2,7 @@ import { RegistryFilters, EMPTY_REGISTRY_FILTERS, filterRegistryRows, type Regis
 import { ProcessOverview } from "../components/process-card";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
+import { TelegramHandle } from "../components/telegram-handle";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { ActionPanel } from "./action-panel";
 import { CardDrawer } from "./card-drawer";
@@ -305,7 +306,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
         ) : key === "role" ? (
           displayRole(v)
         ) : key === "telegram_username" ? (
-          v ? `@${String(v)}` : "—"
+          <TelegramHandle username={v} />
         ) : key === "status" ? (
           <Tag>{STATUS[String(v)] ?? String(v)}</Tag>
         ) : (

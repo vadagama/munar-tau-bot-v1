@@ -34,7 +34,8 @@ afterEach(() => {
 it("приглашения: Telegram пригласившего в таблице, поиск по нему", async () => {
   render(<InvitesPage />);
   expect(await screen.findByText("Олег Краснов")).toBeInTheDocument();
-  expect(screen.getByText("@oleg_san_krasnov")).toBeInTheDocument();
+  const link = screen.getByRole("link", { name: "@oleg_san_krasnov" });
+  expect(link).toHaveAttribute("href", "https://t.me/oleg_san_krasnov");
   const search = screen.getByRole("searchbox", { name: "Поиск приглашений" });
   fireEvent.change(search, { target: { value: "@oleg_san" } });
   expect(screen.getByText("Олег Краснов")).toBeInTheDocument();
