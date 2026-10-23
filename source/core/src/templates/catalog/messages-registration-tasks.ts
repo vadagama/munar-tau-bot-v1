@@ -174,7 +174,7 @@ function def(
     sampleKk.accesses = "1. <b>Алия Омарова</b>: Пәтер 4";
   }
   if (key === "message.registration.building_unknown") {
-    const link = '<a href="https://t.me/munar_tau_bot?start=house_00000000-0000-4000-8000-000000000001_123456abcdef">102/1</a>';
+    const link = '<a href="https://t.me/munar_tau_user_bot?start=house_00000000-0000-4000-8000-000000000001_123456abcdef">102/1</a>';
     sample.buildings = "<b>Очередь 1</b>\n" + link;
     sampleKk.buildings = "<b>1-кезек</b>\n" + link;
   }

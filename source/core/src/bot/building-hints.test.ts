@@ -29,7 +29,7 @@ it.each(["ru", "kk"] as const)(
       lang === "ru" ? "Очередь не указана" : "Кезек көрсетілмеген",
     );
     expect(text).toContain(
-      `href="https://t.me/munar_tau_bot?start=house_${id}_${token}"`,
+      `href="https://t.me/munar_tau_user_bot?start=house_${id}_${token}"`,
     );
     expect(text).toContain("&lt;Дом &amp; 1&gt;");
   },
