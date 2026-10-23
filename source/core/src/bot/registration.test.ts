@@ -584,7 +584,7 @@ describe("бот: /register при существующей анкете (guard)
     const text = replyText(reply);
     expect(text).toContain("Вы уже зарегистрированы. Повторная регистрация не нужна.");
     expect(text).toContain("Oleg Krasnov");
-    expect(text).toContain("Квартира Ж1/12");
+    expect(text).toContain("Дом Ж1, Квартира 12");
     expect(h.state.step).toBeUndefined();
   });
 
@@ -797,7 +797,7 @@ describe("бот: /status — актуальный статус и истори�
     const reply = await registrationStep(h.deps, "100", "/status");
     const text = replyText(reply);
     // Актуальная анкета — вверху, без нумерации.
-    expect(text).toContain("<b>Ожидает проверки</b>: Oleg Krasnov, Квартира Ж1/1, Собственник");
+    expect(text).toContain("<b>Ожидает проверки</b>: Oleg Krasnov, Дом Ж1, Квартира 1, Собственник");
     expect(text).not.toContain("1. ");
     // История — хронологически, каждая запись: дата, статус и анкетные данные.
     expect(text).toContain("История изменений статуса:");
@@ -805,7 +805,7 @@ describe("бот: /status — актуальный статус и истори�
       "19.10.2026 13:00 — <b>Ожидает проверки</b>: Oleg Krasnov, помещение не указано",
     );
     expect(text).toContain(
-      "20.10.2026 15:00 — <b>Отказано</b>: Oleg Krasnov, Квартира Ж1/1, Собственник — Нужна латиница в имени",
+      "20.10.2026 15:00 — <b>Отказано</b>: Oleg Krasnov, Дом Ж1, Квартира 1, Собственник — Нужна латиница в имени",
     );
     expect(text.indexOf("<b>Ожидает проверки</b>")).toBeLessThan(text.indexOf("История изменений статуса:"));
     // Операции адресованы только актуальной анкете.
@@ -841,8 +841,8 @@ describe("бот: /add — добавление помещения", () => {
   const P1 = "aaaaaaaa-1111-1111-1111-111111111111";
   const P2 = "aaaaaaaa-2222-2222-2222-222222222222";
   const connections = [
-    { premises_id: P1, role: "owner", kind: "apartment", number: "12", code: "Ж1" },
-    { premises_id: P2, role: "owner", kind: "parking_slot", number: "3", code: "П1" },
+    { premises_id: P1, role: "owner", kind: "apartment", number: "12", code: "Ж1", b_kind: "house" },
+    { premises_id: P2, role: "owner", kind: "parking_slot", number: "3", code: "П1", b_kind: "parking" },
   ];
 
   it("есть связанные помещения — список, анкетные данные предзаполнены, вопросы о языке/имени/телефоне не задаются", async () => {
@@ -850,8 +850,8 @@ describe("бот: /add — добавление помещения", () => {
     const reply = await registrationStep(h.deps, "100", "/add");
     const text = replyText(reply);
     expect(text).toContain("связанные с вами");
-    expect(text).toContain("Квартира Ж1/12 — Собственник");
-    expect(text).toContain("Парковочное место П1/3 — Собственник");
+    expect(text).toContain("Дом Ж1, Квартира 12 — Собственник");
+    expect(text).toContain("Парковка П1, Парковочное место 3 — Собственник");
     expect(text).not.toContain("Ваше имя");
     expect(text).not.toContain("Телефон");
     expect(h.state.step).toBe("add_select");
