@@ -9,11 +9,13 @@ import { invalid, type Row } from "../registry/validation.ts";
 import { content, idempotent } from "../requests/service.ts";
 import { checkVersion } from "../requests/fsm.ts";
 import { documentInput, versionInput } from "./input.ts";
-import { documentResource, requireDocument } from "./access.ts";
+import { documentResource, documentResources, requireDocument } from "./access.ts";
 import { documentTransition } from "./fsm.ts";
 import type { DocumentRow, DocumentVersionRow } from "./types.ts";
 import { notifyPerson } from "../registrations/notifications.ts";
 import { templateNotice } from "../../templates/notice.ts";
+import { requireTask } from "../tasks/access.ts";
+import { requireRequest } from "../requests/access.ts";
 
 async function log(deps: RegistryDeps, exec: DbExecutor, actor: Actor, row: DocumentRow,
   action: string, reason: string, versionId: string | null = null) {
@@ -25,7 +27,7 @@ async function log(deps: RegistryDeps, exec: DbExecutor, actor: Actor, row: Docu
     { version: row.version }, { version: updated!.version, document_version_id: versionId }, reason);
   return updated!;
 }
-async function actorForPerson(exec: DbExecutor, personId: string, isTest: boolean): Promise<Actor> {
+export async function actorForPerson(exec: DbExecutor, personId: string, isTest: boolean): Promise<Actor> {
   const [profile] = await exec.query<{ id: string }>("select id from profile where person_id=$1 and archived_at is null and is_test=$2 order by id limit 1", [personId, isTest]);
   if (!profile) invalid("Выберите действующего зарегистрированного сотрудника");
   const repo = new SqlAdminRepo(), p = await repo.getProfile(exec, profile.id);
@@ -36,6 +38,16 @@ async function actorForPerson(exec: DbExecutor, personId: string, isTest: boolea
 export async function createDocument(deps: RegistryDeps, actor: Actor, input: Row, key: unknown) {
   const data = documentInput(input), reason = content(input.reason, "причину");
   return deps.db.transaction(exec => idempotent(exec, actor, "document.create", key, input, async () => {
+    let sourceScope: string[] | null = null;
+    if (data.task_id) sourceScope = (await requireTask(exec, actor, data.task_id)).building_ids;
+    else if (data.request_id) {
+      const source = await requireRequest(exec, actor, data.request_id);
+      sourceScope = source.building_id ? [source.building_id] : [];
+    }
+    if (sourceScope) {
+      if (data.building_ids.length && JSON.stringify([...data.building_ids].sort()) !== JSON.stringify([...sourceScope].sort())) invalid("Дома документа должны соответствовать исходному объекту");
+      data.building_ids = sourceScope;
+    }
     if ((await exec.query("select id from building where id=any($1::uuid[])", [data.building_ids])).length !== data.building_ids.length) invalid("Дом документа недоступен");
     const [row] = await exec.query<DocumentRow>(
       `insert into document(title,kind,audience,document_number,document_date,parties,request_id,task_id,prepared_by,reviewer_id,created_by,is_test)
@@ -90,6 +102,7 @@ export async function transitionDocumentVersion(deps: RegistryDeps, actor: Actor
       "update document_version set state=$2,reviewed_by=case when $3 then reviewed_by else $4 end,reviewed_at=case when $3 then reviewed_at else now() end,review_comment=$5 where id=$1 returning *",
       [version.id, state, preparing, actor.person.id, reason]);
     await log(deps, exec, actor, row, action, reason, version.id);
+    if (action === "needs_fix") await exec.query("update document_obligation set completed_at=null,reminded_at=null,escalated_at=null,version=version+1 where document_version_id=$1", [version.id]);
     const labels: Record<string, [string, string]> = {
       on_review: ["На проверке", "Тексеруде"], approved: ["Проверен", "Тексерілді"],
       returned: ["Возвращён", "Қайтарылды"], needs_fix: ["Требует исправления", "Түзету қажет"],
@@ -130,11 +143,11 @@ export async function getDocument(deps: RegistryDeps, actor: Actor, id: string) 
     can_prepare: can(actor, "document.prepare", resource).allow, can_review: can(actor, "document.review", resource).allow,
     can_manage: can(actor, "document.manage", resource).allow };
 }
-export async function listDocuments(deps: RegistryDeps, actor: Actor, offset = 0) {
-  if (!Number.isSafeInteger(offset) || offset < 0) invalid("Некорректная страница");
-  // Не ограничивать до PDP: иначе страницы могут оказаться пустыми из-за чужих документов.
+export async function listDocuments(deps: RegistryDeps, actor: Actor, offset = 0, limit = 50) {
+  if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) invalid("Некорректная страница");
+  // Пагинация после PDP: количество и границы страниц не раскрывают скрытые документы.
   const rows = await deps.db.query<DocumentRow>("select * from document where is_test=$1 order by created_at desc,id", [actor.person.isTest]);
-  const allowed: DocumentRow[] = [];
-  for (const row of rows) if (can(actor, "document.read", await documentResource(deps.db, actor, row)).allow) allowed.push(row);
-  return { items: allowed.slice(offset, offset + 50).map(r => ({ id: r.id, title: r.title, kind: r.kind, audience: r.audience, version: r.version, document_date: r.document_date, published_version_id: r.published_version_id })), total: allowed.length };
+  const resources = await documentResources(deps.db, actor, rows);
+  const allowed = rows.filter((_, i) => can(actor, "document.read", resources[i]).allow);
+  return { items: allowed.slice(offset, offset + limit).map(r => ({ id: r.id, title: r.title, kind: r.kind, audience: r.audience, version: r.version, document_date: r.document_date, published_version_id: r.published_version_id })), total: allowed.length };
 }

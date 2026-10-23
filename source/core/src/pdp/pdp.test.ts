@@ -66,6 +66,7 @@ describe("реестр действий", () => {
       "admin.session.revoke",
       "audit.read",
       "document.manage",
+      "document.obligations",
       "document.prepare",
       "document.read",
       "document.review",

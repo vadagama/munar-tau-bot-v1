@@ -26,6 +26,7 @@ import {
   type TaskRow,
 } from "./access.ts";
 import { nextTaskState } from "./fsm.ts";
+import { documentObligationSnapshot } from "../documents/snapshot.ts";
 import {
   type EvidenceRequirement,
   validateEvidenceAcceptance,
@@ -517,11 +518,7 @@ export async function transitionTask(
         checkVersion(Number(report.version), input.report_version);
         if (action === "approve") {
           if (!canAcceptTaskReport(actor,row,report.created_by)) throw new ApiError("FORBIDDEN", "Собственную работу должен принять другой администратор");
-          if (row.document_required) {
-            invalid(
-              "Для приёмки нужен обязательный акт; контур документов ещё не подключён",
-            );
-          }
+          const documentVersions = await documentObligationSnapshot(exec, null, [id], row.document_required ? [id] : []);
           if (input.result_checked !== true) {
             invalid("Подтвердите проверку результата и чек-листа");
           }
@@ -541,6 +538,7 @@ export async function transitionTask(
             normalized,
           );
           reviewMeta = {
+            document_versions: documentVersions,
             report_id: report.id,
             report_version: report.version,
             evidence_decisions: normalized,

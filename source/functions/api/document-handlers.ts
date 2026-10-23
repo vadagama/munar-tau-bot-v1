@@ -4,12 +4,17 @@ import { createDocument, addDocumentVersion, transitionDocumentVersion, publishD
 import { listTaskAssignees } from "../../core/src/domains/tasks/assignees.ts";
 import { can } from "../../core/src/pdp/evaluate.ts";
 import { ApiError } from "../../core/src/errors/api.ts";
+import { createObligation, listObligations, fulfillObligation, reassignObligation } from "../../core/src/domains/documents/obligations.ts";
 const deps = (c: RouteContext) => ({ db: c.deps.db, audit: c.deps.audit });
 const key = (c: RouteContext) => c.request.headers.get("idempotency-key");
 function route(method: Route["method"], path: string, handler: Route["handler"]): Route {
   return { method, path, action: "document.use", evaluateAs: "effective", handler: c => databaseValidation(() => handler(c)) };
 }
 export const DOCUMENT_ROUTES: Route[] = [
+  route("GET", "/v1/documents/obligations", async c => ({ body: await listObligations(deps(c), c.actor, { requestId: c.url.searchParams.get("request_id") ?? undefined, taskId: c.url.searchParams.get("task_id") ?? undefined }) })),
+  route("POST", "/v1/documents/obligations", async c => ({ status: 201, body: await createObligation(deps(c), c.actor, c.body, key(c)) })),
+  route("POST", "/v1/documents/obligations/:id/fulfill", async c => ({ body: await fulfillObligation(deps(c), c.actor, c.params.id!, c.body, key(c)) })),
+  route("POST", "/v1/documents/obligations/:id/reassign", async c => ({ body: await reassignObligation(deps(c), c.actor, c.params.id!, c.body, key(c)) })),
   route("GET", "/v1/documents/candidates", async c => {
     if (!can(c.actor, "registry.read").allow) throw new ApiError("FORBIDDEN");
     return { body: { items: await listTaskAssignees(c.deps.db, c.actor.person.isTest, []) } };

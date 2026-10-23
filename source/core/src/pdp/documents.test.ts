@@ -19,6 +19,11 @@ const access = {
 const resource = (patch: Partial<typeof access> = {}): ResourceRef => ({ documentAccess: { ...access, ...patch } });
 
 describe("DOC-02/03: документ имеет собственную аудиторию и ограничения источника", () => {
+  it("очередь документальных обязанностей недоступна жителю и технической роли", () => {
+    expect(can(actor(), "document.obligations").allow).toBe(false);
+    expect(can(actor("tech_admin"), "document.obligations").allow).toBe(false);
+    expect(can(actor("executor"), "document.obligations").allow).toBe(true);
+  });
   it("подтверждённый житель читает опубликованный общий документ", () => {
     expect(can(actor(), "document.read", resource()).allow).toBe(true);
     expect(can(actor(), "document.read", resource({ published: false })).allow).toBe(false);
@@ -59,5 +64,16 @@ describe("DOC-02/03: документ имеет собственную ауди
     expect(can(actor("chairman"), "document.read").allow).toBe(false);
     const a = actor("chairman"); a.person.status = "archived";
     expect(can(a, "document.read", resource()).allow).toBe(false);
+  });
+  it("назначение проверяющим открывает только документ с сохранением ограничений жалоб", () => {
+    const reviewer = actor("doc_reviewer");
+    const source = { isTest: true, draft: false, chairmanOnly: false, complaintSubjectId: null as string | null };
+    const r: ResourceRef = { documentAccess: { ...access, reviewerId: "reader", sourceAllowed: false, reviewSource: source } };
+    expect(can(reviewer, "document.review", r).allow).toBe(true);
+    expect(can(reviewer, "document.read", r).allow).toBe(true);
+    expect(can(reviewer, "request.read").allow).toBe(false);
+    for (const patch of [{ chairmanOnly: true }, { complaintSubjectId: "reader" }, { draft: true }, { isTest: false }]) {
+      expect(can(reviewer, "document.review", { documentAccess: { ...r.documentAccess!, reviewSource: { ...source, ...patch } } }).allow).toBe(false);
+    }
   });
 });

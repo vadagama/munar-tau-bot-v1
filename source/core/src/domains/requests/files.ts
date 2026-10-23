@@ -1,5 +1,6 @@
 import { requireTask, taskResource } from "../tasks/access.ts";
 import { documentResource, requireDocument } from "../documents/access.ts";
+import { checkVersion } from "./fsm.ts";
 import { can } from "../../pdp/evaluate.ts";
 import { ApiError } from "../../errors/api.ts";
 import type { Actor } from "../../pdp/types.ts";
@@ -152,6 +153,7 @@ export async function prepareFile(
       throw new ApiError("FORBIDDEN");
     }
     if (document) {
+      checkVersion(document.version, input.expected_version);
       if (bucket !== documentBucket) throw new ApiError("FORBIDDEN");
     } else if (ownerType === "task") {
       const task = await requireTask(exec, actor, requestId, "task.execute", true);

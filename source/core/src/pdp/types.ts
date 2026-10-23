@@ -89,6 +89,7 @@ export interface ResourceRef {
     sourceAllowed: boolean; sourceManageable: boolean;
     preparedById: string; reviewerId: string;
     assignedTask: boolean; resultAuthorIds: string[];
+    reviewSource?: { isTest: boolean; draft: boolean; chairmanOnly: boolean; complaintSubjectId: string | null };
   };
   incidentAccess?: { buildingIds: string[]; isTest: boolean; responsibleId: string | null; member: boolean; published: boolean };
   publicationAccess?: { buildingIds: string[]; isTest: boolean; member: boolean; published: boolean };

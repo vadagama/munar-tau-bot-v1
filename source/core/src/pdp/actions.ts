@@ -5,7 +5,7 @@
 import { STAFF_ROLES, type SpecialRights, type StaffRole } from "./types.ts";
 
 export type ActionKey =
-  | "document.use" | "document.read" | "document.prepare" | "document.review" | "document.manage"
+  | "document.use" | "document.read" | "document.prepare" | "document.review" | "document.manage" | "document.obligations"
   | "staff.read" | "staff.edit"
   | "settings.templates.read" | "settings.templates.edit"
   | "incident.use" | "incident.read" | "incident.manage" | "incident.link"
@@ -62,6 +62,7 @@ export interface ActionSpec {
 
 export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
   "document.use": { privileged: false },
+  "document.obligations": { privileged: false },
   "document.read": { privileged: false },
   "document.prepare": { privileged: false },
   "document.review": { privileged: false },
