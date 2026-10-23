@@ -106,7 +106,7 @@ export function StaffRoleForm(
             card?.workload.tasks ?? 0
           }; обращения: ${card?.workload.requests ?? 0}; расписания: ${
             card?.workload.schedules ?? 0
-          }. Они останутся видны управляющим для передачи.`}
+          }. Они останутся видны администратору, заместителю и председателю ОСИ для передачи.`}
         />
       )}
       <Form.Item name="reason" label="Причина изменения" rules={required}>

@@ -1,3 +1,4 @@
+import { PROCESS_MANAGER_ROLES } from "../components/process-guidance";
 import { ProcessOverview, ProcessActions } from "../components/process-card";
 import { ConfigurableTable } from "../components/configurable-table";
 import { StaffRoleForm } from "./staff-form";
@@ -319,7 +320,7 @@ export function StaffPage() {
             <ProcessOverview guidance={{
               title: "Проверьте полномочия и открытые обязанности",
               description: "Изменения ролей требуют основания. Прекращение полномочий не передаёт открытые задания, обращения и расписания автоматически: их нужно передать явно.",
-              waitingFor: "Управляющий — при изменении полномочий",
+              waitingFor: `${PROCESS_MANAGER_ROLES} — в пределах своих полномочий`,
             }}>
             {card.can_edit && (
               <ProcessActions primary="edit">
