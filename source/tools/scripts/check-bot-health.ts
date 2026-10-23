@@ -154,6 +154,45 @@ if (!ref || !access) {
   } catch (error) {
     flag(`bot_inbound недоступен: ${(error as Error).message}`);
   }
+
+  // Анкеты в ожидании, у этапа которых нет ни одного доступного решателя
+  // (роль этапа либо председатель/техадмин того же мира is_test) — они висят
+  // бессрочно: в кабинете их никто не увидит, заявителю бот молчит (REG-14).
+  // Упрощение: доменная область (scope_building_ids) не учитывается.
+  console.log("=== Очередь регистрации ===");
+  try {
+    const stages = JSON.parse(await query(
+      `select r.is_test, r.review_stage, count(*) as n, min(r.created_at) as oldest,
+        (select count(distinct a.person_id) from staff_assignment a join person p on p.id=a.person_id
+         where a.status='active' and p.status='active' and p.is_test=r.is_test
+           and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())
+           and (a.role::text=r.review_stage or a.role::text in ('chairman','tech_admin'))) as reviewers
+       from registration r
+       where r.superseded_by is null and r.state in ('pending_review','need_clarification','disputed')
+         and r.review_stage in ('administrator','deputy','chairman')
+       group by r.is_test, r.review_stage order by r.is_test, r.review_stage`,
+    )) as {
+      is_test: boolean;
+      review_stage: string;
+      n: number;
+      oldest: string;
+      reviewers: number;
+    }[];
+    if (!stages.length) console.log("  пусто");
+    for (const row of stages) {
+      const age = Math.round((Date.now() - new Date(row.oldest).getTime()) / 3600000);
+      console.log(
+        `  ${row.review_stage} (is_test=${row.is_test}): ${row.n} анкет, решателей ${row.reviewers}, старейшая ${age} ч`,
+      );
+      if (row.reviewers === 0) {
+        flag(
+          `этап ${row.review_stage} (is_test=${row.is_test}): ${row.n} анкет без решателей — назначьте активную роль (administrator/deputy/chairman)`,
+        );
+      }
+    }
+  } catch (error) {
+    flag(`очередь регистрации недоступна: ${(error as Error).message}`);
+  }
 }
 
 console.log(problems ? `\nИТОГ: проблем — ${problems}` : "\nИТОГ: здоровы");
