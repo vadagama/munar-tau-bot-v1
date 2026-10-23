@@ -82,6 +82,7 @@ describe("реестр действий", () => {
       "meta.me",
       "notification.failures",
       "notification.preferences",
+      "poll.answer", "poll.manage", "poll.read", "poll.results",
       "privacy.request",
       "publication.approve", "publication.manage", "publication.read",
       "registration.manage",

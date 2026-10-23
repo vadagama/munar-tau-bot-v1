@@ -94,6 +94,7 @@ export interface ResourceRef {
     reviewSource?: { isTest: boolean; draft: boolean; chairmanOnly: boolean; complaintSubjectId: string | null };
   };
   incidentAccess?: { buildingIds: string[]; isTest: boolean; responsibleId: string | null; member: boolean; published: boolean };
+  pollAccess?: { buildingIds: string[]; isTest: boolean; state: "draft" | "open" | "closed" | "canceled"; member: boolean; participant: boolean; finalParticipant: boolean; answerOpen: boolean };
   publicationAccess?: { buildingIds: string[]; isTest: boolean; member: boolean; published: boolean; financial?: boolean; owner?: boolean };
   taskAccess?: { buildingIds: string[]; assigneeId: string | null; isTest: boolean };
   requestAccess?: { chairmanOnly?: boolean; authorId: string; buildingId: string | null; state: string; isTest: boolean; participant: boolean; activeAuthor: boolean; complaintSubjectId: string | null };
