@@ -21,14 +21,14 @@ export function buildingHints(
   lang: Lang,
   token: string,
   store?: TemplateStore,
-  botUsername = "munar_tau_bot",
+  botUsername = "munar_tau_user_bot",
 ): string {
   if (!rows.length) {
     return message(store, lang, "message.registration.buildings_empty");
   }
   const username = /^[a-zA-Z0-9_]{5,32}$/.test(botUsername)
     ? botUsername
-    : "munar_tau_bot";
+    : "munar_tau_user_bot";
   const groups = new Map<number, Row[]>();
   for (const row of rows) {
     const phase = typeof row.construction_phase === "number"

@@ -5,6 +5,7 @@ import { message, messageButton, safeBlock } from "../templates/message.ts";
 import { BotTemplateError } from "./bot-errors.ts";
 import { loadTemplateStore, type TemplateStore } from "../templates/store.ts";
 import {
+  buildingLabels,
   label,
   premiseLabels,
   roleLabels,
@@ -85,15 +86,21 @@ function roleFromWord(value: string | undefined): string | undefined {
   return ROLE_WORDS[value.trim().toLowerCase()];
 }
 
+/** Адрес помещения: «Дом 107-1, Квартира 5»; без помещения — «помещение не указано». */
+function premisesAddress(r: Row, L: Lang, store?: TemplateStore): string {
+  if (!r.premises_id) {
+    return esc(message(store, L, "registration.pomeschenie_ne_ukazano"));
+  }
+  return `${esc(label(buildingLabels, r.b_kind, L, "Дом"))} ${esc(r.code ?? "—")}, ${
+    esc(label(premiseLabels, r.kind, L, "помещение"))
+  } ${esc(r.number ?? "—")}`;
+}
+
 /** Строка анкеты: состояние, анкетные данные, помещение, роль, причина. */
 function registrationLine(r: Row, L: Lang, store?: TemplateStore): string {
   const draft = r.draft ? jsonValue<Row>(r.draft) : {};
   // Анкета-минимум (REG-01) без помещения и роли — только имя и состояние.
-  const place = r.premises_id
-    ? `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
-      esc(r.code ?? "—")
-    }/${esc(r.number ?? "—")}`
-    : esc(message(store, L, "registration.pomeschenie_ne_ukazano"));
+  const place = premisesAddress(r, L, store);
   return `<b>${esc(label(stateLabels, r.state, L))}</b>: ${
     esc(draft.full_name ?? "—")
   }, ${place}${
@@ -165,7 +172,7 @@ export async function registrationStep(
     }
     if (cmd === "/status") {
       const rows = await exec.query<Row>(
-        `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.decided_at,r.created_at,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
+        `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.decided_at,r.created_at,r.draft,r.role,r.premises_id,p.kind,p.number,b.code,b.kind as b_kind
         from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
         where (r.telegram_user_id=$1 or r.person_id=$2) and r.superseded_by is null order by r.created_at desc limit 20`,
         [telegramId, actor?.person.id ?? null],
@@ -333,7 +340,7 @@ export async function registrationStep(
         return save(registerPrompt(deps.templates, L));
       }
       const rows = await exec.query<Row>(
-        "select c.id,c.premises_id,c.role,c.status,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1",
+        "select c.id,c.premises_id,c.role,c.status,p.kind,p.number,b.code,b.kind as b_kind from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1",
         [actor.person.id],
       );
       if (!rows.length) {
@@ -355,9 +362,7 @@ export async function registrationStep(
           premises: safeBlock(
             numbered(
               rows.map((r) =>
-                `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
-                  esc(r.code)
-                }/${esc(r.number)} — ${esc(label(roleLabels, r.role, L))}, ${
+                `${premisesAddress(r, L)} — ${esc(label(roleLabels, r.role, L))}, ${
                   esc(label(stateLabels, r.status, L))
                 }`
               ),
@@ -575,7 +580,7 @@ export async function registrationStep(
       // импорт не подтверждает доступ автоматически), без действующей связи
       // и без анкеты в работе — их и предлагаем списком.
       const rows = await exec.query<Row>(
-        `select c.premises_id,c.role,p.kind,p.number,b.code
+        `select c.premises_id,c.role,p.kind,p.number,b.code,b.kind as b_kind
         from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id
         where c.person_id=$1 and c.status='pending' and p.status='active' and p.is_test=$2
         and not exists(select 1 from connection a where a.person_id=c.person_id and a.premises_id=c.premises_id and a.status='active')
@@ -600,9 +605,7 @@ export async function registrationStep(
           premises: safeBlock(
             numbered(
               options.map((r) =>
-                `${esc(label(premiseLabels, r.kind, L, "помещение"))} ${
-                  esc(r.code)
-                }/${esc(r.number)} — ${esc(label(roleLabels, r.role, L))}`
+                `${premisesAddress(r, L)} — ${esc(label(roleLabels, r.role, L))}`
               ),
             ),
           ),
