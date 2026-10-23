@@ -46,6 +46,38 @@ const NEUTRAL_TOKENS = {
   wireframe: false,
 };
 
+// Семью primary задаём явно по той же причине: генератор палитры AntD
+// рассчитан на средне-яркие seed-цвета, и тёмный #244c43 даёт «светлый»
+// конец шкалы грязно-серым — colorPrimaryBg #848c89, border #6c7371.
+// С такими токенами выбранная карточка доски и панели действий выглядят
+// затемнёнными, а шкала ещё и инвертирована (BgHover темнее Bg).
+const GREEN_PRIMARY_FAMILY = {
+  colorPrimaryBg: "#e9f2ee",
+  colorPrimaryBgHover: "#dcebe4",
+  colorPrimaryBorder: "#c3dcd2",
+  colorPrimaryBorderHover: "#94c5b4",
+  colorPrimaryHover: BRAND_GREEN_HOVER,
+  colorPrimaryActive: "#1b3d35",
+  colorPrimaryTextHover: BRAND_GREEN_HOVER,
+  colorPrimaryTextActive: "#1b3d35",
+  colorLinkHover: BRAND_GREEN_HOVER,
+  colorLinkActive: "#1b3d35",
+};
+
+// Графит варианта B (только /theme-preview): та же проблема генерации.
+const GRAPHITE_PRIMARY_FAMILY = {
+  colorPrimaryBg: "#eef0f2",
+  colorPrimaryBgHover: "#e3e6e9",
+  colorPrimaryBorder: "#ced3d8",
+  colorPrimaryBorderHover: "#aeb6bf",
+  colorPrimaryHover: "#38414a",
+  colorPrimaryActive: "#0f1317",
+  colorPrimaryTextHover: "#38414a",
+  colorPrimaryTextActive: "#0f1317",
+  colorLinkHover: "#38414a",
+  colorLinkActive: "#0f1317",
+};
+
 export function cabinetTheme(variant: CabinetVariant) {
   const primary = variant === "green" ? BRAND_GREEN : "#1f2328";
   return {
@@ -56,6 +88,7 @@ export function cabinetTheme(variant: CabinetVariant) {
       colorLink: primary,
       colorSuccess: "#1a7f37",
       ...NEUTRAL_TOKENS,
+      ...(variant === "green" ? GREEN_PRIMARY_FAMILY : GRAPHITE_PRIMARY_FAMILY),
     },
     components: {
       Layout: {
