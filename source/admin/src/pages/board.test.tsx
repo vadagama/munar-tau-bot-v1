@@ -123,12 +123,14 @@ it("открытая карточка выделена на доске, оста
 const _kindCheck: ListKind = "table";
 void _kindCheck;
 
-it("доска прокручивается страницей: без фиксированной высоты и внутренней прокрутки", () => {
+it("доска — одна линия колонок, страница скроллится браузером", () => {
   const { container } = render(
     <BoardView columns={[{ value: "a", label: "Новая" }]} rows={[{ id: 1 }]}
-      stateOf={() => "a"} renderCard={() => "Карточка"} />,
+      stateOf={() => "a"} renderCard={() => "Карточка"} />, 
   );
   const board = container.firstElementChild as HTMLElement;
+  // Колонки не переносятся на новый ряд: не влезающие уходят в прокрутку браузера.
+  expect(board.style.flexWrap).toBe("nowrap");
   expect(board.style.height).toBe("");
   expect(board.style.overflowX).toBe("");
   expect(board.style.overflowY).toBe("");

@@ -46,8 +46,8 @@ export function ViewToggle(props: {
 }
 
 /** Канбан-доска только для просмотра: колонки — статусы экрана, клик по карточке открывает её.
- *  Доска не прокручивается сама: колонки переносятся на новую строку, а страница
- *  скроллится браузером (решение пользователя 23.10.2026 — без внутренней прокрутки). */
+ *  Доска не прокручивается сама: колонки идут одной горизонтальной линией, а если они
+ *  не помещаются, страницу прокручивает браузер (решение пользователя 23.10.2026). */
 export function BoardView<T>(props: {
   columns: BoardColumn[];
   rows: T[];
@@ -169,7 +169,7 @@ export function BoardView<T>(props: {
     <div
       style={{
         display: "flex",
-        flexWrap: "wrap",
+        flexWrap: "nowrap",
         gap: token.marginSM,
         alignItems: "flex-start",
         boxSizing: "border-box",
