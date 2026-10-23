@@ -3,6 +3,7 @@
 // проверяются при сборке Actor, здесь работают только собранные данные.
 
 import { ACTIONS, type ActionKey, type ActionSpec } from "./actions.ts";
+import { initiativeDecision } from "./initiatives.ts";
 import { pollDecision } from "./polls.ts";
 import { documentDecision } from "./documents.ts";
 import { ALLOW, deny, type Actor, type Decision, type ResourceRef, type StaffRole } from "./types.ts";
@@ -22,6 +23,9 @@ export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {})
       return deny("Управляющие действия в эмуляции недоступны");
     }
   }
+
+  if(action==="initiative.use")return actor.person.status==="active"?ALLOW:deny("Учётная запись недоступна");
+  if(action.startsWith("initiative."))return initiativeDecision(actor,action,resource);
 
   if(action==="poll.use")return actor.person.status==="active"?ALLOW:deny("Учётная запись недоступна");
   if (action.startsWith("poll.")) return pollDecision(actor, action, resource);
