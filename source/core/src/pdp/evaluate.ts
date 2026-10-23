@@ -3,6 +3,7 @@
 // проверяются при сборке Actor, здесь работают только собранные данные.
 
 import { ACTIONS, type ActionKey, type ActionSpec } from "./actions.ts";
+import { documentDecision } from "./documents.ts";
 import { ALLOW, deny, type Actor, type Decision, type ResourceRef, type StaffRole } from "./types.ts";
 
 /** can(actor, action, resource) — контракт LLD-01 §3.1. */
@@ -20,6 +21,8 @@ export function can(actor: Actor, action: ActionKey, resource: ResourceRef = {})
       return deny("Управляющие действия в эмуляции недоступны");
     }
   }
+
+  if (action.startsWith("document.")) return documentDecision(actor, action, resource);
 
   if (action.startsWith("request.") && action !== "request.use" && action !== "request.category.edit") {
     const r = resource.requestAccess;

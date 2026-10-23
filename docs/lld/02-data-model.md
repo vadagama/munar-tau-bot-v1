@@ -206,6 +206,12 @@ id PK, number UNIQUE, title, state enum cw_state {planned, in_progress, on_revie
 
 ## 6. Документы и публикации
 
+VS-8 (23.10.2026): [ADR-018](../decisions/018-vs8-documents-participation-reports.md)
+и [спецификации](../../VS8-CAPABILITY-MAP.md) уточняют версии, историю проверок
+и обязанности. Сокращённые состояния инициатив раздела 8 заменяются раздельными
+состояниями публикации, этапами IDEA-03 и отдельной модерацией. История аудитории
+сохраняет интервалы связей для расчёта на момент окончания опроса.
+
 - `document`: id PK, kind enum doc_kind {work_report, act, invoice, receipt, decision_basis, other}, audience enum audience {resident, owner, staff, finance, service} (аудитория определяется типом, модель процессов раздел 7), request_id FK NULL, task_id FK NULL, created_by, created_at.
 - `document_scope`: document_id FK, building_id FK, PK (document_id, building_id).
 - `document_version`: id PK, document_id FK, version int, attachment_id FK attachment, state enum docv_state {draft, on_review, returned, approved, needs_fix} — схема раздела 7 модели процессов; prepared_by, reviewed_by FK person, review_comment text, created_at. Версии не перезаписываются (WRK-17–18, FIN-02–03).
