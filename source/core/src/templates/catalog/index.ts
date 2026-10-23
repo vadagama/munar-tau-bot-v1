@@ -1,6 +1,8 @@
 import { botUiTemplates } from "./bot-ui.ts";
 import { documentTemplates } from "./documents.ts";
 import { financialTemplates } from "./financial.ts";
+import { financialPublicationTemplates } from "./financial-publications.ts";
+import { financialDialogTemplates } from "./financial-dialogs.ts";
 import { documentDialogTemplates } from "./document-dialogs.ts";
 import { staffRequestTemplates } from "./staff-requests.ts";
 import { staffTemplates } from "./staff.ts";
@@ -23,6 +25,7 @@ import type { TemplateDef } from "./types.ts";
 const legacyCatalog: readonly TemplateDef[] = [
   ...documentTemplates,
   ...financialTemplates,
+  ...financialPublicationTemplates,
   ...staffTemplates,
   ...errors,
   ...commonTemplates,
@@ -47,6 +50,7 @@ const legacyCatalog: readonly TemplateDef[] = [
   },
 ];
 const messages = [
+  ...financialDialogTemplates,
   ...documentDialogTemplates,
   ...staffRequestTemplates,
   ...botUiTemplates,

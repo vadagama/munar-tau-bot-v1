@@ -83,6 +83,7 @@ export async function sendNotifications(
             publicationId: ref.publicationId,
             documentId: ref.documentId,
             financialObligationId: ref.financialObligationId,
+            financialVersionId: ref.financialVersionId,
           }) ||
           await preference(
               deps.db,

@@ -5,6 +5,7 @@ import { type NoticeText, renderNotice } from "../../templates/notice.ts";
 import { loadTemplateStore } from "../../templates/store.ts";
 import { financialOwnerBuildings, publicFinancialHeads } from "../publications/financial-access.ts";
 import { financialScope } from "../publications/financial-rules.ts";
+import { financialNoticeAllowed } from "../publications/financial-notices.ts";
 import { requireIncident } from "../incidents/access.ts";
 import { audienceMember, type AudienceScope } from "../incidents/audience.ts";
 import { requireTask } from "../tasks/access.ts";
@@ -23,6 +24,7 @@ import { deliveryMode, type EventType, type PreferenceMode } from "./policy.ts";
 import type { BotKind } from "../../bot/bots.ts";
 
 export interface NoticeOptions {
+  financialVersionId?: string;
   financialObligationId?: string;
   documentId?: string;
   scope?: AudienceScope[];
@@ -88,6 +90,7 @@ export async function noticeAllowed(
   if (notice.isTest !== undefined && notice.isTest !== actor.person.isTest) {
     return false;
   }
+  if (notice.financialVersionId && (!notice.publicationId || notice.audience !== "publication")) return false;
   if (notice.financialObligationId) {
     const [duty] = await exec.query<{ building_ids: string[]; is_test: boolean; completed_at: string | null; prepared_by: string; reviewer_id: string; publisher_id: string }>(
       "select building_ids,is_test,completed_at,prepared_by,reviewer_id,publisher_id from financial_obligation where id=$1", [notice.financialObligationId]);
@@ -208,10 +211,15 @@ export async function noticeAllowed(
       [notice.publicationId, actor.person.isTest],
     );
     if (!publication) return false;
+    if (notice.financialVersionId && publication.kind !== "financial_report") return false;
     if (publication.kind === "financial_report" && notice.audience === "publication") {
+      if (notice.financialVersionId) {
+        if (!await financialNoticeAllowed(exec, actor, publication.id, notice.financialVersionId, notice.scope?.map(s => s.building_id) ?? notice.buildingIds ?? [])) return false;
+      } else {
       const owners = await financialOwnerBuildings(exec, actor), targets = notice.scope?.map(s => s.building_id) ?? notice.buildingIds ?? [];
       if (!targets.some(id => owners.includes(id))) return false;
       if (!(await publicFinancialHeads(exec, actor, [publication.id])).length) return false;
+      }
     } else if (publication.state !== "published") return false;
   }
   if (notice.scope && !await audienceMember(exec, actor, notice.scope)) {
@@ -352,6 +360,7 @@ export async function dispatchNotices(
                   publicationId: n.publicationId,
                   documentId: n.documentId,
                   financialObligationId: n.financialObligationId,
+                  financialVersionId: n.financialVersionId,
                 }),
                 n.bot ?? null,
               ],
@@ -410,6 +419,11 @@ export async function dispatchNotices(
                     : entryMarkup("task", t.number, actor.profile.language);
               }
             }
+            if (n.financialVersionId) {
+              markup = inlineMarkup([[btn(messageButton(templates, actor.profile.language, n.template ?? "notices.financial.published", "open"), `/fv ${n.financialVersionId}`)]]);
+            } else if (n.financialObligationId) {
+              markup = inlineMarkup([[btn(messageButton(templates, actor.profile.language, "notices.financial.obligation", "open"), `/fd ${n.financialObligationId}`)]]);
+            }
             for (const [index, part] of parts.entries()) {
               await exec.query(
                 `insert into notification(telegram_user_id,text,dedup_key,recipient_person_id,channel,event_type,event_ref,important,priority,request_id,audience,is_test,task_id,bot,reply_markup)
@@ -428,6 +442,7 @@ export async function dispatchNotices(
                     publicationId: n.publicationId,
                     documentId: n.documentId,
                     financialObligationId: n.financialObligationId,
+                    financialVersionId: n.financialVersionId,
                   }),
                   type === "staff.roles" || (n.important ?? type === "request.required"),
                   type === "incident" ? 0 : 1,

@@ -18,6 +18,7 @@ import { financialArchive, publicFinancialHeads } from "./financial-access.ts";
 import { prepareFinancialVersion, approveFinancialVersion, checkFinancialRelease, markFinancialPublished } from "./financial-store.ts";
 import { checkedDocumentVersions } from "../documents/provider.ts";
 import { publicationDocumentSelection } from "./pinned-documents.ts";
+import { financialPublicationNotice } from "./financial-notices.ts";
 export interface Publication extends Row {
   id: string;
   kind: string;
@@ -264,6 +265,11 @@ export async function releaseChecks(exec: DbExecutor, row: Publication, actor: A
   });
 }
 export async function broadcastPublication(exec: DbExecutor, row: Publication) {
+  if (row.kind === "financial_report") {
+    const notice = await financialPublicationNotice(exec, row.id, String(row.financial_version_id), row.is_test);
+    await queueBroadcast(exec, { ...notice, type: "publication", isTest: row.is_test, publicationId: row.id });
+    return;
+  }
   const scope = await publicationScope(exec, row.id);
   await queueBroadcast(exec, {
     key: `publication:${row.id}:${row.version}`,

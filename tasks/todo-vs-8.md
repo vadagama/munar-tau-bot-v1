@@ -189,7 +189,7 @@
 
 ## F06. Уведомлять собственника и ответственных
 
-- [ ] **F06 выполнена**
+- [x] **F06 выполнена**
 - Критерий: Уведомления о публикации/исправлении и обязанностях идут через каталог, по конкретной версии и действующему доступу.
 - Критерий: Утрата собственности до доставки исключает финансовый комплект; очередь не подменяет подтверждение размещения во внешнем канале.
 - Проверка: npm test -w core -- src/domains/publications/financial-notices.test.ts; simulator ru/kk.
@@ -198,9 +198,9 @@
 
 ### Контрольная точка: Финансовые публикации: полный путь
 
-- [ ] Новые тесты и затронутая регрессия проходят; типы/lint проверены.
-- [ ] Diff просмотрен, проверенный инкремент сохранён отдельным коммитом.
-- [ ] Сценарии этапа воспроизведены; ограничения записаны, непройденные проверки не отмечены как успешные.
+- [x] Новые тесты и затронутая регрессия проходят; типы/lint проверены.
+- [x] Diff просмотрен, проверенный инкремент сохранён отдельным коммитом.
+- [x] Сценарии этапа воспроизведены; ограничения записаны, непройденные проверки не отмечены как успешные.
 
 ## P01. Сохранять историю права участия
 
@@ -209,7 +209,7 @@
 - Критерий: Расчёт на closes_at отличает отзыв до и после срока; миграция не выдумывает историю до внедрения.
 - Проверка: npm test -w core -- src/domains/polls/audience.test.ts; SQL-интеграция сохранена для отдельного запуска.
 - Зависимости: F06. Объём: M (4 основных файлов).
-- Файлы: `source/db/migrations/20261023094000_vs8_audience_history.sql`, `source/core/src/domains/polls/audience.ts`, `source/core/src/domains/polls/audience.test.ts`, `source/core/tests/integration/poll-audience-history.test.ts`.
+- Файлы: `source/db/migrations/20261023101000_vs8_audience_history.sql`, `source/core/src/domains/polls/audience.ts`, `source/core/src/domains/polls/audience.test.ts`, `source/core/tests/integration/poll-audience-history.test.ts`.
 
 ## P02. Добавить опросы и личный ответ
 
@@ -218,7 +218,7 @@
 - Критерий: После открытия параметры неизменны; ответ до срока меняется без роста участников, исключённый голос не восстанавливается сам.
 - Проверка: npm test -w core -- src/domains/polls src/pdp/polls.test.ts
 - Зависимости: P01. Объём: M (5 основных файлов).
-- Файлы: `source/db/migrations/20261023095000_vs8_polls.sql`, `source/core/src/domains/polls/service.ts`, `source/core/src/domains/polls/service.test.ts`, `source/core/src/pdp/polls.ts`, `source/core/src/pdp/polls.test.ts`.
+- Файлы: `source/db/migrations/20261023102000_vs8_polls.sql`, `source/core/src/domains/polls/service.ts`, `source/core/src/domains/polls/service.test.ts`, `source/core/src/pdp/polls.ts`, `source/core/src/pdp/polls.test.ts`.
 
 ## P03. Зафиксировать итоги и отмену
 

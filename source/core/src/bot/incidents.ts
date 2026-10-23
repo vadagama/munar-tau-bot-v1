@@ -1,4 +1,5 @@
 import { getTask } from "../domains/tasks/service.ts";
+import { FINANCIAL_COMMANDS, financialStep } from "./financial-publications.ts";
 import { getRequest } from "../domains/requests/service.ts";
 import { inputFormReply, type BotInput } from "./input-form.ts";
 import { loadDialog, saveDialog } from "./dialog.ts";
@@ -25,6 +26,7 @@ import { publicationProblem } from "../domains/publications/problems.ts";
 import { type Row } from "../domains/registry/validation.ts";
 import { type BotReply, btn } from "./keyboard.ts";
 export const INCIDENT_COMMANDS = [
+  ...FINANCIAL_COMMANDS,
   "/signalinput", "/emergencyrequest",
   "/emergency",
   "/danger",
@@ -48,6 +50,10 @@ async function incidentPlainStep(
     key = operationId ?? crypto.randomUUID(),
     L: "ru" | "kk" = actor?.profile.language ?? "ru";
   const bot=deps.bot??'resident';
+  if (FINANCIAL_COMMANDS.includes(command ?? "")) {
+    if (!actor) throw new ApiError("FORBIDDEN");
+    return financialStep(deps, telegramId, input, actor);
+  }
   const dialog=await loadDialog(deps.db,telegramId,bot,actor?.profile.id??null,actor?.emulation?.sessionId??null,'incidents');
   const save=async(reply:BotReply)=>{await saveDialog(deps.db,telegramId,bot,dialog);return reply;};
   if(dialog.emergency_house&&!input.startsWith('/')) {
@@ -259,6 +265,7 @@ async function incidentPlainStep(
   }
   if (command === "/publication" && id) {
     const p = await getPublication(deps, actor, id);
+    if (p.kind === "financial_report") return financialStep(deps, telegramId, `/fa ${id}`, actor);
     const template = p.kind === "outage"
       ? `messages.incidents.outage_${p.restored_at ? "restored" : "pending"}`
       : p.kind === "work_report"

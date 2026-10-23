@@ -15,10 +15,11 @@ export async function queueBroadcast(
     isTest: boolean;
     incidentId?: string;
     publicationId?: string;
+    financialVersionId?: string;
   },
 ) {
   await exec.query(
-    "insert into broadcast(dedup_key,event_type,text,scope,is_test,incident_id,publication_id) values($1,$2,$3::text::jsonb,$4::text::jsonb,$5,$6,$7) on conflict(dedup_key) do nothing",
+    "insert into broadcast(dedup_key,event_type,text,scope,is_test,incident_id,publication_id,financial_version_id) values($1,$2,$3::text::jsonb,$4::text::jsonb,$5,$6,$7,$8) on conflict(dedup_key) do nothing",
     [
       input.key,
       input.type,
@@ -27,6 +28,7 @@ export async function queueBroadcast(
       input.isTest,
       input.incidentId ?? null,
       input.publicationId ?? null,
+      input.financialVersionId ?? null,
     ],
   );
 }
@@ -47,6 +49,7 @@ export async function fanoutBroadcasts(
           cursor_person_id: string | null;
           incident_id: string | null;
           publication_id: string | null;
+          financial_version_id: string | null;
         }
       >("select * from broadcast where completed_at is null order by created_at for update skip locked limit 1");
       if (!row) return 0;
@@ -75,6 +78,7 @@ export async function fanoutBroadcasts(
           isTest: row.is_test,
           incidentId: row.incident_id ?? undefined,
           publicationId: row.publication_id ?? undefined,
+          financialVersionId: row.financial_version_id ?? undefined,
         });
         await exec.query(
           "update broadcast set cursor_person_id=$2 where id=$1",

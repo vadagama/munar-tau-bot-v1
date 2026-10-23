@@ -22,7 +22,7 @@ export async function getFinancialObligation(deps: RegistryDeps, actor: Actor, i
     deps.db.query<Row & { financial_version_id: string; channel: string }>(`select p.*,v.version as financial_version from financial_placement p
       join financial_publication_version v on v.id=p.financial_version_id where p.obligation_id=$1 order by p.created_at,p.id`, [id]),
     deps.db.query<{ financial_version_id: string | null }>("select financial_version_id from publication where id=$1", [row.publication_id]),
-    deps.db.query<Row>(`select p.full_name as prepared_name,r.full_name as reviewer_name,u.full_name as publisher_name,v.version as rule_version
+    deps.db.query<{ prepared_name: string; reviewer_name: string; publisher_name: string; rule_version: number }>(`select p.full_name as prepared_name,r.full_name as reviewer_name,u.full_name as publisher_name,v.version as rule_version
       from financial_obligation o join person p on p.id=o.prepared_by join person r on r.id=o.reviewer_id join person u on u.id=o.publisher_id
       join financial_rule_version v on v.id=o.financial_rule_version_id where o.id=$1`, [id]),
   ]);

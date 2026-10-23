@@ -10,7 +10,7 @@ it.each(["/start", "Старт"])("главное меню жителя откр
   expect(reply.buttons?.map(row => row.map(button => button.data))).toEqual([
     ["/status", "/register", "/help"], ["/objects", "/add"],
     ["/requests", "/newrequest"], ["/invite", "/accesses"],
-    ["/incidents", "/publications"], ["/documents"], ["/emergency", "/notifications"],
+    ["/incidents", "/publications"], ["/documents", "/financial"], ["/emergency", "/notifications"],
     ["/pending"], ["/cancel"],
   ]);
 });
@@ -30,4 +30,9 @@ it.each(["registration", "requests", "tasks", "incidents", "notifications"])("%s
 it("контекстные кнопки сохраняются, отмена не дублируется", () => {
   const reply = navigationReply({ text: "Тип помещения", buttons: [[{text:"Квартира",data:"1"}],[{text:"Отменить",data:"/cancel"}]] }, "registration", "ru", undefined, "107/1");
   expect(typeof reply !== "string" && reply.buttons?.flat().map(button => button.data)).toEqual(["1", "/cancel"]);
+});
+
+it("меню сотрудника открывает финансовые обязанности кнопкой", () => {
+  const reply = navigationReply("Справка", "tasks", "kk", undefined, "/start");
+  expect(typeof reply !== "string" && reply.buttons?.flat().some(b => b.data === "/financialduties")).toBe(true);
 });

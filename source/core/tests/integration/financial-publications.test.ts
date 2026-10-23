@@ -15,6 +15,10 @@ import { fanoutBroadcasts } from "../../src/domains/incidents/broadcast.ts";
 import { recordFinancialPlacement } from "../../src/domains/publications/financial-placements.ts";
 import { reopenFinancialObligations } from "../../src/domains/publications/financial-jobs.ts";
 import { getFinancialObligation } from "../../src/domains/publications/financial-queries.ts";
+import { dispatchNotices, noticeAllowed } from "../../src/domains/notifications/service.ts";
+import { sendNotifications } from "../../src/domains/notifications/delivery.ts";
+import { listFinancialCatalogue } from "../../src/domains/publications/financial-catalog.ts";
+import { makeTestActor } from "../../src/testing/actors.ts";
 
 /** Только проверка ограничений схемы; бизнес-разрешение проверяет сервис FIN. */
 async function schemaFixture(db: DbClient) {
@@ -60,6 +64,21 @@ async function businessFixture(db: DbClient) {
 }
 
 describeWithDb("FIN-01…04: изоляция и неизменяемость версии комплекта", getDb => {
+  it("финансовый каталог сохраняет старый выпуск за 205 объявлениями и черновиком исправления", async () => {
+    const db = getDb(), s = await schemaFixture(db), first = await s.version(1);
+    const [approval] = await db.query<{ id: string }>("insert into financial_publication_approval(financial_version_id,actor_person_id,note,snapshot) values($1,$2,'Тест каталога','{}') returning id", [first.id, SEED.testAdminPersonId]);
+    await db.query("update financial_publication_version set approval_id=$2,published_at=now() where id=$1", [first.id, approval!.id]);
+    const draft = await s.version(2);
+    await db.query("update publication set financial_version_id=$2,title='Черновик исправления',state='draft' where id=$1", [s.publicationId, draft.id]);
+    await db.query("insert into publication(title,body,kind,state,is_test,created_by,created_at) select 'Новость '||n,'Объявление','announcement','published',true,$1,now()+interval '1 day' from generate_series(1,205) n", [SEED.testAdminPersonId]);
+    const [premises] = await db.query<{ id: string }>("insert into premises(building_id,kind,number,is_test) values($1,'apartment','FIN-catalog',true) returning id", [SEED.building1]);
+    await db.query("insert into connection(person_id,premises_id,role,basis,status,confirmed_by,confirmed_at) values($1,$2,'owner','ownership','active',$3,now())", [SEED.testExecutorPersonId, premises!.id, SEED.testAdminPersonId]);
+    const staff = makeTestActor("finance", [SEED.building1], { isTest: true, personId: SEED.testAdminPersonId });
+    expect((await listFinancialCatalogue(db, staff, "staff")).items).toMatchObject([{ id: first.id, title: "Отчёт", version: 1 }]);
+    const owner = { ...await actorForPerson(db, SEED.testExecutorPersonId, true), assignments: [] };
+    expect((await listFinancialCatalogue(db, owner, "owner")).items).toMatchObject([{ id: first.id, version: 1 }]);
+    expect((await listFinancialCatalogue(db, makeTestActor("tech_admin", [], { isTest: true, personId: SEED.testAdminPersonId }), "staff")).items).toEqual([]);
+  }, 300_000);
   it("закрывает обязанность только доказательством размещения текущей выпущенной версии", async () => {
     const db = getDb(), { s, chairman, input, deps } = await businessFixture(db);
     let row = await savePublication(deps, chairman, s.publicationId, { ...input, expected_version: 1, title: "Отчёт", body: "Период", kind: "financial_report", requires_document: true, building_ids: [SEED.building1] }, "placement-save");
@@ -176,6 +195,10 @@ describeWithDb("FIN-01…04: изоляция и неизменяемость в
     await fanoutBroadcasts(deps, Date.now() + 120_000);
     const recipients = await db.query<{ recipient: string }>("select payload->>'personId' as recipient from outbox where payload->>'publicationId'=$1", [s.publicationId]);
     expect(recipients.map(r => r.recipient)).toEqual([SEED.testAdminPersonId]);
+    expect(await db.query("select id from outbox where payload->>'publicationId'=$1 and payload->>'financialVersionId'=$2", [s.publicationId, published.financial_version_id])).toHaveLength(1);
+    await dispatchNotices(deps, Date.now() + 120_000);
+    const [notification] = await db.query<{ channel: string; reply_markup: unknown }>("select channel,reply_markup from notification where event_ref->>'financialVersionId'=$1", [published.financial_version_id]);
+    expect(notification).toMatchObject({ channel: "simulator", reply_markup: { inline_keyboard: [[expect.objectContaining({ callback_data: `/fv ${published.financial_version_id}` })]] } });
     const owner = { ...chairman, assignments: [] }, otherOwner = { ...await actorForPerson(db, SEED.testExecutorPersonId, true), assignments: [] };
     const [report] = await db.query<{ document_id: string; attachment_id: string; was_published: boolean }>("select document_id,attachment_id,was_published from document_version where id=$1", [s.versions[0]]);
     expect(report!.was_published).toBe(false); // FIN не расширяет самостоятельную аудиторию документа.
@@ -207,6 +230,14 @@ describeWithDb("FIN-01…04: изоляция и неизменяемость в
     await db.query("update document_version set state='needs_fix' where id=$1", [s.versions[1]]);
     await expect(db.transaction(exec => checkFinancialRelease(exec, chairman, s.publicationId))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     expect(await db.query("select id from financial_publication_version where publication_id=$1 and published_at is not null", [s.publicationId])).toHaveLength(2);
+    const reference = { publicationId: s.publicationId, financialVersionId: String(published.financial_version_id), audience: "publication" as const, buildingIds: [SEED.building1], isTest: true };
+    expect(await noticeAllowed(db, owner, reference)).toBe(true); // Старый выпуск не подменяется новым head.
+    await db.query("update connection set status='revoked' where person_id=$1 and role='owner' and premises_id in (select id from premises where building_id=$2)", [owner.person.id, SEED.building1]);
+    expect(await noticeAllowed(db, owner, reference)).toBe(false);
+    let sent = 0;
+    await sendNotifications(deps, async () => { sent++; }, Date.now() + 120_000);
+    expect(sent).toBe(0);
+    expect(await db.query("select id from notification where event_ref->>'financialVersionId'=$1 and state='canceled'", [published.financial_version_id])).toHaveLength(1);
   }, 600_000);
   it("провайдер проверяет конкретные версии, область, исходный PDP и состояние файла", async () => {
     const db = getDb(), s = await schemaFixture(db);
