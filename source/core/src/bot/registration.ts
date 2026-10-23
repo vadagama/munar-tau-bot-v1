@@ -121,6 +121,56 @@ function registrationLines(rows: Row[], L: Lang, store?: TemplateStore): string[
   return rows.map((r) => registrationLine(r, L, store));
 }
 
+// Строка истории/статуса основной анкеты: решение по профилю — статус и имя,
+// без помещений (привязки помещений — отдельные анкеты, в историю не входят).
+function profileStatusLine(r: Row, L: Lang): string {
+  const draft = r.draft ? jsonValue<Row>(r.draft) : {};
+  return `<b>${esc(label(stateLabels, r.state, L))}</b>: ${esc(draft.full_name ?? "—")}${
+    r.role ? `, ${esc(label(roleLabels, r.role, L))}` : ""
+  }${
+    r.decided_reason ? ` — ${esc(String(r.decided_reason))}` : ""
+  }`;
+}
+
+// Актуальный статус подтверждённой регистрации: имя, дата и подтверждённые
+// помещения из связей (или факт их отсутствия). Используется в /status и
+// guard /register; register — вариант с финальной строкой про повторную регистрацию.
+async function registeredStatus(
+  exec: DbExecutor,
+  deps: RegistryDeps,
+  L: Lang,
+  main: Row,
+  opts: { register?: boolean; actor?: Actor | null },
+): Promise<{ text: string; key: string }> {
+  const confirmed = main.confirmed_draft ?? main.draft
+    ? jsonValue<Row>(main.confirmed_draft ?? main.draft)
+    : {};
+  const personId = main.person_id ?? opts.actor?.person.id ?? null;
+  const connections = personId
+    ? await exec.query<Row>(
+      "select c.premises_id,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1 and c.status='active' order by b.code,p.number",
+      [personId],
+    )
+    : [];
+  const vars: Record<string, unknown> = {
+    full_name: confirmed.full_name ?? opts.actor?.person.fullName ?? "—",
+    registered_at: fmtDate(main.created_at),
+  };
+  if (connections.length) {
+    vars.premises = safeBlock(
+      connections.map((c) => `- ${premisesAddress(c, L, deps.templates)}`).join("\n"),
+    );
+  }
+  const key = connections.length
+    ? opts.register
+      ? "message.registration.already_registered_premises"
+      : "message.registration.status_registered"
+    : opts.register
+    ? "message.registration.already_registered_without_premises"
+    : "message.registration.status_registered_empty";
+  return { text: message(deps.templates, L, key, vars), key };
+}
+
 function scopedDeps(deps: RegistryDeps, exec: DbExecutor): RegistryDeps {
   return {
     ...deps,
@@ -192,7 +242,7 @@ export async function registrationStep(
     }
     if (cmd === "/status") {
       const rows = await exec.query<Row>(
-        `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.decided_at,r.created_at,r.draft,r.role,r.premises_id,p.kind,p.number,b.code
+        `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.decided_at,r.created_at,r.draft,r.role,r.person_id,r.premises_id,p.kind,p.number,b.code
         from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
         where (r.telegram_user_id=$1 or r.person_id=$2) and r.superseded_by is null order by r.created_at desc limit 20`,
         [telegramId, actor?.person.id ?? null],
@@ -200,8 +250,14 @@ export async function registrationStep(
       if (!rows.length) {
         return message(deps.templates, L, "registration.anket_poka_net");
       }
-      state.status_options = rows.map((r) => String(r.id));
-      // Операции адресованы актуальной анкете (первая строка): исправление —
+      // Актуальная анкета — основная (без помещения); привязки помещений —
+      // отдельные анкеты и статус профиля не подменяют.
+      const main = rows.find((r) => !r.premises_id) ?? rows[0]!;
+      state.status_options = [
+        String(main.id),
+        ...rows.map((r) => String(r.id)).filter((id) => id !== String(main.id)),
+      ];
+      // Операции адресованы актуальной анкете: исправление —
       // одна кнопка, дубли на исторические записи не выдаются; /edit проверит.
       const editable = new Set([
         "pending_review",
@@ -209,7 +265,7 @@ export async function registrationStep(
         "rejected",
         "approved",
       ]);
-      const buttons: InlineButton[][] = editable.has(String(rows[0]!.state))
+      const buttons: InlineButton[][] = editable.has(String(main.state))
         ? [[
           btn(
             messageButton(
@@ -225,14 +281,21 @@ export async function registrationStep(
       if (rows.some(r => r.state !== "withdrawn")) buttons.push([
         btn(messageButton(deps.templates, L, "message.registration.status", "delete"), "/delete"),
       ]);
-      // Актуальный статус — вверху; остальные записи — история изменений
-      // статуса: дата решения (или подачи), статус и анкетные данные.
-      const history = rows.slice(1).reverse().map((r) =>
-        `${esc(fmtDate(r.decided_at ?? r.created_at))} — ${registrationLine(r, L, deps.templates)}`,
-      );
-      const status = message(deps.templates, L, "message.registration.status", {
-        registrations: safeBlock(registrationLine(rows[0]!, L, deps.templates)),
-      });
+      // История — только профильные решения по основным анкетам: дата решения
+      // (или подачи), статус и имя. Привязки/отвязки помещений в историю не входят.
+      const history = rows
+        .filter((r) => !r.premises_id && r.id !== main.id)
+        .reverse()
+        .map((r) => `${esc(fmtDate(r.decided_at ?? r.created_at))} — ${profileStatusLine(r, L)}`);
+      const status = main.state === "approved" && !main.premises_id
+        ? (await registeredStatus(exec, deps, L, main, { actor })).text
+        : message(deps.templates, L, "message.registration.status", {
+          registrations: safeBlock(
+            main.premises_id
+              ? registrationLine(main, L, deps.templates)
+              : profileStatusLine(main, L),
+          ),
+        });
       return save({
         text: history.length
           ? `${status}\n\n${message(deps.templates, L, "message.registration.status_history", {
@@ -703,8 +766,7 @@ export async function registrationStep(
       // Добавление ещё одного помещения — /add, у него отдельная ветка выше.
       if (cmd === "/register") {
         const rows = await exec.query<Row>(
-          `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.review_stage,r.draft,r.role,r.premises_id,p.kind,p.number,b.code,
-          r.created_at, exists(select 1 from connection c where c.person_id=r.person_id and c.status='active') as has_active_premises
+          `select r.id,r.state,r.confirmed_draft,r.decided_reason,r.review_stage,r.draft,r.role,r.person_id,r.premises_id,p.kind,p.number,b.code,r.created_at
           from registration r left join premises p on p.id=r.premises_id left join building b on b.id=p.building_id
           where (r.telegram_user_id=$1 or r.person_id=$2)
           and r.superseded_by is null and r.state in ('pending_review','need_clarification','approved','rejected')
@@ -712,21 +774,25 @@ export async function registrationStep(
           [telegramId, actor?.person.id ?? null],
         );
         if (rows.length) {
+          const primary = rows.find(r => r.state === "approved" && !r.premises_id);
+          if (primary) {
+            const { text, key } = await registeredStatus(exec, deps, L, primary, {
+              register: true,
+              actor,
+            });
+            return save({
+              text,
+              buttons: ["status", "fix", "add", "delete"].map((id) => [
+                btn(messageButton(deps.templates, L, key, id), "/" + id),
+              ]),
+            });
+          }
           const hasApproved = rows.some((r) => r.state === "approved");
-          const primary = rows.find(r => r.state === "approved" && r.premises_id === null);
-          const withoutPremises = primary && !primary.has_active_premises;
-          const key = withoutPremises
-            ? "message.registration.already_registered_without_premises"
-            : hasApproved
+          const key = hasApproved
             ? "message.registration.already_registered"
             : "message.registration.already_applied";
-          const confirmed = primary ? jsonValue<Row>(primary.confirmed_draft ?? primary.draft) : {};
           return save({
             text: message(deps.templates, L, key, {
-              ...(withoutPremises ? {
-                full_name: confirmed.full_name ?? actor?.person.fullName ?? "—",
-                registered_at: fmtDate(primary.created_at),
-              } : {}),
               registrations: safeBlock(
                 numbered(registrationLines(rows, L, deps.templates)),
               ),

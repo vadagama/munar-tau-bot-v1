@@ -201,8 +201,12 @@ function def(
       })),
     ]
     : [];
-  if (["already_registered", "already_applied", "already_registered_without_premises"].some(name => key === "message.registration." + name)) {
+  if (["already_registered", "already_applied", "already_registered_without_premises", "already_registered_premises"].some(name => key === "message.registration." + name)) {
     buttonRows = buttons?.map(button => [{ id: button.id }]) ?? [];
+  }
+  if (["message.registration.status_registered", "message.registration.already_registered_premises"].includes(key)) {
+    sample.premises = "- Дом 1, Квартира 4";
+    sampleKk.premises = "- Үй 1, Пәтер 4";
   }
   if (key === "message.registration.add_select") {
     buttonRows = [[{ id: "premise", vars: { code: "1", number: "4" } }], [{
@@ -271,8 +275,8 @@ const defs: TemplateDef[] = [
     [R + "ispravit_anketu_posle_utochneniya"],
     (l) =>
       l === "kk"
-        ? "Өтінім күйі:\n{registrations}"
-        : "Статус анкеты:\n{registrations}",
+        ? "Өтінім күйі\n{registrations}"
+        : "Статус анкеты\n{registrations}",
     [{ id: "edit", ru: "Исправить анкету", kk: "Өтінімді түзету" }, { id: "delete", ru: "Удалить анкету", kk: "Өтінімді жою" }],
   ),
   def(
@@ -284,6 +288,26 @@ const defs: TemplateDef[] = [
       l === "kk"
         ? "Өтінім күйінің өзгеру тарихы:\n{registrations}"
         : "История изменений статуса:\n{registrations}",
+  ),
+  def(
+    "message.registration.status_registered",
+    "Статус анкеты — подтверждённая регистрация с помещениями",
+    "/status",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Өтінім күйі\n{full_name}, Сіз {registered_at} күні тіркелдіңіз\nБайланыстырылған үй-жайлар:\n{premises}"
+        : "Статус анкеты\n{full_name}, Вы зарегистрированы {registered_at}\nПрикрепленные помещения:\n{premises}",
+  ),
+  def(
+    "message.registration.status_registered_empty",
+    "Статус анкеты — подтверждённая регистрация без помещений",
+    "/status",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Өтінім күйі\n{full_name}, Сіз {registered_at} күні тіркелдіңіз\nҮй-жайлар әлі байланыстырылмаған"
+        : "Статус анкеты\n{full_name}, Вы зарегистрированы {registered_at}\nПомещения пока не прикреплены",
   ),
   def(
     "message.registration.pending",
@@ -406,8 +430,8 @@ const defs: TemplateDef[] = [
       ],
       (l) => name === "already_registered_without_premises"
         ? l === "kk"
-          ? "{full_name}, Сіз {registered_at} күні тіркелдіңіз, сауалнамаға үй-жайлар әлі байланыстырылмаған.\nҚайта тіркелудің қажеті жоқ."
-          : "{full_name}, Вы зарегистрированы {registered_at}, помещения пока не прикреплены к анкете.\nПовторная регистрация не нужна."
+          ? "Өтінім күйі\n{full_name}, Сіз {registered_at} күні тіркелдіңіз\nҮй-жайлар әлі байланыстырылмаған\n\nҚайта тіркелудің қажеті жоқ"
+          : "Статус анкеты\n{full_name}, Вы зарегистрированы {registered_at}\nПомещения пока не прикреплены\n\nПовторная регистрация не нужна"
         : old(R + name, l) + "\n{registrations}",
       [{
         id: "status",
@@ -423,6 +447,29 @@ const defs: TemplateDef[] = [
         kk: "Үй-жай қосу",
       }, { id: "delete", ru: "Удалить анкету", kk: "Өтінімді жою" }],
     )
+  ),
+  def(
+    "message.registration.already_registered_premises",
+    "Повторная регистрация — подтверждённая регистрация с помещениями",
+    "/register",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Өтінім күйі\n{full_name}, Сіз {registered_at} күні тіркелдіңіз\nБайланыстырылған үй-жайлар:\n{premises}\n\nҚайта тіркелудің қажеті жоқ"
+        : "Статус анкеты\n{full_name}, Вы зарегистрированы {registered_at}\nПрикрепленные помещения:\n{premises}\n\nПовторная регистрация не нужна",
+    [{
+      id: "status",
+      ru: "Статус регистрации",
+      kk: "Тіркелу күйі",
+    }, {
+      id: "fix",
+      ru: "Исправить анкету",
+      kk: "Өтінімді түзету",
+    }, {
+      id: "add",
+      ru: "Добавить помещение",
+      kk: "Үй-жай қосу",
+    }, { id: "delete", ru: "Удалить анкету", kk: "Өтінімді жою" }],
   ),
   def(
     "message.registration.fix_select",
