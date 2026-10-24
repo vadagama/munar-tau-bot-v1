@@ -213,73 +213,69 @@ export const noticesTemplates: readonly TemplateDef[] = [
     ],
   },
   {
-    "key": "notices.registrations_service_accept_invite_4",
+    "key": "notices.registrations_service_invite_registered",
     "section": "notices",
-    "title": "Приглашение принято → собственнику",
+    "title": "Жилец зарегистрировался по приглашению → собственнику",
     "description":
-      "Приглашение принято → собственнику. Полный текст уведомления на языке получателя.",
+      "Жилец зарегистрировался по приглашению → собственнику. Полный текст уведомления на языке получателя.",
     "variables": [
       {
-        "name": "actor_person_fullname",
-        "description": "Имя участника",
-        "example": "Иван Тестов",
-      },
-      {
-        "name": "detail_b",
-        "description": "Данные события",
-        "example": "Пример",
-      },
-      {
-        "name": "premises_number",
-        "description": "Номер помещения",
-        "example": "12",
-      },
-      {
-        "name": "detail_d",
-        "description": "Данные события",
-        "example": "Пример",
+        "name": "full_name",
+        "description": "Имя и фамилия",
+        "example": "Алия Омарова",
       },
     ],
     "ru":
-      "Принято приглашение собственника: {actor_person_fullname}, {detail_b} {premises_number}",
+      "По вашему приглашению зарегистрировался жилец: {full_name}. Теперь его можно привязать к помещению.",
     "kk":
-      "Меншік иесінің шақырысы қабылданды: {actor_person_fullname}, {detail_d} {premises_number}",
+      "Сіздің шақыруыңыз бойынша тұрғын тіркелді: {full_name}. Енді оны үй-жайға байланыстыруға болады.",
     "scenario": "Уведомления · Регистрация и доступ",
     "examples": [
       {
         "id": "default",
         "title": "Пример доставки",
         "ru": {
-          "actor_person_fullname": "Иван Тестов",
-          "detail_b": "Пример",
-          "premises_number": "12",
-          "detail_d": "Пример",
+          "full_name": "Алия Омарова",
         },
         "kk": {
-          "actor_person_fullname": "Иван Тестов",
-          "detail_b": "Пример",
-          "premises_number": "12",
-          "detail_d": "Пример",
+          "full_name": "Алия Омарова",
         },
       },
     ],
   },
   {
-    "key": "notices.registrations_service_accept_invite_5",
+    "key": "notices.registrations_service_bind_resident",
     "section": "notices",
-    "title": "Приглашение принято → приглашённому",
+    "title": "Жилец привязан к помещению → жильцу",
     "description":
-      "Приглашение принято → приглашённому. Полный текст уведомления на языке получателя.",
-    "variables": [],
-    "ru": "Приглашение принято",
-    "kk": "Шақыру қабылданды",
+      "Жилец привязан к помещению → жильцу. Полный текст уведомления на языке получателя.",
+    "variables": [
+      {
+        "name": "premise_ru",
+        "description": "Помещение и роль (рус.)",
+        "example": "Дом 1, Квартира 4, Арендатор",
+      },
+      {
+        "name": "premise_kk",
+        "description": "Помещение и роль (каз.)",
+        "example": "Үй 1, Пәтер 4, Жалға алушы",
+      },
+    ],
+    "ru": "Открыт доступ к помещению: {premise_ru}",
+    "kk": "Үй-жайға қолжетімділік ашылды: {premise_kk}",
     "scenario": "Уведомления · Регистрация и доступ",
     "examples": [
       {
         "id": "default",
         "title": "Пример доставки",
-        "ru": {},
-        "kk": {},
+        "ru": {
+          "premise_ru": "Дом 1, Квартира 4, Арендатор",
+          "premise_kk": "Үй 1, Пәтер 4, Жалға алушы",
+        },
+        "kk": {
+          "premise_ru": "Дом 1, Квартира 4, Арендатор",
+          "premise_kk": "Үй 1, Пәтер 4, Жалға алушы",
+        },
       },
     ],
   },

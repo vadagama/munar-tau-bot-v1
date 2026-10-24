@@ -25,14 +25,14 @@
     "kk": "Тіркелу күйі: {state_kk}.{reason} Түзету үшін ботыға /fix жіберіңіз."
   },
   {
-    "key": "notices.registrations_service_accept_invite_4",
-    "ru": "Принято приглашение собственника: {actor_person_fullname}, {detail_b} {premises_number}",
-    "kk": "Меншік иесінің шақырысы қабылданды: {actor_person_fullname}, {detail_d} {premises_number}"
+    "key": "notices.registrations_service_invite_registered",
+    "ru": "По вашему приглашению зарегистрировался жилец: {full_name}. Теперь его можно привязать к помещению.",
+    "kk": "Сіздің шақыруыңыз бойынша тұрғын тіркелді: {full_name}. Енді оны үй-жайға байланыстыруға болады."
   },
   {
-    "key": "notices.registrations_service_accept_invite_5",
-    "ru": "Приглашение принято",
-    "kk": "Шақыру қабылданды"
+    "key": "notices.registrations_service_bind_resident",
+    "ru": "Открыт доступ к помещению: {premise_ru}",
+    "kk": "Үй-жайға қолжетімділік ашылды: {premise_kk}"
   },
   {
     "key": "notices.registrations_service_revoke_own_connection_6",
