@@ -14,9 +14,8 @@ import {
 import {
   createInvite,
   acceptInvite,
-  reviewRegistration,
+  bindResident,
 } from "../../src/domains/registrations/service.ts";
-import { sweepRegistrations } from "../../src/domains/registrations/jobs.ts";
 import { processInbound } from "../../src/bot/inbound.ts";
 import type { DbClient } from "../../src/db/client.ts";
 async function setup(db: DbClient) {
@@ -102,7 +101,7 @@ describeWithDb("VS-2 сквозные REG/IMP", (getDb) => {
       ]),
     ).toHaveLength(4);
   }, 180000);
-  it("REG-03/05: приглашение одноразовое, спор не отзывает доступ, общий таймер не закрывает спор", async () => {
+  it("REG-03/05: приглашение одноразовое, привязка жильца — отдельное действие (ADR-020)", async () => {
     const { deps, actor } = await setup(getDb());
     const premises = await mutateRegistry(deps, actor, "premises", {
       building_id: SEED.building1,
@@ -116,10 +115,7 @@ describeWithDb("VS-2 сквозные REG/IMP", (getDb) => {
       basis: "ownership",
       status: "active",
     });
-    const invite = await createInvite(deps, actor, {
-      premises_id: premises.id,
-      role: "tenant",
-    });
+    const invite = await createInvite(deps, actor);
     const repo = new SqlAdminRepo();
     const [pr] = await getDb().query<{ id: string }>(
       "select id from profile where person_id=$1",
@@ -131,19 +127,23 @@ describeWithDb("VS-2 сквозные REG/IMP", (getDb) => {
       (await repo.getProfile(getDb(), pr!.id))!,
       new Date(),
     );
+    // По ссылке — только регистрация: связь не создаётся, приглашение одноразовое.
     const accepted = await acceptInvite(deps, tenant, String(invite.token));
+    expect(accepted.status).toBe("used");
+    expect(
+      await getDb().query("select id from connection where person_id=$1", [
+        tenant.person.id,
+      ]),
+    ).toHaveLength(0);
     await expect(
       acceptInvite(deps, tenant, String(invite.token)),
     ).rejects.toThrow();
-    const reg = { id: accepted.registration_id };
-    await reviewRegistration(
-      deps,
-      actor,
-      String(reg.id),
-      "dispute",
-      { reason: "Возражение" },
-      true,
-    );
+    // Привязка — отдельное действие собственника; дубликат и самопривязка запрещены.
+    await bindResident(deps, actor, {
+      person_id: tenant.person.id,
+      premises_id: premises.id,
+      role: "tenant",
+    });
     expect(
       (
         await getDb().query<{ status: string }>(
@@ -152,13 +152,20 @@ describeWithDb("VS-2 сквозные REG/IMP", (getDb) => {
         )
       )[0]?.status,
     ).toBe("active");
-    await sweepRegistrations(deps, new Date(Date.now() + 10 * 86400000));
-    const [dispute] = await getDb().query<{
-      state: string;
-      overdue_at: unknown;
-    }>("select state,overdue_at from registration where id=$1", [reg.id]);
-    expect(dispute!.state).toBe("disputed");
-    expect(dispute!.overdue_at).not.toBeNull();
+    await expect(
+      bindResident(deps, actor, {
+        person_id: tenant.person.id,
+        premises_id: premises.id,
+        role: "tenant",
+      }),
+    ).rejects.toThrow();
+    await expect(
+      bindResident(deps, actor, {
+        person_id: actor.person.id,
+        premises_id: premises.id,
+        role: "tenant",
+      }),
+    ).rejects.toThrow();
   }, 180000);
   it("повтор webhook не создаёт повтор ответа или диалога", async () => {
     const { deps } = await setup(getDb());
