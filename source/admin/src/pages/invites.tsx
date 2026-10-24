@@ -49,9 +49,10 @@ export function InvitesPage() {
           value={search} onChange={e => setSearch(e.target.value)} style={{ width: 320 }} />
       </Space>}>
       <Typography.Paragraph type="secondary">
-        Подтверждённый собственник создаёт приглашение в боте. Оно действует 72
-        календарных часа по текущему регламенту. Приглашение не выдаёт статус
-        собственника.
+        Подтверждённый собственник создаёт приглашение в боте: жилец по ссылке
+        регистрируется, после чего собственник привязывает его к помещению и
+        выбирает роль. Приглашение действует 72 календарных часа по текущему
+        регламенту и не выдаёт статус собственника.
       </Typography.Paragraph>
       {error && <Alert showIcon type="error" message={error} />}
       <ConfigurableTable storageKey="columns.invites" settingsPlacement="page"
@@ -70,7 +71,9 @@ export function InvitesPage() {
           {
             title: "Помещение",
             render: (_, r) =>
-              `${r.building_code} · ${displayKind(r.kind)} ${r.number}`,
+              r.kind
+                ? `${r.building_code} · ${displayKind(r.kind)} ${r.number}`
+                : "—",
           },
           { title: "Отношение", dataIndex: "role", render: displayRole },
           {
