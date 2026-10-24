@@ -201,10 +201,12 @@ routes.push(
     handler: async (ctx) => {
       const scope = registryScope(ctx.actor);
       const items = await ctx.deps.db.query<Row>(
+        // ADR-020: приглашение без помещения — LEFT JOIN; они видны всем
+        // сотрудникам с доступом к реестру, дом по приглашению не определяется.
         `select i.id,i.created_at,i.expires_at,i.status,i.role,p.kind,p.number,b.code as building_code,
           n.full_name as created_by_name,
           (select pr.telegram_username from profile pr where pr.person_id=i.created_by and pr.archived_at is null order by pr.id desc limit 1) as created_by_telegram
-        from invite i join premises p on p.id=i.premises_id join building b on b.id=p.building_id join person n on n.id=i.created_by where n.is_test=$2 and ($1::uuid[] is null or p.building_id=any($1::uuid[])) order by i.created_at desc`,
+        from invite i left join premises p on p.id=i.premises_id left join building b on b.id=p.building_id join person n on n.id=i.created_by where n.is_test=$2 and ($1::uuid[] is null or p.building_id is null or p.building_id=any($1::uuid[])) order by i.created_at desc`,
         [scope, ctx.actor.person.isTest],
       );
       return { body: { items } };
@@ -351,7 +353,7 @@ routes.push(
     evaluateAs: "effective",
     handler: async (ctx) => ({
       status: 201,
-      body: await createInvite(deps(ctx), ctx.actor, ctx.body),
+      body: await createInvite(deps(ctx), ctx.actor),
     }),
   },
   {

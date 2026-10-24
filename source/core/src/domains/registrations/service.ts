@@ -1,7 +1,17 @@
 import { lockAudience } from "../registry/audience-lock.ts";
 import { templateNotice } from "../../templates/notice.ts";
+import { message, messageButton } from "../../templates/message.ts";
+import { loadTemplateStore } from "../../templates/store.ts";
 import { notifyPerson, notifyTelegram } from "./notifications.ts";
-import { label, premiseLabels, stateLabels } from "../../locales/registry.ts";
+import { btn } from "../../bot/keyboard.ts";
+import { langOf } from "../../bot/text.ts";
+import {
+  buildingLabels,
+  label,
+  premiseLabels,
+  roleLabels,
+  stateLabels,
+} from "../../locales/registry.ts";
 import { jsonValue } from "../registry/validation.ts";
 import { initialStage, reviewers } from "./routing.ts";
 import type { Actor } from "../../pdp/types.ts";
@@ -665,28 +675,30 @@ export async function reviewRegistration(
   });
 }
 
+/** ADR-020: приглашение только регистрирует жильца — помещение и роль выбираются при привязке. */
 export async function createInvite(
   deps: RegistryDeps,
   actor: Actor,
-  input: Row,
 ): Promise<Row> {
   return deps.db.transaction(async (exec) => {
     await lockAudience(exec);
-    const premises = await getPremises(exec, text(input, "premises_id"));
-    await activeOwner(exec, actor, String(premises.id));
-    validateConnectionRole(String(premises.kind), input.role);
-    if (input.role === "owner")
-      throw new ApiError("FORBIDDEN", "Приглашение не выдаёт собственность");
+    const owners = await exec.query(
+      "select id from connection where person_id=$1 and role='owner' and status='active' limit 1",
+      [actor.person.id],
+    );
+    if (!owners.length)
+      throw new ApiError(
+        "FORBIDDEN",
+        "Приглашения доступны собственникам помещений",
+      );
     const deadline = await ruleDeadline(exec, "invite_expiry");
     const token =
       crypto.randomUUID().replaceAll("-", "") +
       crypto.randomUUID().replaceAll("-", "");
     const [row] = await exec.query<Row>(
-      "insert into invite(created_by,premises_id,role,token,expires_at) values ($1,$2,$3,$4,$5) returning *",
+      "insert into invite(created_by,token,expires_at) values ($1,$2,$3) returning *",
       [
         actor.person.id,
-        premises.id,
-        input.role,
         token,
         deadline.due.toISOString(),
       ],
@@ -702,13 +714,53 @@ export async function createInvite(
       "registration.invite.create",
       "invite",
       String(row!.id),
-      [String(premises.building_id)],
+      [],
       null,
-      { role: input.role, expires_at: deadline.due.toISOString() },
+      { expires_at: deadline.due.toISOString() },
     );
     return row!;
   });
 }
+
+/** Уведомление собственнику: жилец зарегистрировался по его приглашению — кнопка привязки. */
+async function notifyInviteRegistered(
+  exec: DbExecutor,
+  inviteId: string,
+  creatorPersonId: string,
+  personId: string,
+  fullName: string,
+): Promise<void> {
+  const [creator] = await exec.query<Row>(
+    "select pr.telegram_user_id,pr.language from profile pr where pr.person_id=$1 and pr.archived_at is null order by pr.id desc limit 1",
+    [creatorPersonId],
+  );
+  if (!creator?.telegram_user_id) return;
+  const templates = await loadTemplateStore(exec);
+  const lang = langOf(creator.language);
+  await notifyTelegram(
+    exec,
+    creator.telegram_user_id,
+    {
+      text: message(
+        templates,
+        lang,
+        "notices.registrations_service_invite_registered",
+        { full_name: fullName },
+      ),
+      buttons: [[
+        btn(
+          messageButton(templates, lang, "bot.controls", "bind"),
+          `/bind ${personId}`,
+        ),
+      ]],
+    },
+    `${inviteId}:registered`,
+    "resident",
+    templates,
+  );
+}
+
+/** ADR-020: принятие ссылки помечает приглашение использованным и уведомляет инициатора. */
 export async function acceptInvite(
   deps: RegistryDeps,
   actor: Actor,
@@ -725,6 +777,7 @@ export async function acceptInvite(
     );
     if (
       !invite ||
+      invite.premises_id !== null ||
       invite.status !== "active" ||
       new Date(String(invite.expires_at)) <= new Date()
     )
@@ -732,85 +785,15 @@ export async function acceptInvite(
         "INVALID_TRANSITION",
         "Приглашение использовано, отозвано или истекло",
       );
-    const owner = await exec.query(
-      "select id from connection where person_id=$1 and premises_id=$2 and role='owner' and status='active' for update",
-      [invite.created_by, invite.premises_id],
-    );
-    if (!owner.length)
-      throw new ApiError("INVALID_TRANSITION", "Связь собственника прекращена");
-    const premises = await getPremises(exec, String(invite.premises_id));
     const [creator] = await exec.query<Row>(
       "select is_test from person where id=$1",
       [invite.created_by],
     );
     if (creator?.is_test !== actor.person.isTest)
       throw new ApiError("NOT_FOUND");
-    const existing = await exec.query(
-      "select id from connection where person_id=$1 and premises_id=$2 and status='active' for update",
-      [actor.person.id, invite.premises_id],
-    );
-    if (existing.length)
-      throw new ApiError(
-        "INVALID_TRANSITION",
-        "У вас уже есть действующая связь с помещением",
-      );
-    const [connection] = await exec.query<Row>(
-      `insert into connection(person_id,premises_id,role,basis,status,confirmed_by,confirmed_at,created_by)
-      values ($1,$2,$3,$4,'active',$5,now(),$5) returning id`,
-      [
-        actor.person.id,
-        invite.premises_id,
-        invite.role,
-        invite.role === "tenant" ? "rent" : "family",
-        invite.created_by,
-      ],
-    );
     await exec.query(
       "update invite set status='used',used_at=now(),used_by_profile=$2 where id=$1",
       [invite.id, actor.profile.id],
-    );
-    const [profile] = await exec.query<Row>(
-      "select pr.telegram_user_id,n.phone_e164 from profile pr join person n on n.id=pr.person_id where pr.id=$1",
-      [actor.profile.id],
-    );
-    const [registration] = await exec.query<Row>(
-      `insert into registration(person_id,draft,premises_id,role,source,telegram_user_id,state,checker_id,decided_at,decided_reason,is_test,connection_id)
-      values ($1,$2::text::jsonb,$3,$4,'bot',$5,'approved',$6,now(),'Приглашение собственника',$7,$8) returning id`,
-      [
-        actor.person.id,
-        JSON.stringify({
-          full_name: actor.person.fullName,
-          phone_e164: profile!.phone_e164,
-          language: actor.profile.language,
-          consent: true,
-        }),
-        invite.premises_id,
-        invite.role,
-        profile!.telegram_user_id,
-        invite.created_by,
-        actor.person.isTest,
-        connection!.id,
-      ],
-    );
-    for (const reviewer of await reviewers(
-      exec,
-      String(premises.building_id),
-      "administrator",
-      actor.person.isTest,
-    ))
-      await notifyPerson(
-        exec,
-        reviewer,
-        templateNotice("notices.registrations_service_accept_invite_4", {actor_person_fullname: actor.person.fullName, detail_b: label(premiseLabels, premises.kind, "ru"), premises_number: premises.number, detail_d: label(premiseLabels, premises.kind, "kk")}),
-        `${invite.id}:admin:${reviewer}`,
-        { bot: "worker", registrationAccess: { premisesId: String(premises.id), role: "administrator" }, buildingIds: [String(premises.building_id)] },
-      );
-    await notifyPerson(
-      exec,
-      String(invite.created_by),
-      templateNotice("notices.registrations_service_accept_invite_5", {}),
-      `${invite.id}:accepted`,
-      { registrationAccess: { premisesId: String(premises.id), role: "owner" }, buildingIds: [String(premises.building_id)] },
     );
     await recordAudit(
       deps,
@@ -819,19 +802,22 @@ export async function acceptInvite(
       "registration.invite.accept",
       "invite",
       String(invite.id),
-      [String(premises.building_id)],
+      [],
       null,
       { status: "used" },
     );
-    return {
-      status: "active",
-      premises_id: invite.premises_id,
-      registration_id: registration!.id,
-    };
+    await notifyInviteRegistered(
+      exec,
+      String(invite.id),
+      String(invite.created_by),
+      actor.person.id,
+      actor.person.fullName,
+    );
+    return { status: "used", invite_id: String(invite.id) };
   });
 }
 
-/** Приглашение позволяет создать новую привязку после согласия; совпадение телефона требует ручной проверки. */
+/** ADR-020: по ссылке новый пользователь регистрируется без помещения — связь создаёт собственник через /bind. */
 export async function acceptInviteForNewTelegram(
   deps: RegistryDeps,
   telegramId: string,
@@ -846,15 +832,41 @@ export async function acceptInviteForNewTelegram(
       "select * from invite where token=$1 and status='active' and expires_at>now() for update",
       [token],
     );
-    if (!invite)
+    if (!invite || invite.premises_id !== null)
       throw new ApiError("INVALID_TRANSITION", "Приглашение недействительно");
+    const [creator] = await exec.query<Row>(
+      "select is_test from person where id=$1",
+      [invite.created_by],
+    );
+    if (!creator || creator.is_test !== false)
+      throw new ApiError("NOT_FOUND");
+    const fullName = text(input, "full_name");
     const [person] = await exec.query<Row>(
       "insert into person(full_name,phone_e164) values ($1,$2) returning *",
-      [text(input, "full_name"), normalizePhone(input.phone_e164)],
+      [fullName, normalizePhone(input.phone_e164)],
     );
     const [profile] = await exec.query<Row>(
       "insert into profile(person_id,telegram_user_id,language) values ($1,$2,$3) returning *",
       [person!.id, telegramId, input.language],
+    );
+    const [registration] = await exec.query<Row>(
+      `insert into registration(person_id,draft,source,telegram_user_id,state,checker_id,decided_at,decided_reason,is_test)
+      values ($1,$2::text::jsonb,'bot',$3,'approved',$4,now(),'Приглашение собственника',false) returning id`,
+      [
+        person!.id,
+        JSON.stringify({
+          full_name: fullName,
+          phone_e164: normalizePhone(input.phone_e164),
+          language: input.language,
+          consent: true,
+        }),
+        telegramId,
+        invite.created_by,
+      ],
+    );
+    await exec.query(
+      "update invite set status='used',used_at=now(),used_by_profile=$2 where id=$1",
+      [invite.id, profile!.id],
     );
     const actor: Actor = {
       person: {
@@ -872,15 +884,144 @@ export async function acceptInviteForNewTelegram(
       assignments: [],
       emulation: null,
     };
-    const scoped = {
-      ...deps,
-      db: {
-        ...deps.db,
-        query: exec.query.bind(exec),
-        transaction: <T>(fn: (e: DbExecutor) => Promise<T>) => fn(exec),
-      },
+    await recordAudit(
+      deps,
+      exec,
+      actor,
+      "registration.invite.accept",
+      "invite",
+      String(invite.id),
+      [],
+      null,
+      { status: "used" },
+    );
+    await notifyInviteRegistered(
+      exec,
+      String(invite.id),
+      String(invite.created_by),
+      String(person!.id),
+      String(person!.full_name),
+    );
+    return {
+      status: "used",
+      invite_id: String(invite.id),
+      registration_id: String(registration!.id),
     };
-    return acceptInvite(scoped, actor, token);
+  });
+}
+
+/** ADR-020: собственник привязывает приглашённого жильца к своему помещению. */
+export async function bindResident(
+  deps: RegistryDeps,
+  actor: Actor,
+  input: Row,
+): Promise<Row> {
+  const personId = String(input.person_id ?? "");
+  const role = String(input.role ?? "");
+  if (!personId) throw new ApiError("VALIDATION_FAILED", "Укажите жильца");
+  return deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
+    if (personId === actor.person.id)
+      throw new ApiError("NOT_FOUND", "Себя привязать нельзя");
+    const premises = await getPremises(exec, text(input, "premises_id"));
+    await activeOwner(exec, actor, String(premises.id));
+    validateConnectionRole(String(premises.kind), role);
+    if (role === "owner")
+      throw new ApiError("FORBIDDEN", "Привязка не выдаёт собственность");
+    // Привязать можно только человека, зарегистрировавшегося по приглашению
+    // этого собственника (ADR-020, границы доверия).
+    const [invited] = await exec.query<Row>(
+      `select n.id from person n
+      where n.id=$1 and n.status='active' and n.is_test=$2
+      and exists(
+        select 1 from invite i join profile pr on pr.id=i.used_by_profile
+        where i.created_by=$3 and i.status='used' and pr.person_id=n.id) for update`,
+      [personId, actor.person.isTest, actor.person.id],
+    );
+    if (!invited)
+      throw new ApiError(
+        "NOT_FOUND",
+        "Жилец не найден среди ваших приглашённых",
+      );
+    const existing = await exec.query(
+      "select id from connection where person_id=$1 and premises_id=$2 and status='active' for update",
+      [personId, premises.id],
+    );
+    if (existing.length)
+      throw new ApiError(
+        "INVALID_TRANSITION",
+        "У жильца уже есть действующая связь с этим помещением",
+      );
+    const [connection] = await exec.query<Row>(
+      `insert into connection(person_id,premises_id,role,basis,status,confirmed_by,confirmed_at,created_by)
+      values ($1,$2,$3,$4,'active',$5,now(),$5) returning *`,
+      [
+        personId,
+        premises.id,
+        role,
+        role === "tenant" ? "rent" : "family",
+        actor.person.id,
+      ],
+    );
+    await notifyPerson(
+      exec,
+      personId,
+      templateNotice("notices.registrations_service_bind_resident", {
+        premise_ru: `${label(buildingLabels, "house", "ru")} ${premises.code ?? "—"}, ${
+          label(premiseLabels, premises.kind, "ru")
+        } ${premises.number}, ${label(roleLabels, role, "ru")}`,
+        premise_kk: `${label(buildingLabels, "house", "kk")} ${premises.code ?? "—"}, ${
+          label(premiseLabels, premises.kind, "kk")
+        } ${premises.number}, ${label(roleLabels, role, "kk")}`,
+      }),
+      `${connection!.id}:bound`,
+    );
+    await recordAudit(
+      deps,
+      exec,
+      actor,
+      "connection.bind",
+      "connection",
+      String(connection!.id),
+      [String(premises.building_id)],
+      null,
+      { person_id: personId, role },
+    );
+    return connection!;
+  });
+}
+
+/** ADR-020: отзыв неиспользованной ссылки без причины; получатель ещё не зарегистрирован. */
+export async function revokeInvite(
+  deps: RegistryDeps,
+  actor: Actor,
+  id: string,
+): Promise<void> {
+  await deps.db.transaction(async (exec) => {
+    await lockAudience(exec);
+    const [row] = await exec.query<Row>(
+      "select * from invite where id=$1 for update",
+      [id],
+    );
+    if (!row || row.created_by !== actor.person.id)
+      throw new ApiError("NOT_FOUND");
+    if (row.status !== "active")
+      throw new ApiError(
+        "INVALID_TRANSITION",
+        "Приглашение уже не активно",
+      );
+    await exec.query("update invite set status='revoked' where id=$1", [id]);
+    await recordAudit(
+      deps,
+      exec,
+      actor,
+      "registration.invite.revoke",
+      "invite",
+      id,
+      [],
+      { status: "active" },
+      { status: "revoked" },
+    );
   });
 }
 export async function revokeOwnConnection(

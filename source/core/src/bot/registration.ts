@@ -23,7 +23,9 @@ import { normalizePhone, type Row } from "../domains/registry/validation.ts";
 import {
   acceptInvite,
   acceptInviteForNewTelegram,
+  bindResident,
   createInvite,
+  revokeInvite,
   reviewRegistration,
   revokeOwnConnection,
   submitRegistration,
@@ -370,14 +372,23 @@ export async function registrationStep(
         and exists(select 1 from connection o where o.person_id=$1 and o.premises_id=c.premises_id and o.role='owner' and o.status='active')`,
         [actor.person.id, actor.person.isTest],
       );
-      if (!rows.length) {
+      const invites = await exec.query<Row>(
+        // ADR-020: неиспользованные приглашения собственника — только новые
+        // (без помещения); старый тип погашен миграцией.
+        "select i.id,i.token,i.expires_at from invite i where i.created_by=$1 and i.status='active' and i.premises_id is null and i.expires_at>now() order by i.created_at",
+        [actor.person.id],
+      );
+      if (!rows.length && !invites.length) {
         return message(deps.templates, L, "registration.vydannyh_dostupov_net");
       }
       state.access_options = rows.map((r) => String(r.id));
       const disputeRefs = rows.map((r) => r.registration_id).filter(Boolean);
       state.dispute_options = disputeRefs.map(String);
-      return save({
-        text: message(deps.templates, L, "message.registration.accesses", {
+      state.invite_options = invites.map((r) => String(r.id));
+      const blocks: string[] = [];
+      const buttons: InlineButton[][] = [];
+      if (rows.length) {
+        blocks.push(message(deps.templates, L, "message.registration.accesses", {
           accesses: safeBlock(
             numbered(
               rows.map((r) =>
@@ -387,9 +398,9 @@ export async function registrationStep(
               ),
             ),
           ),
-        }),
+        }));
         // Прекратить и оспорить — кнопками; обе спросят причину.
-        buttons: rows.map((r, i) => [
+        buttons.push(...rows.map((r, i) => [
           btn(
             messageButton(
               deps.templates,
@@ -410,7 +421,32 @@ export async function registrationStep(
             ),
             `/dispute ${i + 1}`,
           ),
-        ]),
+        ]));
+      }
+      if (invites.length) {
+        blocks.push(
+          message(deps.templates, L, "message.registration.accesses_invites", {
+            invites: safeBlock(
+              numbered(invites.map((r) => esc(fmtDate(r.expires_at)))),
+            ),
+          }),
+        );
+        buttons.push(...invites.map((r, i) => [
+          btn(
+            messageButton(
+              deps.templates,
+              L,
+              "message.registration.accesses_invites",
+              "revokeinvite",
+              { index: i + 1 },
+            ),
+            `/revokeinvite ${i + 1}`,
+          ),
+        ]));
+      }
+      return save({
+        text: blocks.join("\n\n"),
+        buttons,
       });
     }
     if (cmd === "/objects") {
@@ -446,13 +482,6 @@ export async function registrationStep(
           ],
         });
       }
-      const seen = new Set<string>();
-      state.object_options = rows.flatMap((r) => {
-        const id = String(r.premises_id);
-        if (seen.has(id)) return [];
-        seen.add(id);
-        return [id];
-      });
       return save({
         text: message(deps.templates, L, "message.registration.objects", {
           premises: safeBlock(
@@ -492,15 +521,278 @@ export async function registrationStep(
         ],
       });
     }
+    if (cmd === "/invite") {
+      // ADR-020: приглашение — одно нажатие: Deep Link без выбора помещения.
+      if (!actor) {
+        return save(registerPrompt(deps.templates, L));
+      }
+      try {
+        const invite = await createInvite(d, actor);
+        return save(
+          message(deps.templates, L, "message.registration.invite", {
+            invite_command: `/start invite_${invite.token}`,
+            expires_at: fmtDate(invite.expires_at),
+          }),
+        );
+      } catch (error) {
+        if (error instanceof ApiError && error.code === "FORBIDDEN") {
+          return save(
+            message(deps.templates, L, "message.registration.owner_only"),
+          );
+        }
+        throw error;
+      }
+    }
+    if (cmd === "/bind") {
+      // ADR-020: привязка приглашённого жильца — человек → помещение → роль.
+      if (!actor) {
+        return save(registerPrompt(deps.templates, L));
+      }
+      if (!parts[1]) {
+        const persons = await exec.query<Row>(
+          `select n.id, n.full_name from invite i
+          join profile pr on pr.id = i.used_by_profile
+          join person n on n.id = pr.person_id
+          where i.created_by = $1 and i.status = 'used' and n.status = 'active' and n.is_test = $2
+          and not exists (
+            select 1 from connection c
+            join connection o on o.premises_id = c.premises_id
+              and o.person_id = $1 and o.role = 'owner' and o.status = 'active'
+            where c.person_id = n.id and c.status = 'active'
+          )
+          group by n.id, n.full_name order by n.full_name`,
+          [actor.person.id, actor.person.isTest],
+        );
+        if (!persons.length) {
+          return save({
+            text: message(
+              deps.templates,
+              L,
+              "message.registration.bind_empty",
+            ),
+            buttons: [[
+              btn(
+                messageButton(
+                  deps.templates,
+                  L,
+                  "message.registration.bind_empty",
+                  "invite",
+                ),
+                "/invite",
+              ),
+            ]],
+          });
+        }
+        state.bind_options = persons.map((p) => String(p.id));
+        return save({
+          text: message(deps.templates, L, "message.registration.bind_select", {
+            persons: safeBlock(
+              numbered(persons.map((p) => esc(String(p.full_name)))),
+            ),
+          }),
+          buttons: persons.map((p, i) => [
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.bind_select",
+                "person",
+                { label: String(p.full_name) },
+              ),
+              `/bind ${i + 1}`,
+            ),
+          ]),
+        });
+      }
+      const personId = resolveRef(parts[1], [state.bind_options as string[]]);
+      if (!personId) {
+        throw new BotTemplateError(
+          "VALIDATION_FAILED",
+          message(
+            deps.templates,
+            L,
+            "registration.ne_ponyal_ssylku_otkroyte_spisok_i_ukazhite",
+          ),
+        );
+      }
+      if (!parts[2]) {
+        // Помещения, где актор — действующий собственник (как в /objects).
+        const rows = await exec.query<Row>(
+          "select c.premises_id,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1 and c.role='owner' and c.status='active'",
+          [actor.person.id],
+        );
+        if (!rows.length) {
+          return save(
+            message(deps.templates, L, "message.registration.owner_only"),
+          );
+        }
+        state.bind_options = [personId];
+        state.bind_premises = rows.map((r) => String(r.premises_id));
+        const [person] = await exec.query<Row>(
+          "select full_name from person where id=$1",
+          [personId],
+        );
+        return save({
+          text: message(
+            deps.templates,
+            L,
+            "message.registration.bind_premises",
+            {
+              full_name: String(person?.full_name ?? "—"),
+              premises: safeBlock(
+                numbered(
+                  rows.map((r) => premisesAddress(r, L)),
+                ),
+              ),
+            },
+          ),
+          buttons: rows.map((r, i) => [
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.bind_premises",
+                "premise",
+                { code: r.code, number: r.number },
+              ),
+              `/bind ${parts[1]} ${i + 1}`,
+            ),
+          ]),
+        });
+      }
+      const premisesId = resolveRef(parts[2], [
+        state.bind_premises as string[],
+      ]);
+      if (!premisesId) {
+        throw new BotTemplateError(
+          "VALIDATION_FAILED",
+          message(
+            deps.templates,
+            L,
+            "registration.ne_ponyal_ssylku_otkroyte_spisok_i_ukazhite",
+          ),
+        );
+      }
+      if (!parts[3]) {
+        const [person] = await exec.query<Row>(
+          "select full_name from person where id=$1",
+          [personId],
+        );
+        return save({
+          text: message(deps.templates, L, "message.registration.bind_role", {
+            full_name: String(person?.full_name ?? "—"),
+          }),
+          buttons: ["tenant", "resident", "other"].map((role) => [
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.bind_role",
+                "role",
+                { label: label(roleLabels, role, L) },
+              ),
+              `/bind ${parts[1]} ${parts[2]} ${role}`,
+            ),
+          ]),
+        });
+      }
+      const role = roleFromWord(parts[3]);
+      if (!role) {
+        throw new BotTemplateError(
+          "VALIDATION_FAILED",
+          message(
+            deps.templates,
+            L,
+            "registration.ukazhite_rol_arendator_prozhivayuschiy_ili_drugoe",
+          ),
+        );
+      }
+      state.bind_options = [personId];
+      state.bind_premises = [premisesId];
+      try {
+        const connection = await bindResident(d, actor, {
+          person_id: personId,
+          premises_id: premisesId,
+          role,
+        });
+        const [info] = await exec.query<Row>(
+          "select n.full_name,p.kind,p.number,b.code from connection c join person n on n.id=c.person_id join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.id=$1",
+          [String(connection.id)],
+        );
+        for (const key of Object.keys(state)) delete state[key];
+        return save({
+          text: message(deps.templates, L, "message.registration.bind_done", {
+            full_name: String(info?.full_name ?? "—"),
+            building: label(buildingLabels, "house", L, "Дом"),
+            code: info?.code ?? "—",
+            kind: label(premiseLabels, String(info?.kind ?? "apartment"), L),
+            number: info?.number ?? "—",
+            role: label(roleLabels, role, L),
+          }),
+          buttons: [[
+            btn(
+              messageButton(
+                deps.templates,
+                L,
+                "message.registration.bind_done",
+                "accesses",
+              ),
+              "/accesses",
+            ),
+          ]],
+        });
+      } catch (error) {
+        if (error instanceof ApiError) {
+          if (error.code === "INVALID_TRANSITION") {
+            return save({
+              text: message(
+                deps.templates,
+                L,
+                "message.registration.bind_already",
+              ),
+              buttons: [[
+                btn(
+                  messageButton(
+                    deps.templates,
+                    L,
+                    "message.registration.bind_already",
+                    "accesses",
+                  ),
+                  "/accesses",
+                ),
+              ]],
+            });
+          }
+          if (
+            error.code === "NOT_FOUND" || error.code === "FORBIDDEN"
+          ) {
+            return save({
+              text: message(
+                deps.templates,
+                L,
+                "message.registration.bind_stale",
+              ),
+              buttons: [[
+                btn(
+                  messageButton(
+                    deps.templates,
+                    L,
+                    "message.registration.bind_stale",
+                    "bind",
+                  ),
+                  "/bind",
+                ),
+              ]],
+            });
+          }
+        }
+        throw error;
+      }
+    }
     if (
-      [
-        "/invite",
-        "/accept",
-        "/approve",
-        "/reject",
-        "/dispute",
-        "/revoke",
-      ].includes(cmd ?? "")
+      ["/approve", "/reject", "/dispute", "/revoke", "/revokeinvite"].includes(
+        cmd ?? "",
+      )
     ) {
       if (!actor) {
         return save(registerPrompt(deps.templates, L));
@@ -526,97 +818,13 @@ export async function registrationStep(
         }
         return id;
       };
-      if (cmd === "/invite") {
-        if (!parts[1]) {
-          const options = state.object_options as string[] | undefined;
-          if (!options?.length) {
-            throw new BotTemplateError(
-              "VALIDATION_FAILED",
-              message(
-                deps.templates,
-                L,
-                "registration.ukazhite_nomer_iz_spiska",
-              ),
-            );
-          }
-          if (options.length === 1) {
-            parts[1] = "1";
-          } else {
-            // Несколько помещений: выбор строки кнопками, затем роль.
-            // Тот же фильтр, что в /objects: номера строк совпадают с
-            // object_options, прекращённые помещения не предлагаются.
-            const rows = await exec.query<Row>(
-              "select c.premises_id,p.kind,p.number,b.code from connection c join premises p on p.id=c.premises_id join building b on b.id=p.building_id where c.person_id=$1 and c.status='active'",
-              [actor.person.id],
-            );
-            const seen = new Set<string>();
-            const optRows: Row[] = [];
-            for (const r of rows) {
-              const id = String(r.premises_id);
-              if (!seen.has(id)) {
-                seen.add(id);
-                optRows.push(r);
-              }
-            }
-            return save({
-              text: message(
-                deps.templates,
-                L,
-                "registration.ukazhite_nomer_iz_spiska",
-              ),
-              buttons: optRows.map((r, i) => [
-                btn(
-                  messageButton(
-                    deps.templates,
-                    L,
-                    "message.registration.objects",
-                    "invite_premise",
-                    { code: r.code, number: r.number },
-                  ),
-                  `/invite ${i + 1}`,
-                ),
-              ]),
-            });
-          }
-        }
-        const role = roleFromWord(parts[2]);
-        if (!role) {
-          // Роль не указана: выбор роли кнопками для выбранного помещения.
-          return save({
-            text: message(
-              deps.templates,
-              L,
-              "registration.ukazhite_rol_arendator_prozhivayuschiy_ili_drugoe",
-            ),
-            buttons: ["tenant", "resident", "other"].map((id) => [
-              btn(
-                messageButton(
-                  deps.templates,
-                  L,
-                  "registration.ukazhite_rol_arendator_prozhivayuschiy_ili_drugoe",
-                  "role",
-                  { label: label(roleLabels, id, L) },
-                ),
-                `/invite ${parts[1]} ${id}`,
-              ),
-            ]),
-          });
-        }
-        const invite = await createInvite(d, actor, {
-          premises_id: ref([state.object_options as string[]]),
-          role,
-        });
+      if (cmd === "/revokeinvite") {
+        // ADR-020: отзыв неиспользованной ссылки — без причины.
+        const target = ref([state.invite_options as string[]]);
+        await revokeInvite(d, actor, target);
+        for (const key of Object.keys(state)) delete state[key];
         return save(
-          message(deps.templates, L, "message.registration.invite", {
-            invite_command: `/start invite_${invite.token}`,
-            expires_at: fmtDate(invite.expires_at),
-          }),
-        );
-      }
-      if (cmd === "/accept") {
-        await acceptInvite(d, actor, parts[1]);
-        return save(
-          message(deps.templates, L, "registration.dostup_podtverzhden"),
+          message(deps.templates, L, "message.registration.invite_revoked"),
         );
       }
       if (cmd === "/revoke") {
@@ -755,6 +963,27 @@ export async function registrationStep(
       cmd === "/edit" ||
       (cmd === "/start" && parts[1]?.startsWith("invite_"))
     ) {
+      if (cmd === "/start" && actor) {
+        // ADR-020: зарегистрированный пользователь по ссылке — consume без мастера:
+        // подтверждает личность, инициатор уведомляется о возможности привязки.
+        try {
+          await acceptInvite(d, actor, parts[1]!.slice(7));
+        } catch (error) {
+          if (
+            error instanceof ApiError &&
+            (error.code === "INVALID_TRANSITION" || error.code === "NOT_FOUND")
+          ) {
+            return save(
+              message(deps.templates, L, "message.registration.invite_invalid"),
+            );
+          }
+          throw error;
+        }
+        for (const key of Object.keys(state)) delete state[key];
+        return save(
+          message(deps.templates, L, "message.registration.invite_existing"),
+        );
+      }
       // Повторная регистрация бессмысленна: если анкета уже есть и не отозвана —
       // показываем её актуальный статус вместо мастера. /start invite_*
       // сознательно проходит мимо guard: осознанный путь добавления объекта.
@@ -1300,19 +1529,47 @@ export async function registrationStep(
         }
         state.consent = true;
         if (state.invite) {
-          if (actor) await acceptInvite(d, actor, String(state.invite));
-          else {
+          try {
             await acceptInviteForNewTelegram(
               d,
               telegramId,
               String(state.invite),
               state,
             );
+          } catch (error) {
+            if (
+              error instanceof ApiError &&
+              (error.code === "INVALID_TRANSITION" || error.code === "NOT_FOUND")
+            ) {
+              return save(
+                message(
+                  deps.templates,
+                  L,
+                  "message.registration.invite_invalid",
+                ),
+              );
+            }
+            throw error;
           }
           for (const key of Object.keys(state)) delete state[key];
-          return save(
-            message(deps.templates, L, "registration.dostup_podtverzhden"),
-          );
+          return save({
+            text: message(
+              deps.templates,
+              L,
+              "message.registration.invite_done",
+            ),
+            buttons: [[
+              btn(
+                messageButton(
+                  deps.templates,
+                  L,
+                  "message.registration.invite_done",
+                  "status",
+                ),
+                "/status",
+              ),
+            ]],
+          });
         }
         const submitted = await submitRegistration(d, actor, state, telegramId);
         const submittedKey = submitted?.confirmed_draft ? "message.registration.correction_submitted" : "message.registration.submitted";

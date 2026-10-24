@@ -43,6 +43,24 @@ function harness(
     reviewRow?: Row | null;
     /** Доступы для списка /accesses. */
     accessRows?: Row[];
+    /** Активные приглашения собственника для секции /accesses (id, token, expires_at). */
+    inviteRows?: Row[];
+    /** Активные приглашённые для /bind (id, full_name). */
+    bindPersons?: Row[];
+    /** Помещения собственника для шага /bind (premises_id, kind, number, code). */
+    bindPremises?: Row[];
+    /** Приглашённый для bindResident (id, is_test). */
+    invitedPerson?: Row | null;
+    /** Активная связь жильца с помещением — блокирует bindResident. */
+    bindExisting?: boolean;
+    /** Действующий собственник — false имитирует отказ createInvite. */
+    isOwner?: boolean;
+    /** Приглашение для deep-link (select * from invite … for update). */
+    inviteToken?: Row | null;
+    /** Создатель приглашения (select is_test from person …). */
+    inviteCreator?: Row | null;
+    /** Персона актора для acceptInvite (id, is_test, status). */
+    personRow?: Row | null;
     /** Помещения для списка /objects (id, premises_id, role, status, kind, number, code). */
     objectsRows?: Row[];
     /** Связь для revokeOwnConnection (select * from connection … for update). */
@@ -115,6 +133,109 @@ function harness(
       // /accesses: выданные доступы собственника.
       if (sql.startsWith("select c.id,c.confirmed_by,n.full_name")) {
         return Promise.resolve((opts.accessRows ?? []) as T[]);
+      }
+      // /accesses: активные приглашения собственника (ADR-020).
+      if (sql.startsWith("select i.id,i.token,i.expires_at from invite")) {
+        return Promise.resolve((opts.inviteRows ?? []) as T[]);
+      }
+      // /bind: приглашённые собственника без действующих привязок.
+      if (sql.startsWith("select n.id, n.full_name from invite")) {
+        return Promise.resolve((opts.bindPersons ?? []) as T[]);
+      }
+      // /bind: помещения собственника (роль owner в SQL отличает от /status).
+      if (
+        sql.startsWith("select c.premises_id,p.kind,p.number,b.code from connection c") &&
+        sql.includes("c.role='owner'")
+      ) {
+        return Promise.resolve((opts.bindPremises ?? []) as T[]);
+      }
+      // createInvite: действующий собственник (ADR-020).
+      if (
+        sql.startsWith("select id from connection where person_id=$1 and role='owner'")
+      ) {
+        return Promise.resolve(
+          (opts.isOwner === false ? [] : [{ id: "c1" }]) as T[],
+        );
+      }
+      // bindResident: приглашённый должен быть из приглашений актора.
+      if (sql.startsWith("select n.id from person n")) {
+        return Promise.resolve(
+          (opts.invitedPerson === undefined || opts.invitedPerson === null
+            ? []
+            : [opts.invitedPerson]) as T[],
+        );
+      }
+      // bindResident: действующая связь жильца с помещением.
+      if (
+        sql.startsWith("select id from connection where person_id=$1 and premises_id=$2 and status='active'")
+      ) {
+        return Promise.resolve(
+          (opts.bindExisting ? [{ id: "c-exists" }] : []) as T[],
+        );
+      }
+      // deep-link: приглашение по токену и его создатель.
+      if (sql.startsWith("select * from invite")) {
+        return Promise.resolve(
+          (opts.inviteToken ? [opts.inviteToken] : []) as T[],
+        );
+      }
+      // acceptInvite: персона актора (по умолчанию активная, is_test=false).
+      if (sql.startsWith("select id,is_test,status from person")) {
+        return Promise.resolve([
+          opts.personRow ?? { id: "pers-1", status: "active", is_test: false },
+        ] as T[]);
+      }
+      if (sql.startsWith("select is_test from person")) {
+        return Promise.resolve(
+          (opts.inviteCreator ? [opts.inviteCreator] : []) as T[],
+        );
+      }
+      // Уведомление инициатору: профиль создателя приглашения.
+      if (sql.startsWith("select pr.telegram_user_id,pr.language from profile")) {
+        return Promise.resolve([
+          { telegram_user_id: 200, language: "ru" },
+        ] as T[]);
+      }
+      // bindResident и полные данные связи для итогового ответа.
+      if (
+        sql.startsWith("insert into invite") ||
+        sql.startsWith("insert into connection") ||
+        sql.startsWith("insert into person") ||
+        sql.startsWith("insert into profile")
+      ) {
+        if (sql.startsWith("insert into invite")) {
+          return Promise.resolve([
+            {
+              id: "invite-1",
+              token: "t".repeat(64),
+              expires_at: "2026-10-27T10:00:00.000Z",
+            },
+          ] as T[]);
+        }
+        if (sql.startsWith("insert into connection")) {
+          return Promise.resolve([{ id: "conn-new", person_id: "pers-9" }] as T[]);
+        }
+        if (sql.startsWith("insert into person")) {
+          return Promise.resolve([
+            { id: "pers-new", full_name: "Новый Жилец" },
+          ] as T[]);
+        }
+        return Promise.resolve([{ id: "prof-new" }] as T[]);
+      }
+      if (sql.startsWith("select full_name from person")) {
+        return Promise.resolve([{ full_name: "Алия Омарова" }] as T[]);
+      }
+      if (
+        sql.startsWith("select n.full_name,p.kind,p.number,b.code from connection")
+      ) {
+        return Promise.resolve([
+          {
+            full_name: "Алия Омарова",
+            kind: "apartment",
+            number: "4",
+            code: "107/1",
+          },
+        ] as T[]);
       }
       // Активные связи персоны: список помещений в /status и guard /register.
       if (sql.startsWith("select c.premises_id,p.kind,p.number,b.code from connection c")) {
@@ -564,7 +685,7 @@ describe("бот: мои помещения (/objects)", () => {
     expect(text).not.toContain("Не подтверждено");
     expect(reply).toMatchObject({
       buttons: [
-        [{ text: "Пригласить жильца", data: "/invite" }],
+        [{ text: "Пригласить", data: "/invite" }],
         [{ text: "Добавить помещение", data: "/add" }],
       ],
     });
@@ -1256,4 +1377,219 @@ it.each(["/start", "/cancel", "Старт"])("%s: регистрация скр�
     if (typeof reply === "string") throw new Error("Ожидалось меню");
     expect(reply.buttons?.flat().some(button => button.data === "/register")).toBe(!profile);
   }
+});
+
+describe("бот: приглашение и привязка жильца (ADR-020)", () => {
+  it("/invite — одно нажатие: Deep Link и срок действия, без помещения", async () => {
+    const h = harness({ profile: true });
+    const reply = await registrationStep(h.deps, "100", "/invite");
+    expect(replyText(reply)).toContain("/start invite_");
+    expect(replyText(reply)).toContain("Действует до");
+    expect(h.audit[0]).toMatchObject({ action: "registration.invite.create" });
+    expect(h.audit[0]?.entityType).toBe("invite");
+  });
+
+  it("/invite — не-собственнику доступ запрещён", async () => {
+    const h = harness({ profile: true, isOwner: false });
+    const reply = await registrationStep(h.deps, "100", "/invite");
+    expect(replyText(reply)).toContain("собственникам помещений");
+    expect(h.audit).toEqual([]);
+  });
+
+  it("/bind без приглашённых — подсказка и кнопка приглашения", async () => {
+    const h = harness({ profile: true });
+    const reply = await registrationStep(h.deps, "100", "/bind");
+    expect(replyText(reply)).toContain("никто не зарегистрировался");
+    expect(reply).toMatchObject({
+      buttons: [[{ text: "Пригласить", data: "/invite" }]],
+    });
+  });
+
+  it("/bind полный проход: жилец → помещение → роль, аудит и итог", async () => {
+    const h = harness({
+      profile: true,
+      bindPersons: [{ id: "pers-9", full_name: "Алия Омарова" }],
+      bindPremises: [{ premises_id: "p1", kind: "apartment", number: "4", code: "107/1" }],
+      invitedPerson: { id: "pers-9", is_test: false },
+    });
+    const list = await registrationStep(h.deps, "100", "/bind");
+    expect(replyText(list)).toContain("Алия Омарова");
+    expect(list).toMatchObject({
+      buttons: [[{ text: "Алия Омарова", data: "/bind 1" }]],
+    });
+    const premises = await registrationStep(h.deps, "100", "/bind 1");
+    expect(replyText(premises)).toContain("Алия Омарова");
+    expect(premises).toMatchObject({
+      buttons: [[{ text: "107/1/4", data: "/bind 1 1" }]],
+    });
+    const role = await registrationStep(h.deps, "100", "/bind 1 1");
+    expect(role).toMatchObject({
+      buttons: [
+        [{ text: "Арендатор", data: "/bind 1 1 tenant" }],
+        [{ text: "Проживающий", data: "/bind 1 1 resident" }],
+        [{ text: "Пользователь", data: "/bind 1 1 other" }],
+      ],
+    });
+    const done = await registrationStep(h.deps, "100", "/bind 1 1 tenant");
+    expect(replyText(done)).toContain("Доступ открыт");
+    expect(h.audit.some((a) => a.action === "connection.bind")).toBe(true);
+    expect(h.state).toEqual({});
+  });
+
+  it("/bind — жилец уже привязан к помещению", async () => {
+    const h = harness({
+      profile: true,
+      bindPersons: [{ id: "pers-9", full_name: "Алия Омарова" }],
+      bindPremises: [{ premises_id: "p1", kind: "apartment", number: "4", code: "107/1" }],
+      invitedPerson: { id: "pers-9", is_test: false },
+      bindExisting: true,
+    });
+    await registrationStep(h.deps, "100", "/bind");
+    await registrationStep(h.deps, "100", "/bind 1");
+    const reply = await registrationStep(h.deps, "100", "/bind 1 1 tenant");
+    expect(replyText(reply)).toContain("уже привязан");
+    expect(reply).toMatchObject({
+      buttons: [[{ text: "Доступы", data: "/accesses" }]],
+    });
+  });
+
+  it("/bind — не мой приглашённый: список устарел", async () => {
+    const h = harness({
+      profile: true,
+      bindPremises: [{ premises_id: "p1", kind: "apartment", number: "4", code: "107/1" }],
+    });
+    const personId = "55555555-5555-5555-5555-555555555555";
+    await registrationStep(h.deps, "100", `/bind ${personId}`);
+    const reply = await registrationStep(
+      h.deps,
+      "100",
+      `/bind ${personId} 1 tenant`,
+    );
+    expect(replyText(reply)).toContain("привязать нельзя");
+  });
+
+  it("deep-link: зарегистрированный пользователь consume без мастера, инициатор уведомлён", async () => {
+    const h = harness({
+      profile: true,
+      inviteToken: {
+        id: "invite-1",
+        token: "TOK",
+        status: "active",
+        expires_at: "2099-01-01T00:00:00.000Z",
+        created_by: "creator-1",
+        premises_id: null,
+      },
+      inviteCreator: { is_test: false },
+    });
+    const reply = await registrationStep(h.deps, "100", "/start invite_TOK");
+    expect(replyText(reply)).toContain("уже зарегистрированы");
+    expect(h.audit.some((a) => a.action === "registration.invite.accept")).toBe(true);
+    expect(h.state).toEqual({});
+  });
+
+  it("deep-link: новый пользователь — мастер и анкета без помещения", async () => {
+    const h = harness({
+      inviteToken: {
+        id: "invite-1",
+        token: "TOK",
+        status: "active",
+        expires_at: "2099-01-01T00:00:00.000Z",
+        created_by: "creator-1",
+        premises_id: null,
+      },
+      inviteCreator: { is_test: false },
+    });
+    await registrationStep(h.deps, "100", "/start invite_TOK");
+    await registrationStep(h.deps, "100", "ru");
+    await registrationStep(h.deps, "100", "Новый Жилец");
+    const phone = await registrationStep(h.deps, "100", "+77771234567");
+    expect(replyText(phone)).toContain("Подтвердите согласие");
+    const done = await registrationStep(h.deps, "100", "да");
+    expect(replyText(done)).toContain("зарегистрированы в ОСИ");
+    expect(h.audit.some((a) => a.action === "registration.invite.accept")).toBe(true);
+    expect(h.state).toEqual({});
+  });
+
+  it("deep-link: использованная ссылка — приглашение недействительно", async () => {
+    const h = harness({
+      profile: true,
+      inviteToken: {
+        id: "invite-1",
+        token: "TOK",
+        status: "used",
+        expires_at: "2099-01-01T00:00:00.000Z",
+        created_by: "creator-1",
+        premises_id: null,
+      },
+    });
+    const reply = await registrationStep(h.deps, "100", "/start invite_TOK");
+    expect(replyText(reply)).toContain("недействительно");
+    expect(h.audit).toEqual([]);
+  });
+});
+
+describe("бот: отправленные приглашения в /accesses (ADR-020)", () => {
+  const inviteRow = {
+    id: "inv-1",
+    token: "tok-1",
+    expires_at: "2099-10-27T10:00:00.000Z",
+  };
+
+  it("секция приглашений — отдельным блоком с кнопкой отзыва", async () => {
+    const h = harness({ profile: true, inviteRows: [inviteRow] });
+    const reply = await registrationStep(h.deps, "100", "/accesses");
+    const text = replyText(reply);
+    expect(text).toContain("Отправленные приглашения:");
+    expect(reply).toMatchObject({
+      buttons: [[{ text: "Отозвать — 1", data: "/revokeinvite 1" }]],
+    });
+    expect(h.state.invite_options).toEqual(["inv-1"]);
+  });
+
+  it("обе секции на одном экране", async () => {
+    const h = harness({
+      profile: true,
+      accessRows: [{
+        id: "conn-1",
+        confirmed_by: "pers-1",
+        full_name: "Алия Омарова",
+        kind: "apartment",
+        number: "4",
+        registration_id: REG_ID,
+      }],
+      inviteRows: [inviteRow],
+    });
+    const reply = await registrationStep(h.deps, "100", "/accesses");
+    const text = replyText(reply);
+    expect(text).toContain("Выданные доступы:");
+    expect(text).toContain("Отправленные приглашения:");
+    expect(typeof reply !== "string" && reply.buttons?.flat().map((b) => b.data)).toEqual([
+      "/revoke 1",
+      "/dispute 1",
+      "/revokeinvite 1",
+    ]);
+  });
+
+  it("отзыв приглашения — без причины, приглашение гасится", async () => {
+    const h = harness({
+      profile: true,
+      inviteRows: [inviteRow],
+      // revokeInvite: строка приглашения по id (select * from invite … for update).
+      inviteToken: {
+        id: "inv-1",
+        token: "tok-1",
+        status: "active",
+        expires_at: "2099-10-27T10:00:00.000Z",
+        created_by: "pers-1",
+        premises_id: null,
+      },
+    });
+    await registrationStep(h.deps, "100", "/accesses");
+    const reply = await registrationStep(h.deps, "100", "/revokeinvite 1");
+    expect(replyText(reply)).toContain("Приглашение отозвано");
+    expect(h.audit[0]).toMatchObject({
+      action: "registration.invite.revoke",
+    });
+    expect(h.state).toEqual({});
+  });
 });

@@ -47,6 +47,8 @@ const values: Record<string, [string, string]> = {
     "1. Ожидает проверки: Алия, Дом 1, Квартира 4, Собственник",
   ],
   accesses: ["Список выданных доступов", "1. Алия: Квартира 4"],
+  invites: ["Список отправленных приглашений — сроки действия", "25.10.2026 12:00"],
+  persons: ["Список приглашённых жильцов", "1. Алия Омарова"],
   premises: [
     "Список помещений и связей жителя",
     "1. Дом 1, Квартира 4 — Собственник",
@@ -119,6 +121,8 @@ function scenarioFor(command: string): string {
     "/accesses": "Выданные доступы",
     "/objects": "Мои помещения",
     "/invite": "Приглашение жителя",
+    "/bind": "Привязка жильца",
+    "/revokeinvite": "Отзыв приглашения",
     "/start invite_*": "Регистрация по приглашению",
     "/delete": "Удаление данных",
     "/tasks": "Список заданий",
@@ -159,7 +163,7 @@ function def(
   if ("accesses" in sample) {
     sample.accesses = "1. <b>Алия Омарова</b>: Квартира 4";
   }
-  const blocks = ["registrations", "tasks", "accesses", "buildings", "numbers"].filter((name) =>
+  const blocks = ["registrations", "tasks", "accesses", "persons", "invites", "buildings", "numbers"].filter((name) =>
     name in sample
   );
   const sampleKk = { ...sample };
@@ -368,6 +372,191 @@ const defs: TemplateDef[] = [
     }],
   ),
   def(
+    "message.registration.accesses_invites",
+    "Отправленные приглашения",
+    "/accesses",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Жіберілген шақырулар:\n{invites}"
+        : "Отправленные приглашения:\n{invites}",
+    [{
+      id: "revokeinvite",
+      ru: "Отозвать — {index}",
+      kk: "Қайтару — {index}",
+      variables: variables("{index}", ""),
+    }],
+  ),
+  def(
+    "message.registration.bind_select",
+    "Привязка жильца — выбор жильца",
+    "/bind",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Кімді байланыстырамыз?\n{persons}"
+        : "Кого привязать?\n{persons}",
+    [{
+      id: "person",
+      ru: "{label}",
+      kk: "{label}",
+      variables: [{
+        name: "label",
+        description: "Имя жильца",
+        example: "Алия Омарова",
+      }],
+    }],
+  ),
+  def(
+    "message.registration.bind_premises",
+    "Привязка жильца — выбор помещения",
+    "/bind",
+    [],
+    (l) =>
+      l === "kk"
+        ? "{full_name} үшін үй-жайды таңдаңыз:\n{premises}"
+        : "Выберите помещение для {full_name}:\n{premises}",
+    [{
+      id: "premise",
+      ru: "{code}/{number}",
+      kk: "{code}/{number}",
+      variables: variables("{code}/{number}", ""),
+    }],
+  ),
+  def(
+    "message.registration.bind_role",
+    "Привязка жильца — роль",
+    "/bind",
+    [],
+    (l) =>
+      l === "kk"
+        ? "{full_name} үшін рөлді таңдаңыз:"
+        : "Выберите роль для {full_name}:",
+    [{
+      id: "role",
+      ru: "{label}",
+      kk: "{label}",
+      variables: [{
+        name: "label",
+        description: "Роль жильца",
+        example: "Арендатор",
+      }],
+    }],
+  ),
+  def(
+    "message.registration.bind_done",
+    "Жилец привязан к помещению",
+    "/bind",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Қолжетімділік ашылды: {full_name}, {building} {code}, {kind} {number} — {role}."
+        : "Доступ открыт: {full_name}, {building} {code}, {kind} {number} — {role}.",
+    [{
+      id: "accesses",
+      ru: "Доступы",
+      kk: "Қолжетімділіктер",
+    }],
+  ),
+  def(
+    "message.registration.bind_empty",
+    "Привязка — приглашённых нет",
+    "/bind",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Сіздің шақыруларыңыз бойынша әзірге ешкім тіркелген жоқ."
+        : "По вашим приглашениям пока никто не зарегистрировался.",
+    [{
+      id: "invite",
+      ru: "Пригласить",
+      kk: "Шақыру",
+    }],
+  ),
+  def(
+    "message.registration.bind_already",
+    "Привязка — жилец уже привязан",
+    "/bind",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Тұрғын бұл үй-жайға байланыстырылған."
+        : "Жилец уже привязан к этому помещению.",
+    [{
+      id: "accesses",
+      ru: "Доступы",
+      kk: "Қолжетімділіктер",
+    }],
+  ),
+  def(
+    "message.registration.bind_stale",
+    "Привязка — жилец недоступен",
+    "/bind",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Бұл тұрғынды байланыстыру мүмкін емес. Тізімді қайта ашыңыз."
+        : "Этого жильца привязать нельзя. Откройте список заново.",
+    [{
+      id: "bind",
+      ru: "Привязать",
+      kk: "Байланыстыру",
+    }],
+  ),
+  def(
+    "message.registration.owner_only",
+    "Действие только для собственников",
+    "/invite",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Бұл әрекет үй-жай меншік иелеріне қолжетімді."
+        : "Это действие доступно собственникам помещений.",
+  ),
+  def(
+    "message.registration.invite_existing",
+    "Приглашение — пользователь уже зарегистрирован",
+    "/start invite_*",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Сіз МИБ-де тіркелгенсіз. Меншік иесі хабарланды — ол сізді үй-жайға байланыстыра алады."
+        : "Вы уже зарегистрированы в ОСИ. Собственник уведомлён — он может привязать вас к помещению.",
+  ),
+  def(
+    "message.registration.invite_done",
+    "Регистрация по приглашению завершена",
+    "/start invite_*",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Сіз МИБ-де тіркелдіңіз. Сізді шақырған меншік иесі сізді үй-жайға байланыстырады."
+        : "Вы зарегистрированы в ОСИ. Собственник, который пригласил вас, привяжет вас к помещению.",
+    [{
+      id: "status",
+      ru: "Статус регистрации",
+      kk: "Тіркелу күйі",
+    }],
+  ),
+  def(
+    "message.registration.invite_invalid",
+    "Приглашение недействительно",
+    "/start invite_*",
+    [],
+    (l) =>
+      l === "kk"
+        ? "Шақыру жарамсыз: ол қолданылған, қайтарылған немесе мерзімі өткен."
+        : "Приглашение недействительно: оно уже использовано, отозвано или истекло.",
+  ),
+  def(
+    "message.registration.invite_revoked",
+    "Приглашение отозвано",
+    "/revokeinvite",
+    [],
+    (l) =>
+      l === "kk" ? "Шақыру қайтарылды." : "Приглашение отозвано.",
+  ),
+  def(
     "message.registration.objects",
     "Мои помещения",
     "/objects",
@@ -378,13 +567,8 @@ const defs: TemplateDef[] = [
         : "Мои помещения:\n{premises}",
     [{
       id: "invite",
-      ru: "Пригласить жильца",
-      kk: "Тұрғынды шақыру",
-    }, {
-      id: "invite_premise",
-      ru: "Пригласить — {code}/{number}",
-      kk: "Шақыру — {code}/{number}",
-      variables: variables("{code}/{number}", ""),
+      ru: "Пригласить",
+      kk: "Шақыру",
     }, {
       id: "add",
       ru: "Добавить помещение",
@@ -397,8 +581,13 @@ const defs: TemplateDef[] = [
     "/invite",
     [R + "priglashenie", R + "deystvuet_do"],
     (l) =>
-      old(R + "priglashenie", l) + ": {invite_command}\n" +
-      old(R + "deystvuet_do", l) + ": {expires_at}",
+      l === "kk"
+        ? old(R + "priglashenie", l) +
+          " жасалды. Сілтемені тұрғынға жіберіңіз — ол сілтеме бойынша тіркеледі:\n{invite_command}\n" +
+          old(R + "deystvuet_do", l) + ": {expires_at}"
+        : old(R + "priglashenie", l) +
+          " создано. Перешлите ссылку жильцу — он зарегистрируется по ней:\n{invite_command}\n" +
+          old(R + "deystvuet_do", l) + ": {expires_at}",
   ),
   def(
     "message.registration.add_select",
