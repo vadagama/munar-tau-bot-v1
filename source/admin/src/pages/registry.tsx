@@ -23,6 +23,7 @@ import {
   Typography,
 } from "antd";
 import { apiFetch } from "../lib/api";
+import { formatDateTime } from "../lib/format-date";
 
 type Row = Record<string, unknown>;
 type Entity = "buildings" | "premises" | "persons" | "connections";
@@ -54,6 +55,7 @@ const LABELS: Record<string, string> = {
   role: "Отношение",
   status: "Состояние",
   basis: "Основание",
+  created_at: "Дата",
   building_code: "Здание",
   comment: "Служебная заметка",
   entrance: "Подъезд / секция",
@@ -65,6 +67,16 @@ export const displayKind = (value: unknown) =>
   KINDS.find((x) => x.value === value)?.label ?? String(value ?? "");
 export const displayRole = (value: unknown) =>
   ROLES.find((x) => x.value === value)?.label ?? String(value ?? "");
+// Основание привязки (REG-02): в таблице и поиске — русские подписи, а не коды.
+const BASES: Record<string, string> = {
+  initial_registry: "Исходный реестр ОСИ",
+  ownership: "Собственность",
+  rent: "Аренда",
+  family: "Семья",
+  other: "Другое",
+};
+export const displayBasis = (value: unknown) =>
+  BASES[String(value ?? "")] ?? String(value ?? "");
 const ROLE_LABELS: Record<string, string> = {
   chairman: "Председатель", administrator: "Администратор", deputy: "Заместитель",
   executor: "Исполнитель", tech_admin: "Технический администратор", duty: "Дежурный",
@@ -366,7 +378,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
           ? users
             ? ["full_name", "phone_e164", "telegram_username", "comment"]
             : ["full_name", "phone_e164", "comment"]
-          : ["full_name", "phone_e164", "building_code", "kind", "number", "role", "basis", "status"];
+          : ["full_name", "phone_e164", "building_code", "kind", "number", "role", "basis", "created_at", "status"];
   const remove = async (row: Row) => {
     try {
       setDeleting(String(row.id));
@@ -398,6 +410,10 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
           displayKind(v)
         ) : key === "role" ? (
           displayRole(v)
+        ) : key === "basis" ? (
+          displayBasis(v)
+        ) : key === "created_at" ? (
+          formatDateTime(v)
         ) : key === "telegram_username" ? (
           <TelegramHandle username={v} />
         ) : key === "status" ? (
@@ -491,7 +507,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
     const searchable = [row.full_name, row.phone_e164, row.telegram_username ? `@${row.telegram_username}` : "", row.comment,
       ...roles.map(role => ROLE_LABELS[role] ?? role)].join(" ").toLocaleLowerCase("ru-RU");
     return searchable.includes(search);
-  }) : users ? rows : filterRegistryRows(directoryRows, filters, KINDS, ROLES, STATUS);
+  }) : users ? rows : filterRegistryRows(directoryRows, filters, KINDS, ROLES, STATUS, BASES);
   return (
     <PageLayout title={users === "staff" ? "Сотрудники" : users ? "Жители" : LABELS[entity]}
       actions={users !== "staff" ? <Button type="primary" onClick={() => open(null)}>Добавить запись</Button> : null}

@@ -22,11 +22,13 @@ export function matchesPhase(value: unknown, phase: PhaseFilter) {
 }
 
 export function filterRegistryRows(rows: RegistryRow[], filters: RegistryFilterValues,
-  kinds: { value: string; label: string }[], roles: { value: string; label: string }[], statuses: Record<string, string>) {
+  kinds: { value: string; label: string }[], roles: { value: string; label: string }[], statuses: Record<string, string>,
+  bases: Record<string, string> = {}) {
   const search = filters.search.trim().toLocaleLowerCase("ru-RU");
   return rows.filter(row => {
     const searchable = [row.code, row.name, row.building_code, row.building_name,
       row.number, row.full_name, row.phone_e164, row.entrance, row.floor, row.basis,
+      row.basis ? bases[String(row.basis)] : undefined,
       kinds.find(kind => kind.value === row.kind)?.label,
       roles.find(role => role.value === row.role)?.label,
       statuses[String(row.status)], row.construction_phase == null ? "Не указана" : `${row.construction_phase}-я очередь`,
