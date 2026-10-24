@@ -263,8 +263,15 @@ export async function submitRegistration(
 // Анкеты на рассмотрении — очередь, из списка не прячем (REG-01).
 const ACTIVE_REVIEW_STATES = new Set(["pending_review", "need_clarification", "disputed"]);
 
+function registrationTime(value: unknown): number {
+  // postgres.js возвращает timestamptz объектом Date, API-фикстуры — строкой ISO.
+  if (value instanceof Date) return value.getTime();
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
 function isLaterRegistration(a: Row, b: Row): boolean {
-  const ta = Date.parse(String(a.created_at)), tb = Date.parse(String(b.created_at));
+  const ta = registrationTime(a.created_at), tb = registrationTime(b.created_at);
   if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) return ta > tb;
   return String(a.id) > String(b.id);
 }

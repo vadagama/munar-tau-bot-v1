@@ -92,6 +92,16 @@ it("список анкет: результат упорядочен по дат
   expect(dedupeRegistrations(rows).map((row) => row.id)).toEqual(["r1", "r3", "r2"]);
 });
 
+it("список анкет: даты в объектах Date (как из postgres.js) сравниваются корректно", () => {
+  const rows: Row[] = [
+    { id: "r1", state: "approved", person_id: "person-1", premises_id: null, created_at: new Date("2026-10-20T10:00:00Z") },
+    { id: "r2", state: "approved", person_id: "person-1", premises_id: null, created_at: new Date("2026-10-21T10:00:00Z") },
+  ];
+  const result = dedupeRegistrations(rows);
+  expect(result).toHaveLength(1);
+  expect(result[0]!.id).toBe("r2");
+});
+
 const actor: Actor = {
   person: {
     id: "admin",
