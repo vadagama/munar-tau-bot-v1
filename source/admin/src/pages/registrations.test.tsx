@@ -38,8 +38,6 @@ it("доска регистраций: заявитель на карточке,
   render(<RegistrationsPage />);
   fireEvent.click(await screen.findByRole("radio", { name: "Доска" }));
   expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
-  expect(screen.getByText("Д1 · Квартира 12")).toBeInTheDocument();
-  expect(screen.getByText(/Собственник/)).toBeInTheDocument();
   expect(screen.getByText("Ожидает проверки")).toBeInTheDocument();
   // Имя в Telegram показывается и на карточке, и в таблице, и кликается.
   const cardLink = screen.getByRole("link", { name: "@w84gr8" });
@@ -86,7 +84,7 @@ const liteRegistration = {
   overdue_at: null,
 };
 
-it("анкета без помещения: карточка и таблица без дома, подтверждение доступно", async () => {
+it("анкета-минимум: без помещения в таблице и на доске, подтверждение доступно", async () => {
   vi.mocked(apiFetch).mockImplementation(async (path) =>
     path === "/v1/registrations"
       ? { items: [liteRegistration] }
@@ -94,17 +92,20 @@ it("анкета без помещения: карточка и таблица �
   );
   render(<RegistrationsPage />);
   expect(await screen.findByText("Пётр Петров")).toBeInTheDocument();
-  // На доске и в таблице — «Помещение не указано», без «null» и пустых меток.
-  const places = await screen.findAllByText("Помещение не указано");
-  expect(places.length).toBeGreaterThanOrEqual(1);
+  // Раздел регистраций — только факты анкеты: помещение и отношение не выводятся
+  // (решение владельца 24.10.2026), привязки — в /registry/connections.
+  expect(screen.queryByText("Помещение")).toBeNull();
+  expect(screen.queryByText("Отношение")).toBeNull();
   expect(screen.queryByText(/null/)).not.toBeInTheDocument();
-  expect(screen.queryByText(/^\s*·\s/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("radio", { name: "Доска" }));
+  expect(await screen.findByText("Пётр Петров")).toBeInTheDocument();
+  expect(screen.queryByText("Помещение не указано")).toBeNull();
   fireEvent.click(screen.getByRole("radio", { name: "Таблица" }));
-  expect(await screen.findAllByText("Помещение не указано")).not.toHaveLength(0);
+  expect(await screen.findByText("Пётр Петров")).toBeInTheDocument();
   expect(screen.getAllByText("Подтвердить").length).toBeGreaterThanOrEqual(1);
 });
 
-it("анкета без помещения: подтверждение создаёт доступ без привязки", async () => {
+it("анкета-минимум: подтверждение открывает доступ без упоминания привязки", async () => {
   vi.mocked(apiFetch).mockImplementation(async (path) =>
     path === "/v1/registrations"
       ? { items: [liteRegistration] }
@@ -115,8 +116,9 @@ it("анкета без помещения: подтверждение созд�
   const dialog = await screen.findByRole("dialog");
   expect(dialog).toHaveTextContent("Пётр Петров");
   expect(dialog).toHaveTextContent(
-    /доступ к обращениям без привязки к помещению/,
+    /открывается доступ к обращениям/,
   );
+  expect(dialog).not.toHaveTextContent("привязк");
   expect(dialog).not.toHaveTextContent("подтверждается доступ:");
 });
 

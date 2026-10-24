@@ -337,7 +337,7 @@ it("привязки ищутся по телефону, зданию и ФИО 
 });
 
 it("привязки: «Отвязать» прекращает действующую связь с обязательной причиной", async () => {
-  const connection = {id:"c1",person_id:"n1",full_name:"Иван Петров",building_id:"b1",building_code:"107/1",kind:"apartment",number:"12",role:"owner",status:"active",basis:"ownership"};
+  const connection = {id:"c1",person_id:"n1",full_name:"Иван Петров",building_id:"b1",building_code:"107/1",kind:"apartment",number:"12",role:"owner",status:"active",basis:"ownership",created_at:"2026-10-20T10:00:00Z"};
   vi.mocked(apiFetch).mockImplementation(async path => ({items: path.endsWith("/buildings")
     ? [{id:"b1",code:"107/1",construction_phase:1}]
     : path.endsWith("/persons") ? [{id:"n1",full_name:"Иван Петров",phone_e164:"+77011112233"}]
@@ -345,6 +345,9 @@ it("привязки: «Отвязать» прекращает действую
         {...connection, id:"c2", full_name:"Пётр Иванов", status:"revoked"}] : []}));
   render(<RegistryPage section="connections" />);
   expect(await screen.findByText("Иван Петров", {selector:"td"})).toBeVisible();
+  // Дата запроса инициатора и основание — по-русски (решение владельца 24.10.2026).
+  expect(screen.getAllByText(/20\.10\.2026/, {selector:"td"}).length).toBeGreaterThanOrEqual(1);
+  expect(screen.getAllByText("Собственность", {selector:"td"}).length).toBeGreaterThanOrEqual(1);
   // Прекращённую связь не меняют — кнопка только у действующей.
   expect(screen.getAllByRole("button", {name:"Отвязать"})).toHaveLength(1);
   fireEvent.click(screen.getByRole("button", {name:"Отвязать"}));

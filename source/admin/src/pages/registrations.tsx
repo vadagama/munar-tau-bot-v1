@@ -19,7 +19,6 @@ import {
 } from "antd";
 import { apiFetch } from "../lib/api";
 import { formatDateTime } from "../lib/format-date";
-import { displayKind, displayRole } from "./registry";
 import { BoardView, ViewToggle, useBoardView } from "./board";
 type Row = Record<string, unknown>;
 const STATES: Record<string, string> = {
@@ -54,11 +53,6 @@ const REASON_LABELS: Record<string, string> = {
   reject: "Основание отказа",
   dispute: "Основание спора",
 };
-/** Анкета-минимум (REG-01) без помещения — место не указано. */
-const placeText = (r: Row): string =>
-  r.premises_id
-    ? `${r.building_code} · ${displayKind(r.kind)} ${r.number}`
-    : "Помещение не указано";
 export function RegistrationsPage() {
   const [view, setView] = useBoardView("view.registrations");
   const [rows, setRows] = useState<Row[]>([]),
@@ -173,7 +167,7 @@ export function RegistrationsPage() {
     if (!searchTrim) return true;
     const d = (r.draft as Row | undefined) ?? {};
     const searchable = [d.full_name, d.phone_e164,
-      r.telegram_username ? `@${String(r.telegram_username)}` : "", placeText(r)]
+      r.telegram_username ? `@${String(r.telegram_username)}` : ""]
       .join(" ").toLocaleLowerCase("ru-RU");
     return searchable.includes(searchTrim);
   });
@@ -181,7 +175,7 @@ export function RegistrationsPage() {
     <PageLayout title="Регистрации"
       extra={<ViewToggle kind={view} onChange={setView} />}
       filters={<Space wrap>
-        <Input.Search aria-label="Поиск анкет" placeholder="ФИО, телефон, Telegram или помещение" value={search}
+        <Input.Search aria-label="Поиск анкет" placeholder="ФИО, телефон или Telegram" value={search}
           onChange={e => setSearch(e.target.value)} style={{ width: 320 }} />
         <Select
           aria-label="Состояние анкеты"
@@ -196,8 +190,7 @@ export function RegistrationsPage() {
           }))}
         />
       </Space>}> <Typography.Paragraph type="secondary">
-            Проверьте анкету по реестру. Выбор роли пользователем не предоставляет
-            доступ. Спор остаётся открытым до явного решения.
+            Проверьте анкету по реестру. Спор остаётся открытым до явного решения.
           </Typography.Paragraph>
 
       {error && (
@@ -249,15 +242,11 @@ export function RegistrationsPage() {
                     <TelegramHandle username={r.telegram_username} />
                   </Typography.Text>
                 ) : null}
-                <Typography.Text style={{ display: "block" }}>
-                  {placeText(r)}
-                </Typography.Text>
-                <Typography.Text type="secondary" style={{ display: "block" }}>
-                  {r.role ? displayRole(r.role) : ""}
-                  {r.stage_due_at
-                    ? ` · до ${formatDateTime(r.stage_due_at)}`
-                    : ""}
-                </Typography.Text>
+                {r.stage_due_at ? (
+                  <Typography.Text type="secondary" style={{ display: "block" }}>
+                    до {formatDateTime(r.stage_due_at)}
+                  </Typography.Text>
+                ) : null}
                 {!!r.confirmed_draft && <Tag color="blue">Исправления на проверке · прежний доступ сохранён</Tag>}
                 {r.overdue_at && <Tag color="red">Просрочено</Tag>}
                 {decisionButtons(r).length > 0 && (
@@ -281,7 +270,7 @@ export function RegistrationsPage() {
           rowKey="id"
           loading={busy}
           dataSource={visible}
-          scroll={{ x: 1100 }}
+          scroll={{ x: 720 }}
           pagination={{ pageSize: 20 }}
           locale={{ emptyText: rows.length ? "По выбранным условиям ничего не найдено" : "Анкет нет" }}
           columns={[
@@ -304,15 +293,6 @@ export function RegistrationsPage() {
               title: "Telegram",
               dataIndex: "telegram_username",
               render: (v) => <TelegramHandle username={v} />,
-            },
-            {
-              title: "Помещение",
-              render: (_, r) => placeText(r),
-            },
-            {
-              title: "Отношение",
-              dataIndex: "role",
-              render: (v) => (v ? displayRole(v) : "—"),
             },
             {
               title: "Состояние",
@@ -348,11 +328,11 @@ export function RegistrationsPage() {
         </Button>}>
         {management && <ProcessOverview state={STATES[String(management.row.state)]} guidance={{
           title: management.operation === "delete" ? "Нужно подтвердить прекращение доступа" : "Нужно подготовить исправления анкеты",
-          description: management.operation === "delete" ? "Проверьте человека и основание удаления. Сохранение прекратит доступ, роли и связи; обращения и история сохранятся." : "Проверьте имя, телефон и язык, укажите основание. Изменения вступят в силу после проверки ОСИ; прежний доступ пока сохранится.",
+          description: management.operation === "delete" ? "Проверьте человека и основание удаления. Сохранение прекратит доступ и служебные роли; обращения и история сохранятся." : "Проверьте имя, телефон и язык, укажите основание. Изменения вступят в силу после проверки ОСИ; прежний доступ пока сохранится.",
           waitingFor: REGISTRATION_REVIEWER_ROLES,
         }} />}
         {managementError && <Alert type="error" message={managementError} />}
-        {management?.operation === "delete" ? <Alert showIcon type="warning" message="Доступ к боту и кабинету закроется. Связи с помещениями и служебные роли прекратятся. История обращений и операций сохранится." />
+        {management?.operation === "delete" ? <Alert showIcon type="warning" message="Доступ к боту и кабинету закроется. Служебные роли прекратятся. История обращений и операций сохранится." />
           : <Typography.Paragraph>Исправления проверит ОСИ. До одобрения действуют прежние сведения и доступ.</Typography.Paragraph>}
         {!!management?.row.confirmed_draft && <Typography.Paragraph type="secondary">Действующие данные: {String((management.row.confirmed_draft as Row).full_name)} · {String((management.row.confirmed_draft as Row).phone_e164)}</Typography.Paragraph>}
         <Form form={manageForm} layout="vertical" name="registration-management">
@@ -381,8 +361,8 @@ export function RegistrationsPage() {
       >
         {action && <ProcessOverview state={STATES[String(action.row.state)]} due={action.row.stage_due_at} guidance={{
           title: action.decision === "approve" ? "Нужно проверить данные перед подтверждением" : action.decision === "clarify" ? "Нужно запросить недостающие сведения" : action.decision === "dispute" ? "Нужно указать основание спора" : "Нужно обосновать отказ",
-          description: action.decision === "approve" ? "Сверьте анкету и совпадения в реестре. Подтверждение изменит доступ заявителя; исправление основной анкеты сохранит действующие связи и роли." : action.decision === "clarify" ? "Сформулируйте конкретный вопрос. После сохранения заявитель получит запрос уточнения." : "Проверьте сведения и укажите причину решения. Решение сохраняется в истории, заявитель получает уведомление.",
-          waitingFor: action.row.review_stage === "owner" ? "Собственник помещения" : REGISTRATION_REVIEWER_ROLES,
+          description: action.decision === "approve" ? "Сверьте анкету и совпадения в реестре. Подтверждение изменит доступ заявителя; исправление основной анкеты сохранит прежний доступ и роли." : action.decision === "clarify" ? "Сформулируйте конкретный вопрос. После сохранения заявитель получит запрос уточнения." : "Проверьте сведения и укажите причину решения. Решение сохраняется в истории, заявитель получает уведомление.",
+          waitingFor: REGISTRATION_REVIEWER_ROLES,
         }} />}
         <Form name="registration-decision" form={form} layout="vertical">
           {action?.decision === "approve" ? (
@@ -396,12 +376,8 @@ export function RegistrationsPage() {
               </Typography.Paragraph>
               <Typography.Paragraph type="secondary">
                 {action.row.confirmed_draft
-                  ? "После одобрения обновятся данные пользователя. Связи, роли и история сохранятся."
-                  : action.row.premises_id
-                  ? <>В реестре создаётся карточка заявителя и подтверждается доступ: {" "}
-                    {String(action.row.building_code)} · {displayKind(action.row.kind)}{" "}
-                    {String(action.row.number)}, {displayRole(action.row.role)}.</>
-                  : "В реестре создаётся карточка заявителя и открывается доступ к обращениям без привязки к помещению. Помещение заявитель добавит позже командой /add в боте."}
+                  ? "После одобрения обновятся данные пользователя. Прежний доступ и история сохранятся."
+                  : "В реестре создаётся карточка заявителя и открывается доступ к обращениям."}
               </Typography.Paragraph>
               {!!matchedPersons.length && (
                 <Form.Item
