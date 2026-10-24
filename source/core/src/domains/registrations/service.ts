@@ -276,12 +276,15 @@ function isLaterRegistration(a: Row, b: Row): boolean {
   return String(a.id) > String(b.id);
 }
 
-/** Одна строка списка на текущее состояние человека (REG-02a, ADR-016):
- *  исторические анкеты остаются в БД, но в кабинете не дублируются. Завершённые
- *  анкеты (подтверждена/отказ/отозвана) схлопываются по человеку — person_id,
- *  иначе Telegram-аккаунт, иначе строка сама по себе — и помещению: привязки к
- *  разным помещениям не сливаются. В группе побеждает действующая анкета, затем
- *  свежайшая. Совпадение телефона людей не объединяет — как в справочнике. */
+/** Одна строка списка на человека (REG-02a, ADR-016): исторические анкеты
+ *  остаются в БД, но в кабинете не дублируются. Завершённые анкеты
+ *  (подтверждена/отказ/отозвана) схлопываются по человеку — person_id, иначе
+ *  Telegram-аккаунт, иначе строка сама по себе; привязки помещений (/add) не
+ *  создают отдельных подтверждённых регистраций — их история видна в журнале
+ *  анкеты (решение владельца 24.10.2026). В группе побеждает основная анкета
+ *  (без помещения), затем действующая, затем свежайшая — как в справочнике
+ *  жителей. Анкеты на рассмотрении видны всегда; совпадение телефона людей
+ *  не объединяет. */
 export function dedupeRegistrations(rows: Row[]): Row[] {
   const current = new Map<string, Row>();
   const queue: Row[] = [];
@@ -290,22 +293,26 @@ export function dedupeRegistrations(rows: Row[]): Row[] {
       queue.push(row);
       continue;
     }
-    const identity = row.person_id ?? row.telegram_user_id ?? row.id;
-    const key = `${row.premises_id ?? ""}|${identity}`;
-    const prev = current.get(key);
-    if (!prev) current.set(key, row);
-    else {
-      const withdrawn = String(row.state) === "withdrawn";
-      const prevWithdrawn = String(prev.state) === "withdrawn";
-      if (
-        (withdrawn && prevWithdrawn && isLaterRegistration(row, prev)) ||
-        (!withdrawn && (prevWithdrawn || isLaterRegistration(row, prev)))
-      ) current.set(key, row);
-    }
+    const identity = String(row.person_id ?? row.telegram_user_id ?? row.id);
+    const prev = current.get(identity);
+    if (!prev || preferredRegistration(row, prev)) current.set(identity, row);
   }
   return [...queue, ...current.values()].sort((a, b) =>
     isLaterRegistration(a, b) ? -1 : 1,
   );
+}
+
+/** Приоритет в группе завершённых анкет — как в справочнике жителей
+ *  (listRegistry): основная анкета (без помещения) → действующая (не отозвана)
+ *  → свежайшая. */
+function preferredRegistration(row: Row, prev: Row): boolean {
+  const main = row.premises_id == null;
+  const prevMain = prev.premises_id == null;
+  if (main !== prevMain) return main;
+  const withdrawn = String(row.state) === "withdrawn";
+  const prevWithdrawn = String(prev.state) === "withdrawn";
+  if (withdrawn !== prevWithdrawn) return !withdrawn;
+  return isLaterRegistration(row, prev);
 }
 
 export async function listRegistrations(

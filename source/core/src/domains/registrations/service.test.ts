@@ -56,15 +56,25 @@ it("список анкет: анкеты на рассмотрении видн
   expect(result.map((row) => row.id).sort()).toEqual(["r1", "r2", "r3", "r4"]);
 });
 
-it("список анкет: привязки к разным помещениям не сливаются, дубли одной привязки — да", () => {
+it("список анкет: привязки к разным помещениям сливаются в одну строку на человека", () => {
   const rows: Row[] = [
     { id: "r1", state: "approved", person_id: "person-1", premises_id: "p1", created_at: "2026-10-20T10:00:00Z" },
     { id: "r2", state: "approved", person_id: "person-1", premises_id: "p2", created_at: "2026-10-21T10:00:00Z" },
     { id: "r3", state: "approved", person_id: "person-1", premises_id: "p1", created_at: "2026-10-19T10:00:00Z" },
   ];
+  // Одна подтверждённая регистрация на жителя (решение владельца 24.10.2026):
+  // привязки (/add) не создают отдельных строк — их история в журнале анкеты.
   const result = dedupeRegistrations(rows);
-  expect(result.map((row) => row.id).sort()).toEqual(["r1", "r2"]);
-  expect(result.find((row) => row.premises_id === "p1")!.id).toBe("r1");
+  expect(result.map((row) => row.id)).toEqual(["r2"]);
+});
+
+it("список анкет: основная анкета без помещения побеждает свежайшую привязку", () => {
+  const rows: Row[] = [
+    { id: "main", state: "approved", person_id: "person-1", premises_id: null, created_at: "2026-10-19T10:00:00Z" },
+    { id: "attach", state: "approved", person_id: "person-1", premises_id: "p1", created_at: "2026-10-21T10:00:00Z" },
+  ];
+  const result = dedupeRegistrations(rows);
+  expect(result.map((row) => row.id)).toEqual(["main"]);
 });
 
 it("список анкет: без person_id группирует по Telegram, совпадение телефона людей не объединяет", () => {
