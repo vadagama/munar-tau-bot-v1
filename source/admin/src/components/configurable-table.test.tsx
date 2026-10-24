@@ -19,7 +19,7 @@ it("шестерёнка находится справа в строке фил�
   expect(within(choices).getByRole("checkbox", { name: "Имя" })).toBeDisabled();
   fireEvent.click(within(choices).getByRole("checkbox", { name: "Телефон" }));
   expect(screen.queryByRole("columnheader", { name: "Телефон" })).not.toBeInTheDocument();
-  expect(JSON.parse(localStorage.getItem("columns.people")!)).toEqual(["phone"]);
+  expect(JSON.parse(localStorage.getItem("columns.people")!)).toEqual({ v: 2, hidden: ["phone"] });
 });
 it("при смене вида реестра восстанавливается собственный набор колонок", () => {
   localStorage.setItem("columns.buildings", JSON.stringify(["phone"]));
@@ -27,6 +27,27 @@ it("при смене вида реестра восстанавливается
   expect(screen.queryByRole("columnheader", { name: "Телефон" })).not.toBeInTheDocument();
   rerender(<ConfigurableTable storageKey="columns.people" columns={columns} dataSource={[]} />);
   expect(screen.getByRole("columnheader", { name: "Телефон" })).toBeInTheDocument();
+});
+it("колонка со defaultHidden скрыта у нового пользователя и у настроенного старого", () => {
+  const withHidden = [...columns, { title: "Отзыв", dataIndex: "withdrawn_at", defaultHidden: true }];
+  // Новый пользователь: скрыта по умолчанию.
+  render(<ConfigurableTable storageKey="columns.fresh" columns={withHidden} dataSource={[]} />);
+  expect(screen.queryByRole("columnheader", { name: "Отзыв" })).not.toBeInTheDocument();
+  cleanup();
+  // Старое сохранение (формат до появления defaultHidden) — колонка тоже скрыта.
+  localStorage.setItem("columns.old", JSON.stringify(["phone"]));
+  render(<ConfigurableTable storageKey="columns.old" columns={withHidden} dataSource={[]} />);
+  expect(screen.queryByRole("columnheader", { name: "Отзыв" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("columnheader", { name: "Телефон" })).not.toBeInTheDocument();
+  cleanup();
+  // Явное включение сохраняется: повторное открытие показывает колонку.
+  render(<ConfigurableTable storageKey="columns.old" columns={withHidden} dataSource={[]} />);
+  fireEvent.click(screen.getByRole("button", { name: "Колонки" }));
+  fireEvent.click(within(screen.getByRole("group", { name: "Видимые колонки" })).getByRole("checkbox", { name: "Отзыв" }));
+  expect(screen.getByRole("columnheader", { name: "Отзыв" })).toBeInTheDocument();
+  cleanup();
+  render(<ConfigurableTable storageKey="columns.old" columns={withHidden} dataSource={[]} />);
+  expect(screen.getByRole("columnheader", { name: "Отзыв" })).toBeInTheDocument();
 });
 it("при отсутствии фильтров настройка остаётся над таблицей, вложенная таблица имеет свой контрол", () => {
   render(<PageLayout title="Общие работы">

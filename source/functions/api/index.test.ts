@@ -814,6 +814,13 @@ Deno.test("управление анкетой использует отдель
   assertEquals(route?.params.id, "11111111-1111-1111-1111-111111111111");
 });
 
+Deno.test("журнал регистраций — отдельный GET-маршрут с правом списка анкет", () => {
+  const route = matchRoute("GET", "/v1/registrations/journal");
+  assertEquals(route?.route.action, "registration.review");
+  assertEquals(route?.route.evaluateAs, "effective");
+  assertEquals(route?.params, {});
+});
+
 Deno.test("исполнитель не управляет чужой анкетой через прямой API", async () => {
   const { deps, admin } = makeDeps();
   const executor = makeTestActor("executor", [], { personId: "p-executor" });

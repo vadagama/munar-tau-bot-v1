@@ -170,7 +170,7 @@ export async function submitRegistration(
       );
       if (closed) {
         const [reopened] = await exec.query<Row>(
-          "update registration set draft=$2::text::jsonb,state='pending_review',confirmed_draft=null,reactivating=(person_id is not null),review_stage=$3,decided_reason=null,stage_due_at=null,total_due_at=null,overdue_at=null where id=$1 returning *",
+          "update registration set draft=$2::text::jsonb,state='pending_review',withdrawn_at=null,confirmed_draft=null,reactivating=(person_id is not null),review_stage=$3,decided_reason=null,stage_due_at=null,total_due_at=null,overdue_at=null where id=$1 returning *",
           [closed.id, JSON.stringify({ full_name: fullName, phone_e164: phone, language: input.language, consent: true, terms_version: "registration-v1" }), stage],
         );
         const due = await startTimer(exec, "registration_stage", String(closed.id), stage);
@@ -260,6 +260,61 @@ export async function submitRegistration(
     return { ...row, stage_due_at: due.toISOString() };
   });
 }
+// Анкеты на рассмотрении — очередь, из списка не прячем (REG-01).
+const ACTIVE_REVIEW_STATES = new Set(["pending_review", "need_clarification", "disputed"]);
+
+function registrationTime(value: unknown): number {
+  // postgres.js возвращает timestamptz объектом Date, API-фикстуры — строкой ISO.
+  if (value instanceof Date) return value.getTime();
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function isLaterRegistration(a: Row, b: Row): boolean {
+  const ta = registrationTime(a.created_at), tb = registrationTime(b.created_at);
+  if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) return ta > tb;
+  return String(a.id) > String(b.id);
+}
+
+/** Одна строка списка на человека (REG-02a, ADR-016): исторические анкеты
+ *  остаются в БД, но в кабинете не дублируются. Завершённые анкеты
+ *  (подтверждена/отказ/отозвана) схлопываются по человеку — person_id, иначе
+ *  Telegram-аккаунт, иначе строка сама по себе; привязки помещений (/add) не
+ *  создают отдельных подтверждённых регистраций — их история видна в журнале
+ *  анкеты (решение владельца 24.10.2026). В группе побеждает основная анкета
+ *  (без помещения), затем действующая, затем свежайшая — как в справочнике
+ *  жителей. Анкеты на рассмотрении видны всегда; совпадение телефона людей
+ *  не объединяет. */
+export function dedupeRegistrations(rows: Row[]): Row[] {
+  const current = new Map<string, Row>();
+  const queue: Row[] = [];
+  for (const row of rows) {
+    if (ACTIVE_REVIEW_STATES.has(String(row.state))) {
+      queue.push(row);
+      continue;
+    }
+    const identity = String(row.person_id ?? row.telegram_user_id ?? row.id);
+    const prev = current.get(identity);
+    if (!prev || preferredRegistration(row, prev)) current.set(identity, row);
+  }
+  return [...queue, ...current.values()].sort((a, b) =>
+    isLaterRegistration(a, b) ? -1 : 1,
+  );
+}
+
+/** Приоритет в группе завершённых анкет — как в справочнике жителей
+ *  (listRegistry): основная анкета (без помещения) → действующая (не отозвана)
+ *  → свежайшая. */
+function preferredRegistration(row: Row, prev: Row): boolean {
+  const main = row.premises_id == null;
+  const prevMain = prev.premises_id == null;
+  if (main !== prevMain) return main;
+  const withdrawn = String(row.state) === "withdrawn";
+  const prevWithdrawn = String(prev.state) === "withdrawn";
+  if (withdrawn !== prevWithdrawn) return !withdrawn;
+  return isLaterRegistration(row, prev);
+}
+
 export async function listRegistrations(
   deps: RegistryDeps,
   actor: Actor,
@@ -273,7 +328,7 @@ export async function listRegistrations(
     where ($1::uuid[] is null or r.premises_id is null or p.building_id=any($1::uuid[])) and r.is_test=$2 and r.superseded_by is null order by r.created_at desc`,
     [scope, actor.person.isTest],
   );
-  return rows.map(({ profile_telegram_username, ...row }) => ({ ...row,
+  return dedupeRegistrations(rows).map(({ profile_telegram_username, ...row }) => ({ ...row,
     telegram_username: profile_telegram_username ?? row.telegram_username,
     draft: jsonValue<Row>(row.draft),
     confirmed_draft: row.confirmed_draft ? jsonValue<Row>(row.confirmed_draft) : null,

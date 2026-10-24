@@ -14,7 +14,9 @@ import {
   Modal,
   Select,
   Space,
+  Spin,
   Tag,
+  Timeline,
   Typography,
 } from "antd";
 import { apiFetch } from "../lib/api";
@@ -53,6 +55,17 @@ const REASON_LABELS: Record<string, string> = {
   reject: "Основание отказа",
   dispute: "Основание спора",
 };
+// Журнал регистраций (REG-02a): история смен статусов из audit_log.
+const JOURNAL_ACTIONS: Record<string, string> = {
+  "registration.submit": "Подача анкеты",
+  "registration.edit": "Исправление анкеты",
+  "registration.approve": "Подтверждена",
+  "registration.reject": "Отказ",
+  "registration.clarify": "Запрос уточнения",
+  "registration.dispute": "Спор",
+  "registration.timer": "Истёк срок этапа",
+  "registration.delete": "Удаление анкеты",
+};
 export function RegistrationsPage() {
   const [view, setView] = useBoardView("view.registrations");
   const [rows, setRows] = useState<Row[]>([]),
@@ -68,8 +81,36 @@ export function RegistrationsPage() {
   const [manageForm] = Form.useForm();
   const [management, setManagement] = useState<{ row: Row; operation: "edit" | "delete" } | null>(null);
   const [managementError, setManagementError] = useState<string | null>(null);
+  const [journal, setJournal] = useState<{ row: Row } | null>(null);
+  const [journalData, setJournalData] = useState<Row | null>(null);
+  const [journalBusy, setJournalBusy] = useState(false);
+  const [journalError, setJournalError] = useState<string | null>(null);
   const managementKey = useRef(crypto.randomUUID());
   const reading = useRef(false);
+  const openJournal = async (row: Row) => {
+    setJournal({ row });
+    setJournalData(null);
+    setJournalError(null);
+    setJournalBusy(true);
+    try {
+      const data = await apiFetch<Row>(
+        `/v1/registrations/journal?person_id=${encodeURIComponent(String(row.person_id))}`,
+      );
+      setJournalData(data);
+    } catch (e) {
+      setJournalError(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setJournalBusy(false);
+    }
+  };
+  const applicantName = (r: Row) => {
+    const d = (r.draft as Row | undefined) ?? {};
+    const name = String(d.full_name ?? "—");
+    // Журнал регистраций — по клику на имя заявителя (REG-02a).
+    return r.person_id ? (
+      <Button type="link" style={{ padding: 0 }} onClick={() => void openJournal(r)}>{name}</Button>
+    ) : name;
+  };
   const openManagement = (row: Row, operation: "edit" | "delete") => {
     manageForm.resetFields();
     manageForm.setFieldsValue({ ...(row.draft as Row), language: (row.draft as Row)?.language ?? "ru" });
@@ -231,9 +272,7 @@ export function RegistrationsPage() {
             const d = (r.draft as Row | undefined) ?? {};
             return (
               <>
-                <Typography.Text strong>
-                  {String(d.full_name ?? "—")}
-                </Typography.Text>
+                <Typography.Text strong>{applicantName(r)}</Typography.Text>
                 <Typography.Text type="secondary" style={{ display: "block" }}>
                   {String(d.phone_e164 ?? "")}
                 </Typography.Text>
@@ -280,7 +319,7 @@ export function RegistrationsPage() {
                 const d = r.draft as Row;
                 return (
                   <>
-                    {String(d?.full_name ?? "—")}
+                    {applicantName(r)}
                     <br />
                     <Typography.Text type="secondary">
                       {String(d?.phone_e164 ?? "")}
@@ -298,19 +337,19 @@ export function RegistrationsPage() {
               title: "Состояние",
               dataIndex: "state",
               render: (v, r) => <Space direction="vertical"><Tag color={v === "disputed" ? "orange" : undefined}>{STATES[String(v)]}</Tag>
-                {!!r.confirmed_draft && <Tag color="blue">Исправления на проверке · прежний доступ сохранён</Tag>}</Space>,
+                {!!r.confirmed_draft && <Tag color="blue">Исправления на проверке · прежний доступ сохранён</Tag>}
+                {!!r.overdue_at && <Tag color="red">Просрочено</Tag>}</Space>,
             },
             {
-              title: "Срок",
-              dataIndex: "stage_due_at",
-              render: (_, r) => (
-                <>
-                  {r.stage_due_at
-                    ? new Date(String(r.stage_due_at)).toLocaleString("ru-RU")
-                    : "—"}
-                  {r.overdue_at && <Tag color="red">Просрочено</Tag>}
-                </>
-              ),
+              title: "Дата регистрации",
+              dataIndex: "created_at",
+              render: (v) => formatDateTime(v),
+            },
+            {
+              title: "Дата отзыва",
+              dataIndex: "withdrawn_at",
+              defaultHidden: true,
+              render: (v) => formatDateTime(v),
             },
             {
               title: "Действия",
@@ -343,6 +382,69 @@ export function RegistrationsPage() {
           </>}
           <Form.Item name="reason" label="Причина" rules={[{ required: true, whitespace: true, message: "Укажите основание" }]}><Input.TextArea maxLength={300} /></Form.Item>
         </Form>
+      </CardDrawer>
+      <CardDrawer
+        open={!!journal}
+        title={journal ? `История регистрации · ${String(((journal.row.draft as Row) ?? {}).full_name ?? "—")}` : "История регистрации"}
+        onClose={() => setJournal(null)}
+      >
+        {journalError && <Alert type="error" showIcon message={journalError} />}
+        {journalBusy && <Spin />}
+        {journalData && <>
+          <Typography.Title level={5} style={{ marginTop: 0 }}>Анкеты заявителя</Typography.Title>
+          <Space direction="vertical" size={8} style={{ display: "flex" }}>
+            {(journalData.registrations as Row[]).map((r) => (
+              <div key={String(r.id)}>
+                <Space wrap>
+                  <Tag color={r.state === "disputed" ? "orange" : undefined}>{STATES[String(r.state)]}</Tag>
+                  {r.superseded_by ? <Tag>Историческая</Tag> : null}
+                  {r.premises_id ? (
+                    <Typography.Text type="secondary">Привязка · {String(r.building_code ?? "")}, {String(r.number ?? "")}</Typography.Text>
+                  ) : (
+                    <Typography.Text type="secondary">Основная анкета</Typography.Text>
+                  )}
+                </Space>
+                <Typography.Text type="secondary" style={{ display: "block" }}>
+                  Подана {formatDateTime(r.created_at)}
+                  {r.decided_at ? ` · решение ${formatDateTime(r.decided_at)}` : ""}
+                  {r.withdrawn_at ? ` · отзыв ${formatDateTime(r.withdrawn_at)}` : ""}
+                </Typography.Text>
+              </div>
+            ))}
+          </Space>
+          <Typography.Title level={5}>История статусов</Typography.Title>
+          {(journalData.events as Row[]).length ? (
+            <Timeline
+              items={(journalData.events as Row[]).map((e, index) => {
+                const after = (e.after ?? {}) as Row;
+                const before = (e.before ?? {}) as Row;
+                return {
+                  key: index,
+                  color: e.action === "registration.approve" ? "green"
+                    : e.action === "registration.reject" || e.action === "registration.delete" ? "red"
+                    : e.action === "registration.dispute" || e.action === "registration.timer" ? "orange"
+                    : "blue",
+                  children: (
+                    <>
+                      <Typography.Text>{JOURNAL_ACTIONS[String(e.action)] ?? String(e.action)}</Typography.Text>
+                      {before.state && after.state && String(before.state) !== String(after.state) ? (
+                        <Typography.Text type="secondary"> · {STATES[String(before.state)] ?? String(before.state)} → {STATES[String(after.state)] ?? String(after.state)}</Typography.Text>
+                      ) : after.state ? (
+                        <Typography.Text type="secondary"> · {STATES[String(after.state)] ?? String(after.state)}</Typography.Text>
+                      ) : null}
+                      <Typography.Text type="secondary" style={{ display: "block" }}>
+                        {formatDateTime(e.at)}{e.actor_name ? ` · ${String(e.actor_name)}` : ""}
+                      </Typography.Text>
+                      {e.reason ? <Typography.Text type="secondary" style={{ display: "block" }}>Причина: {String(e.reason)}</Typography.Text> : null}
+                    </>
+                  ),
+                };
+              })}
+            />
+          ) : (
+            <Typography.Text type="secondary">Событий пока нет</Typography.Text>
+          )}
+        </>}
       </CardDrawer>
       <Modal
         title={

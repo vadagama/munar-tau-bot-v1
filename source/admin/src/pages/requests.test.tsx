@@ -453,7 +453,8 @@ it("выбор колонок обращений скрывает описани
   const settings = await screen.findByRole("group", { name: "Видимые колонки" });
   fireEvent.click(within(settings).getByRole("checkbox", { name: "Описание" }));
   expect(screen.queryByRole("columnheader", { name: "Описание" })).not.toBeInTheDocument();
-  expect(JSON.parse(localStorage.getItem("columns.requests")!)).toEqual(["description"]);
+  expect(JSON.parse(localStorage.getItem("columns.requests")!)).toEqual({ v: 2, hidden: ["description"] });
+  // Задания не настраивались — старое сохранение не переписывается без изменений.
   expect(JSON.parse(localStorage.getItem("columns.tasks")!)).toEqual(["assignee_name"]);
 });
 

@@ -16,6 +16,8 @@ const registration = {
   role: "owner",
   stage_due_at: "2026-10-20T10:00:00Z",
   overdue_at: null,
+  created_at: "2026-10-24T08:30:00Z",
+  withdrawn_at: null,
 };
 const computed = window.getComputedStyle.bind(window);
 beforeEach(() => {
@@ -69,6 +71,46 @@ it("переключение на таблицу сохраняет прежни
   fireEvent.click(screen.getByRole("radio", { name: "Таблица" }));
   expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Подтвердить" })).toBeInTheDocument();
+});
+
+it("таблица: дата регистрации вместо срока, дата отзыва скрыта по умолчанию", async () => {
+  render(<RegistrationsPage />);
+  fireEvent.click(await screen.findByRole("radio", { name: "Таблица" }));
+  expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: "Дата регистрации" })).toBeInTheDocument();
+  // Дата подачи — по Алматы; прежняя колонка «Срок» больше не показывается.
+  expect(screen.getByText(/24\.10\.2026/, { selector: "td" })).toBeInTheDocument();
+  expect(screen.queryByRole("columnheader", { name: "Срок" })).toBeNull();
+  expect(screen.queryByRole("columnheader", { name: "Дата отзыва" })).toBeNull();
+  // Просрочка — атрибут состояния, а не отдельная колонка срока.
+  expect(screen.queryByText("Просрочено")).toBeNull();
+});
+
+it("таблица: дата отзыва включается в настройках колонок", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path =>
+    path === "/v1/registrations"
+      ? { items: [{ ...registration, state: "withdrawn", can_manage: false, withdrawn_at: "2026-10-23T10:00:00Z" }] }
+      : { items: [] });
+  render(<RegistrationsPage />);
+  fireEvent.click(await screen.findByRole("radio", { name: "Таблица" }));
+  expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Колонки" }));
+  const checkbox = await screen.findByRole("checkbox", { name: "Дата отзыва" });
+  expect(checkbox).not.toBeChecked();
+  fireEvent.click(checkbox);
+  expect(screen.getByRole("columnheader", { name: "Дата отзыва" })).toBeInTheDocument();
+  expect(screen.getByText(/23\.10\.2026/, { selector: "td" })).toBeInTheDocument();
+});
+
+it("таблица: просрочка показывается в состоянии анкеты", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path =>
+    path === "/v1/registrations"
+      ? { items: [{ ...registration, overdue_at: "2026-10-22T10:00:00Z" }] }
+      : { items: [] });
+  render(<RegistrationsPage />);
+  fireEvent.click(await screen.findByRole("radio", { name: "Таблица" }));
+  expect(await screen.findByText("Ожидает проверки")).toBeInTheDocument();
+  expect(screen.getByText("Просрочено")).toBeInTheDocument();
 });
 
 const liteRegistration = {
@@ -144,4 +186,44 @@ it("удаление предупреждает о закрытии доступ
   fireEvent.click(screen.getByRole("button", { name: "Удалить анкету" }));
   expect(await screen.findByText("Укажите основание")).toBeInTheDocument();
   expect(vi.mocked(apiFetch).mock.calls.some(([path]) => path.endsWith("/manage"))).toBe(false);
+});
+
+it("журнал: клик по имени заявителя открывает историю статусов и все анкеты", async () => {
+  vi.mocked(apiFetch).mockImplementation(async (path) => {
+    if (path === "/v1/registrations")
+      return { items: [{ ...liteRegistration, state: "approved", person_id: "person-1", can_manage: true }] };
+    if (String(path).startsWith("/v1/registrations/journal"))
+      return {
+        person: { id: "person-1", full_name: "Пётр Петров", phone_e164: "+79990000003" },
+        registrations: [
+          { id: "main", state: "approved", premises_id: null, superseded_by: null, created_at: "2026-10-23T18:42:00Z", decided_at: "2026-10-23T20:42:00Z", withdrawn_at: null, building_code: null, number: null },
+          { id: "attach", state: "approved", premises_id: "p4", superseded_by: null, created_at: "2026-10-23T21:09:00Z", decided_at: "2026-10-23T21:09:00Z", withdrawn_at: null, building_code: "Д1", number: "4" },
+        ],
+        events: [
+          { at: "2026-10-23T18:42:00Z", action: "registration.submit", before: null, after: { state: "pending_review" }, reason: null, actor_name: "Пётр Петров" },
+          { at: "2026-10-23T20:42:00Z", action: "registration.approve", before: { state: "pending_review" }, after: { state: "approved" }, reason: "Проверено по реестру", actor_name: "Администратор ОСИ" },
+          { at: "2026-10-23T21:09:00Z", action: "registration.approve", before: { state: "pending_review" }, after: { state: "approved" }, reason: "Привязка подтверждена", actor_name: "Администратор ОСИ" },
+        ],
+      };
+    return { items: [] };
+  });
+  render(<RegistrationsPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Пётр Петров" }));
+  expect(await screen.findByText("История статусов")).toBeInTheDocument();
+  // Обе анкеты видны: основная и привязка — привязка не отдельная регистрация в списке.
+  expect(screen.getByText("Основная анкета")).toBeInTheDocument();
+  expect(screen.getByText(/Привязка · Д1, 4/)).toBeInTheDocument();
+  // История смен статусов: подача → подтверждение, с причиной и актором.
+  expect(screen.getByText("Подача анкеты")).toBeInTheDocument();
+  expect(screen.getAllByText("Подтверждена").length).toBe(2);
+  expect(screen.getByText("Причина: Проверено по реестру")).toBeInTheDocument();
+  expect(screen.getAllByText(/Администратор ОСИ/).length).toBeGreaterThanOrEqual(2);
+});
+
+it("журнал: имя без карточки реестра не кликается", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path =>
+    path === "/v1/registrations" ? { items: [liteRegistration] } : { items: [] });
+  render(<RegistrationsPage />);
+  expect(await screen.findByText("Пётр Петров")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Пётр Петров" })).toBeNull();
 });
