@@ -1247,3 +1247,13 @@ it("/add manual: при ошибке — номера помещений ссы�
   expect(replyText(stale)).toContain("уже неактивен");
   expect(h.state.step).toBe("role");
 });
+
+it.each(["/start", "/cancel", "Старт"])("%s: регистрация скрыта только при действующем профиле", async input => {
+  for (const profile of [false, true]) {
+    const h = harness({ profile });
+    const reply = await registrationStep(h.deps, "100", input);
+    expect(typeof reply).toBe("object");
+    if (typeof reply === "string") throw new Error("Ожидалось меню");
+    expect(reply.buttons?.flat().some(button => button.data === "/register")).toBe(!profile);
+  }
+});

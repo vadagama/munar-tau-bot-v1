@@ -10,8 +10,7 @@ it.each(["/start", "Старт"])("главное меню жителя откр
   expect(reply.buttons?.map(row => row.map(button => button.data))).toEqual([
     ["/status", "/register", "/help"], ["/objects", "/add"],
     ["/requests", "/newrequest"], ["/invite", "/accesses"],
-    ["/incidents", "/publications"], ["/documents", "/financial"], ["/polls","/initiatives"], ["/emergency", "/notifications"],
-    ["/pending"], ["/plans"], ["/cancel"],
+    ["/notifications"], ["/cancel"],
   ]);
 });
 it("справка предлагает только отмену", () => {
@@ -36,7 +35,20 @@ it("меню сотрудника открывает финансовые обя
   expect(typeof reply !== "string" && reply.buttons?.flat().some(b => b.data === "/financialduties")).toBe(true);
 });
 
-it("меню сотрудника открывает личную работу, жителю доступна публикационная сводка",()=>{
+it("личная работа доступна только сотруднику",()=>{
  const worker=navigationReply("Меню","tasks","ru",undefined,"/start"),resident=navigationReply("Меню","registration","kk",undefined,"/start");
  expect(typeof worker!=="string"&&worker.buttons?.flat().some(b=>b.data==="/mywork")).toBe(true);expect(typeof resident!=="string"&&resident.buttons?.flat().some(b=>b.data==="/mywork")).toBe(false);
+});
+
+it.each(["ru", "kk"] as const)("оба меню скрывают отложенные функции (%s)", lang => {
+  for (const scenario of ["registration", "tasks"]) {
+    for (const input of ["/start", "/cancel"]) {
+      const reply = navigationReply("Меню", scenario, lang, undefined, input);
+      if (typeof reply === "string") throw new Error("Ожидалось меню");
+      const commands = reply.buttons?.flat().map(button => button.data);
+      for (const command of ["/incidents", "/publications", "/documents", "/financial", "/polls", "/initiatives", "/emergency", "/pending", "/plans"]) {
+        expect(commands).not.toContain(command);
+      }
+    }
+  }
 });
