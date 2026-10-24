@@ -187,3 +187,43 @@ it("удаление предупреждает о закрытии доступ
   expect(await screen.findByText("Укажите основание")).toBeInTheDocument();
   expect(vi.mocked(apiFetch).mock.calls.some(([path]) => path.endsWith("/manage"))).toBe(false);
 });
+
+it("журнал: клик по имени заявителя открывает историю статусов и все анкеты", async () => {
+  vi.mocked(apiFetch).mockImplementation(async (path) => {
+    if (path === "/v1/registrations")
+      return { items: [{ ...liteRegistration, state: "approved", person_id: "person-1", can_manage: true }] };
+    if (String(path).startsWith("/v1/registrations/journal"))
+      return {
+        person: { id: "person-1", full_name: "Пётр Петров", phone_e164: "+79990000003" },
+        registrations: [
+          { id: "main", state: "approved", premises_id: null, superseded_by: null, created_at: "2026-10-23T18:42:00Z", decided_at: "2026-10-23T20:42:00Z", withdrawn_at: null, building_code: null, number: null },
+          { id: "attach", state: "approved", premises_id: "p4", superseded_by: null, created_at: "2026-10-23T21:09:00Z", decided_at: "2026-10-23T21:09:00Z", withdrawn_at: null, building_code: "Д1", number: "4" },
+        ],
+        events: [
+          { at: "2026-10-23T18:42:00Z", action: "registration.submit", before: null, after: { state: "pending_review" }, reason: null, actor_name: "Пётр Петров" },
+          { at: "2026-10-23T20:42:00Z", action: "registration.approve", before: { state: "pending_review" }, after: { state: "approved" }, reason: "Проверено по реестру", actor_name: "Администратор ОСИ" },
+          { at: "2026-10-23T21:09:00Z", action: "registration.approve", before: { state: "pending_review" }, after: { state: "approved" }, reason: "Привязка подтверждена", actor_name: "Администратор ОСИ" },
+        ],
+      };
+    return { items: [] };
+  });
+  render(<RegistrationsPage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Пётр Петров" }));
+  expect(await screen.findByText("История статусов")).toBeInTheDocument();
+  // Обе анкеты видны: основная и привязка — привязка не отдельная регистрация в списке.
+  expect(screen.getByText("Основная анкета")).toBeInTheDocument();
+  expect(screen.getByText(/Привязка · Д1, 4/)).toBeInTheDocument();
+  // История смен статусов: подача → подтверждение, с причиной и актором.
+  expect(screen.getByText("Подача анкеты")).toBeInTheDocument();
+  expect(screen.getAllByText("Подтверждена").length).toBe(2);
+  expect(screen.getByText("Причина: Проверено по реестру")).toBeInTheDocument();
+  expect(screen.getAllByText(/Администратор ОСИ/).length).toBeGreaterThanOrEqual(2);
+});
+
+it("журнал: имя без карточки реестра не кликается", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path =>
+    path === "/v1/registrations" ? { items: [liteRegistration] } : { items: [] });
+  render(<RegistrationsPage />);
+  expect(await screen.findByText("Пётр Петров")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Пётр Петров" })).toBeNull();
+});
