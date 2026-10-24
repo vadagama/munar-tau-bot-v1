@@ -10,6 +10,7 @@ export function navigationReply(
   lang: Lang,
   store?: TemplateStore,
   input = "",
+  registered = false,
 ): BotReply {
   const command = menuCommand(input, store) ?? input.trim();
   const existing = typeof reply === "string"
@@ -29,7 +30,7 @@ export function navigationReply(
       ]
       : [
         b("status", "/status"),
-        b("register", "/register"),
+        ...(registered ? [] : [b("register", "/register")]),
         b("help", "/help"),
       ],
   ] : [];
@@ -41,17 +42,11 @@ export function navigationReply(
       [b("objects", "/objects"), b("add", "/add")],
       [b("requests", "/requests"), b("newrequest", "/newrequest")],
       [b("invite", "/invite"), b("accesses", "/accesses")],
-      [b("incidents", "/incidents"), b("publications", "/publications")],
-      [b("documents", "/documents"), b("financial", "/financial")],
-      [b("polls", "/polls"),b("initiatives","/initiatives")],
-      [b("emergency", "/emergency"), b("settings", "/notifications")],
+      [b("settings", "/notifications")],
     );
   }
-  if(scenario==='registration'&&!existing.length&&['/start','/cancel'].includes(command))rows.push([b('pending','/pending')]);
-  if(scenario==='tasks'&&!existing.length&&['/start','/cancel'].includes(command))rows.push([b('signals','/signals'),b('publications','/publications')],[b('incidents','/incidents'),b('emergency','/emergency')]);
-  if(scenario==='tasks'&&!existing.length&&['/start','/cancel'].includes(command))rows.push([b('documents','/documents'),b('financialduties','/financialduties')],[b('polls','/polls'),b('initiatives','/initiatives')]);
+  if(scenario==='tasks'&&!existing.length&&['/start','/cancel'].includes(command))rows.push([b('signals','/signals'),b('financialduties','/financialduties')]);
   if(scenario==="tasks"&&mainMenu&&!existing.length)rows.push([btn(messageButton(store,lang,"reports.controls","mywork"),"/mywork")]);
-  if(scenario==="registration"&&mainMenu&&!existing.length)rows.push([btn(messageButton(store,lang,"reports.controls","plans"),"/plans")]);
   if (
     !rows.flat().some((b) =>
       b.data === "/cancel" || b.data === "/requestcancel"

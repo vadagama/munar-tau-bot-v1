@@ -445,3 +445,17 @@ it("устаревшая house-link не сбрасывает другой ди�
 it("диагностическая error-запись повторяется один раз, processed остаётся дубликатом",async()=>{
  const h=harness({failedUpdate:700});expect(await processInbound(h.deps,helpUpdate(700))).toBe(true);expect(h.notifications).toHaveLength(1);expect(await processInbound(h.deps,helpUpdate(700))).toBe(false);expect(h.notifications).toHaveLength(1);
 });
+
+it.each(["/start", "/cancel"])("%s: транспорт сохраняет меню с учётом регистрации", async input => {
+  for (const profile of [false, true]) {
+    const h = harness({ profile });
+    expect(await processInbound(h.deps, textUpdate(90, input), "resident")).toBe(true);
+    const markup = JSON.parse(String(h.notifications[0]!.params![4])) as {
+      inline_keyboard: { callback_data: string }[][];
+    };
+    const commands = markup.inline_keyboard.flat().map(button => button.callback_data);
+    expect(commands.includes("/register")).toBe(!profile);
+    expect(commands).toContain("/requests");
+    expect(commands).not.toContain("/plans");
+  }
+});

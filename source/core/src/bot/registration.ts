@@ -229,11 +229,11 @@ export async function registrationStep(
     if (cmd === "/cancel") {
       for (const key of Object.keys(state)) delete state[key];
       // Отмена ведёт в главное меню (как /start), а не в справку.
-      return save(welcomeText(L, deps.templates));
+      return save(navigationReply(welcomeText(L, deps.templates), "registration", L, deps.templates, cmd, Boolean(actor)));
     }
     if (cmd === "/start" && !parts[1]?.startsWith("invite_")) {
       for (const key of Object.keys(state)) delete state[key];
-      return save(welcomeText(L, deps.templates));
+      return save(navigationReply(welcomeText(L, deps.templates), "registration", L, deps.templates, cmd, Boolean(actor)));
     }
     if (cmd === "/status") {
       const rows = await exec.query<Row>(
