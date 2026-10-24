@@ -298,19 +298,19 @@ export function RegistrationsPage() {
               title: "Состояние",
               dataIndex: "state",
               render: (v, r) => <Space direction="vertical"><Tag color={v === "disputed" ? "orange" : undefined}>{STATES[String(v)]}</Tag>
-                {!!r.confirmed_draft && <Tag color="blue">Исправления на проверке · прежний доступ сохранён</Tag>}</Space>,
+                {!!r.confirmed_draft && <Tag color="blue">Исправления на проверке · прежний доступ сохранён</Tag>}
+                {!!r.overdue_at && <Tag color="red">Просрочено</Tag>}</Space>,
             },
             {
-              title: "Срок",
-              dataIndex: "stage_due_at",
-              render: (_, r) => (
-                <>
-                  {r.stage_due_at
-                    ? new Date(String(r.stage_due_at)).toLocaleString("ru-RU")
-                    : "—"}
-                  {r.overdue_at && <Tag color="red">Просрочено</Tag>}
-                </>
-              ),
+              title: "Дата регистрации",
+              dataIndex: "created_at",
+              render: (v) => formatDateTime(v),
+            },
+            {
+              title: "Дата отзыва",
+              dataIndex: "withdrawn_at",
+              defaultHidden: true,
+              render: (v) => formatDateTime(v),
             },
             {
               title: "Действия",

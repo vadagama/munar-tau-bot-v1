@@ -16,6 +16,8 @@ const registration = {
   role: "owner",
   stage_due_at: "2026-10-20T10:00:00Z",
   overdue_at: null,
+  created_at: "2026-10-24T08:30:00Z",
+  withdrawn_at: null,
 };
 const computed = window.getComputedStyle.bind(window);
 beforeEach(() => {
@@ -69,6 +71,46 @@ it("переключение на таблицу сохраняет прежни
   fireEvent.click(screen.getByRole("radio", { name: "Таблица" }));
   expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Подтвердить" })).toBeInTheDocument();
+});
+
+it("таблица: дата регистрации вместо срока, дата отзыва скрыта по умолчанию", async () => {
+  render(<RegistrationsPage />);
+  fireEvent.click(await screen.findByRole("radio", { name: "Таблица" }));
+  expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: "Дата регистрации" })).toBeInTheDocument();
+  // Дата подачи — по Алматы; прежняя колонка «Срок» больше не показывается.
+  expect(screen.getByText(/24\.10\.2026/, { selector: "td" })).toBeInTheDocument();
+  expect(screen.queryByRole("columnheader", { name: "Срок" })).toBeNull();
+  expect(screen.queryByRole("columnheader", { name: "Дата отзыва" })).toBeNull();
+  // Просрочка — атрибут состояния, а не отдельная колонка срока.
+  expect(screen.queryByText("Просрочено")).toBeNull();
+});
+
+it("таблица: дата отзыва включается в настройках колонок", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path =>
+    path === "/v1/registrations"
+      ? { items: [{ ...registration, state: "withdrawn", can_manage: false, withdrawn_at: "2026-10-23T10:00:00Z" }] }
+      : { items: [] });
+  render(<RegistrationsPage />);
+  fireEvent.click(await screen.findByRole("radio", { name: "Таблица" }));
+  expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Колонки" }));
+  const checkbox = await screen.findByRole("checkbox", { name: "Дата отзыва" });
+  expect(checkbox).not.toBeChecked();
+  fireEvent.click(checkbox);
+  expect(screen.getByRole("columnheader", { name: "Дата отзыва" })).toBeInTheDocument();
+  expect(screen.getByText(/23\.10\.2026/, { selector: "td" })).toBeInTheDocument();
+});
+
+it("таблица: просрочка показывается в состоянии анкеты", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path =>
+    path === "/v1/registrations"
+      ? { items: [{ ...registration, overdue_at: "2026-10-22T10:00:00Z" }] }
+      : { items: [] });
+  render(<RegistrationsPage />);
+  fireEvent.click(await screen.findByRole("radio", { name: "Таблица" }));
+  expect(await screen.findByText("Ожидает проверки")).toBeInTheDocument();
+  expect(screen.getByText("Просрочено")).toBeInTheDocument();
 });
 
 const liteRegistration = {

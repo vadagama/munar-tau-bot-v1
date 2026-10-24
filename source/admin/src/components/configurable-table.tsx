@@ -3,11 +3,12 @@ import { createPortal } from "react-dom";
 import { Table, type TableProps } from "antd";
 import { TableSettingsContext } from "./table-settings-context";
 import { withColumnSorting } from "./table-sorting";
-import { useTableColumns } from "./table-columns";
+import { useTableColumns, type ConfigurableColumn } from "./table-columns";
 
-type Props<T extends object> = TableProps<T> & {
+type Props<T extends object> = Omit<TableProps<T>, "columns"> & {
   storageKey: string;
   settingsPlacement?: "page" | "inline";
+  columns?: ConfigurableColumn<T>[];
 };
 
 /** Ключ настроек меняется вместе с видом реестра, не смешивая скрытые поля. */
