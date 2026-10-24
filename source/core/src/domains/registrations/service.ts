@@ -170,7 +170,7 @@ export async function submitRegistration(
       );
       if (closed) {
         const [reopened] = await exec.query<Row>(
-          "update registration set draft=$2::text::jsonb,state='pending_review',confirmed_draft=null,reactivating=(person_id is not null),review_stage=$3,decided_reason=null,stage_due_at=null,total_due_at=null,overdue_at=null where id=$1 returning *",
+          "update registration set draft=$2::text::jsonb,state='pending_review',withdrawn_at=null,confirmed_draft=null,reactivating=(person_id is not null),review_stage=$3,decided_reason=null,stage_due_at=null,total_due_at=null,overdue_at=null where id=$1 returning *",
           [closed.id, JSON.stringify({ full_name: fullName, phone_e164: phone, language: input.language, consent: true, terms_version: "registration-v1" }), stage],
         );
         const due = await startTimer(exec, "registration_stage", String(closed.id), stage);
@@ -260,6 +260,47 @@ export async function submitRegistration(
     return { ...row, stage_due_at: due.toISOString() };
   });
 }
+// Анкеты на рассмотрении — очередь, из списка не прячем (REG-01).
+const ACTIVE_REVIEW_STATES = new Set(["pending_review", "need_clarification", "disputed"]);
+
+function isLaterRegistration(a: Row, b: Row): boolean {
+  const ta = Date.parse(String(a.created_at)), tb = Date.parse(String(b.created_at));
+  if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) return ta > tb;
+  return String(a.id) > String(b.id);
+}
+
+/** Одна строка списка на текущее состояние человека (REG-02a, ADR-016):
+ *  исторические анкеты остаются в БД, но в кабинете не дублируются. Завершённые
+ *  анкеты (подтверждена/отказ/отозвана) схлопываются по человеку — person_id,
+ *  иначе Telegram-аккаунт, иначе строка сама по себе — и помещению: привязки к
+ *  разным помещениям не сливаются. В группе побеждает действующая анкета, затем
+ *  свежайшая. Совпадение телефона людей не объединяет — как в справочнике. */
+export function dedupeRegistrations(rows: Row[]): Row[] {
+  const current = new Map<string, Row>();
+  const queue: Row[] = [];
+  for (const row of rows) {
+    if (ACTIVE_REVIEW_STATES.has(String(row.state))) {
+      queue.push(row);
+      continue;
+    }
+    const identity = row.person_id ?? row.telegram_user_id ?? row.id;
+    const key = `${row.premises_id ?? ""}|${identity}`;
+    const prev = current.get(key);
+    if (!prev) current.set(key, row);
+    else {
+      const withdrawn = String(row.state) === "withdrawn";
+      const prevWithdrawn = String(prev.state) === "withdrawn";
+      if (
+        (withdrawn && prevWithdrawn && isLaterRegistration(row, prev)) ||
+        (!withdrawn && (prevWithdrawn || isLaterRegistration(row, prev)))
+      ) current.set(key, row);
+    }
+  }
+  return [...queue, ...current.values()].sort((a, b) =>
+    isLaterRegistration(a, b) ? -1 : 1,
+  );
+}
+
 export async function listRegistrations(
   deps: RegistryDeps,
   actor: Actor,
@@ -273,7 +314,7 @@ export async function listRegistrations(
     where ($1::uuid[] is null or r.premises_id is null or p.building_id=any($1::uuid[])) and r.is_test=$2 and r.superseded_by is null order by r.created_at desc`,
     [scope, actor.person.isTest],
   );
-  return rows.map(({ profile_telegram_username, ...row }) => ({ ...row,
+  return dedupeRegistrations(rows).map(({ profile_telegram_username, ...row }) => ({ ...row,
     telegram_username: profile_telegram_username ?? row.telegram_username,
     draft: jsonValue<Row>(row.draft),
     confirmed_draft: row.confirmed_draft ? jsonValue<Row>(row.confirmed_draft) : null,

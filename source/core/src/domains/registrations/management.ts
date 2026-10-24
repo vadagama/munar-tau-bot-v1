@@ -194,7 +194,7 @@ export async function manageRegistration(
           [id, row.person_id, row.telegram_user_id],
         );
         await exec.query(
-          "update registration set state='withdrawn',confirmed_draft=null,decided_reason=$4 where id=$1 or person_id=$2 or telegram_user_id=$3",
+          "update registration set state='withdrawn',withdrawn_at=now(),confirmed_draft=null,decided_reason=$4 where id=$1 or person_id=$2 or telegram_user_id=$3",
           [id, row.person_id, row.telegram_user_id, reason],
         );
         await exec.query(
@@ -255,7 +255,7 @@ export async function withdrawUnconfirmedRegistration(
       [id],
     );
     await exec.query(
-      "update registration set state='withdrawn',confirmed_draft=null where id=$1",
+      "update registration set state='withdrawn',withdrawn_at=now(),confirmed_draft=null where id=$1",
       [id],
     );
     await exec.query(

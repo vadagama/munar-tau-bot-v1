@@ -6,9 +6,92 @@ import type {
   AuditEntryInput,
   AuditRepo,
 } from "../audit/port.ts";
-import { reviewRegistration, reviseRegistration, submitRegistration } from "./service.ts";
+import {
+  dedupeRegistrations,
+  reviewRegistration,
+  reviseRegistration,
+  submitRegistration,
+} from "./service.ts";
 import { sweepRegistrations } from "./jobs.ts";
 import type { Row } from "../registry/validation.ts";
+
+/** Завершённые анкеты одного человека схлопываются до текущего состояния (REG-02a). */
+it("список анкет: три подтверждённых и две отозванных одного человека дают одну строку", () => {
+  const approved = (id: string, createdAt: string): Row => ({
+    id,
+    state: "approved",
+    person_id: "person-1",
+    premises_id: null,
+    created_at: createdAt,
+  });
+  const withdrawn = (id: string, createdAt: string): Row => ({
+    id,
+    state: "withdrawn",
+    person_id: "person-1",
+    premises_id: null,
+    created_at: createdAt,
+  });
+  const rows = [
+    approved("r1", "2026-10-20T10:00:00Z"),
+    approved("r2", "2026-10-21T10:00:00Z"),
+    approved("r3", "2026-10-19T10:00:00Z"),
+    withdrawn("r4", "2026-10-18T10:00:00Z"),
+    withdrawn("r5", "2026-10-17T10:00:00Z"),
+  ];
+  const result = dedupeRegistrations(rows);
+  expect(result).toHaveLength(1);
+  // Побеждает свежайшая действующая анкета, а не первая в списке.
+  expect(result[0]!.id).toBe("r2");
+});
+
+it("список анкет: анкеты на рассмотрении видны всегда, даже у человека с подтверждённой", () => {
+  const rows: Row[] = [
+    { id: "r1", state: "approved", person_id: "person-1", premises_id: null, created_at: "2026-10-20T10:00:00Z" },
+    // Новая привязка в очереди — не прячется за действующей анкетой.
+    { id: "r2", state: "pending_review", person_id: "person-1", premises_id: "p2", created_at: "2026-10-22T10:00:00Z" },
+    { id: "r3", state: "need_clarification", person_id: "person-1", premises_id: null, created_at: "2026-10-23T10:00:00Z" },
+    { id: "r4", state: "disputed", person_id: "person-1", premises_id: "p3", created_at: "2026-10-21T10:00:00Z" },
+  ];
+  const result = dedupeRegistrations(rows);
+  expect(result.map((row) => row.id).sort()).toEqual(["r1", "r2", "r3", "r4"]);
+});
+
+it("список анкет: привязки к разным помещениям не сливаются, дубли одной привязки — да", () => {
+  const rows: Row[] = [
+    { id: "r1", state: "approved", person_id: "person-1", premises_id: "p1", created_at: "2026-10-20T10:00:00Z" },
+    { id: "r2", state: "approved", person_id: "person-1", premises_id: "p2", created_at: "2026-10-21T10:00:00Z" },
+    { id: "r3", state: "approved", person_id: "person-1", premises_id: "p1", created_at: "2026-10-19T10:00:00Z" },
+  ];
+  const result = dedupeRegistrations(rows);
+  expect(result.map((row) => row.id).sort()).toEqual(["r1", "r2"]);
+  expect(result.find((row) => row.premises_id === "p1")!.id).toBe("r1");
+});
+
+it("список анкет: без person_id группирует по Telegram, совпадение телефона людей не объединяет", () => {
+  const rows: Row[] = [
+    // Две отозванные анкеты одного Telegram-аккаунта без карточки: свежайшая остаётся.
+    { id: "r1", state: "withdrawn", person_id: null, telegram_user_id: "100", draft: { phone_e164: "+77054933569" }, premises_id: null, created_at: "2026-10-18T10:00:00Z" },
+    { id: "r2", state: "withdrawn", person_id: null, telegram_user_id: "100", draft: { phone_e164: "+77054933569" }, premises_id: null, created_at: "2026-10-19T10:00:00Z" },
+    // Тот же телефон, другой человек и другой аккаунт: не дубль.
+    { id: "r3", state: "approved", person_id: "person-9", telegram_user_id: "200", draft: { phone_e164: "+77054933569" }, premises_id: null, created_at: "2026-10-20T10:00:00Z" },
+    // Без человека и без Telegram строка остаётся сама по себе.
+    { id: "r4", state: "withdrawn", person_id: null, telegram_user_id: null, draft: { phone_e164: "+77054933569" }, premises_id: null, created_at: "2026-10-17T10:00:00Z" },
+    { id: "r5", state: "withdrawn", person_id: null, telegram_user_id: null, draft: { phone_e164: "+77054933569" }, premises_id: null, created_at: "2026-10-16T10:00:00Z" },
+  ];
+  const result = dedupeRegistrations(rows);
+  // Строки без человека и без Telegram не объединяются — неизвестно, один ли это заявитель.
+  expect(result.map((row) => row.id).sort()).toEqual(["r2", "r3", "r4", "r5"]);
+});
+
+it("список анкет: результат упорядочен по дате подачи по убыванию", () => {
+  const rows: Row[] = [
+    { id: "r1", state: "pending_review", person_id: "person-1", premises_id: null, created_at: "2026-10-23T10:00:00Z" },
+    { id: "r2", state: "approved", person_id: "person-2", premises_id: null, created_at: "2026-10-20T10:00:00Z" },
+    { id: "r3", state: "rejected", person_id: "person-3", premises_id: null, created_at: "2026-10-21T10:00:00Z" },
+  ];
+  expect(dedupeRegistrations(rows).map((row) => row.id)).toEqual(["r1", "r3", "r2"]);
+});
+
 const actor: Actor = {
   person: {
     id: "admin",
