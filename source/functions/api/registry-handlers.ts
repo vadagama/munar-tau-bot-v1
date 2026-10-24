@@ -32,6 +32,8 @@ import {
   createInvite,
   acceptInvite,
 } from "../../core/src/domains/registrations/service.ts";
+import { registrationJournal } from "../../core/src/domains/registrations/journal.ts";
+import { ApiError } from "../../core/src/errors/api.ts";
 import {
   databaseValidation,
   jsonValue,
@@ -296,6 +298,20 @@ routes.push(
     handler: async (ctx) => ({
       body: { items: await listRegistrations(deps(ctx), ctx.actor) },
     }),
+  },
+  {
+    // Журнал регистраций человека (REG-02a): история статусов и все анкеты,
+    // включая привязки. Право — то же, что у списка анкет.
+    method: "GET",
+    path: "/v1/registrations/journal",
+    action: "registration.review",
+    evaluateAs: "effective",
+    handler: async (ctx) => {
+      const personId = ctx.url.searchParams.get("person_id") ?? "";
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(personId))
+        throw new ApiError("VALIDATION_FAILED", "Параметр person_id обязателен (uuid)");
+      return { body: await registrationJournal(deps(ctx), ctx.actor, personId) };
+    },
   },
   {
     method: "POST",
