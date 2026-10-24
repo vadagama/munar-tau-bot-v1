@@ -9,7 +9,7 @@ it.each(["/start", "Старт"])("главное меню жителя откр
   expect(reply.text).toBe("<b>ОСИ ЖК «Мунар Тау»</b>\nРегистрация, помещения, обращения и уведомления.\nПри непосредственной угрозе жизни звоните 112.");
   expect(reply.buttons?.map(row => row.map(button => button.data))).toEqual([
     ["/status", "/register", "/help"], ["/objects", "/add"],
-    ["/requests", "/newrequest"], ["/invite", "/accesses"],
+    ["/requests", "/newrequest"], ["/invite", "/bind", "/accesses"],
     ["/notifications"], ["/cancel"],
   ]);
 });

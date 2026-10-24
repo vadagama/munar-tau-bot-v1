@@ -41,7 +41,7 @@ export function navigationReply(
     rows.push(
       [b("objects", "/objects"), b("add", "/add")],
       [b("requests", "/requests"), b("newrequest", "/newrequest")],
-      [b("invite", "/invite"), b("accesses", "/accesses")],
+      [b("invite", "/invite"), b("bind", "/bind"), b("accesses", "/accesses")],
       [b("settings", "/notifications")],
     );
   }
