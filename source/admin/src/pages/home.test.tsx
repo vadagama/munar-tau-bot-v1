@@ -1,82 +1,35 @@
-// Рендер-тест главной страницы кабинета: очередь дня + пределы сеанса AUTH-06.
-// Идентичность замокана — проверяется
-// разметка страницы, не провайдер.
-
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-
 import { HomePage } from "./home";
-
-const harness = vi.hoisted(() => {
-  const makeMe = (assignments: Array<Record<string, unknown>>) => ({
-    profile: {
-      id: "abcdefgh-0000-0000-0000-000000000000",
-      person_id: "person-1",
-      language: "ru" as const,
-      is_test: false,
-    },
-    person: { id: "person-1", full_name: "Председатель ОСИ", status: "active", is_test: false },
-    assignments,
-    session: {
-      id: "session-1",
-      started_at: "2026-10-16T08:00:00Z",
-      last_activity_at: "2026-10-16T09:00:00Z",
-      total_limit_seconds: 43200,
-      idle_limit_seconds: 1800,
-    },
-    emulation: null,
-  });
-  return { current: { value: makeMe([]) }, makeMe };
-});
-
-vi.mock("../lib/identity", () => ({
-  useCabinetIdentity: () => ({
-    identity: { id: "profile-1", fullName: "Председатель ОСИ", me: harness.current.value },
-    isLoading: false,
-    roles: ["chairman"],
-    isError: false,
-  }),
+const harness = vi.hoisted(() => ({ widgets: [{ id: "action", title: "Требуют вашего действия", total: 132, href: "/requests?dashboard_queue=attention", items: Array.from({ length: 20 }, (_, i) => ({ id: String(i), label: `Обращение ${i}`, href: `/requests?request=${i}`, state: "in_work", overdue: i === 0 })) }], profile: "p" }));
+vi.mock("../lib/dashboard", async importOriginal => ({
+  ...await importOriginal<typeof import("../lib/dashboard")>(),
+  useDashboardIdentity: () => ({ identity: { me: { profile: { id: harness.profile }, person: { id: harness.profile, is_test: false } } }, key: harness.profile }),
+  useDashboardResource: () => ({ data: { widgets: harness.widgets, analytics: false, assistant: { state: "disabled" } }, loading: false }),
 }));
-
-// Очередь дня замокана: состав списков проверяется на странице очереди,
-// здесь — структура главной и сеанс (AUTH-06).
-vi.mock("../lib/day-queue", () => ({
-  useDayQueue: () => ({
-    requestsNew: [],
-    requestsAction: [],
-    requestsOverdue: 0,
-    tasksAccept: [],
-    tasksReview: [],
-    incidentsAction: [],
-    loading: false,
-    error: null,
-  }),
-}));
-
+afterEach(() => { cleanup(); localStorage.clear(); harness.profile = "p"; });
 describe("HomePage", () => {
-  afterEach(cleanup);
-  it("показывает пределы сеанса (AUTH-06)", () => {
-    harness.current.value = harness.makeMe([
-      {
-        id: "assignment-1",
-        role: "chairman",
-        financial_rights: false,
-        registry_export_rights: false,
-        regulations_rights: false,
-        scope_building_ids: null,
-      },
-    ]);
+  it("uses complete count and real entity links, without a duplicate overdue widget or disabled AI", () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>);
-    expect(screen.getByText("12 ч")).toBeInTheDocument();
-    expect(screen.getByText("30 мин")).toBeInTheDocument();
+    expect(screen.getByTitle("132")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Обращение 0" })).toHaveAttribute("href", "/requests?request=0");
+    expect(screen.queryByText(/Просрочено обращений:/)).not.toBeInTheDocument();
+    expect(screen.queryByText("AI-ассистент")).not.toBeInTheDocument();
+    expect(screen.queryByText("Обращение 5")).not.toBeInTheDocument();
   });
-
-  it("показывает очередь дня и сеанс без назначений", () => {
-    harness.current.value = harness.makeMe([]);
+  it("restores the row limit and visibility only for the current person", () => {
+    localStorage.setItem("dashboard:v1:p:p:false", JSON.stringify({ order: ["action"], hidden: [], limits: { action: 10 } }));
+    const view = render(<MemoryRouter><HomePage /></MemoryRouter>);
+    expect(screen.getByText("Обращение 9")).toBeInTheDocument();
+    harness.profile = "other"; view.rerender(<MemoryRouter><HomePage /></MemoryRouter>);
+    expect(screen.queryByText("Обращение 9")).not.toBeInTheDocument();
+  });
+  it("hides a widget through settings and persists the choice", () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>);
-    expect(screen.getByText("Обращения: новые")).toBeInTheDocument();
-    expect(screen.getByText("Задания: принятие и проверка")).toBeInTheDocument();
-    expect(screen.getByText("Сеанс")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Настроить виджеты" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("checkbox", { name: "Требуют вашего действия" }));
+    expect(screen.queryByRole("link", { name: "Обращение 0" })).not.toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("dashboard:v1:p:p:false")!).hidden).toEqual(["action"]);
   });
 });

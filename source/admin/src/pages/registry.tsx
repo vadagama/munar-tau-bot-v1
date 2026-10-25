@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { FilterOutlined } from "@ant-design/icons";
 import { PageSearch } from "../components/page-controls";
 import { RegistryFilters, EMPTY_REGISTRY_FILTERS, filterRegistryRows, type RegistryFilterValues, type RegistrySection } from "./registry-filters";
@@ -227,6 +228,7 @@ function DeleteResidentModal({ row, onClose, onDeleted }: {
   );
 }
 export function RegistryPage({ users, section = "premises" }: { users?: "residents" | "staff"; section?: RegistrySection }) {
+  const [entityQuery, setEntityQuery] = useSearchParams();
   const entity: Entity = users ? "persons" : section;
   const [rows, setRows] = useState<Row[]>([]),
     [busy, setBusy] = useState(false),
@@ -351,6 +353,14 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
     form.setFields(Object.keys(form.getFieldsValue(true)).map(name => ({ name, touched: false })));
     setEditing(row);
   };
+  const openedEntity = useRef<string | null>(null);
+  useEffect(() => {
+    const id = entityQuery.get("entity");
+    if (!id) { openedEntity.current = null; return; }
+    if (openedEntity.current === id) return;
+    const row = rows.find(row => row.id === id);
+    if (row) { openedEntity.current = id; open(row); }
+  }, [rows, entity, entityQuery]);
   const options = (data: Row[], label: (r: Row) => string) =>
     data.map((r) => ({ value: String(r.id), label: label(r) }));
   const save = async () => {
@@ -619,11 +629,12 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
         />
       )}
       <CardDrawer
+        presentation={entityQuery.get("entity_page") === "1" ? "page" : "drawer"}
         open={editing !== undefined || !!recovery}
         title={recovery ? "Восстановление Telegram" : `${editing ? "Изменить" : "Добавить"}: ${users === "staff" ? "Сотрудники" : LABELS[entity]}`}
         closeDisabled={saving}
         hasUnsavedChanges={() => form.isFieldsTouched()}
-        onClose={() => { setEditing(undefined); setRecovery(null); }}
+        onClose={() => { setEditing(undefined); setRecovery(null); if (entityQuery.get("entity_page") === "1") { openedEntity.current = null; setEntityQuery({}); } }}
         footer={editing !== undefined ? ((close: () => void) => (
           <Space style={{ display: "flex", justifyContent: "flex-end" }}>
             <Button disabled={saving} onClick={close}>Отмена</Button>

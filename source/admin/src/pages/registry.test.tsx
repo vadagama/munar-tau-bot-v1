@@ -17,7 +17,7 @@ it("восстановление Telegram — самостоятельная ф�
       ? [{ id: "person", full_name: "Иван Петров", phone_e164: "+77010000000" }]
       : [],
  }));
-  render(<RegistryPage users="residents" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage users="residents" /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("button", { name: "Восстановить Telegram" }));
   const field = await screen.findByLabelText("Как проверены личность и новый Telegram-аккаунт");
   const drawer = screen.getByRole("dialog");
@@ -44,7 +44,7 @@ it("жители не включают пользователей с дейст�
     { id: "resident", full_name: "Житель", staff_roles: [] },
     { id: "staff", full_name: "Председатель-житель", staff_roles: ["chairman"] },
   ] });
-  render(<RegistryPage users="residents" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage users="residents" /></MemoryRouter>);
   expect(await screen.findByText("Житель", { selector: "td" })).toBeInTheDocument();
   expect(screen.queryByText("Председатель-житель")).toBeNull();
 });
@@ -52,7 +52,7 @@ it("жители не включают пользователей с дейст�
 it("сотрудники загружаются отдельно, включая сотрудников без помещения", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/staff")
     ? [{ id: "staff", full_name: "Сотрудник без квартиры", staff_roles: ["executor"] }] : [] }));
-  render(<RegistryPage users="staff" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage users="staff" /></MemoryRouter>);
   expect(await screen.findByText("Сотрудник без квартиры")).toBeInTheDocument();
   expect(screen.getByText("Исполнитель")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Добавить запись" })).toBeNull();
@@ -65,7 +65,7 @@ it("Telegram-имя в таблицах жителей и сотрудников
       ? [{ id: "p-1", full_name: "Житель Безымянный", phone_e164: "+77771165605", telegram_username: "w84gr8", staff_roles: [] }]
       : [] }));
   // Жители: колонка Telegram — кликабельное имя, поиск по нему.
-  render(<RegistryPage users="residents" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage users="residents" /></MemoryRouter>);
   const residentLink = await screen.findByRole("link", { name: "@w84gr8" });
   expect(residentLink).toHaveAttribute("href", "https://t.me/w84gr8");
   fireEvent.change(screen.getByRole("searchbox", { name: "Поиск жителей" }), { target: { value: "@w84" } });
@@ -74,7 +74,7 @@ it("Telegram-имя в таблицах жителей и сотрудников
   expect(screen.getByText("По выбранным условиям ничего не найдено")).toBeInTheDocument();
   cleanup();
   // Сотрудники: отдельный поиск, находит и по Telegram, и по роли.
-  render(<RegistryPage users="staff" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage users="staff" /></MemoryRouter>);
   const staffLink = await screen.findByRole("link", { name: "@oleg_san_krasnov" });
   expect(staffLink).toHaveAttribute("href", "https://t.me/oleg_san_krasnov");
   const staffSearch = screen.getByRole("searchbox", { name: "Поиск сотрудников" });
@@ -93,7 +93,7 @@ it("фильтрует здания по очереди, отсутствию о
     { id: "b3", code: "ДОМ-3", name: "ДОМ-3", construction_phase: null },
   ];
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings") ? buildings : [] }));
-  render(<RegistryPage section="buildings" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage section="buildings" /></MemoryRouter>);
   expect(await screen.findByText("ДОМ-3")).toBeInTheDocument();
   const select = screen.getByRole("combobox", { name: "Фильтр по очереди строительства" });
   fireEvent.mouseDown(select);
@@ -113,7 +113,7 @@ it("фильтрует здания по очереди, отсутствию о
 
 it("сохраняет выбранную очередь здания и явное отсутствие очереди", async () => {
   vi.mocked(apiFetch).mockResolvedValue({ items: [] });
-  render(<RegistryPage section="buildings" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage section="buildings" /></MemoryRouter>);
   fireEvent.click(screen.getByText("Добавить запись", {selector:"button > span"}));
   // Поля выбираются по связанной метке с selector=input: одноимённые
   // сортируемые заголовки таблицы не участвуют в поиске формы.
@@ -138,7 +138,7 @@ it("сохраняет выбранную очередь здания и явн�
 it("очистка очереди существующего здания отправляет null, фон не сбрасывает черновик", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings")
     ? [{ id: "b1", code: "ДОМ-1", name: "ДОМ-1", construction_phase: 3 }] : [] }));
-  render(<RegistryPage section="buildings" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage section="buildings" /></MemoryRouter>);
   fireEvent.click(await screen.findByText("Изменить", {selector:"button > span"}));
   fireEvent.change(screen.getByLabelText("Название", {selector:"input"}), { target: { value: "ДОМ-ИЗМЕНЁН" } });
   const phase = screen.getByLabelText("Очередь строительства", {selector:"input"});
@@ -154,7 +154,7 @@ it("очистка очереди существующего здания отп
 it("удаление помещения: подтверждение с последствиями, DELETE и перечитывание", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/premises")
     ? [{ id: "p1", kind: "apartment", number: "1", status: "active" }] : [] }));
-  render(<RegistryPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
   const popover = await screen.findByRole("tooltip");
   expect(within(popover).getByText(/Удалятся связи, приглашения и анкеты помещения/)).toBeInTheDocument();
@@ -169,7 +169,7 @@ it("ошибка удаления помещения видна в общей о
     if (options?.method === "DELETE") throw new Error("У здания есть аварийные сигналы — удаление запрещено");
     return { items: path.endsWith("/premises") ? [{ id: "p1", kind: "apartment", number: "1" }] : [] };
  });
-  render(<RegistryPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
   const popover = await screen.findByRole("tooltip");
   fireEvent.click(within(popover).getByRole("button", { name: "Удалить" }));
@@ -179,7 +179,7 @@ it("ошибка удаления помещения видна в общей о
 it("у зданий подтверждение предупреждает о каскаде и аварийных сигналах", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings")
     ? [{ id: "b1", code: "ДОМ-1", name: "ДОМ-1", construction_phase: 1 }] : [] }));
-  render(<RegistryPage section="buildings" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage section="buildings" /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
   const dialog = await screen.findByRole("dialog");
   expect(within(dialog).getByText("Все помещения здания")).toBeInTheDocument();
@@ -193,7 +193,7 @@ it("у зданий подтверждение предупреждает о к�
 it("жители и сотрудники без кнопки удаления", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/persons")
     ? [{ id: "n1", full_name: "Иван Петров", phone_e164: "+77010000000" }] : [] }));
-  render(<RegistryPage users="residents" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage users="residents" /></MemoryRouter>);
   expect(await screen.findByText("Иван Петров")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Удалить" })).toBeNull();
 });
@@ -205,7 +205,7 @@ async function renderResidentDirectory() {
     { id: "r2", full_name: "Борис Петров", registration_state: "pending_review", registered_at: "2026-10-19T08:00:00Z", linked_premises: [] },
     { id: "r3", full_name: "Вера Иванова", registration_state: null, registered_at: null, linked_premises: [] },
   ] : path.endsWith("/buildings") ? [{ id: "b1", code: "107-1", name: "Улица Мира, 107/1" }] : [] }));
-  render(<RegistryPage users="residents" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage users="residents" /></MemoryRouter>);
   expect(await screen.findByText("Анна Соколова")).toBeInTheDocument();
 }
 
@@ -290,7 +290,7 @@ it("жители: ошибка удаления видна в окне удал�
       { id: "r1", full_name: "Анна Соколова", phone_e164: "+77011111111", registration_id: "reg-1", registration_version: 1, registration_state: "approved", registered_at: "2026-10-20T20:00:00Z", can_manage: true, linked_premises: [] },
     ] : [] };
  });
-  render(<RegistryPage users="residents" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage users="residents" /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
   const dialog = await screen.findByRole("dialog");
   fireEvent.change(within(dialog).getByLabelText("Основание удаления"), { target: { value: "Причина" } });
@@ -302,7 +302,7 @@ it("помещения: поиск и фильтры работают совме
   const premises = Array.from({length: 25}, (_, i) => ({id:`p${i}`,building_id:"b1",building_code:"107/1",number:`КВ-${i+1}`,kind:"apartment",status:"active"}));
   vi.mocked(apiFetch).mockImplementation(async path => ({items: path.endsWith("/buildings")
     ? [{id:"b1",code:"107/1",construction_phase:1}] : path.endsWith("/premises") ? premises : []}));
-  render(<RegistryPage section="premises" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage section="premises" /></MemoryRouter>);
   expect(await screen.findByText("КВ-1")).toBeVisible();
   fireEvent.click(screen.getByTitle("2"));
   expect(screen.getByText("КВ-25")).toBeVisible();
@@ -319,7 +319,7 @@ it("привязки ищутся по телефону, зданию и ФИО 
     ? [{id:"b1",code:"107/1",construction_phase:1}]
     : path.endsWith("/persons") ? [{id:"n1",full_name:"Иван Петров",phone_e164:"+77011112233"}]
     : path.endsWith("/connections") ? [{id:"c1",person_id:"n1",full_name:"Иван Петров",building_id:"b1",kind:"apartment",number:"12",role:"owner",status:"active"}] : []}));
-  render(<RegistryPage section="connections" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage section="connections" /></MemoryRouter>);
   expect(await screen.findByText("Иван Петров", {selector:"td"})).toBeVisible();
   expect(screen.getByText("107/1", {selector:"td"})).toBeVisible();
   fireEvent.change(screen.getByLabelText("Поиск объектов"), {target:{value:"1112233"}});
@@ -336,7 +336,7 @@ it("привязки: «Отвязать» прекращает действую
     : path.endsWith("/persons") ? [{id:"n1",full_name:"Иван Петров",phone_e164:"+77011112233"}]
     : path.endsWith("/connections") ? [connection,
         {...connection, id:"c2", full_name:"Пётр Иванов", status:"revoked"}] : []}));
-  render(<RegistryPage section="connections" />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistryPage section="connections" /></MemoryRouter>);
   expect(await screen.findByText("Иван Петров", {selector:"td"})).toBeVisible();
   // Дата запроса инициатора и основание — по-русски (решение владельца 24.10.2026).
   expect(screen.getAllByText(/20\.10\.2026/, {selector:"td"}).length).toBeGreaterThanOrEqual(1);

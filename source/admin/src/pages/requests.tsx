@@ -21,6 +21,7 @@ import { ActionPanel } from "./action-panel";
 import { BoardView, ViewToggle, useBoardView } from "./board";
 import { CardDrawer } from "./card-drawer";
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Alert,
   Button,
@@ -122,6 +123,11 @@ export function RequestsPage() {
     [busy, setBusy] = useState(false),
     [saving, setSaving] = useState(false),
     [error, setError] = useState<string | null>(null);
+  const [routeQuery, setRouteQuery] = useSearchParams();
+  const dashboardMode = routeQuery.get("dashboard") === "1" || !!routeQuery.get("dashboard_queue");
+  const dashboardQueue = routeQuery.get("dashboard_queue");
+  const chartFrom = routeQuery.get("from"), chartUntil = routeQuery.get("until");
+  const chartMeasure = routeQuery.get("measure") ?? "created", chartKind = routeQuery.get("kind");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [buildingFilter, setBuildingFilter] = useState<string>(),
     [from, setFrom] = useState(""),
@@ -176,15 +182,16 @@ export function RequestsPage() {
     try {
       const result = await apiFetch<
         { items: Row[]; next_cursor?: string | null }
-      >("/v1/requests/search", {
+      >(dashboardMode ? "/v1/dashboard/requests" : "/v1/requests/search", {
         method: "POST",
         body: {
           search: appliedSearch,
           state,
           cursor,
           building_id: buildingFilter,
-          from: from ? `${from}T00:00:00+05:00` : undefined,
-          to: to ? `${to}T23:59:59.999+05:00` : undefined,
+          from: from ? `${from}T00:00:00+05:00` : dashboardMode ? chartFrom ?? undefined : undefined,
+          to: to ? (dashboardMode ? new Date(Date.parse(`${to}T00:00:00+05:00`) + 86400000).toISOString() : `${to}T23:59:59.999+05:00`) : dashboardMode ? chartUntil ?? undefined : undefined,
+          ...(dashboardMode ? { measure: chartMeasure, kind: chartKind, queue: dashboardQueue } : {}),
         },
       });
       if (epoch !== listEpoch.current) return;
@@ -229,12 +236,12 @@ export function RequestsPage() {
   useEffect(() => {
     if (!identity?.me.person.id) return;
     const url = new URL(window.location.href);
-    const requestId = url.searchParams.get("request");
+    const requestId = routeQuery.get("request");
     if (!requestId) return;
-    url.searchParams.delete("request");
+    if (url.searchParams.get("entity_page") !== "1") url.searchParams.delete("request");
     window.history.replaceState(null, "", url);
     void open(requestId);
-  }, [identity?.me.person.id]);
+  }, [identity?.me.person.id, routeQuery.get("request")]);
   const refresh = async () => {
     if (card) {
       const next = await apiFetch<Row>(`/v1/requests/${card.id}`);
@@ -251,7 +258,7 @@ export function RequestsPage() {
   useEffect(() => {
     void load();
     return () => { listEpoch.current++; };
-  }, [appliedSearch, state, buildingFilter, from, to, staff, identity?.me.person.id]);
+  }, [appliedSearch, state, buildingFilter, from, to, staff, identity?.me.person.id, dashboardMode, dashboardQueue, chartFrom, chartUntil, chartMeasure, chartKind]);
   useEffect(() => {
     if (staff) {
       void Promise.all([
@@ -475,6 +482,7 @@ export function RequestsPage() {
         </Button>
       </Space>}
       filters={<ListFilters
+        dateCaption={dashboardMode && chartMeasure === "closed" ? "Дата закрытия" : "Дата создания"}
         search={<PageSearch aria-label="Поиск обращений" placeholder="Номер, описание или инициатор" value={search}
           onChange={e => setSearch(e.target.value)} onSearch={() => setAppliedSearch(search)} style={{ width: 280 }} />}
         values={{ state, related: buildingFilter, from, to }}
@@ -483,6 +491,13 @@ export function RequestsPage() {
         relatedLabel="Фильтр по зданию" relatedOptions={context.buildings.map(b => ({ value: String(b.id), label: String(b.name) }))}
       />} >
 
+      {dashboardMode && <Alert type="info" showIcon className="dashboard-filter-summary"
+        message={<Space wrap>
+          <span>{dashboardQueue === "new" ? "Новые обращения" : dashboardQueue === "attention" ? "Требуют вашего действия" : `${chartMeasure === "closed" ? "Закрыто" : "Создано"} · ${{ day: "день", week: "неделя", month: "месяц", year: "год" }[routeQuery.get("period") ?? ""] ?? "период"}`}</span>
+          {chartKind && <Tag>{KINDS[chartKind] ?? chartKind}</Tag>}
+          {chartFrom && chartUntil && <span>{formatDateTime(from ? `${from}T00:00:00+05:00` : chartFrom)} — {formatDateTime(to ? new Date(Date.parse(`${to}T00:00:00+05:00`) + 86400000).toISOString() : chartUntil)} (до, не включая)</span>}
+        </Space>}
+        action={<Button onClick={() => { setRouteQuery({}); setFrom(""); setTo(""); }}>Сбросить фильтр графика</Button>} />}
       {error && !card && !create && (
         <Alert
           type="error"
@@ -553,6 +568,7 @@ export function RequestsPage() {
         </Button>
       )}
       <CardDrawer
+        presentation={routeQuery.get("entity_page") === "1" ? "page" : "drawer"}
         open={!!card || create}
         title={card
           ? `${card.number ?? "Черновик"} · ${REQUEST_STATES[stateName]}`
@@ -564,6 +580,7 @@ export function RequestsPage() {
           openEpoch.current++;
           setCard(null);
           setCreate(false);
+          if (routeQuery.get("entity_page") === "1") setRouteQuery({});
         }}
       >
         {error && card && !action && !placeEdit && !create && !restricting && <Alert role="alert" type="error" showIcon message={error} />}

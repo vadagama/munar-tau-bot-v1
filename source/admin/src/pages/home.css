@@ -1,0 +1,20 @@
+.home-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.home-widget { min-width: 0; }
+.home-widget .ant-card-head-title { white-space: normal; padding-block: 12px; }
+.home-widget--dragging { opacity: .5; }
+.home-item { display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.home-drag { cursor: grab; padding: 8px; touch-action: none; user-select: none; }
+.home-chart { width: 100%; }
+.home-bars { display: flex; gap: 12px; overflow-x: auto; padding-block: 8px; }
+.home-bucket { flex: 1; min-width: 52px; text-align: center; }
+.home-bar-pair { height: 172px; display: flex; align-items: end; justify-content: center; gap: 4px; }
+.home-bar-link { display: flex; flex-direction: column; align-items: center; min-width: 24px; }
+.home-bar { display: block; width: 20px; border-radius: 4px 4px 0 0; }
+.home-kinds { display: grid; gap: 16px; padding-block: 16px; }
+.home-kinds a { display: grid; grid-template-columns: 1fr auto; gap: 4px; }
+.home-kind-bar { grid-column: 1 / -1; display: block; height: 8px; border-radius: 4px; }
+.home-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 767px) { .home-grid { grid-template-columns: minmax(0,1fr); } .home-widget .ant-card-head { padding-inline: 12px; } .home-widget .ant-card-body { padding: 12px; } }
+.home-session { margin-top: 24px; }
+.home-session summary { cursor: pointer; margin-bottom: 12px; }
+@media (max-width: 380px) { .home-chart .ant-segmented-item-label { padding-inline: 4px; font-size: 12px; } }

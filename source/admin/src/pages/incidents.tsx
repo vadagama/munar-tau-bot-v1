@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { DeadlineDatePicker } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
 import { incidentGuidance, processActionHint } from "../components/process-guidance";
@@ -61,6 +62,7 @@ export function IncidentsPage() {
   return <IncidentPanel key={`${identity?.id??""}:${identity?.me?.emulation?.session_id??""}:${roles.join(",")}`}/>;
 }
 function IncidentPanel() {
+  const [entityQuery, setEntityQuery] = useSearchParams();
   const [activeTab, setActiveTab] = useState("incidents");
   const { roles } = useCabinetIdentity(),
     [view, setView] = useBoardView("view.incidents"),
@@ -107,13 +109,18 @@ function IncidentPanel() {
   usePageRefresh(refresh, !busy);
   useEffect(() => {
     void refresh();
-    const url=new URL(window.location.href),id=url.searchParams.get("incident");
-    if(id){url.searchParams.delete("incident");window.history.replaceState({},"",url);void open(id);}
-    return () => {
-      cardGeneration.current++;
-      generation.current++;
-    };
+    return () => { cardGeneration.current++; generation.current++; };
   }, []);
+  useEffect(() => {
+    const id = entityQuery.get("incident");
+    if (!id) return;
+    if (entityQuery.get("entity_page") !== "1") {
+      const url = new URL(window.location.href); url.searchParams.delete("incident");
+      window.history.replaceState({}, "", url);
+    }
+    void open(id);
+    return () => { cardGeneration.current++; };
+  }, [entityQuery.get("incident")]);
   async function open(id: string) {
     const g=++cardGeneration.current;setBusy(true);
     try {
@@ -397,12 +404,13 @@ function IncidentPanel() {
         ]}
       />
       <CardDrawer
+        presentation={entityQuery.get("entity_page") === "1" ? "page" : "drawer"}
         open={!!action || (!!card && typeof card.number === "string")}
         title={card && typeof card.number === "string"
           ? `${card.number}: ${card.title}`
           : action === "create" ? "Новый инцидент" : action === "shift" ? "Смена дежурства" : "Срочный сигнал"}
         closeDisabled={busy}
-        onClose={() => setCard(null)}
+        onClose={() => { setCard(null); if (entityQuery.get("entity_page") === "1") setEntityQuery({}); }}
       >
         {error && card && !action && <Alert role="alert" type="error" showIcon message={error} />}
         {card && typeof card.number === "string" && (

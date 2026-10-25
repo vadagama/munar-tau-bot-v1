@@ -110,3 +110,8 @@
 @media (max-width: 767px) {
   .cabinet-page__intro { display: none; }
 }
+
+/* Entity links from the dashboard open the existing card as the page workspace. */
+.cabinet-page__workspace:has(> .cabinet-entity-page) > :not(.cabinet-entity-page) { display: none; }
+.cabinet-page:has(> .cabinet-page__workspace > .cabinet-entity-page) > :is(.cabinet-page__filters, .cabinet-page__actions, .cabinet-page__toolbar, .cabinet-page__compact-filters) { display: none; }
+.cabinet-entity-page > .ant-card-head .ant-card-head-title { white-space: normal; }
