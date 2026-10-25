@@ -62,7 +62,7 @@ it("длинная история и список помещаются в sendMe
   const text = replyText(reply);
   expect(text.length).toBeLessThanOrEqual(4000);
   expect(text).not.toContain("З-26-19");
-  // Пагинация — кнопкой «Далее»; текстовая подсказка больше не дублируется.
+  // Пагинация — кнопкой «Ещё обращения»; текстовая подсказка не дублируется.
   expect(
     typeof reply === "object" &&
       reply.buttons?.at(-1)?.[0]?.data === "/requests page:2",
@@ -83,6 +83,67 @@ it("длинная история и список помещаются в sendMe
   expect(replyText(cardReply).length).toBeLessThanOrEqual(4000);
   // Технические версии результата в карточке больше не показываются.
   expect(replyText(cardReply)).not.toContain("Версия результата");
+});
+
+it("строка списка: тема в кавычках, дата со временем, без нумерации", () => {
+  const rows = [
+    {
+      number: "З-26-1",
+      state: "in_work",
+      author_person_id: "author",
+      description: "Не работает свет",
+      created_at: "2026-10-20T07:00:00Z",
+    },
+    {
+      number: "З-26-2",
+      state: "need_clarification",
+      author_person_id: "author",
+      description: "Течёт кран",
+    },
+  ];
+  const text = replyText(requestListText(rows, "author", 1));
+  // Тема обращения в прямых кавычках — визуально выделена.
+  expect(text).toContain('"Не работает свет"');
+  expect(text).toContain('"Течёт кран"');
+  // Дата со временем: 07:00 UTC = 12:00 в Алматы.
+  expect(text).toContain("20.10.26 12:00");
+  // Нумерация строк убрана.
+  expect(text).not.toContain("1. З-26-1");
+  expect(text).not.toContain("2. З-26-2");
+  // «❗» перед номером — только у обращений, требующих ответа жителя.
+  expect(text).toContain("❗ <b>З-26-2</b>");
+  expect(text).not.toContain("❗ <b>З-26-1</b>");
+});
+
+it("ожидание подтверждения помечается «❗», у черновика отметки нет", () => {
+  const draft = replyText(
+    requestListText(
+      [{
+        number: null,
+        state: "draft",
+        author_person_id: "author",
+        description: "Мой черновик",
+      }],
+      "author",
+      1,
+    ),
+  );
+  expect(draft).toContain('"Мой черновик"');
+  expect(draft).not.toContain("❗");
+  const awaiting = replyText(
+    requestListText(
+      [{
+        number: "З-26-3",
+        state: "awaiting_confirmation",
+        author_person_id: "author",
+        description: "Проверьте",
+      }],
+      "author",
+      1,
+    ),
+  );
+  expect(awaiting).toContain("❗ <b>З-26-3</b>");
+  expect(awaiting).toContain('"Проверьте"');
 });
 
 it("превью не обрывает emoji на половине UTF-16 пары", () => {

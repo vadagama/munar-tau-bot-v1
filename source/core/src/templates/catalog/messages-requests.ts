@@ -843,7 +843,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "description":
           "Строки обращений с номером, состоянием, датой и описанием",
         "example":
-          "1. З-26-00001 · В работе · 20.10.2026\nНе работает освещение",
+          "З-26-00001 · В работе · 20.10.26 12:00\n\"Не работает освещение\"",
       },
       {
         "name": "scope",
@@ -866,8 +866,8 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       },
       {
         "id": "next",
-        "ru": "Далее",
-        "kk": "Әрі қарай",
+        "ru": "Ещё обращения",
+        "kk": "Тағы өтініштер",
       },
       {
         "id": "archive",
@@ -898,11 +898,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "title": "Пример",
         "ru": {
           "requests":
-            "1. <b>З-26-00001</b> · В работе · 20.10.2026\nНе работает &lt;лампа&gt; &amp; свет",
+            "<b>З-26-00001</b> · В работе · 20.10.26 12:00\n\"Не работает &lt;лампа&gt; &amp; свет\"",
         },
         "kk": {
           "requests":
-            "1. <b>З-26-00001</b> · Орындалуда · 20.10.2026\nНе работает &lt;лампа&gt; &amp; свет",
+            "<b>З-26-00001</b> · Орындалуда · 20.10.26 12:00\n\"Не работает &lt;лампа&gt; &amp; свет\"",
           "scope": "белсенді: 1",
         },
         "buttons": [

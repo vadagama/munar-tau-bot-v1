@@ -54,6 +54,15 @@ export function fmtDay(value: unknown): string {
   return `${pad2(shifted.getUTCDate())}.${pad2(shifted.getUTCMonth() + 1)}.${shifted.getUTCFullYear()}`;
 }
 
+/** Дата со временем для списков обращений: «25.10.26 13:00» (Алматы). */
+export function fmtListStamp(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const date = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(date.getTime())) return esc(String(value));
+  const shifted = new Date(date.getTime() + 5 * 60 * 60 * 1000);
+  return `${pad2(shifted.getUTCDate())}.${pad2(shifted.getUTCMonth() + 1)}.${String(shifted.getUTCFullYear()).slice(-2)} ${pad2(shifted.getUTCHours())}:${pad2(shifted.getUTCMinutes())}`;
+}
+
 /** Интервал визита/согласования: «17.10.2026 14:00 – 17.10.2026 16:00». */
 export function fmtInterval(start: unknown, end: unknown): string {
   return `${fmtDate(start)} – ${fmtDate(end)}`;
