@@ -383,6 +383,10 @@ export async function createRequest(
         `${id}:created`,
         false,
         false,
+        // Регистрацию житель видит в сценарии мастера; асинхронный дубль
+        // подавляется. Внешнее обращение сотрудника не затрагивается: актор
+        // не входит в собранный список адресатов.
+        actor.person.id,
       );
       await informManagers(
         exec,
@@ -771,6 +775,9 @@ export async function transitionRequestInTransaction(
           `${id}:created`,
           false,
           false,
+          // Дубль о регистрации подавляется: автор уже получил синхронную
+          // реплику «Обращение ... зарегистрировано» из /sendrequest.
+          actor.person.id,
         );
         await informManagers(
           exec,

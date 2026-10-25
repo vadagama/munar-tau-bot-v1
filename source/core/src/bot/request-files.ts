@@ -143,9 +143,9 @@ export async function queueRequestFile(
       ]],
     };
   }
-  // Файловый диалог (REQ-03): после принятого медиа — приглашение следующего
-  // файла или сохранения запроса; сохранение остаётся асинхронным
-  // («Файл сохранён» — из джобы). Старые шаги нормализуются в attachments.
+  // Файловый диалог (REQ-03): вебхук подтверждает медиа молча — сводную реплику
+  // с кнопками пришлёт джоба после переноса в Storage (notifications-fast-tick
+  // срабатывает по очереди загрузки). Старые шаги нормализуются в attachments.
   if (
     ["attachments", "attachments_wait", "attachments_more"].includes(
       String(state.step ?? ""),
@@ -153,20 +153,7 @@ export async function queueRequestFile(
   ) {
     state.step = "attachments";
     await saveDialog(deps.db, telegramId, bot, state);
-    return {
-      text: templateText(deps.templates, L, "message.requests.attachments_more"),
-      buttons: [[
-        btn(
-          messageButton(
-            deps.templates,
-            L,
-            "message.requests.attachments_more",
-            "save",
-          ),
-          "/sendrequest",
-        ),
-      ]],
-    };
+    return "";
   }
   // Открытое обращение жителя: медиа уже опубликовано сообщением — возвращаем
   // обновлённую карточку вместо служебной реплики очереди.
@@ -177,7 +164,9 @@ export async function queueRequestFile(
       deps.templates,
     );
   }
-  return templateText(deps.templates, L, "requests.fayl_prinyat_v_ochered_poka_ne_sohranen");
+  // Черновик мастера вне файлового шага (verify и др.): сводку так же пришлёт
+  // джоба — двухфазные реплики про файл убраны (25.10.2026).
+  return "";
 }
 
 /** Публикует накопленный альбом переписки жителя одним сообщением. */
@@ -235,6 +224,61 @@ async function flushMediaGroup(
     // Обращение могло закрыться/быть удалено после отправки материалов;
     // откат транзакции джобы здесь вернул бы уже скачанные файлы в очередь.
   }
+}
+/** Сводная реплика альбома мастера: одна на группу после завершения переноса
+ * всех её материалов (успех или окончательный отказ). */
+async function maybeGroupSummary(
+  deps: RegistryDeps,
+  exec: DbExecutor,
+  job: Row,
+): Promise<void> {
+  const personId = String(job.person_id);
+  const group = String(job.media_group_id);
+  // Settling-транзакции группы сериализуются advisory-lock по её идентификатору
+  // (снимается в конце транзакции): без неё два параллельных вызова jobs могли
+  // бы оба увидеть processing у чужого неотправленного файла и оба промолчать,
+  // оставив группу без сводки. Ключ уведомления даёт exactly-once при повторе.
+  await exec.query("select pg_advisory_xact_lock(hashtext($1))", [
+    `file:group:${group}`,
+  ]);
+  const [pending] = await exec.query<{ n: string }>(
+    "select count(*)::text n from request_upload_job where person_id=$1 and media_group_id=$2 and state in ('queued','processing')",
+    [personId, group],
+  );
+  if (Number(pending?.n ?? 0) > 0) return;
+  const rows = await exec.query<Row>(
+    "select a.status,a.discarded_at from request_upload_job j join attachment a on a.id=j.attachment_id where j.person_id=$1 and j.media_group_id=$2",
+    [personId, group],
+  );
+  if (!rows.length) return;
+  const ok = rows.filter((r) => r.status === "complete" && !r.discarded_at).length;
+  await notifyPerson(
+    exec,
+    personId,
+    ok === rows.length
+      ? templateNotice("notices.bot_request-files_process_request_uploads_104", { count: ok })
+      : templateNotice("notices.bot_request-files_process_request_uploads_105", { count: ok, total: rows.length }),
+    `file:group:${group}:summary`,
+    { bot: "resident", requestId: String(job.request_id) },
+  );
+}
+
+/** Мастер нового обращения (REQ-03): черновик ещё не зарегистрирован — автору
+ * пришлётся единственная сводная реплика вместо пофайловых уведомлений. */
+async function wizardUpload(
+  exec: DbExecutor,
+  job: Row,
+): Promise<boolean> {
+  if (
+    job.owner_type !== "request" ||
+    ((job.bot as BotKind) ?? "resident") !== "resident" ||
+    !job.request_id
+  ) return false;
+  const [row] = await exec.query<{ state: string }>(
+    "select state from request where id=$1",
+    [String(job.request_id)],
+  );
+  return row?.state === "draft";
 }
 export async function processRequestUploads(
   deps: RegistryDeps,
@@ -346,15 +390,30 @@ export async function processRequestUploads(
           await exec.query("update attachment set status='complete' where id=$1",[job.attachment_id]);
           if(photo)await advanceInitiativePhotos(deps,exec,photo.actor,photo.row,"initiative.photo.complete");
         }
-        await notifyPerson(
-          exec,
-          String(job.person_id),
-          templateNotice("notices.bot_request-files_process_request_uploads_101", {}),
-          `file:${job.attachment_id}:complete`,
-          { bot: (job.bot as BotKind) ?? "resident",...(job.owner_type==="initiative"?{initiativeId:String(job.owner_id)}:{}) },
-        );
+        const wizard = await wizardUpload(exec, job);
+        if (wizard) {
+          if (!job.media_group_id) {
+            await notifyPerson(
+              exec,
+              String(job.person_id),
+              templateNotice("notices.bot_request-files_process_request_uploads_103", {}),
+              `file:${job.attachment_id}:accepted`,
+              { bot: "resident", requestId: String(job.request_id) },
+            );
+          }
+        } else {
+          await notifyPerson(
+            exec,
+            String(job.person_id),
+            templateNotice("notices.bot_request-files_process_request_uploads_101", {}),
+            `file:${job.attachment_id}:complete`,
+            { bot: (job.bot as BotKind) ?? "resident",...(job.owner_type==="initiative"?{initiativeId:String(job.owner_id)}:{}) },
+          );
+        }
         if (job.owner_type === "request" && job.media_group_id) {
           await flushMediaGroup(deps, exec, job);
+          // Сводка дополняет публикацию альбома на черновик, не заменяет её.
+          if (wizard) await maybeGroupSummary(deps, exec, job);
         }
       });
     } catch {
@@ -365,15 +424,21 @@ export async function processRequestUploads(
           [job.attachment_id, job.attempts],
         );
         if (claimed.length && Number(job.attempts) >= 3) {
-          await notifyPerson(
-            exec,
-            String(job.person_id),
-            templateNotice("notices.bot_request-files_process_request_uploads_102", {}),
-            `file:${job.attachment_id}:failed`,
-            { bot: (job.bot as BotKind) ?? "resident",...(job.owner_type==="initiative"?{initiativeId:String(job.owner_id)}:{}) },
-          );
+          const wizard = await wizardUpload(exec, job);
+          // Мастер: одиночный файл — прежний текст (с кнопкой главного меню);
+          // альбом — одна сводка по группе, пофайловые отказы не дублируются.
+          if (!wizard || !job.media_group_id) {
+            await notifyPerson(
+              exec,
+              String(job.person_id),
+              templateNotice("notices.bot_request-files_process_request_uploads_102", {}),
+              `file:${job.attachment_id}:failed`,
+              { bot: (job.bot as BotKind) ?? "resident",...(job.owner_type==="initiative"?{initiativeId:String(job.owner_id)}:{}) },
+            );
+          }
           if (job.owner_type === "request" && job.media_group_id) {
             await flushMediaGroup(deps, exec, job);
+            if (wizard) await maybeGroupSummary(deps, exec, job);
           }
         }
       });
