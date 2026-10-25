@@ -1,8 +1,9 @@
-import {cleanup,fireEvent,render,screen,waitFor} from "@testing-library/react";
+import {cleanup,fireEvent,render,screen,waitFor,within} from "@testing-library/react";
 import {afterEach,expect,it,vi} from "vitest";
 import {TimeRulesPage} from "./time-rules";
 import {apiFetch} from "../lib/api";
 import {ruleContract} from "../../../core/src/domains/timing/contracts";
+import {getButton} from "../test/buttons";
 vi.mock("../lib/api",()=>({apiFetch:vi.fn()}));
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.clearAllMocks();});
 it("FIN-04: ненастроенные сроки финансовых отчётов имеют понятные названия",async()=>{
@@ -46,13 +47,18 @@ it("TIM: переход к общему графику сохраняет чер
  ]});
  render(<TimeRulesPage/>);
  await screen.findByText("Общий срок спора");
- fireEvent.click(screen.getAllByRole("button",{name:"Новая версия"})[0]!);
+ // Кнопки ищем суженными запросами (строка таблицы, шторка): role-запрос по всей
+ // странице AntD пересчитывает доступные имена всех узлов (dom-accessibility-api),
+ // каждый шаг дергает getComputedStyle jsdom по ~1000 правилам CSS-in-JS —
+ // на CI это выходило за 15-секундный лимит (см. AGENTS.md «Проверки интерфейса в jsdom»).
+ const ruleRow = screen.getByText("Общий срок спора").closest("tr")!;
+ fireEvent.click(getButton("Новая версия",within(ruleRow)));
  fireEvent.change(screen.getByLabelText("Причина изменения"),{target:{value:"Черновик причины"}});
- fireEvent.click(screen.getByRole("button",{name:"Открыть общий график"}));
+ fireEvent.click(getButton("Открыть общий график"));
  await waitFor(() => expect(screen.getByRole("dialog",{name:"Рабочий график"})).toBeVisible());
  expect(screen.getByLabelText("Открытие, час")).toBeEnabled();
  expect(screen.getByLabelText("Часовой пояс")).toBeEnabled();
- fireEvent.click(screen.getByRole("button",{name:"Отмена"}));
+ fireEvent.click(getButton("Отмена"));
  await waitFor(() => expect(screen.getByRole("dialog",{name:"Общий срок спора"})).toBeVisible());
  expect(screen.getByLabelText("Причина изменения")).toHaveValue("Черновик причины");
  expect(vi.mocked(apiFetch).mock.calls.some(([,o]) => o?.method === "POST")).toBe(false);
