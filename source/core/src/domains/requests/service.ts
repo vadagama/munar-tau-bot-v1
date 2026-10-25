@@ -396,6 +396,8 @@ export async function listRequests(
   filter: Row = {},
 ): Promise<Row[]> {
   // Серверная область в SQL до пагинации; поиск по доступному обращению и его автору.
+  // states — массив состояний (например, только активные или только закрытые);
+  // limit — максимум строк (по умолчанию 100), например для проверки «есть ли архив».
   let offset = 0;
   if (filter.cursor) {
     try {
@@ -420,7 +422,8 @@ export async function listRequests(
  and ($5::text is null or r.state=$5) and ($6::text is null or r.number ilike '%'||$6||'%' or r.description ilike '%'||$6||'%' or initiator.full_name ilike '%'||$6||'%' or exists(select 1 from message m where m.request_id=r.id and m.channel='resident' and m.restricted_at is null and m.text ilike '%'||$6||'%'))
  and ($7::uuid is null or r.premises_id=$7) and ($8::timestamptz is null or r.created_at>=$8) and ($9::timestamptz is null or r.created_at<=$9)
  and ($11::uuid is null or r.building_id=$11)
- order by case when r.state in ('need_clarification','awaiting_confirmation') then 0 else 1 end,r.created_at desc,r.id desc limit 100 offset $10`,
+ and ($12::text[] is null or r.state=any($12))
+ order by case when r.state in ('need_clarification','awaiting_confirmation') then 0 else 1 end,r.created_at desc,r.id desc limit $13 offset $10`,
     [
       actor.person.isTest,
       actor.person.id,
@@ -433,6 +436,8 @@ export async function listRequests(
       filter.to ?? null,
       offset,
       filter.building_id ?? null,
+      filter.states ?? null,
+      filter.limit ?? 100,
     ],
   );
   return Promise.all(rows.map((r) => publicRequest(deps.db, actor, r)));

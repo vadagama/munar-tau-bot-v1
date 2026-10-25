@@ -820,6 +820,16 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "kk": "Әрі қарай",
       },
       {
+        "id": "archive",
+        "ru": "Архив",
+        "kk": "Мұрағат",
+      },
+      {
+        "id": "active",
+        "ru": "Активные",
+        "kk": "Белсенді",
+      },
+      {
         "id": "open",
         "ru": "{number}",
         "kk": "{number}",

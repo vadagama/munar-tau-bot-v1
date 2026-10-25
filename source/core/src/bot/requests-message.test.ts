@@ -8,6 +8,7 @@ import type { Actor } from "../pdp/types.ts";
 import { message, messageButton, messagePreview } from "../templates/message.ts";
 import { getTemplate } from "../templates/catalog/index.ts";
 import { t as templateText, type TemplateStore } from "../templates/store.ts";
+import { CLOSED_STATES, STATES } from "../domains/requests/fsm.ts";
 import type { Row } from "../domains/registry/validation.ts";
 
 const actor: Actor = {
@@ -632,6 +633,57 @@ it.each(["ru", "kk"] as const)(
     expect(replyText(card)).not.toContain("<электрику>");
   },
 );
+
+const ACTIVE_STATES = STATES.filter((s) => !CLOSED_STATES.includes(s));
+
+it("/requests: по умолчанию активные, архив проверяется отдельным запросом", async () => {
+  const captured: { sql: string; params: readonly unknown[] }[] = [];
+  const result = await requestStep(
+    deps({ captured }),
+    "1",
+    "/requests",
+    actor,
+  );
+  const list = captured.filter((c) => c.sql.includes("order by case"));
+  // Основной запрос — активные состояния; проверка архива — закрытые с limit 1.
+  expect(list.length).toBe(2);
+  expect(list[0]!.params[11]).toEqual([...ACTIVE_STATES]);
+  expect(list[0]!.params[12]).toBe(100);
+  expect(list[1]!.params[11]).toEqual(["closed", "canceled", "rejected"]);
+  expect(list[1]!.params[12]).toBe(1);
+  // Пустой список — предложение создать обращение.
+  expect(
+    typeof result === "object" &&
+      result.buttons?.flat().map((b) => b.data),
+  ).toEqual(["/newrequest"]);
+});
+
+it("/requests archive: читает закрытые без проверки архива и предлагает выход", async () => {
+  const captured: { sql: string; params: readonly unknown[] }[] = [];
+  const result = await requestStep(
+    deps({ captured }),
+    "1",
+    "/requests archive page:2",
+    actor,
+  );
+  const list = captured.filter((c) => c.sql.includes("order by case"));
+  expect(list.length).toBe(1);
+  expect(list[0]!.params[11]).toEqual(["closed", "canceled", "rejected"]);
+  expect(list[0]!.params[9]).toBe(10);
+  // Пустая страница архива: назад к странице 1 и выход к активным, без CTA.
+  expect(
+    typeof result === "object" &&
+      result.buttons?.flat().map((b) => b.data),
+  ).toEqual(["/requests archive page:1", "/requests"]);
+});
+
+it("/requests ищет по тексту только среди активных", async () => {
+  const captured: { sql: string; params: readonly unknown[] }[] = [];
+  await requestStep(deps({ captured }), "1", "/requests лифт", actor);
+  const list = captured.filter((c) => c.sql.includes("order by case"));
+  expect(list[0]!.params[5]).toBe("лифт");
+  expect(list[0]!.params[11]).toEqual([...ACTIVE_STATES]);
+});
 
 describe("файловый диалог (REQ-03, R2.4)", () => {
   it("приглашение → /sendrequest → карточка проверки без файлов", async () => {

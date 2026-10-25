@@ -185,6 +185,97 @@ it("черновик открывается кнопкой возобновле�
   ).toBe("/newrequest");
 });
 
+it("менее 10 обращений — список без пагинации", () => {
+  const reply = requestListText(
+    [{
+      number: "З-26-1",
+      state: "in_work",
+      author_person_id: "author",
+      description: "d",
+    }],
+    "author",
+    1,
+  );
+  expect(
+    typeof reply === "object" &&
+      reply.buttons?.flat().map((b) => b.data),
+  ).toEqual(["/request З-26-1"]);
+});
+
+it("пустой список предлагает новое обращение", () => {
+  const reply = requestListText([], "author", 1);
+  expect(replyText(reply)).toContain("Обращений нет");
+  expect(
+    typeof reply === "object" &&
+      reply.buttons?.flat().map((b) => [b.text, b.data]),
+  ).toEqual([["Новое обращение", "/newrequest"]]);
+});
+
+it("кнопка архива появляется только когда есть закрытые обращения", () => {
+  const rows = [{
+    number: "З-26-1",
+    state: "in_work",
+    author_person_id: "author",
+    description: "d",
+  }];
+  const plain = requestListText(rows, "author", 1);
+  expect(replyText(plain)).not.toContain("Архив");
+  const withArchive = requestListText(
+    rows,
+    "author",
+    1,
+    "ru",
+    undefined,
+    undefined,
+    { hasArchive: true },
+  );
+  expect(
+    typeof withArchive === "object" && withArchive.buttons?.at(-1)?.[0],
+  ).toEqual({ text: "Архив", data: "/requests archive" });
+});
+
+it("архив: пагинация внутри архива и выход к активным без кнопки архива", () => {
+  const rows = Array.from(
+    { length: 11 },
+    (_, i) => ({
+      number: `З-26-${i}`,
+      state: "closed",
+      author_person_id: "author",
+      description: "d",
+    }),
+  );
+  const first = requestListText(
+    rows,
+    "author",
+    1,
+    "ru",
+    undefined,
+    undefined,
+    { archive: true },
+  );
+  const data = typeof first === "object"
+    ? first.buttons?.flat().map((b) => b.data)
+    : [];
+  expect(data).toContain("/requests archive page:2");
+  expect(data).not.toContain("/requests page:2");
+  expect(data).toContain("/requests");
+  expect(data).not.toEqual(expect.arrayContaining(["/requests archive"]));
+  expect(data).not.toContain("/newrequest");
+  const second = requestListText(
+    rows,
+    "author",
+    2,
+    "ru",
+    undefined,
+    undefined,
+    { archive: true },
+  );
+  expect(
+    typeof second === "object" &&
+      second.buttons?.flat().find((b) => b.data === "/requests archive page:1"),
+  ).toBeTruthy();
+});
+
 it("целая карточка и подпись кнопки меняются одним шаблоном, данные экранируются", () => {
   const store = new Map([["message.requests.card.confirmation", {
     ru:
