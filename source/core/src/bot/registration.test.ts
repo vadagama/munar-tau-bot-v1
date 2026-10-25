@@ -617,7 +617,7 @@ describe("бот: выданные доступы (/accesses)", () => {
     registration_id: REG_ID,
   };
 
-  it("список — заголовок и две кнопки на доступ, команд в тексте нет", async () => {
+  it("список — заголовок и кнопка с именем жильца, команд в тексте нет", async () => {
     const h = harness({ profile: true, accessRows: [accessRow] });
     const reply = await registrationStep(h.deps, "100", "/accesses");
     const text = replyText(reply);
@@ -625,8 +625,7 @@ describe("бот: выданные доступы (/accesses)", () => {
     expect(text).not.toContain("/revoke");
     expect(reply).toMatchObject({
       buttons: [[
-        { text: "Прекратить доступ — 1", data: "/revoke 1" },
-        { text: "Спор — 1", data: "/dispute 1" },
+        { text: "Прекратить доступ — Алия Омарова", data: "/revoke 1" },
       ]],
     });
   });
@@ -1553,7 +1552,7 @@ describe("бот: отправленные приглашения в /accesses (
     const text = replyText(reply);
     expect(text).toContain("Отправленные приглашения:");
     expect(reply).toMatchObject({
-      buttons: [[{ text: "Отозвать — 1", data: "/revokeinvite 1" }]],
+      buttons: [[{ text: "Отозвать приглашение — 1", data: "/revokeinvite 1" }]],
     });
     expect(h.state.invite_options).toEqual(["inv-1"]);
   });
@@ -1577,7 +1576,6 @@ describe("бот: отправленные приглашения в /accesses (
     expect(text).toContain("Отправленные приглашения:");
     expect(typeof reply !== "string" && reply.buttons?.flat().map((b) => b.data)).toEqual([
       "/revoke 1",
-      "/dispute 1",
       "/revokeinvite 1",
     ]);
   });
