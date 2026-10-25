@@ -7,5 +7,6 @@ export * from "./auth/index.ts";
 export * from "./db/client.ts";
 export * from "./bot/registry.ts";
 export * from "./domains/admin/index.ts";
+export * from "./domains/assistant/index.ts";
 export * from "./domains/audit/index.ts";
 export * from "./domains/emulation/index.ts";

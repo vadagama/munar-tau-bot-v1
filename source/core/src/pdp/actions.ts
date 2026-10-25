@@ -11,6 +11,7 @@ export type ActionKey =
   | "poll.use" | "poll.read" | "poll.manage" | "poll.answer" | "poll.results"
   | "document.use" | "document.read" | "document.prepare" | "document.review" | "document.manage" | "document.obligations"
   | "staff.read" | "staff.edit"
+  | "assistant.use" | "assistant.settings.read" | "assistant.settings.edit" | "assistant.usage.read"
   | "settings.templates.read" | "settings.templates.edit"
   | "incident.use" | "incident.read" | "incident.manage" | "incident.link"
   | "publication.read" | "publication.manage" | "publication.approve"
@@ -95,6 +96,15 @@ export const ACTIONS: Readonly<Record<ActionKey, ActionSpec>> = {
   "document.manage": { privileged: false },
   "staff.read": { privileged:false, roles:["chairman","administrator","deputy"] },
   "staff.edit": { privileged:true, roles:["chairman","administrator","deputy"] },
+  // AI-ассистент (ADR-021): privileged — в эмуляции недоступен целиком (условие 3
+  // ADR). Пилот — роли chairman/administrator, у каждого выключен по умолчанию
+  // (kill switch в assistant_user_config — проверяет сервис при выдаче токена).
+  "assistant.use": { privileged: true, roles: ["chairman", "administrator"] },
+  // Настройки ассистента — председатель/техадмин, вне эмуляции.
+  "assistant.settings.read": { privileged: true, roles: ["chairman", "tech_admin"] },
+  "assistant.settings.edit": { privileged: true, roles: ["chairman", "tech_admin"] },
+  // Свой расход — любой сотрудник (allowOwn); чужой — председатель/техадмин.
+  "assistant.usage.read": { privileged: true, allowOwn: true, roles: ["chairman", "tech_admin"] },
   "settings.templates.read": {privileged:false,roles:["chairman","administrator","tech_admin"]},
   "settings.templates.edit": {privileged:true,roles:["chairman","administrator","tech_admin"]},
   "incident.use": { privileged: false },
