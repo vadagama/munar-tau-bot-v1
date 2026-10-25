@@ -1,14 +1,10 @@
 import { MemoryRouter } from "react-router-dom";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { RegistryPage } from "./registry";
 import { apiFetch } from "../lib/api";
 
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
-const computed = window.getComputedStyle.bind(window);
-beforeEach(() => {
-  vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
-});
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -20,7 +16,7 @@ it("восстановление Telegram — самостоятельная ф�
     items: path === "/v1/registry/persons"
       ? [{ id: "person", full_name: "Иван Петров", phone_e164: "+77010000000" }]
       : [],
-  }));
+ }));
   render(<RegistryPage users="residents" />);
   fireEvent.click(await screen.findByRole("button", { name: "Восстановить Telegram" }));
   const field = await screen.findByLabelText("Как проверены личность и новый Telegram-аккаунт");
@@ -34,7 +30,6 @@ it("восстановление Telegram — самостоятельная ф�
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(vi.mocked(apiFetch).mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(false);
 });
-
 
 it("помещения не содержат вкладку людей", () => {
   vi.mocked(apiFetch).mockResolvedValue({ items: [] });
@@ -91,7 +86,6 @@ it("Telegram-имя в таблицах жителей и сотрудников
   expect(screen.getByText("По выбранным условиям ничего не найдено")).toBeInTheDocument();
 });
 
-
 it("фильтрует здания по очереди, отсутствию очереди и возвращает все", async () => {
   const buildings = [
     { id: "b1", code: "ДОМ-1", name: "ДОМ-1", construction_phase: 1 },
@@ -131,16 +125,15 @@ it("сохраняет выбранную очередь здания и явн�
   fireEvent.click(screen.getByText("Сохранить", {selector:"button > span"}));
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registry/buildings", expect.objectContaining({
     method: "POST", body: expect.objectContaining({ name: "НОВЫЙ-1", construction_phase: 5 }),
-  })));
+ })));
   await waitFor(() => expect(drawer).not.toBeVisible());
   fireEvent.click(screen.getByText("Добавить запись", {selector:"button > span"}));
   fireEvent.change(screen.getByLabelText("Название", {selector:"input"}), { target: { value: "НОВЫЙ-2" } });
   fireEvent.click(screen.getByText("Сохранить", {selector:"button > span"}));
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registry/buildings", expect.objectContaining({
     method: "POST", body: expect.objectContaining({ name: "НОВЫЙ-2", construction_phase: null }),
-  })));
+ })));
 });
-
 
 it("очистка очереди существующего здания отправляет null, фон не сбрасывает черновик", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings")
@@ -155,7 +148,7 @@ it("очистка очереди существующего здания отп
   fireEvent.click(screen.getByText("Сохранить", {selector:"button > span"}));
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registry/buildings/b1", expect.objectContaining({
     method: "PATCH", body: expect.objectContaining({ name: "ДОМ-ИЗМЕНЁН", construction_phase: null }),
-  })));
+ })));
 });
 
 it("удаление помещения: подтверждение с последствиями, DELETE и перечитывание", async () => {
@@ -175,7 +168,7 @@ it("ошибка удаления помещения видна в общей о
   vi.mocked(apiFetch).mockImplementation(async (path, options) => {
     if (options?.method === "DELETE") throw new Error("У здания есть аварийные сигналы — удаление запрещено");
     return { items: path.endsWith("/premises") ? [{ id: "p1", kind: "apartment", number: "1" }] : [] };
-  });
+ });
   render(<RegistryPage />);
   fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
   const popover = await screen.findByRole("tooltip");
@@ -233,7 +226,7 @@ it("жители: автоматический поиск по ФИО, теле�
     fireEvent.change(search, { target: { value: term } });
     expect(screen.getByText("Анна Соколова")).toBeInTheDocument();
     expect(screen.queryByText("Борис Петров")).not.toBeInTheDocument();
-  }
+ }
   expect(screen.queryByRole("button", { name: "Применить" })).not.toBeInTheDocument();
 });
 
@@ -242,7 +235,7 @@ it("жители: фильтры наличия помещений, здания
   const choose = async (label: string, option: string) => {
     fireEvent.mouseDown(screen.getByLabelText(label, { selector: "input" }));
     fireEvent.click(await screen.findByText(option, { selector: ".ant-select-item-option-content" }));
-  };
+ };
   await choose("Наличие помещений", "Без помещений");
   expect(screen.queryByText("Анна Соколова")).not.toBeInTheDocument();
   expect(screen.getByText("Борис Петров")).toBeInTheDocument();
@@ -285,7 +278,7 @@ it("жители: удаление отправляет manage delete с осн�
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/registrations/reg-1/manage", expect.objectContaining({
     method: "POST", idempotencyKey: expect.any(String),
     body: { operation: "delete", expected_version: 1, reason: "Дубликат карточки" },
-  })));
+ })));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path === "/v1/registry/persons").length).toBeGreaterThan(1);
 });
@@ -296,7 +289,7 @@ it("жители: ошибка удаления видна в окне удал�
     return { items: path.endsWith("/persons") ? [
       { id: "r1", full_name: "Анна Соколова", phone_e164: "+77011111111", registration_id: "reg-1", registration_version: 1, registration_state: "approved", registered_at: "2026-10-20T20:00:00Z", can_manage: true, linked_premises: [] },
     ] : [] };
-  });
+ });
   render(<RegistryPage users="residents" />);
   fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
   const dialog = await screen.findByRole("dialog");

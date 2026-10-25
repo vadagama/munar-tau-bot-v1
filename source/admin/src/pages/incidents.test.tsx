@@ -15,12 +15,9 @@ vi.mock(
   "../lib/identity",
   () => ({ useCabinetIdentity: () => ({ roles: ["administrator"] }) }),
 );
-const computed = window.getComputedStyle.bind(window);
 beforeEach(() => {
   localStorage.clear();
-  vi.spyOn(window, "getComputedStyle").mockImplementation((element) =>
-    computed(element)
-  );
+
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -38,8 +35,8 @@ it("инцидент показывает незавершённое восст�
           number: "АВ-1",
           title: "Вода",
           state: "recovery_check",
-        }],
-      }
+ }],
+ }
       : path === "/v1/emergency-signals"
       ? { items: [] }
       : {
@@ -54,9 +51,9 @@ it("инцидент показывает незавершённое восст�
           zone: "Первый дом",
           service: "Вода",
           recovered_at: null,
-        }],
+ }],
         history: [{ at: "Сегодня", reason: "Второй стояк ещё проверяется" }],
-      }
+ }
   );
   render(<IncidentsPage />);
   fireEvent.click(await screen.findByRole("button", {name:"Вода"}));
@@ -93,7 +90,7 @@ it(
       body: "Работы продолжаются",
       planned_end: "2020-01-01",
       restored_at: null,
-    };
+ };
     vi.mocked(apiFetch).mockImplementation(async (path) =>
       path === "/v1/publications" ? { items: [row] } : row
     );
@@ -104,7 +101,7 @@ it(
         .toBeInTheDocument()
     );
     expect(screen.getByText("Подтвердить восстановление")).toBeInTheDocument();
-  },
+ },
   15000,
 );
 it("доска инцидентов: состояния в колонках, карточка открывает инцидент", async () => {
@@ -116,8 +113,8 @@ it("доска инцидентов: состояния в колонках, к�
           number: "АВ-1",
           title: "Вода",
           state: "recovery_check",
-        }],
-      }
+ }],
+ }
       : path === "/v1/emergency-signals"
       ? { items: [] }
       : {
@@ -132,9 +129,9 @@ it("доска инцидентов: состояния в колонках, к�
           zone: "Первый дом",
           service: "Вода",
           recovered_at: null,
-        }],
+ }],
         history: [],
-      }
+ }
   );
   render(<IncidentsPage />);
   fireEvent.click(await screen.findByRole("radio", { name: "Доска" }));
@@ -164,7 +161,6 @@ it("редактирование публикации использует ту 
   expect(within(drawer).getByText("Сообщение жителям")).toBeInTheDocument();
   expect(vi.mocked(apiFetch).mock.calls.some(([, opts]) => opts?.method === "POST")).toBe(false);
 }, 15000);
-
 
 it("согласованный финансовый отчёт предлагает публикацию вместо повторного согласования", async () => {
  const card={id:"p",title:"Отчёт за месяц",body:"Доходы и расходы",kind:"financial_report",state:"draft",approved_by:"chairman",files:[],history:[],can_manage:true,can_approve:false,financial_versions:[]};

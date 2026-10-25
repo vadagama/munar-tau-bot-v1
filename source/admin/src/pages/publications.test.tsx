@@ -1,13 +1,11 @@
 import { getButton,findButton } from "../test/buttons";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { PublicationsPage } from "./publications";
 import { apiFetch } from "../lib/api";
 import { PAGE_REFRESH_EVENT } from "../lib/use-page-refresh";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
 vi.mock("../lib/identity", () => ({ useCabinetIdentity: () => ({ roles: ["chairman"], identity: { id: "person" } }) }));
-const computed = window.getComputedStyle.bind(window);
-beforeEach(() => { vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element)); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.restoreAllMocks(); });
 const card = { id: "pub", title: "Сентябрь", body: "Отчёт", kind: "financial_report", state: "pending_approval", version: 3, financial_versions: [], can_manage: true, can_approve: true };
 it("собирает финансовый выпуск из обязанности и выбранных проверенных версий", async () => {
@@ -21,7 +19,7 @@ it("собирает финансовый выпуск из обязанност
     if (path === "/v1/common-works") return { items: [] };
     if (path === "/v1/incidents/context") return { persons: [] };
     return card;
-  });
+ });
   render(<PublicationsPage />);
   fireEvent.click(getButton("Создать публикацию"));
   const editor = within(await screen.findByRole("region", { name: "Новая публикация" }));
@@ -62,7 +60,7 @@ it("конфликт разрешения сохраняет служебную 
   vi.mocked(apiFetch).mockImplementation(async (path, options) => {
     if (options?.method) { version = 4; throw Object.assign(new Error("Конфликт"), { status: 409 }); }
     return path === "/v1/publications" ? { items: [card] } : { ...card, version };
-  });
+ });
   render(<PublicationsPage />);
   fireEvent.click(await findButton("Сентябрь"));
   fireEvent.click(await findButton("Разрешить финансовый выпуск"));
@@ -82,7 +80,7 @@ it("редактирование обычной публикации восст�
     if (path === "/v1/registry/buildings") return { items: [{ id: "house", code: "Дом 1" }] };
     if (path === "/v1/incidents/context") return { persons: [] };
     return { items: [], has_more: false };
-  });
+ });
   render(<PublicationsPage />);
   fireEvent.click(await findButton("Правила"));
   fireEvent.click(await findButton("Редактировать"));
@@ -108,7 +106,7 @@ it("недействительное закреплённое основание
     if (path === "/v1/documents/version-options") return { items: [{ id: "new", document_id: "doc-new", title: "Новое основание", version: 2 }], has_more: false };
     if (path === "/v1/incidents/context") return { persons: [] };
     return { items: [], has_more: false };
-  });
+ });
   render(<PublicationsPage />);
   fireEvent.click(await findButton("Правила"));
   fireEvent.click(await findButton("Редактировать"));

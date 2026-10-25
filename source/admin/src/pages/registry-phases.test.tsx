@@ -1,10 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { RegistryPhasesPage } from "./registry-phases";
 import { apiFetch } from "../lib/api";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
-const computed = window.getComputedStyle.bind(window);
-beforeEach(() => { vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element)); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 it("ищет очереди по зданию, фильтрует по составу и сохраняет поиск после обновления", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => ({ items: path.endsWith("/buildings")

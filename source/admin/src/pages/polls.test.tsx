@@ -7,9 +7,8 @@ import type { PollView } from "./poll-types";
 const state=vi.hoisted(()=>({identity:"one"}));
 vi.mock("../lib/api",()=>({apiFetch:vi.fn()}));
 vi.mock("../lib/identity",()=>({useCabinetIdentity:()=>({roles:["administrator"],identity:{id:state.identity}})}));
-const computed=window.getComputedStyle.bind(window);
 const poll:PollView={id:"poll",question:"Когда проводить встречу?",options:[{key:"a",label:"Суббота"},{key:"b",label:"Воскресенье"}],building_ids:["house"],buildings:[{id:"house",label:"Дом 1"}],closes_at:"2026-11-01T10:00:00Z",state:"open",version:4,cancel_reason:null,informational:true,can_manage:true,can_answer:false,can_results:true,deadline_passed:false};
-beforeEach(()=>{state.identity="one";vi.spyOn(window,"getComputedStyle").mockImplementation(element=>computed(element));});
+beforeEach(()=>{state.identity="one";});
 afterEach(()=>{cleanup();vi.clearAllMocks();vi.restoreAllMocks();});
 it("открытые параметры только читаются; агрегат не содержит персонального состава",async()=>{
   vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/polls"?{items:[poll],has_more:false}:path.endsWith("/results")?{participants_count:2,distribution:[{option_key:"a",count:2},{option_key:"b",count:0}],as_of:poll.closes_at,final:false}:poll);
@@ -25,7 +24,7 @@ it("отмена передаёт причину/версию и после пе
   vi.mocked(apiFetch).mockImplementation(async(path,options)=>{
     if(options?.method==="POST"){current={...current,state:"canceled",version:5,cancel_reason:"Вопрос уточняется",can_results:false};return current;}
     return path==="/v1/polls"?{items:[current],has_more:false}:path.endsWith("/results")?{participants_count:0,distribution:[],as_of:poll.closes_at,final:false}:current;
-  });
+ });
   render(<PollsPage/>);fireEvent.click(await findButton(poll.question));
   fireEvent.click(await findButton("Отменить опрос"));
   fireEvent.change(screen.getByLabelText("Причина отмены"),{target:{value:"Вопрос уточняется"}});
@@ -71,7 +70,7 @@ it("завершение фонового списка не открывает �
     if(path==="/v1/registry/buildings")return {items:[{id:"house",code:"1",name:"Дом 1"}]};
     if(path==="/v1/polls"){if(++lists===2)return new Promise(resolve=>{finish=resolve;});return {items:[poll],has_more:false};}
     return path.endsWith("/results")?{participants_count:0,distribution:[],as_of:poll.closes_at,final:false}:poll;
-  });
+ });
   render(<PollsPage/>);fireEvent.click(await findButton(poll.question));
   await findButton("Отменить опрос");
   fireEvent(window,new Event("cabinet:refresh-page"));

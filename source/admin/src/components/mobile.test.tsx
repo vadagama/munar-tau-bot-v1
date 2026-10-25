@@ -22,8 +22,7 @@ it("на телефоне сохранённая доска становится
 });
 it("на телефоне показывает данные записи и действия без настройки колонок", () => {
   mobile();
-  const computed = window.getComputedStyle.bind(window);
-  vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
+
   render(<ConfigurableTable storageKey="columns.mobile-test" rowKey="id" columns={[{title:"Имя",dataIndex:"name"}]}
     dataSource={[{id:"1",name:"Иван"}]} />);
   expect(screen.getByText("Иван")).toBeInTheDocument();
@@ -32,8 +31,7 @@ it("на телефоне показывает данные записи и де
 
 it("мобильная сортировка применяется ко всему списку до пагинации", () => {
   mobile();
-  const computed = window.getComputedStyle.bind(window);
-  vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
+
   render(<ConfigurableTable storageKey="columns.mobile-sort" rowKey="id" columns={[{title:"Номер",dataIndex:"name"}]}
     pagination={{pageSize:1}} dataSource={[{id:"a",name:"ЗД-10"},{id:"b",name:"ЗД-2"}]} />);
   fireEvent.click(screen.getByText("Фильтры и сортировка"));
@@ -45,8 +43,7 @@ it("мобильная сортировка применяется ко всем
 
 it("основное действие карточки доступно в нижней панели без дублирования", () => {
   mobile();
-  const computed = window.getComputedStyle.bind(window);
-  vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
+
   const act = vi.fn();
   render(<CardDrawer open title="ЗД-1" onClose={vi.fn()}>
     <ProcessActions primary="accept"><Button key="accept" onClick={act}>Принять</Button><Button key="cancel">Отменить</Button></ProcessActions>
@@ -60,8 +57,7 @@ it("основное действие карточки доступно в ни�
 
 it("сортировка мобильного реестра возвращает первую управляемую страницу", () => {
   mobile();
-  const computed = window.getComputedStyle.bind(window);
-  vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
+
   const onPage = vi.fn();
   render(<ConfigurableTable storageKey="columns.mobile-controlled" rowKey="id" columns={[{title:"Номер",dataIndex:"name"}]}
     pagination={{current:2,pageSize:1,onChange:onPage}} dataSource={[{id:"a",name:"ЗД-10"},{id:"b",name:"ЗД-2"}]} />);
@@ -73,8 +69,7 @@ it("сортировка мобильного реестра возвращае�
 
 it("две таблицы страницы используют один мобильный выбор сортировки", () => {
  mobile();
- const computed = window.getComputedStyle.bind(window);
- vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
+
  render(<PageLayout title="Документы">
   <ConfigurableTable storageKey="sort-documents" rowKey="id" columns={[{title:"Документ",dataIndex:"name"}]} dataSource={[]} />
   <ConfigurableTable storageKey="sort-obligations" rowKey="id" columns={[{title:"Обязанность",dataIndex:"name"}]} dataSource={[]} />
@@ -86,8 +81,7 @@ it("две таблицы страницы используют один моб�
 for (const isMobile of [true, false]) {
   it(`открывает строку только на телефоне (${isMobile}), сохраняя вложенные действия`, () => {
     if (isMobile) mobile();
-    const computed = window.getComputedStyle.bind(window);
-    vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
+
     const open = vi.fn(); const action = vi.fn();
     const record = { id: "1", name: "Запись" };
     render(<ConfigurableTable storageKey="row-tap" rowKey="id" onMobileRowClick={open}
@@ -109,5 +103,5 @@ for (const isMobile of [true, false]) {
     expect(open).not.toHaveBeenCalled();
     fireEvent.click(screen.getByText("Запись").closest("tr")!);
     expect(open).toHaveBeenCalledTimes(isMobile ? 1 : 0);
-  });
+ });
 }

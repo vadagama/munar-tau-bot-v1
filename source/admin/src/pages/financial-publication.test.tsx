@@ -1,11 +1,9 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { FinancialPublication } from "./financial-publication";
 import { apiFetch } from "../lib/api";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
 vi.mock("../lib/identity", () => ({ useCabinetIdentity: () => ({ identity: { id: "finance" } }) }));
-const computed = window.getComputedStyle.bind(window);
-beforeEach(() => { vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element)); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.restoreAllMocks(); });
 it("поздняя обязанность не заменяет выбранный регламент", async () => {
   let finish!: (value: unknown) => void;
@@ -29,7 +27,7 @@ it("ошибка очереди видна, повтор не пишет дан�
 it("читатель видит недостающие каналы и историю конкретных размещений", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/financial-rules" ? { items: [] } : path === "/v1/financial-obligations" ? { items: [{ id: "duty", version: 2, period_from: "2026-09-01", period_to: "2026-09-30", due_at: "2026-10-01T19:00:00Z", completed_at: null, can_manage: false }] } : {
     id: "duty", version: 2, due_at: "2026-10-01T19:00:00Z", can_manage: false, missing_channels: ["Стенд"], rule_snapshot: { definition: { form_description: "Внешний месячный отчёт", channels: ["Бот", "Стенд"] } }, placements: [{ id: "proof", financial_version_id: "version-one", channel: "Бот", placed_at: "2026-10-01T12:00:00Z", evidence: "Проверена карточка" }],
-  });
+ });
   render(<FinancialPublication manager={false} />);
   fireEvent.click(await screen.findByRole("button", { name: "Открыть обязанность" }));
   expect(await screen.findByText("Осталось подтвердить: Стенд")).toBeInTheDocument();

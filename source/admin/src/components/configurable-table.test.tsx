@@ -3,8 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ConfigurableTable } from "./configurable-table";
 import { PageLayout } from "./page-layout";
 const columns = [{ title: "Имя", dataIndex: "name" }, { title: "Телефон", dataIndex: "phone" }];
-const computed = window.getComputedStyle.bind(window);
-beforeEach(() => { localStorage.clear(); vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element)); });
+beforeEach(() => { localStorage.clear(); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it("шестерёнка находится справа в строке фильтров, скрывает колонку и сохраняет выбор", async () => {
   render(<PageLayout title="Жители" filters={<input aria-label="Поиск" />}>

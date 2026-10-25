@@ -1,13 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { JobTemplates } from "./job-templates";
 import { OSI_PRESETS } from "./job-template-presets";
 import { apiFetch } from "../lib/api";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
-const computed = window.getComputedStyle.bind(window);
-beforeEach(() => {
-  vi.spyOn(window, "getComputedStyle").mockImplementation((el) => computed(el));
-});
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -19,7 +15,7 @@ it("каталог готовых шаблонов ОСИ подставляет
     if (path === "/v1/registry/buildings")
       return { items: [{ id: "b1", name: "Дом 1" }] };
     throw new Error(`Unexpected ${path}`);
-  });
+ });
   render(<JobTemplates onCreated={() => {}} />);
   fireEvent.click(await screen.findByText(/Готовые шаблоны для ОСИ/));
   // Каталог раскрылся: пресеты видны целиком, последний тоже.
@@ -55,8 +51,8 @@ it("каталог готовых шаблонов ОСИ подставляет
           instruction: OSI_PRESETS[0]!.instruction,
           buildings: ["b1"],
           required_evidence: OSI_PRESETS[0]!.evidence,
-        }),
-      }),
+ }),
+ }),
     ),
   );
 }, 20000);

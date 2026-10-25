@@ -6,14 +6,13 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it("мобильные фильтры применяются сразу, показывают ошибку периода и сбрасываются", () => {
   vi.spyOn(window, "matchMedia").mockImplementation(query => ({matches: query === "(max-width: 767px)", media: query, onchange:null,
     addListener:vi.fn(),removeListener:vi.fn(),addEventListener:vi.fn(),removeEventListener:vi.fn(),dispatchEvent:()=>false}));
-  const computed = window.getComputedStyle.bind(window);
-  vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
+
   function Example() {
     const [values,setValues] = useState<FilterValues>({from:"",to:""});
     return <><output aria-label="Применённая дата">{values.from || "Нет"}</output>
       <ListFilters search={<input aria-label="Поиск" />} values={values} onChange={setValues}
         stateLabel="Состояние" stateOptions={[]} relatedLabel="Исполнитель" relatedOptions={[]} /></>;
-  }
+ }
   render(<Example />);
   fireEvent.change(screen.getByLabelText("Период с"),{target:{value:"2026-10-25"}});
   expect(screen.getByLabelText("Применённая дата")).toHaveTextContent("2026-10-25");

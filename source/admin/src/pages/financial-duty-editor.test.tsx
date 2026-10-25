@@ -1,10 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { FinancialDutyEditor } from "./financial-duty-editor";
 import { apiFetch } from "../lib/api";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
-const computed = window.getComputedStyle.bind(window);
-beforeEach(() => { vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element)); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.restoreAllMocks(); });
 it("передача отправляет только ответственных, исходную версию и причину; ошибка сохраняет ввод", async () => {
   vi.mocked(apiFetch).mockImplementation(async (_, request) => { if (request?.method) throw new Error("Нет полномочий"); return { items: ["p", "r", "u"].map(id => ({ id, full_name: id, roles: ["administrator"] })) }; });

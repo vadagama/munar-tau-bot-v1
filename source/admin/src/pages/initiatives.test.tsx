@@ -7,8 +7,7 @@ const state=vi.hoisted(()=>({identity:"one"}));
 vi.mock("../lib/api",()=>({apiFetch:vi.fn()}));
 vi.mock("../lib/identity",()=>({useCabinetIdentity:()=>({roles:["administrator"],identity:{id:state.identity}})}));
 const item={id:"item",title:"Освещение двора",body:"Новые светильники",location_text:"Двор",publication_state:"published",stage:"collecting",version:2,requested_building_ids:["house"],approved_building_ids:["house"],can_manage:true,can_moderate:true,can_comment:false,can_support:false,support_count:3,own_support:{version:0,supported:false},owner_decision_required:false};
-const computed=window.getComputedStyle.bind(window);
-beforeEach(()=>{state.identity="one";vi.spyOn(window,"getComputedStyle").mockImplementation(element=>computed(element));});
+beforeEach(()=>{state.identity="one";});
 afterEach(()=>{cleanup();vi.clearAllMocks();vi.restoreAllMocks();});
 function mock(){vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/initiatives"?{items:[item],has_more:false}:path.endsWith("/comments")||path.endsWith("/history")||path.includes("/moderation/")?{items:[],has_more:false}:item);}
 it("карточка показывает этап, поддержку и историю без персонального состава",async()=>{

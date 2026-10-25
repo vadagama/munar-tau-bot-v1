@@ -3,8 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { CommonWorks } from "./common-works";
 import { apiFetch } from "../lib/api";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
-const computed = window.getComputedStyle.bind(window);
-beforeEach(() => { localStorage.clear(); vi.spyOn(window, "getComputedStyle").mockImplementation(el => computed(el)); });
+beforeEach(() => { localStorage.clear(); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 it("поиск, состояние и даты создания сразу фильтруют общие работы", async () => {
   vi.mocked(apiFetch).mockResolvedValue({items:[
