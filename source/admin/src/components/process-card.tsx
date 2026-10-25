@@ -1,4 +1,6 @@
-import { Children, cloneElement, Fragment, isValidElement, type ReactElement, type ReactNode, type ComponentProps } from "react";
+import { Children, cloneElement, useContext, Fragment, isValidElement, type ReactElement, type ReactNode, type ComponentProps } from "react";
+import { createPortal } from "react-dom";
+import { MobileActionContext } from "./mobile-action-context";
 import { Button, Space, Tag, Typography, theme } from "antd";
 import { DetailSection } from "./detail-section";
 import type { ProcessGuidance } from "./process-guidance";
@@ -31,6 +33,7 @@ function buttons(children: ReactNode): ReactElement<ComponentProps<typeof Button
  });
 }
 export function ProcessActions({ primary, children }: {primary?: string; children: ReactNode}) {
+ const mobileActionHost = useContext(MobileActionContext);
  const all = buttons(children);
  // Children.toArray экранирует React key; сравниваем исходный суффикс ключа.
  const keyOf = (button: ReactElement) => String(button.key).split("$").at(-1);
@@ -38,7 +41,7 @@ export function ProcessActions({ primary, children }: {primary?: string; childre
  const remaining = all.filter(button => button !== main);
  if (!all.length) return null;
  return <div className="process-actions">
-  <Space wrap>{main && cloneElement(main, {type:"primary"})}{remaining.map(button => cloneElement(button, {type:"default"}))}</Space>
+  <Space wrap>{main && (mobileActionHost ? createPortal(cloneElement(main, {type:"primary", block:true}), mobileActionHost) : cloneElement(main, {type:"primary"}))}{remaining.map(button => cloneElement(button, {type:"default"}))}</Space>
  </div>;
 }
 export function ProcessHistory({title = "История", children}: {title?: string; children: ReactNode}) {
