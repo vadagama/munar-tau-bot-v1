@@ -20,6 +20,7 @@
 - [ADR-018: документы, участие жителей и отчётность VS-8](decisions/018-vs8-documents-participation-reports.md).
 - [ADR-019: история аудитории и порядок блокировок опросов](decisions/019-audience-history-serialization.md).
 - [ADR-020: приглашение = регистрация, привязка жильца — отдельное действие](decisions/020-invite-binding.md) — REG-03/13: ссылка только регистрирует жильца, собственник привязывает его через /bind.
+- [ADR-021: AI-ассистент на Cloudflare Worker и Durable Objects (Pi Durable)](decisions/021-ai-assistant-cloudflare-worker.md) — черновик, на ревью: рантайм агента вне Edge Functions, данные только через /v1 с JWT пользователя; пилот — read-only на вымышленных данных, реальные данные — после ИБ-анализа и отдельного ADR.
 
 - [VS-8: карта возможностей и спецификации](../VS8-CAPABILITY-MAP.md) — границы
   согласованы 23.10.2026; спецификации документов, финансовых публикаций,
