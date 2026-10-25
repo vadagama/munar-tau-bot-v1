@@ -143,7 +143,7 @@ it("карточка всегда предлагает возврат к спи�
     can_comment: true,
   });
   expect(typeof card === "object" && card.buttons?.at(-1)).toEqual([
-    { text: "📬 Мои обращения", data: "/requests" },
+    { text: "Мои обращения", data: "/requests" },
   ]);
   // data без номера: номер превратил бы кнопку в поисковый запрос.
   expect(

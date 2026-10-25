@@ -401,7 +401,33 @@ export async function dispatchNotices(
               );
               if (r) {
                 markup =
+                  // Сводка загрузки мастера (REQ-03): «Сохранить запрос» и
+                  // «В главное меню» одной строкой; callback_data — точные
+                  // команды сценария.
                   n.template && getTemplate(n.template)?.buttons?.some((b) =>
+                      b.id === "save"
+                    )
+                    ? inlineMarkup([[
+                      btn(
+                        messageButton(
+                          templates,
+                          actor.profile.language,
+                          n.template,
+                          "save",
+                        ),
+                        "/sendrequest",
+                      ),
+                      btn(
+                        messageButton(
+                          templates,
+                          actor.profile.language,
+                          n.template,
+                          "menu",
+                        ),
+                        "/cancel",
+                      ),
+                    ]])
+                    : n.template && getTemplate(n.template)?.buttons?.some((b) =>
                       b.id === "request"
                     )
                     ? inlineMarkup([[
@@ -450,6 +476,20 @@ export async function dispatchNotices(
               markup = inlineMarkup([[btn(messageButton(templates, actor.profile.language, n.template ?? "notices.financial.published", "open"), `/fv ${n.financialVersionId}`)]]);
             } else if (n.financialObligationId) {
               markup = inlineMarkup([[btn(messageButton(templates, actor.profile.language, "notices.financial.obligation", "open"), `/fd ${n.financialObligationId}`)]]);
+            }
+            // Фолбэк навигации (бот жителей): уведомлениям без карточной
+            // кнопки с задекларированной «В главное меню» (например, отказ
+            // переноса файла) достаточно одной кнопки выхода в меню.
+            if (
+              markup === null && n.bot !== "worker" && n.template &&
+              getTemplate(n.template)?.buttons?.some((b) => b.id === "menu")
+            ) {
+              markup = inlineMarkup([[
+                btn(
+                  messageButton(templates, actor.profile.language, n.template, "menu"),
+                  "/cancel",
+                ),
+              ]]);
             }
             for (const [index, part] of parts.entries()) {
               await exec.query(

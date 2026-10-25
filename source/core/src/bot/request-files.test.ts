@@ -11,7 +11,9 @@ function fixture(
   attempts = 0,
   loseLease = false,
   group: { pending?: number; rows?: Row[] } | null = null,
+  owner: { request_id?: string; media_group_id?: string | null } | null = null,
 ) {
+  let requestState = "in_work";
   const job = {
     attachment_id: "file",
     telegram_file_id: "telegram-file",
@@ -30,6 +32,16 @@ function fixture(
         person_id: "pers-1",
         media_group_id: "G1",
         caption: "фото проблемы",
+        request_id: "r1",
+      }
+      : {}),
+    ...(owner
+      ? {
+        owner_type: "request",
+        owner_id: owner.request_id,
+        bot: "resident",
+        request_id: owner.request_id,
+        ...(owner.media_group_id ? { media_group_id: owner.media_group_id } : {}),
       }
       : {}),
   };
@@ -77,6 +89,16 @@ function fixture(
         rows = [{ n: String(group.pending ?? 0) }];
       } else if (group && sql.startsWith("select j.attachment_id,j.caption")) {
         rows = group.rows ?? [];
+      } else if (
+        sql.startsWith("select state from request where id=$1")
+      ) {
+        rows = [{ state: requestState }];
+      } else if (
+        sql.startsWith(
+          "select a.status,a.discarded_at from request_upload_job",
+        )
+      ) {
+        rows = group?.rows ?? [];
       } else if (sql.includes("file_policy where singleton")) {
         rows = [{ max_bytes: 1048576, max_per_message: 10, extensions: ["pdf"] }];
       } else if (sql.startsWith("select pr.id from profile pr join person")) {
@@ -132,6 +154,9 @@ function fixture(
     inserted: () => inserted,
     reowned: () => reowned,
     discarded: () => discarded,
+    setRequestState: (s: string) => {
+      requestState = s;
+    },
   };
 }
 afterEach(() => vi.unstubAllGlobals());
@@ -298,6 +323,89 @@ it("безнадёжный файл альбома списывается, ос�
   expect(f.notifications.join()).not.toContain("secret-token");
 });
 
+const WIZARD_OK = async (url: string) =>
+  Promise.resolve(
+    url.endsWith("/getFile")
+      ? new Response(
+        JSON.stringify({
+          ok: true,
+          result: { file_path: "documents/file.pdf", file_size: 4 },
+        }),
+      )
+      : new Response(new TextEncoder().encode("%PDF")),
+  );
+
+it("файл мастера: единственная сводка вместо пофайлового «Файл сохранён»", async () => {
+  const f = fixture(0, false, null, { request_id: "r1", media_group_id: null });
+  f.setRequestState("draft");
+  vi.stubGlobal("fetch", WIZARD_OK);
+  await processRequestUploads(f.deps, f.storage, {
+    resident: "not-a-real-token",
+    worker: "not-a-real-token",
+  });
+  expect(f.state()).toBe("complete");
+  expect(f.notifications).toEqual([
+    {
+      ru: templateText(undefined, "ru", "notices.bot_request-files_process_request_uploads_103"),
+      kk: templateText(undefined, "kk", "notices.bot_request-files_process_request_uploads_103"),
+    },
+  ]);
+});
+
+it("отказ файла мастера: прежний текст с отказом, без утечки токена", async () => {
+  const f = fixture(2, false, null, { request_id: "r1", media_group_id: null });
+  f.setRequestState("draft");
+  vi.stubGlobal("fetch", () => Promise.reject(new Error("secret-token-must-not-leak")));
+  await processRequestUploads(f.deps, f.storage, {
+    resident: "secret-token-must-not-leak",
+    worker: "secret-token-must-not-leak",
+  });
+  expect(f.state()).toBe("failed");
+  expect(f.notifications).toHaveLength(1);
+  const notice = f.notifications[0] as { ru: string; kk: string };
+  expect(notice.ru).toContain("не сохранён");
+  expect(notice.kk).toContain("сақталмады");
+});
+
+it("альбом мастера: одна сводная реплика после загрузки всей группы", async () => {
+  const f = fixture(0, false, { pending: 0, rows: ALBUM_ROWS("complete") }, { request_id: "r1" });
+  f.setRequestState("draft");
+  vi.stubGlobal("fetch", WIZARD_OK);
+  await processRequestUploads(f.deps, f.storage, {
+    resident: "not-a-real-token",
+    worker: "not-a-real-token",
+  });
+  expect(f.state()).toBe("complete");
+  // Альбом по-прежнему уходит одним сообщением на черновик, сводка дополняет его.
+  expect(f.inserted()).toEqual([{ text: "фото проблемы", source: "bot" }]);
+  expect(f.notifications).toEqual([
+    {
+      ru: templateText(undefined, "ru", "notices.bot_request-files_process_request_uploads_104", { count: 2 }),
+      kk: templateText(undefined, "kk", "notices.bot_request-files_process_request_uploads_104", { count: 2 }),
+    },
+  ]);
+});
+
+it("частичный сбой альбома мастера: одна сводка «N из M» вместо пофайловых отказов", async () => {
+  const f = fixture(2, false, { pending: 0, rows: ALBUM_ROWS("incomplete") }, { request_id: "r1" });
+  f.setRequestState("draft");
+  vi.stubGlobal("fetch", () => Promise.reject(new Error("secret-token-must-not-leak")));
+  await processRequestUploads(f.deps, f.storage, {
+    resident: "secret-token-must-not-leak",
+    worker: "secret-token-must-not-leak",
+  });
+  expect(f.state()).toBe("failed");
+  expect(f.discarded()).toEqual(["file"]);
+  expect(f.inserted()).toEqual([{ text: "фото проблемы", source: "bot" }]);
+  expect(f.notifications).toEqual([
+    {
+      ru: templateText(undefined, "ru", "notices.bot_request-files_process_request_uploads_105", { count: 1, total: 2 }),
+      kk: templateText(undefined, "kk", "notices.bot_request-files_process_request_uploads_105", { count: 1, total: 2 }),
+    },
+  ]);
+  expect(f.notifications.join()).not.toContain("secret-token");
+});
+
 /** Харнесс queueRequestFile: минимальная цепочка actorForTelegram и черновик. */
 function queueFixture(dialogState: Row) {
   let dialog = dialogState;
@@ -386,7 +494,7 @@ function queueFixture(dialogState: Row) {
   };
 }
 
-it("медиа в файловом диалоге принимается и предлагает следующий файл или сохранение", async () => {
+it("медиа в файловом диалоге подтверждается молча — сводку пришлёт джоба", async () => {
   const f = queueFixture({
     scenario: "requests",
     draft_id: "r1",
@@ -395,26 +503,19 @@ it("медиа в файловом диалоге принимается и пр
   const reply = await queueRequestFile(f.deps, "100", {
     photo: [{ file_id: "f1", file_size: 100, width: 1, height: 1 }],
   }, 1);
-  // Шаг нормализуется в «attachments»: выбор «да/нет» больше не задаётся.
+  // Шаг нормализуется в «attachments»; реплика с кнопками уходит из джобы
+  // после переноса файла, вебхук молчит (25.10.2026).
   expect(f.state().step).toBe("attachments");
-  expect(replyText(reply)).toBe(
-    templateText(undefined, "ru", "message.requests.attachments_more"),
-  );
-  // Кнопка «Сохранить запрос» ведёт на /sendrequest.
-  expect(reply).toMatchObject({
-    buttons: [[{ data: "/sendrequest" }]],
-  });
+  expect(replyText(reply)).toBe("");
 });
 
-it("медиа вне файлового диалога отвечает прежней репликой очереди", async () => {
+it("медиа черновика вне файлового шага тоже подтверждается молча", async () => {
   const f = queueFixture({ scenario: "requests", draft_id: "r1" });
   const reply = await queueRequestFile(f.deps, "100", {
     photo: [{ file_id: "f1", file_size: 100, width: 1, height: 1 }],
   }, 2);
   expect(f.state().step).toBeUndefined();
-  expect(replyText(reply)).toBe(
-    templateText(undefined, "ru", "requests.fayl_prinyat_v_ochered_poka_ne_sohranen"),
-  );
+  expect(replyText(reply)).toBe("");
 });
 /** Активная переписка (PR #111): приглашение «Написать» по открытому обращению. */
 const SAY_DIALOG: Row = {
