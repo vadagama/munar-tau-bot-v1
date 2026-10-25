@@ -125,6 +125,12 @@ export function requestCardText(
     | Row
     | undefined;
   const reports = (result?.task_results as Row[]) ?? [];
+  // Файлы сообщения показываются строкой «📎 имя» под текстом сообщения.
+  const attachments = (row.attachments as Row[] | undefined) ?? [];
+  const attachmentLines = (m: Row): string => attachments
+    .filter((a) => a.owner_type === 'message' && a.owner_id === m.id)
+    .map((a) => '📎 ' + esc(preview(String(a.filename ?? ''), 40)))
+    .join('\n');
   const authorLabel = (m: Row): string => {
     if (m.author_person_id === row.author_person_id) {
       return templateText(store, lang, "requests.vy");
@@ -154,11 +160,13 @@ export function requestCardText(
     description: preview(row.description, 600),
     messages: safeBlock(
       messages.length
-        ? messages.map((m) =>
-          `${esc(fmtDate(m.created_at))} — ${authorLabel(m)}: ${
-            esc(preview(m.text, 400))
-          }`
-        ).join("\n")
+        ? messages.map((m) => {
+          const body = esc(preview(m.text, 400));
+          const files = attachmentLines(m);
+          return `${esc(fmtDate(m.created_at))} — ${authorLabel(m)}: ${body}${
+            files && body ? '\n' : ''
+          }${files}`;
+        }).join('\n')
         : "—",
     ),
     result: result ? `\n${preview(result.summary, 600)}` : "",

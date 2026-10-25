@@ -184,6 +184,46 @@ it("карточка подписывает сообщения датой и а�
   expect(text).toContain("Вы");
 });
 
+it("файлы сообщения показываются в карточке строкой «📎 имя» с экранированием", () => {
+  const card = requestCardText({
+    number: "З-26-9",
+    state: "in_work",
+    author_person_id: "author",
+    description: "d",
+    messages: [
+      {
+        id: "m1",
+        channel: "resident",
+        text: "Акт прилагаю",
+        created_at: "2026-10-25T09:00:00Z",
+        author_person_id: "author",
+        author_kind: "author",
+      },
+      {
+        id: "m2",
+        channel: "resident",
+        text: "",
+        created_at: "2026-10-25T09:05:00Z",
+        author_person_id: "author",
+        author_kind: "author",
+      },
+    ],
+    attachments: [
+      { id: "a1", owner_type: "message", owner_id: "m1", filename: "акт.pdf" },
+      { id: "a2", owner_type: "message", owner_id: "m1", filename: "<отчёт>&.pdf" },
+      { id: "a3", owner_type: "message", owner_id: "m2", filename: "схема.png" },
+      { id: "a4", owner_type: "request", owner_id: "r1", filename: "черновик.pdf" },
+    ],
+  });
+  const text = replyText(card);
+  expect(text).toContain("📎 акт.pdf");
+  expect(text).toContain("📎 &lt;отчёт&gt;&amp;.pdf");
+  // Сообщение без текста несёт только список файлов.
+  expect(text).toContain("📎 схема.png");
+  // Файл без сообщения в карточке не показывается.
+  expect(text).not.toContain("черновик.pdf");
+});
+
 it("закрытая карточка предлагает оценку кнопками 1–5 с командой /rate", () => {
   const card = requestCardText({
     number: "З-26-7",
