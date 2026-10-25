@@ -162,6 +162,11 @@ export function requestCardText(
         : "—",
     ),
     result: result ? `\n${preview(result.summary, 600)}` : "",
+    reports: reports.length
+      ? `\n${message(store, lang, "requests.otchety_stroka", {
+        count: reports.length,
+      })}`
+      : "",
     report_count: reports.length,
     report_command: reports.length ? `/result ${row.number}` : "",
   });
@@ -197,5 +202,8 @@ export function requestCardText(
     if(['closed','canceled','rejected'].includes(String(row.state)))buttons.push([control('reopen')]);
   }
   if(row.can_share)buttons.push([control('share'),control('unshare')]);
-  return buttons.length ? { text, buttons } : text;
+  // Возврат к списку — явная кнопка вместо тупика; data без номера,
+  // иначе номер превратил бы команду в поисковый запрос.
+  buttons.push([btn(messageButton(store, lang, 'bot.controls', 'requests'), '/requests')]);
+  return { text, buttons };
 }

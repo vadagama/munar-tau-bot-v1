@@ -49,6 +49,7 @@ interface FakeOptions {
   templates?: TemplateStore;
   state?: Row;
   draft?: Row | null;
+  request?: Row | null;
   fileCount?: number;
   captured?: { sql: string; params: readonly unknown[] }[];
 }
@@ -59,6 +60,7 @@ function deps({
   templates,
   state = {},
   draft = null,
+  request = null,
   fileCount = 0,
   captured,
 }: FakeOptions = {}) {
@@ -100,8 +102,17 @@ function deps({
     if (sql.startsWith("select id,version from request where author_person_id")) {
       return (draft ? [{ id: draft.id, version: draft.version }] : []) as T[];
     }
+    const current = request ?? draft;
     if (sql.startsWith("select * from request where id=$1")) {
-      return (draft ? [draft] : []) as T[];
+      return (current ? [current] : []) as T[];
+    }
+    // Открытие карточки по номеру: find() в requestStep.
+    if (sql.startsWith("select id from request where number=$1")) {
+      return (request ? [{ id: request.id }] : []) as T[];
+    }
+    // Лимит вложений для addMessage.
+    if (sql.startsWith("select max_per_message from file_policy")) {
+      return [{ max_per_message: 10 }] as T[];
     }
     if (sql.includes("as participant")) {
       return [{ participant: true, active_author: true }] as T[];
@@ -633,6 +644,92 @@ it.each(["ru", "kk"] as const)(
     expect(replyText(card)).not.toContain("<электрику>");
   },
 );
+
+const SAY_FORM: Row = {
+  token: "t1",
+  command: "/say",
+  object_id: "r1",
+  number: "З-26-1",
+  version: 1,
+  title: "Написать сообщение",
+  fields: ["text"],
+  values: [],
+  index: 0,
+  confirm_command: "/rinput",
+  cancel_command: "/request З-26-1",
+};
+const REQUEST: Row = {
+  ...DRAFT,
+  number: "З-26-1",
+  state: "in_work",
+};
+
+it.each(["ru", "kk"] as const)(
+  "/say: приглашение содержит номер обращения и единственную «Отменить» (%s)",
+  async (lang) => {
+    const reply = await requestStep(
+      deps({ request: REQUEST }),
+      "1",
+      "/say З-26-1",
+      lang === "kk" ? kkActor : actor,
+    );
+    expect(replyText(reply)).toContain("З-26-1");
+    if (typeof reply === "string") throw new Error("Ожидались кнопки");
+    const cancel = lang === "ru" ? "Отменить" : "Болдырмау";
+    expect(
+      reply.buttons?.flat().filter((b) => b.text === cancel).length,
+    ).toBe(1);
+    expect(reply.buttons?.flat().map((b) => b.data)).toEqual([
+      "/request З-26-1",
+    ]);
+  },
+);
+
+it("/say: текст отправляется сразу, без предпросмотра и самонотификации", async () => {
+  const captured: { sql: string; params: readonly unknown[] }[] = [];
+  const reply = await requestStep(
+    deps({
+      request: REQUEST,
+      state: { input_form: SAY_FORM },
+      captured,
+    }),
+    "1",
+    "свет мигает",
+    actor,
+  );
+  const insert = captured.find((c) => c.sql.startsWith("insert into message"));
+  expect(insert?.params).toContain("свет мигает");
+  // Ответ — обновлённая карточка, а не предпросмотр «Проверьте перед отправкой».
+  expect(replyText(reply)).toContain("З-26-1");
+  expect(replyText(reply)).not.toContain("Проверьте перед отправкой");
+  if (typeof reply === "string") throw new Error("Ожидался ответ");
+  expect(reply.buttons?.flat().map((b) => b.text)).not.toContain("Подтвердить");
+  // Форма закрыта: сохранённое состояние диалога без input_form.
+  const saved = captured.filter((c) => c.sql.startsWith("update bot_dialog_channel")).at(-1);
+  expect(String(saved?.params?.[1])).not.toContain("input_form");
+  // Автор не получает уведомление о собственном сообщении (outbox пуст).
+  expect(captured.filter((c) => c.sql.startsWith("insert into outbox"))).toEqual([]);
+});
+
+it("/say: пустой ввод отклоняется, форма сохраняется", async () => {
+  const captured: { sql: string; params: readonly unknown[] }[] = [];
+  await expect(
+    requestStep(
+      deps({
+        request: REQUEST,
+        state: { input_form: { ...SAY_FORM } },
+        captured,
+      }),
+      "1",
+      "   ",
+      actor,
+    ),
+  ).rejects.toThrow("Данные не прошли валидацию");
+  // Сообщение не отправлено, форма не сброшена.
+  expect(captured.some((c) => c.sql.startsWith("insert into message"))).toBe(false);
+  const saved = captured.filter((c) => c.sql.startsWith("update bot_dialog_channel")).at(-1);
+  expect(String(saved?.params?.[1])).toContain("input_form");
+});
 
 const ACTIVE_STATES = STATES.filter((s) => !CLOSED_STATES.includes(s));
 

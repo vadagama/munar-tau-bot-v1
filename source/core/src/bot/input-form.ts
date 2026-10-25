@@ -15,6 +15,8 @@ export interface BotInput extends Row {
   index: number;
   confirm_command: string;
   cancel_command: string;
+  /** Контекстный вопрос шага ввода вместо общего bot.<field>; уже отрендерен. */
+  prompt?: string;
 }
 export function inputFormReply(
   form: BotInput,
@@ -26,7 +28,7 @@ export function inputFormReply(
   const field = form.fields[form.index];
   return {
     text: field
-      ? message(store, lang, `bot.${field}`)
+      ? form.prompt ?? message(store, lang, `bot.${field}`)
       : message(store, lang, "bot.preview", {
         content: safeBlock(
           [form.title, form.number, ...form.values,...((form.file_names??[]) as string[])].map(esc).join("\n"),

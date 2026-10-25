@@ -47,9 +47,13 @@ export function navigationReply(
   }
   if(scenario==='tasks'&&!existing.length&&['/start','/cancel'].includes(command))rows.push([b('signals','/signals'),b('financialduties','/financialduties')]);
   if(scenario==="tasks"&&mainMenu&&!existing.length)rows.push([btn(messageButton(store,lang,"reports.controls","mywork"),"/mywork")]);
+  // Подпись отмены локализована; кнопка формы с той же подписью означает тот
+  // же выход из диалога — вторая такая же рядом неразличима для пользователя.
+  const cancelLabel = messageButton(store, lang, "bot.controls", "cancel");
   if (
     !rows.flat().some((b) =>
-      b.data === "/cancel" || b.data === "/requestcancel"
+      b.data === "/cancel" || b.data === "/requestcancel" ||
+      b.text === cancelLabel
     )
   ) rows.push([b("cancel", "/cancel")]);
   return {

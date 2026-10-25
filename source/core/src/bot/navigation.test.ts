@@ -25,6 +25,25 @@ it.each(["registration", "requests", "tasks", "incidents", "notifications"])("%s
     expect(typeof reply !== "string" && reply.buttons).toEqual([[{ text: "Отменить", data: "/cancel" }]]);
   }
 });
+it.each(["ru", "kk"] as const)("%s: форма отмены с той же подписью не дублируется навигацией", (lang) => {
+  const cancelLabel = lang === "ru" ? "Отменить" : "Болдырмау";
+  // Кнопка отмены формы ведёт к карточке (/request <number>), а не в /cancel:
+  // та же подпись — вторая «Отменить» рядом была бы неразличима.
+  const reply = navigationReply(
+    {
+      text: "Сообщение по обращению З-26-1.",
+      buttons: [[{ text: cancelLabel, data: "/request З-26-1" }]],
+    },
+    "requests",
+    lang,
+    undefined,
+    "свет мигает",
+  );
+  expect(
+    typeof reply !== "string" &&
+      reply.buttons?.flat().filter((b) => b.text === cancelLabel).length,
+  ).toBe(1);
+});
 it("контекстные кнопки сохраняются, отмена не дублируется", () => {
   const reply = navigationReply({ text: "Тип помещения", buttons: [[{text:"Квартира",data:"1"}],[{text:"Отменить",data:"/cancel"}]] }, "registration", "ru", undefined, "107/1");
   expect(typeof reply !== "string" && reply.buttons?.flat().map(button => button.data)).toEqual(["1", "/cancel"]);
