@@ -15,7 +15,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       {
         "name": "kinds",
         "description": "Нумерованный список видов обращения",
-        "example": "1. Заявка на работу\n2. Вопрос\n3. Жалоба",
+        "example": "1. Заявка на работу\n2. Вопрос\n3. Жалоба\n4. Экстренная ситуация",
       },
     ],
     "buttons": [
@@ -34,16 +34,21 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "ru": "Жалоба",
         "kk": "Шағым",
       },
+      {
+        "id": "emergency",
+        "ru": "Экстренная ситуация",
+        "kk": "Төтенше жағдай",
+      },
     ],
     "examples": [
       {
         "id": "default",
         "title": "Пример",
         "ru": {
-          "kinds": "1. Заявка на работу\n2. Вопрос\n3. Жалоба",
+          "kinds": "1. Заявка на работу\n2. Вопрос\n3. Жалоба\n4. Экстренная ситуация",
         },
         "kk": {
-          "kinds": "1. Жұмысқа өтінім\n2. Сұрақ\n3. Шағым",
+          "kinds": "1. Жұмысқа өтінім\n2. Сұрақ\n3. Шағым\n4. Төтенше жағдай",
         },
         "buttons": [
           [
@@ -59,6 +64,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           [
             {
               "id": "complaint",
+            },
+          ],
+          [
+            {
+              "id": "emergency",
             },
           ],
         ],
@@ -825,8 +835,8 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     "scenario": "Просмотр обращений",
     "command": "/requests",
     "legacyKeys": [],
-    "ru": "{requests}",
-    "kk": "{requests}",
+    "ru": "📬 Мои обращения · {scope}\n\n{requests}{action}",
+    "kk": "📬 Менің өтініштерім · {scope}\n\n{requests}{action}",
     "variables": [
       {
         "name": "requests",
@@ -835,12 +845,24 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "example":
           "1. З-26-00001 · В работе · 20.10.2026\nНе работает освещение",
       },
+      {
+        "name": "scope",
+        "description":
+          "Подзаголовок вида списка: «активных: N» или «архив»",
+        "example": "активных: 1",
+      },
+      {
+        "name": "action",
+        "description":
+          "Строка «Требуют вашего ответа» внизу; пуста, когда таких нет",
+        "example": "",
+      },
     ],
     "buttons": [
       {
         "id": "open_draft",
-        "ru": "Открыть",
-        "kk": "Ашу",
+        "ru": "Открыть черновик",
+        "kk": "Жобаны ашу",
       },
       {
         "id": "next",
@@ -881,6 +903,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "kk": {
           "requests":
             "1. <b>З-26-00001</b> · Орындалуда · 20.10.2026\nНе работает &lt;лампа&gt; &amp; свет",
+          "scope": "белсенді: 1",
         },
         "buttons": [
           [
@@ -1216,9 +1239,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}{reports}",
+      "<b>{number}</b> · {state}\nСообщение: <b>{description}</b>\nВид: {kind}\nПомещение: {place}\nСоздано: {created}\n\nПоследние сообщения:\n{messages}{result}{reports}{rate_scale}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}{reports}",
+      "<b>{number}</b> · {state}\nХабарлама: <b>{description}</b>\nТүрі: {kind}\nҮй-жай: {place}\nҚұрылды: {created}\n\nСоңғы хабарламалар:\n{messages}{result}{reports}{rate_scale}",
     "variables": [
       {
         "name": "number",
@@ -1231,8 +1254,13 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "example": "В работе",
       },
       {
+        "name": "kind",
+        "description": "Вид обращения",
+        "example": "Экстренная ситуация",
+      },
+      {
         "name": "place",
-        "description": "Помещение",
+        "description": "Помещение с зданием, при наличии",
         "example": "Дом 1, Квартира 4",
       },
       {
@@ -1268,6 +1296,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       {
         "name": "reports",
         "description": "Строка отчётов с заголовком; пуста при отсутствии",
+        "example": "",
+      },
+      {
+        "name": "rate_scale",
+        "description": "Подпись шкалы оценки; пуста, когда оценки нет",
         "example": "",
       },
     ],
@@ -1297,6 +1330,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "ru": {
           "number": "З-26-00001",
           "state": "В работе",
+          "kind": "Экстренная ситуация",
           "place": "Дом 1, Квартира 4",
           "created": "20.10.2026 12:00",
           "description": "Не работает <лампа> & свет",
@@ -1306,10 +1340,12 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "report_count": "0",
           "report_command": "",
           "reports": "",
+          "rate_scale": "",
         },
         "kk": {
           "number": "З-26-00001",
           "state": "Орындалуда",
+          "kind": "Төтенше жағдай",
           "place": "Дом 1, Квартира 4",
           "created": "20.10.2026 12:00",
           "description": "Не работает <лампа> & свет",
@@ -1319,6 +1355,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "report_count": "0",
           "report_command": "",
           "reports": "",
+          "rate_scale": "",
         },
         "blocks": [
           "messages",
@@ -1341,9 +1378,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}{reports}",
+      "<b>{number}</b> · {state}\nСообщение: <b>{description}</b>\nВид: {kind}\nПомещение: {place}\nСоздано: {created}\n\nПоследние сообщения:\n{messages}{result}{reports}{rate_scale}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}{reports}",
+      "<b>{number}</b> · {state}\nХабарлама: <b>{description}</b>\nТүрі: {kind}\nҮй-жай: {place}\nҚұрылды: {created}\n\nСоңғы хабарламалар:\n{messages}{result}{reports}{rate_scale}",
     "variables": [
       {
         "name": "number",
@@ -1356,8 +1393,13 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "example": "В работе",
       },
       {
+        "name": "kind",
+        "description": "Вид обращения",
+        "example": "Экстренная ситуация",
+      },
+      {
         "name": "place",
-        "description": "Помещение",
+        "description": "Помещение с зданием, при наличии",
         "example": "Дом 1, Квартира 4",
       },
       {
@@ -1393,6 +1435,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       {
         "name": "reports",
         "description": "Строка отчётов с заголовком; пуста при отсутствии",
+        "example": "",
+      },
+      {
+        "name": "rate_scale",
+        "description": "Подпись шкалы оценки; пуста, когда оценки нет",
         "example": "",
       },
     ],
@@ -1422,6 +1469,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "ru": {
           "number": "З-26-00001",
           "state": "Ожидает подтверждения",
+          "kind": "Экстренная ситуация",
           "place": "Дом 1, Квартира 4",
           "created": "20.10.2026 12:00",
           "description": "Не работает <лампа> & свет",
@@ -1431,10 +1479,12 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "report_count": "0",
           "report_command": "",
           "reports": "",
+          "rate_scale": "",
         },
         "kk": {
           "number": "З-26-00001",
           "state": "Растауды күтуде",
+          "kind": "Төтенше жағдай",
           "place": "Дом 1, Квартира 4",
           "created": "20.10.2026 12:00",
           "description": "Не работает <лампа> & свет",
@@ -1444,6 +1494,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "report_count": "0",
           "report_command": "",
           "reports": "",
+          "rate_scale": "",
         },
         "buttons": [
           [
@@ -1473,9 +1524,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}{reports}",
+      "<b>{number}</b> · {state}\nСообщение: <b>{description}</b>\nВид: {kind}\nПомещение: {place}\nСоздано: {created}\n\nПоследние сообщения:\n{messages}{result}{reports}{rate_scale}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}{reports}",
+      "<b>{number}</b> · {state}\nХабарлама: <b>{description}</b>\nТүрі: {kind}\nҮй-жай: {place}\nҚұрылды: {created}\n\nСоңғы хабарламалар:\n{messages}{result}{reports}{rate_scale}",
     "variables": [
       {
         "name": "number",
@@ -1488,8 +1539,13 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "example": "В работе",
       },
       {
+        "name": "kind",
+        "description": "Вид обращения",
+        "example": "Экстренная ситуация",
+      },
+      {
         "name": "place",
-        "description": "Помещение",
+        "description": "Помещение с зданием, при наличии",
         "example": "Дом 1, Квартира 4",
       },
       {
@@ -1527,6 +1583,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "description": "Строка отчётов с заголовком; пуста при отсутствии",
         "example": "",
       },
+      {
+        "name": "rate_scale",
+        "description": "Подпись шкалы оценки; пуста, когда оценки нет",
+        "example": "",
+      },
     ],
     "buttons": [
       {
@@ -1554,6 +1615,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "ru": {
           "number": "З-26-00001",
           "state": "Закрыта",
+          "kind": "Экстренная ситуация",
           "place": "Дом 1, Квартира 4",
           "created": "20.10.2026 12:00",
           "description": "Не работает <лампа> & свет",
@@ -1563,10 +1625,12 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "report_count": "0",
           "report_command": "",
           "reports": "",
+          "rate_scale": "\n\nОцените работу: 1 — плохо … 5 — отлично.",
         },
         "kk": {
           "number": "З-26-00001",
           "state": "Жабылды",
+          "kind": "Төтенше жағдай",
           "place": "Дом 1, Квартира 4",
           "created": "20.10.2026 12:00",
           "description": "Не работает <лампа> & свет",
@@ -1576,6 +1640,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "report_count": "0",
           "report_command": "",
           "reports": "",
+          "rate_scale": "\n\nЖұмысты бағалаңыз: 1 — жаман … 5 — тамаша.",
         },
         "buttons": [
           [
@@ -1632,9 +1697,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}{reports}",
+      "<b>{number}</b> · {state}\nСообщение: <b>{description}</b>\nВид: {kind}\nПомещение: {place}\nСоздано: {created}\n\nПоследние сообщения:\n{messages}{result}{reports}{rate_scale}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}{reports}",
+      "<b>{number}</b> · {state}\nХабарлама: <b>{description}</b>\nТүрі: {kind}\nҮй-жай: {place}\nҚұрылды: {created}\n\nСоңғы хабарламалар:\n{messages}{result}{reports}{rate_scale}",
     "variables": [
       {
         "name": "number",
@@ -1647,8 +1712,13 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "example": "В работе",
       },
       {
+        "name": "kind",
+        "description": "Вид обращения",
+        "example": "Экстренная ситуация",
+      },
+      {
         "name": "place",
-        "description": "Помещение",
+        "description": "Помещение с зданием, при наличии",
         "example": "Дом 1, Квартира 4",
       },
       {
@@ -1684,6 +1754,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       {
         "name": "reports",
         "description": "Строка отчётов с заголовком; пуста при отсутствии",
+        "example": "",
+      },
+      {
+        "name": "rate_scale",
+        "description": "Подпись шкалы оценки; пуста, когда оценки нет",
         "example": "",
       },
     ],
@@ -1713,6 +1788,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "ru": {
           "number": "З-26-00001",
           "state": "Отказано",
+          "kind": "Экстренная ситуация",
           "place": "Дом 1, Квартира 4",
           "created": "20.10.2026 12:00",
           "description": "Не работает <лампа> & свет",
@@ -1722,10 +1798,12 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "report_count": "0",
           "report_command": "",
           "reports": "",
+          "rate_scale": "",
         },
         "kk": {
           "number": "З-26-00001",
           "state": "Қабылданбады",
+          "kind": "Төтенше жағдай",
           "place": "Дом 1, Квартира 4",
           "created": "20.10.2026 12:00",
           "description": "Не работает <лампа> & свет",
@@ -1735,6 +1813,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "report_count": "0",
           "report_command": "",
           "reports": "",
+          "rate_scale": "",
         },
         "blocks": [
           "messages",
@@ -1756,9 +1835,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}{reports}",
+      "<b>{number}</b> · {state}\nСообщение: <b>{description}</b>\nВид: {kind}\nПомещение: {place}\nСоздано: {created}\n\nПоследние сообщения:\n{messages}{result}{reports}{rate_scale}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}{reports}",
+      "<b>{number}</b> · {state}\nХабарлама: <b>{description}</b>\nТүрі: {kind}\nҮй-жай: {place}\nҚұрылды: {created}\n\nСоңғы хабарламалар:\n{messages}{result}{reports}{rate_scale}",
     "variables": [
       {
         "name": "number",
@@ -1771,8 +1850,13 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "example": "В работе",
       },
       {
+        "name": "kind",
+        "description": "Вид обращения",
+        "example": "Экстренная ситуация",
+      },
+      {
         "name": "place",
-        "description": "Помещение",
+        "description": "Помещение с зданием, при наличии",
         "example": "Дом 1, Квартира 4",
       },
       {
@@ -1810,6 +1894,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "description": "Строка отчётов с заголовком; пуста при отсутствии",
         "example": "",
       },
+      {
+        "name": "rate_scale",
+        "description": "Подпись шкалы оценки; пуста, когда оценки нет",
+        "example": "",
+      },
     ],
     "buttons": [
       {
@@ -1837,6 +1926,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "ru": {
           "number": "З-26-00001",
           "state": "На доработке",
+          "kind": "Экстренная ситуация",
           "place": "Дом 1, Квартира 4",
           "created": "20.10.2026 12:00",
           "description": "Не работает <лампа> & свет",
@@ -1846,10 +1936,12 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "report_count": "0",
           "report_command": "",
           "reports": "",
+          "rate_scale": "",
         },
         "kk": {
           "number": "З-26-00001",
           "state": "Түзетуде",
+          "kind": "Төтенше жағдай",
           "place": "Дом 1, Квартира 4",
           "created": "20.10.2026 12:00",
           "description": "Не работает <лампа> & свет",
@@ -1859,6 +1951,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "report_count": "0",
           "report_command": "",
           "reports": "",
+          "rate_scale": "",
         },
         "blocks": [
           "messages",

@@ -59,8 +59,9 @@ export const REQUEST_COMMANDS = [
   "/requestcancel",
 ];
 
-/** Виды обращения (request_kind): порядок — нумерация в реплике и в кнопках. */
-const REQUEST_KINDS = ["request", "question", "complaint"] as const;
+/** Виды обращения (request_kind): порядок — нумерация в реплике и в кнопках.
+ *  «Экстренная ситуация» — только в конце: номер кнопки равен индексу + 1. */
+const REQUEST_KINDS = ["request", "question", "complaint", "emergency"] as const;
 /** Текстовые эквиваленты шага вида (без учёта регистра, оба языка). */
 const KIND_ALIASES: Record<string, (typeof REQUEST_KINDS)[number]> = {
   "заявка": "request",
@@ -71,6 +72,8 @@ const KIND_ALIASES: Record<string, (typeof REQUEST_KINDS)[number]> = {
   "сұрақ": "question",
   "жалоба": "complaint",
   "шағым": "complaint",
+  "экстренная ситуация": "emergency",
+  "төтенше жағдай": "emergency",
 };
 /** Адресат обращения: мои помещения или общее имущество. */
 const REQUEST_TARGETS = ["my_places", "common"] as const;
@@ -583,6 +586,19 @@ export async function requestStep(
       const hasArchive = !archive &&
         (await listRequests(d, actor, { states: [...CLOSED_STATES], limit: 1 }))
           .length > 0;
+      // Счётчики шапки одним запросом: активные и требующие ответа жителя
+      // (автор или действующий участник — область списка жителя).
+      const [counters] = await exec.query<
+        { active: number; action: number }
+      >(
+        `select (count(*) filter (where r.state=any($3::text[])))::int as active,
+        (count(*) filter (where r.state in ('need_clarification','awaiting_confirmation')))::int as action
+        from request r
+        where r.is_test=$1 and (r.author_person_id=$2 or (r.state<>'draft' and exists(
+          select 1 from request_participant p
+          where p.request_id=r.id and p.person_id=$2 and p.role='participant' and p.revoked_at is null)))`,
+        [actor.person.isTest, actor.person.id, STATES.filter((s) => !CLOSED_STATES.includes(s))],
+      );
       state.scenario = "requests";
       delete state.request_id;
       delete state.draft_id;
@@ -596,6 +612,7 @@ export async function requestStep(
           deps.templates,
           deps.residentBotUsername,
           { archive, hasArchive },
+          { active: counters?.active ?? 0, action: counters?.action ?? 0 },
         ),
       );
     }
@@ -882,6 +899,9 @@ export async function requestStep(
         building_id: state.building_id,
         location_text: state.location_text,
         ...(kind ? { kind } : {}),
+        // Экстренная ситуация (вариант Б): срочность «Высокая» ставится
+        // автоматически, если клиент не передал свою.
+        ...(kind === "emergency" ? { urgency: "high" } : {}),
         source: "bot",
         as_draft: true,
       };

@@ -143,7 +143,7 @@ it("карточка всегда предлагает возврат к спи�
     can_comment: true,
   });
   expect(typeof card === "object" && card.buttons?.at(-1)).toEqual([
-    { text: "Мои обращения", data: "/requests" },
+    { text: "📬 Мои обращения", data: "/requests" },
   ]);
   // data без номера: номер превратил бы кнопку в поисковый запрос.
   expect(
@@ -179,7 +179,7 @@ it("карточка подписывает сообщения датой и а�
   });
   const text = replyText(card);
   expect(text).toContain("ЖК Мунар");
-  expect(text).toContain("создано 15.10.2026 18:40");
+  expect(text).toContain("Создано: 15.10.2026 18:40");
   expect(text).toContain("Администратор");
   expect(text).toContain("Вы");
 });
@@ -288,7 +288,7 @@ it("пустой список предлагает новое обращение
   expect(
     typeof reply === "object" &&
       reply.buttons?.flat().map((b) => [b.text, b.data]),
-  ).toEqual([["Новое обращение", "/newrequest"]]);
+  ).toEqual([["🆕 Новое обращение", "/newrequest"]]);
 });
 
 it("кнопка архива появляется только когда есть закрытые обращения", () => {
@@ -434,4 +434,89 @@ it("заголовки истории и отчётов принадлежат �
   );
   expect(replyText(card)).not.toContain("Сообщения:");
   expect(replyText(card)).not.toContain("Отчёты:");
+});
+
+it("шапка списка несёт счётчик активных и строку требующих ответа внизу", () => {
+  const rows = [
+    {
+      number: "З-26-1",
+      state: "in_work",
+      author_person_id: "author",
+      description: "d",
+    },
+    {
+      number: "З-26-2",
+      state: "need_clarification",
+      author_person_id: "author",
+      description: "d",
+    },
+  ];
+  const reply = requestListText(rows, "author", 1, "ru", undefined, undefined, {}, {
+    active: 7,
+    action: 1,
+  });
+  const text = replyText(reply);
+  expect(text).toContain("📬 Мои обращения · активных: 7");
+  expect(text.trim().endsWith("❗ Требуют вашего ответа: 1")).toBe(true);
+  // Без требующих ответа строка не показывается.
+  const quiet = replyText(
+    requestListText([rows[0]!], "author", 1, "ru", undefined, undefined, {}, {
+      active: 7,
+      action: 0,
+    }),
+  );
+  expect(quiet).not.toContain("Требуют вашего ответа");
+  // В архиве — подзаголовок «архив», строки ответа нет.
+  const archive = replyText(
+    requestListText(rows, "author", 1, "ru", undefined, undefined, { archive: true }, {
+      active: 7,
+      action: 1,
+    }),
+  );
+  expect(archive).toContain("· архив");
+  expect(archive).not.toContain("Требуют вашего ответа");
+});
+
+it("несколько черновиков — одна кнопка возобновления вместо дублей", () => {
+  const rows = [
+    { id: "00000000-0000-0000-0000-000000000001", number: null, state: "draft", author_person_id: "author", description: "первый" },
+    { id: "00000000-0000-0000-0000-000000000002", number: null, state: "draft", author_person_id: "author", description: "второй" },
+  ];
+  const reply = requestListText(rows, "author", 1);
+  const data = typeof reply === "object" ? reply.buttons?.flat().map((b) => b.data) : [];
+  expect(data).toEqual(["/newrequest"]);
+});
+
+it("карточка показывает вид обращения и не предлагает аварийную службу", () => {
+  const card = requestCardText({
+    number: "З-26-5",
+    state: "in_work",
+    kind: "emergency",
+    author_person_id: "author",
+    description: "d",
+    messages: [],
+    can_comment: true,
+  });
+  const text = replyText(card);
+  expect(text).toContain("Вид: Экстренная ситуация");
+  expect(text).toContain("Сообщение: <b>d</b>");
+  expect(text).toContain("Создано:");
+  const data = typeof card === "object" ? card.buttons?.flat().map((b) => b.data) : [];
+  expect(data).not.toContain(`/emergencyrequest З-26-5`);
+});
+
+it("закрытая карточка несёт подпись шкалы оценки только при возможности оценить", () => {
+  const base = {
+    number: "З-26-7",
+    state: "closed",
+    author_person_id: "author",
+    description: "Готово",
+    messages: [],
+  };
+  expect(replyText(requestCardText(base))).toContain(
+    "Оцените работу: 1 — плохо … 5 — отлично.",
+  );
+  // Зритель без прав автора оценку не видит.
+  const noRate = requestCardText({ ...base, can_act_as_author: false });
+  expect(replyText(noRate)).not.toContain("Оцените работу");
 });

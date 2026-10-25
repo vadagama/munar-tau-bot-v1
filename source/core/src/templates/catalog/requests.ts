@@ -422,4 +422,43 @@ export const requestsTemplates: readonly TemplateDef[] = [
     "kk":
       "Жоба сақталды. Файлдарды тіркеуге болады.",
   },
+  {
+    "key": "requests.list_scope_active",
+    "section": "requests",
+    "title": "Подзаголовок списка активных обращений",
+    "description": "Реплика requests",
+    "variables": [
+      {
+        "name": "count",
+        "description": "Количество активных обращений",
+        "example": "10",
+      },
+    ],
+    "ru": "активных: {count}",
+    "kk": "белсенді: {count}",
+  },
+  {
+    "key": "requests.list_action_needed",
+    "section": "requests",
+    "title": "Строка обращений, требующих ответа жителя",
+    "description": "Реплика requests",
+    "variables": [
+      {
+        "name": "count",
+        "description": "Количество обращений, требующих ответа",
+        "example": "2",
+      },
+    ],
+    "ru": "❗ Требуют вашего ответа: {count}",
+    "kk": "❗ Жауабыңызды күтеді: {count}",
+  },
+  {
+    "key": "requests.rating_scale",
+    "section": "requests",
+    "title": "Подпись шкалы оценки закрытой карточки",
+    "description": "Реплика requests",
+    "variables": [],
+    "ru": "Оцените работу: 1 — плохо … 5 — отлично.",
+    "kk": "Жұмысты бағалаңыз: 1 — жаман … 5 — тамаша.",
+  },
 ];

@@ -19,43 +19,52 @@ export function navigationReply(
   if (scenario === "staff-requests" && typeof reply !== "string") return reply;
   const b = (id: string, cmd: string) =>
     btn(messageButton(store, lang, "bot.controls", id), cmd);
+  const worker = scenario === "tasks";
   const mainMenu = ["/start", "/cancel"].includes(command);
-  // Справка — без кнопок навигации: остаётся только «Отменить» (добавится ниже).
-  const rows: InlineButton[][] = existing.length ? existing : mainMenu ? [
-    scenario === "tasks"
-      ? [
-        b("back", "/tasks"),
-        b("staffrequests", "/staffrequests"),
-        b("settings", "/notifications"),
-      ]
-      : [
-        b("status", "/status"),
-        ...(registered ? [] : [b("register", "/register")]),
-        b("help", "/help"),
-      ],
-  ] : [];
-  if (
-    scenario === "registration" && !existing.length &&
-    ["/start", "/cancel"].includes(command)
-  ) {
-    rows.push(
-      [b("objects", "/objects"), b("add", "/add")],
-      [b("requests", "/requests"), b("newrequest", "/newrequest")],
-      [b("invite", "/invite"), b("bind", "/bind"), b("accesses", "/accesses")],
-      [b("settings", "/notifications")],
-    );
+  const rows: InlineButton[][] = existing.length ? existing : [];
+  if (!rows.length && mainMenu) {
+    if (worker) {
+      rows.push(
+        [b("back", "/tasks"), b("staffrequests", "/staffrequests"), b("settings", "/notifications")],
+        [b("signals", "/signals"), b("financialduties", "/financialduties")],
+        [btn(messageButton(store, lang, "reports.controls", "mywork"), "/mywork")],
+      );
+    } else {
+      // Главное меню жителя (25.10.2026): разделы кнопками, «Мой профиль» —
+      // только в нативном меню /status. «Отменить» не нужна: /cancel и /start
+      // здесь открывают это же меню.
+      rows.push(
+        ...(registered ? [] : [[b("register", "/register")]] as InlineButton[][]),
+        [b("requests", "/requests"), b("newrequest", "/newrequest")],
+        [b("objects", "/objects"), b("add", "/add")],
+        [b("invite", "/invite"), b("bind", "/bind"), b("accesses", "/accesses")],
+        [b("settings", "/notifications")],
+        [b("help", "/help")],
+      );
+    }
   }
-  if(scenario==='tasks'&&!existing.length&&['/start','/cancel'].includes(command))rows.push([b('signals','/signals'),b('financialduties','/financialduties')]);
-  if(scenario==="tasks"&&mainMenu&&!existing.length)rows.push([btn(messageButton(store,lang,"reports.controls","mywork"),"/mywork")]);
-  // Подпись отмены локализована; кнопка формы с той же подписью означает тот
-  // же выход из диалога — вторая такая же рядом неразличима для пользователя.
   const cancelLabel = messageButton(store, lang, "bot.controls", "cancel");
-  if (
-    !rows.flat().some((b) =>
-      b.data === "/cancel" || b.data === "/requestcancel" ||
-      b.text === cancelLabel
-    )
-  ) rows.push([b("cancel", "/cancel")]);
+  const escapePresent = rows.flat().some((x) =>
+    x.data === "/cancel" || x.data === "/requestcancel" ||
+    x.text === cancelLabel
+  );
+  if (worker) {
+    // Подпись отмены локализована; кнопка формы с той же подписью означает тот
+    // же выход из диалога — вторая такая же рядом неразличима для пользователя.
+    if (!escapePresent) rows.push([b("cancel", "/cancel")]);
+  } else if (!escapePresent) {
+    // У жителя вторичные экраны закрываются явной кнопкой «В главное меню»:
+    // /cancel в жительском боте всегда ведёт в главное меню. В формах ввода
+    // остаётся их собственная «Отменить» — подпись совпадает и не дублируется.
+    if (mainMenu && !existing.length) {
+      // Незарегистрированному в главном меню — путь к анкете.
+      if (!registered && !rows.some((r) => r.some((x) => x.data === "/register"))) {
+        rows.push([b("register", "/register")]);
+      }
+    } else {
+      rows.push([btn(messageButton(store, lang, "bot.controls", "menu"), "/cancel")]);
+    }
+  }
   return {
     ...(typeof reply === "string" ? { text: reply } : reply),
     buttons: rows,

@@ -1815,9 +1815,9 @@ export const otherMessageTemplates: readonly TemplateDef[] = [
     "description": "Раздел справки",
     "variables": [],
     "ru":
-      "<b>ОСИ ЖК «Мунар Тау»</b>\nРегистрация, помещения, обращения и уведомления.\nПри непосредственной угрозе жизни звоните 112.",
+      "🏛 <b>ОСИ ЖК «Мунар Тау»</b>\n\nЗдесь можно сообщать о проблемах и получать уведомления ОСИ.\n\n🚨 В экстренной ситуации и при непосредственной угрозе жизни звоните 112!",
     "kk":
-      "<b>«Мұнар Тау» ТК МИБ</b>\nТіркелу, үй-жайлар, өтініштер және хабарламалар.\nӨмірге тікелей қауіп төнсе, 112 нөміріне қоңырау шалыңыз.",
+      "🏛 <b>«Мұнар Тау» ТК МИБ</b>\n\nБұнда мәселелер туралы хабарлауға және МИБ хабарламаларын алуға болады.\n\n🚨 Төтенше жағдайда және өмірге тікелей қауіп төнгенде 112 нөміріне қоңырау шалыңыз!",
     "scenario": "Справка и настройки",
     "command": "/start",
     "examples": [
@@ -1829,10 +1829,15 @@ export const otherMessageTemplates: readonly TemplateDef[] = [
         "buttons": [
           [
             {
-              "id": "newrequest",
+              "id": "register",
             },
+          ],
+          [
             {
               "id": "requests",
+            },
+            {
+              "id": "newrequest",
             },
           ],
           [
@@ -1845,8 +1850,21 @@ export const otherMessageTemplates: readonly TemplateDef[] = [
           ],
           [
             {
+              "id": "invite",
+            },
+            {
+              "id": "bind",
+            },
+            {
+              "id": "accesses",
+            },
+          ],
+          [
+            {
               "id": "notifications",
             },
+          ],
+          [
             {
               "id": "help",
             },
@@ -1856,14 +1874,19 @@ export const otherMessageTemplates: readonly TemplateDef[] = [
     ],
     "buttons": [
       {
-        "id": "newrequest",
-        "ru": "🆕 Новое обращение",
-        "kk": "🆕 Жаңа өтініш",
+        "id": "register",
+        "ru": "📝 Регистрация",
+        "kk": "📝 Тіркелу",
       },
       {
         "id": "requests",
         "ru": "📬 Мои обращения",
         "kk": "📬 Менің өтініштерім",
+      },
+      {
+        "id": "newrequest",
+        "ru": "🆕 Новое обращение",
+        "kk": "🆕 Жаңа өтініш",
       },
       {
         "id": "objects",
@@ -1872,8 +1895,23 @@ export const otherMessageTemplates: readonly TemplateDef[] = [
       },
       {
         "id": "add",
-        "ru": "➕ Добавить помещение",
-        "kk": "➕ Үй-жай қосу",
+        "ru": "➕ Привязать помещение",
+        "kk": "➕ Үй-жайды байланыстыру",
+      },
+      {
+        "id": "invite",
+        "ru": "✉️ Пригласить",
+        "kk": "✉️ Шақыру",
+      },
+      {
+        "id": "bind",
+        "ru": "➕ Добавить",
+        "kk": "➕ Қосу",
+      },
+      {
+        "id": "accesses",
+        "ru": "🔑 Доступы",
+        "kk": "🔑 Қолжетімділіктер",
       },
       {
         "id": "notifications",
@@ -1882,7 +1920,7 @@ export const otherMessageTemplates: readonly TemplateDef[] = [
       },
       {
         "id": "help",
-        "ru": "❓ Помощь",
+        "ru": "❓ Справка",
         "kk": "❓ Анықтама",
       },
     ],

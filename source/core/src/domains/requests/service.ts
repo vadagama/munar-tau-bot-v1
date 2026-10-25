@@ -273,7 +273,7 @@ export async function createRequest(
         : null;
       const kind = choice(
         input.kind,
-        ["request", "question", "complaint"],
+        ["request", "question", "complaint", "emergency"],
         "request",
       );
       if (subject && kind !== "complaint") {
@@ -338,10 +338,12 @@ export async function createRequest(
           actor.person.id,
           content(input.text),
           kind,
+          // Экстренная ситуация: срочность «Высокая» по умолчанию (25.10.2026);
+          // явно переданная клиентом срочность сохраняется.
           choice(
             input.urgency,
             ["low", "normal", "high", "critical"],
-            "normal",
+            kind === "emergency" ? "high" : "normal",
           ),
           await category(exec, input.category_id),
           location.premisesId,
@@ -558,15 +560,25 @@ export async function editRequest(
         throw new ApiError("FORBIDDEN");
       }
       const loc = await validateLocation(exec, actor, actor.person.id, input);
+      const nextKind = choice(
+        input.kind,
+        ["request", "question", "complaint", "emergency"],
+        row.kind,
+      );
       const [next] = await exec.query<RequestRow>(
-        "update request set description=$2,premises_id=$3,building_id=$4,location_text=$5,kind=$6,version=version+1,updated_at=now() where id=$1 returning *",
+        "update request set description=$2,premises_id=$3,building_id=$4,location_text=$5,kind=$6,urgency=$7,version=version+1,updated_at=now() where id=$1 returning *",
         [
           id,
           content(input.text),
           loc.premisesId,
           loc.buildingId,
           input.location_text ?? null,
-          choice(input.kind, ["request", "question", "complaint"], row.kind),
+          nextKind,
+          choice(
+            input.urgency,
+            ["low", "normal", "high", "critical"],
+            nextKind === "emergency" ? "high" : String(row.urgency ?? "normal"),
+          ),
         ],
       );
       return next!;
@@ -617,7 +629,7 @@ export async function editRequest(
       "update request set kind=$2,urgency=$3,category_id=$4,premises_id=$5,building_id=$6,location_text=$7,assigned_admin_person_id=$8,version=version+1,updated_at=now() where id=$1 returning *",
       [
         id,
-        choice(input.kind, ["request", "question", "complaint"], row.kind),
+        choice(input.kind, ["request", "question", "complaint", "emergency"], row.kind),
         choice(
           input.urgency,
           ["low", "normal", "high", "critical"],

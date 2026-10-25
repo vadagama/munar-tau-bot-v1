@@ -59,6 +59,7 @@ const KINDS: Record<string, string> = {
   request: "Заявка на работу",
   question: "Вопрос",
   complaint: "Жалоба",
+  emergency: "Экстренная ситуация",
 };
 const ACTIONS: Record<string, string> = {
   start_review: "Принять на рассмотрение",
