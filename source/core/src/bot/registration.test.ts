@@ -1383,8 +1383,15 @@ describe("бот: приглашение и привязка жильца (ADR-0
   it("/invite — одно нажатие: Deep Link и срок действия, без помещения", async () => {
     const h = harness({ profile: true });
     const reply = await registrationStep(h.deps, "100", "/invite");
-    expect(replyText(reply)).toContain("/start invite_");
+    expect(replyText(reply)).toContain("https://t.me/munar_tau_user_bot?start=invite_");
+    expect(replyText(reply)).not.toContain("/start");
     expect(replyText(reply)).toContain("Действует до");
+    expect(reply).toMatchObject({
+      buttons: [[{ text: "Копировать", copy: true }]],
+    });
+    if (typeof reply === "string") throw new Error("Ожидались кнопки");
+    const copied = reply.buttons?.[0]?.[0];
+    expect(copied?.data).toMatch(/^https:\/\/t\.me\/munar_tau_user_bot\?start=invite_[0-9a-z]+$/);
     expect(h.audit[0]).toMatchObject({ action: "registration.invite.create" });
     expect(h.audit[0]?.entityType).toBe("invite");
   });

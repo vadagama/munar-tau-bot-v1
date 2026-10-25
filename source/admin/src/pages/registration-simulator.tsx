@@ -15,7 +15,8 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
   const [input, setInput] = useState(""),
     [history, setHistory] = useState<{ input: string; reply: string; buttons?: InlineButton[][]; scenario: string;bot?:"worker" }[]>([]),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState<string | null>(null);
+    [error, setError] = useState<string | null>(null),
+    [copied, setCopied] = useState<string | null>(null);
   const latestMessage = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const message = latestMessage.current;
@@ -65,6 +66,15 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
           />
         )}
         {error && <Alert showIcon type="error" message={error} />}
+        {copied && (
+          <Alert
+            showIcon
+            type="success"
+            message={`Скопировано в буфер обмена: ${copied}`}
+            closable
+            onClose={() => setCopied(null)}
+          />
+        )}
         {scenario === "registration" && (
           <Space wrap>
             <Button
@@ -138,7 +148,17 @@ export function RegistrationSimulator({ active }: { active: boolean }) {
                 <Space key={rowIndex} wrap style={{ display: "flex", marginTop: 8 }}>
                   {row.map((button, buttonIndex) => (
                     <Button key={buttonIndex} disabled={!active || busy}
-                      onClick={() => void send(button.data, entry.scenario,entry.bot)}>{button.text}</Button>
+                      onClick={() => {
+                        // Копирующая кнопка (copy_text) не отправляет шаг — пишет в буфер.
+                        if (button.copy) {
+                          navigator.clipboard?.writeText(button.data).then(
+                            () => { setError(null); setCopied(button.data); },
+                            () => setError("Не удалось скопировать ссылку"),
+                          );
+                          return;
+                        }
+                        void send(button.data, entry.scenario,entry.bot);
+                      }}>{button.text}</Button>
                   ))}
                 </Space>
               ))}

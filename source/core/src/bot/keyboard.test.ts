@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { btn, inlineMarkup, REMOVE_KEYBOARD, replyText } from "./keyboard.ts";
+import { btn, copyBtn, inlineMarkup, REMOVE_KEYBOARD, replyText } from "./keyboard.ts";
 import { ApiError } from "../errors/api.ts";
 
 describe("btn", () => {
@@ -20,6 +20,22 @@ describe("btn", () => {
     // Кириллица — 2 байта на символ.
     expect(() => btn("ок", "ж".repeat(32))).not.toThrow();
     expect(() => btn("длинно", "ж".repeat(33))).toThrow(ApiError);
+  });
+});
+
+describe("copyBtn", () => {
+  it("копирующая кнопка несёт текст для буфера обмена без лимита callback_data", () => {
+    const link = `https://t.me/munar_tau_user_bot?start=invite_${"a".repeat(64)}`;
+    expect(copyBtn("Копировать", link)).toEqual({
+      text: "Копировать",
+      data: link,
+      copy: true,
+    });
+  });
+  it("лимит copy_text — 1–256 символов, нарушение — ошибка программиста", () => {
+    expect(() => copyBtn("Копировать", "a".repeat(256))).not.toThrow();
+    expect(() => copyBtn("Копировать", "a".repeat(257))).toThrow(ApiError);
+    expect(() => copyBtn("Копировать", "")).toThrow(ApiError);
   });
 });
 
@@ -40,6 +56,15 @@ describe("inlineMarkup", () => {
       inline_keyboard: [
         [{ text: "Да", callback_data: "да" }, { text: "Нет", callback_data: "нет" }],
         [{ text: "Отмена", callback_data: "/cancel" }],
+      ],
+    });
+  });
+  it("копирующая кнопка уходит полем copy_text, а не callback_data", () => {
+    expect(
+      inlineMarkup([[copyBtn("Копировать", "https://t.me/munar_tau_user_bot?start=invite_abc")]]),
+    ).toEqual({
+      inline_keyboard: [
+        [{ text: "Копировать", copy_text: { text: "https://t.me/munar_tau_user_bot?start=invite_abc" } }],
       ],
     });
   });

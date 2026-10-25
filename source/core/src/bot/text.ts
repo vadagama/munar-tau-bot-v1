@@ -124,3 +124,22 @@ export function langOf(language: unknown): Lang {
 export function pick(lang: Lang, ru: string, kk: string): string {
   return lang === "kk" ? kk : ru;
 }
+
+/**
+ * Username бота жителей для deep-ссылок (ADR-009): значение из окружения
+ * может отсутствовать или быть испорченным — принимаем только корректный
+ * Telegram-username, иначе фолбэк по умолчанию.
+ */
+export function residentUsername(botUsername: string | undefined): string {
+  return botUsername && /^[a-zA-Z0-9_]{5,32}$/.test(botUsername)
+    ? botUsername
+    : "munar_tau_user_bot";
+}
+
+/** Deep-ссылка бота жителей с payload /start (приглашение, выбор дома). */
+export function residentDeepLink(
+  payload: string,
+  botUsername: string | undefined,
+): string {
+  return `https://t.me/${residentUsername(botUsername)}?start=${payload}`;
+}
