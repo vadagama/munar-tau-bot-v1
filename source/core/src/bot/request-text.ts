@@ -21,6 +21,7 @@ export function requestListText(
   lang: Lang = "ru",
   store?: TemplateStore,
   residentBotUsername?: string,
+  view: { archive?: boolean; hasArchive?: boolean } = {},
 ): BotReply {
   // Username бота жителя для глубокой ссылки из списка: из среды или фолбэк
   // по фактически созданному боту (ADR-009; @munar_tau_bot не существует).
@@ -67,14 +68,47 @@ export function requestListText(
         ),
       ]
   );
-  if(page>1)buttons.push([btn(messageButton(store,lang,"bot.controls","back"),`/requests page:${page-1}`)]);
+  // Пагинация остаётся внутри текущего вида (активные/архив), рядами по паре.
+  const viewToken = view.archive ? "archive " : "";
+  const nav: InlineButton[] = [];
+  if (page > 1) {
+    nav.push(
+      btn(
+        messageButton(store, lang, "bot.controls", "back"),
+        `/requests ${viewToken}page:${page - 1}`,
+      ),
+    );
+  }
   if (rows.length > 10) {
-    buttons.push([
+    nav.push(
       btn(
         messageButton(store, lang, "message.requests.list", "next"),
-        `/requests page:${page + 1}`,
+        `/requests ${viewToken}page:${page + 1}`,
       ),
+    );
+  }
+  if (nav.length) buttons.push(nav);
+  if (view.archive) {
+    // Выход из архива к активным; подпись отличается от кнопки пагинации.
+    buttons.push([
+      btn(messageButton(store, lang, "message.requests.list", "active"), "/requests"),
     ]);
+  } else {
+    // Архив — только когда закрытые обращения уже есть.
+    if (view.hasArchive) {
+      buttons.push([
+        btn(
+          messageButton(store, lang, "message.requests.list", "archive"),
+          "/requests archive",
+        ),
+      ]);
+    }
+    // Пустой список — путь к действию вместо тупика.
+    if (!visible.length) {
+      buttons.push([
+        btn(messageButton(store, lang, "bot.controls", "newrequest"), "/newrequest"),
+      ]);
+    }
   }
   return { text, buttons };
 }

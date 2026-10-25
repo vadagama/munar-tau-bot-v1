@@ -20,6 +20,7 @@ import { ApiError } from "../errors/api.ts";
 import { type Row } from "../domains/registry/validation.ts";
 import { actorForTelegram } from "./registration.ts";
 import { type BotReply, btn } from "./keyboard.ts";
+import { CLOSED_STATES, STATES } from "../domains/requests/fsm.ts";
 import {
   createRequest,
   deleteDraft,
@@ -553,10 +554,23 @@ export async function requestStep(
           templateText(deps.templates, L, "requests.nekorrektnaya_stranitsa"),
         );
       }
+      // По умолчанию — только активные обращения; закрытые — в архиве по кнопке.
+      const archive = tokens.includes("archive");
+      const search =
+        tokens.filter((t) => t !== pageToken && t !== "archive").join(" ") ||
+        undefined;
+      const states = archive
+        ? [...CLOSED_STATES]
+        : STATES.filter((s) => !CLOSED_STATES.includes(s));
       const rows = await listRequests(d, actor, {
         cursor: btoa(String((page - 1) * 10)),
-        search: tokens.filter((t) => t !== pageToken).join(" ") || undefined,
+        search,
+        states,
       });
+      // Кнопка архива — только когда закрытые обращения уже есть.
+      const hasArchive = !archive &&
+        (await listRequests(d, actor, { states: [...CLOSED_STATES], limit: 1 }))
+          .length > 0;
       state.scenario = "requests";
       delete state.request_id;
       delete state.draft_id;
@@ -569,6 +583,7 @@ export async function requestStep(
           L,
           deps.templates,
           deps.residentBotUsername,
+          { archive, hasArchive },
         ),
       );
     }

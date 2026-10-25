@@ -101,6 +101,30 @@ describeWithDb("VS-3 REQ/SHR/MSG/RAT/FIL", (getDb) => {
     expect((await listRequests(deps, author)).map(r => r.id)).toEqual(expect.arrayContaining([room.id, common.id, other.id]));
   });
 
+  it("REQ: список активных отделён от архива закрытых (states, limit)", async () => {
+    const { deps, author, admin, input } = await setup(getDb());
+    const active = await createRequest(deps, author, input, "states-active");
+    const rejected = await createRequest(deps, author, input, "states-rejected");
+    await transitionRequest(deps, admin, String(rejected.id), {
+      action: "reject",
+      expected_version: rejected.version,
+      reason: "Не относится к ОСИ",
+      payload: { route: "Горячая линия УК" },
+    });
+    // Без фильтра — все состояния (кабинет); у бота фильтр задаёт states.
+    expect((await listRequests(deps, author)).map(r => r.id))
+      .toEqual(expect.arrayContaining([active.id, rejected.id]));
+    expect((await listRequests(deps, author, { states: ["closed", "canceled", "rejected"] })).map(r => r.id))
+      .toEqual([rejected.id]);
+    expect((await listRequests(deps, author, { states: ["new"] })).map(r => r.id))
+      .toEqual([active.id]);
+    // limit проверяется после фильтра: закрытых нет — пусто даже с лимитом.
+    expect(await listRequests(deps, author, { states: ["closed"], limit: 1 }))
+      .toEqual([]);
+    expect((await listRequests(deps, author, { states: ["new"], limit: 1 })).map(r => r.id))
+      .toEqual([active.id]);
+  });
+
   it("REQ-05: параллельная отправка одна; другой payload — 409; черновик приватен", async () => {
     const { deps, author, admin, participant, input } = await setup(getDb());
     const [a, b] = await Promise.all([
