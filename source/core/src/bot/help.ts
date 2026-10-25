@@ -146,15 +146,21 @@ export function taskActions(
  * продолжают присылать их текстом, и они обязаны резолвиться в команды.
  */
 type MenuKey =
+  | "register"
   | "newrequest"
   | "requests"
   | "objects"
   | "add"
+  | "invite"
+  | "bind"
+  | "accesses"
   | "notifications"
   | "help"
   | "tasks"
   | "staffrequests";
-const MENU_LABELS: Record<"ru" | "kk", Record<MenuKey, string>> = {
+// Исторический набор reply-меню: новые пункты меню приходят из кнопок
+// help-шаблонов, исторические подписи остаются без изменений (ADR-011).
+const MENU_LABELS: Record<"ru" | "kk", Partial<Record<MenuKey, string>>> = {
   ru: {
     newrequest: "🆕 Новое обращение",
     requests: "📬 Мои обращения",
@@ -205,6 +211,10 @@ function menuAliases(store?: TemplateStore): [string, string][] {
   ) {
     const ids: MenuKey[] = key === "help.worker_help"
       ? ["tasks", "staffrequests", "notifications", "help"]
+      // Главное меню жителя (25.10.2026): приветствие несёт полный набор
+      // разделов, справка — исторический набор (перекрыт в кабинете).
+      : key === "help.welcome_text"
+      ? ["register", "requests", "newrequest", "objects", "add", "invite", "bind", "accesses", "notifications", "help"]
       : ["newrequest", "requests", "objects", "add", "notifications", "help"];
     for (const lang of ["ru", "kk"] as const) {
       for (const id of ids) {

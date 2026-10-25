@@ -6,24 +6,35 @@ it.each(["/start", "Старт"])("главное меню жителя откр
   const reply = navigationReply(welcomeText(), "registration", "ru", undefined, input);
   expect(typeof reply).not.toBe("string");
   if (typeof reply === "string") return;
-  expect(reply.text).toBe("<b>ОСИ ЖК «Мунар Тау»</b>\nРегистрация, помещения, обращения и уведомления.\nПри непосредственной угрозе жизни звоните 112.");
+  expect(reply.text).toBe(welcomeText());
   expect(reply.buttons?.map(row => row.map(button => button.data))).toEqual([
-    ["/status", "/register", "/help"], ["/objects", "/add"],
-    ["/requests", "/newrequest"], ["/invite", "/bind", "/accesses"],
-    ["/notifications"], ["/cancel"],
+    ["/register"], ["/requests", "/newrequest"], ["/objects", "/add"],
+    ["/invite", "/bind", "/accesses"], ["/notifications"], ["/help"],
   ]);
 });
-it("справка предлагает только отмену", () => {
+it("действующему профилю регистрация в меню не показывается (REG-01/02)", () => {
+  const reply = navigationReply(welcomeText(), "registration", "ru", undefined, "/start", true);
+  if (typeof reply === "string") throw new Error("Ожидалась навигация");
+  const data = reply.buttons?.flat().map(button => button.data);
+  expect(data).not.toContain("/register");
+  expect(data).not.toContain("/status");
+  expect(data?.at(-1)).toBe("/help");
+});
+it("справка закрывается кнопкой «В главное меню»", () => {
   const reply = navigationReply("Справка", "registration", "ru", undefined, "/help");
   if (typeof reply === "string") throw new Error("Ожидалась навигация");
-  expect(reply.buttons).toEqual([[{ text: "Отменить", data: "/cancel" }]]);
+  expect(reply.buttons).toEqual([[{ text: "В главное меню", data: "/cancel" }]]);
 });
 
-it.each(["registration", "requests", "tasks", "incidents", "notifications"])("%s: свободный ввод получает только отмену", scenario => {
+it.each(["registration", "requests", "incidents", "notifications"])("%s: свободный ввод закрывается кнопкой «В главное меню»", scenario => {
   for (const input of ["/add", "107/99", "Иван Иванов", "/newrequest"]) {
     const reply = navigationReply({ text: "Введите данные" }, scenario, "ru", undefined, input);
-    expect(typeof reply !== "string" && reply.buttons).toEqual([[{ text: "Отменить", data: "/cancel" }]]);
+    expect(typeof reply !== "string" && reply.buttons).toEqual([[{ text: "В главное меню", data: "/cancel" }]]);
   }
+});
+it.each(["/add", "107/99", "Иван Иванов", "/newrequest"])("tasks: свободный ввод получает только отмену (%s)", input => {
+  const reply = navigationReply({ text: "Введите данные" }, "tasks", "ru", undefined, input);
+  expect(typeof reply !== "string" && reply.buttons).toEqual([[{ text: "Отменить", data: "/cancel" }]]);
 });
 it.each(["ru", "kk"] as const)("%s: форма отмены с той же подписью не дублируется навигацией", (lang) => {
   const cancelLabel = lang === "ru" ? "Отменить" : "Болдырмау";
@@ -65,7 +76,7 @@ it.each(["ru", "kk"] as const)("оба меню скрывают отложен�
       const reply = navigationReply("Меню", scenario, lang, undefined, input);
       if (typeof reply === "string") throw new Error("Ожидалось меню");
       const commands = reply.buttons?.flat().map(button => button.data);
-      for (const command of ["/incidents", "/publications", "/documents", "/financial", "/polls", "/initiatives", "/emergency", "/pending", "/plans"]) {
+      for (const command of ["/incidents", "/publications", "/documents", "/financial", "/polls", "/initiatives", "/emergency", "/emergencyrequest", "/pending", "/plans"]) {
         expect(commands).not.toContain(command);
       }
     }

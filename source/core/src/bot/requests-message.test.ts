@@ -176,6 +176,7 @@ it.each([
   ["1", "request"],
   ["2", "question"],
   ["3", "complaint"],
+  ["4", "emergency"],
   ["заявка", "request"],
   ["Заявка на работу", "request"],
   ["жұмысқа өтінім", "request"],
@@ -183,6 +184,8 @@ it.each([
   ["Сұрақ", "question"],
   ["жалоба", "complaint"],
   ["Шағым", "complaint"],
+  ["экстренная ситуация", "emergency"],
+  ["Төтенше жағдай", "emergency"],
 ] as const)("шаг вида: «%s» сохраняет вид %s и открывает выбор адресата", async (
   input,
   kind,
@@ -522,6 +525,22 @@ it("вид → место → описание: выбранный вид сох
   expect(state.draft_id).toBe("r1");
 });
 
+it("экстренная ситуация: срочность «Высокая» ставится автоматически, вид в проверке и карточке", async () => {
+  const captured: { sql: string; params: readonly unknown[] }[] = [];
+  const state: Row = {};
+  const d = deps({ count: 1, state, captured });
+  await requestStep(d, "1", "/newrequest", actor);
+  await requestStep(d, "1", "4", actor);
+  await requestStep(d, "1", "1", actor);
+  await requestStep(d, "1", "1", actor);
+  await requestStep(d, "1", "Не могу выйти из лифта", actor);
+  const insert = captured.find((c) => c.sql.startsWith("insert into request("));
+  expect(insert?.params[4]).toBe("emergency");
+  expect(insert?.params[5]).toBe("high");
+  const card = await requestStep(d, "1", "/sendrequest", actor);
+  expect(replyText(card)).toContain("Экстренная ситуация");
+});
+
 it("/editrequest: черновик — сначала вид, затем текст; вид и место сохраняются", async () => {
   const captured: { sql: string; params: readonly unknown[] }[] = [];
   const state: Row = {};
@@ -566,8 +585,8 @@ it("/editrequest применяет цельный шаблон шага вид�
     ru: "Что оформляем?\n{kinds}",
     kk: "{kinds}",
     buttons: {
-      ru: { request: "На работу", question: "Спросить", complaint: "Пожаловаться" },
-      kk: { request: "Жұмыс", question: "Сұрақ", complaint: "Шағым" },
+      ru: { request: "На работу", question: "Спросить", complaint: "Пожаловаться", emergency: "Срочно" },
+      kk: { request: "Жұмыс", question: "Сұрақ", complaint: "Шағым", emergency: "Төтенше" },
     },
   }]]);
   const result = await requestStep(
@@ -577,11 +596,15 @@ it("/editrequest применяет цельный шаблон шага вид�
     actor,
   );
   expect(replyText(result)).toBe(
-    "Что оформляем?\n1. На работу\n2. Спросить\n3. Пожаловаться",
+    "Что оформляем?\n1. На работу\n2. Спросить\n3. Пожаловаться\n4. Срочно",
   );
   expect(typeof result === "object" && result.buttons?.[2]?.[0]).toEqual({
     text: "Пожаловаться",
     data: "3",
+  });
+  expect(typeof result === "object" && result.buttons?.[3]?.[0]).toEqual({
+    text: "Срочно",
+    data: "4",
   });
 });
 
@@ -614,6 +637,7 @@ it.each(["ru", "kk"] as const)(
     const row = {
       number: "З-26-00001",
       state: "in_work",
+      kind: "emergency",
       author_person_id: "author",
       description: "Не работает <лампа> & свет",
       created_at: "2026-10-20T07:00:00Z",
@@ -626,7 +650,10 @@ it.each(["ru", "kk"] as const)(
         created_at: "2026-10-20T07:30:00Z",
       }],
     };
-    const list = requestListText([row], "author", 1, lang);
+    const list = requestListText([row], "author", 1, lang, undefined, undefined, {}, {
+      active: 1,
+      action: 0,
+    });
     const listPreview =
       messagePreview(undefined, getTemplate("message.requests.list")!)[lang];
     expect(replyText(list)).toBe(listPreview.text);
