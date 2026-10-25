@@ -1,0 +1,60 @@
+/* Карточка канбан-доски (board.tsx): наглядные состояния наведения, нажатия,
+   фокуса с клавиатуры и уже открытой карточки. Цвета приходят CSS-переменными
+   из токенов темы, поэтому стили работают и в тёмной теме. */
+.board-card {
+  position: relative;
+  background: var(--board-card-bg);
+  border: 1px solid var(--board-card-border);
+  border-radius: var(--board-card-radius);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.board-card--clickable {
+  cursor: pointer;
+}
+
+.board-card--clickable:hover {
+  border-color: var(--board-card-border-hover);
+  box-shadow: var(--board-card-shadow);
+  transform: translateY(-1px);
+}
+
+.board-card--clickable:active {
+  transform: translateY(1px);
+}
+
+.board-card--clickable:focus-visible {
+  outline: 2px solid var(--board-card-focus);
+  outline-offset: 1px;
+}
+
+.board-card--selected,
+.board-card--selected:hover {
+  border-color: var(--board-card-border);
+  background: var(--board-card-bg);
+  box-shadow: var(--board-card-shadow);
+  transform: none;
+}
+
+/* Подсказка «открывается справа»: видна при наведении, фокусе и у открытой карточки. */
+.board-card__hint {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: var(--board-card-focus);
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.board-card--clickable:hover .board-card__hint,
+.board-card--clickable:focus-visible .board-card__hint,
+.board-card--selected .board-card__hint {
+  opacity: 1;
+}

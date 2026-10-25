@@ -1,0 +1,1 @@
+export function useCabinetIdentity(){return {identity:{id:'demo',fullName:'Администратор',me:{profile:{id:'demo'},person:{id:'demo',is_test:true},assignments:[],session:{started_at:'2026-10-25T10:00:00Z',total_limit_seconds:43200,idle_limit_seconds:1800}}},roles:['administrator'],isLoading:false};}
