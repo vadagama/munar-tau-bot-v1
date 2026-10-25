@@ -7,6 +7,7 @@ import { DocumentsPage } from "./pages/documents";
 import { RequestSettingsPage } from "./pages/request-settings";
 import { TaskToolsPage } from "./pages/task-tools";
 import { TemplatesPage } from "./pages/templates";
+import { AssistantSettingsPage } from "./pages/assistant-settings";
 import { IncidentsPage } from "./pages/incidents";
 import { PublicationsPage } from "./pages/publications";
 import { NotificationsPage } from "./pages/notifications";
@@ -71,6 +72,7 @@ export default function App() {
               <Route path="/notifications/preferences" element={<NotificationsPage key="preferences" section="preferences" />} />
               <Route path="/notifications/failures" element={<NotificationsPage key="failures" section="failures" />} />
               <Route path="/settings/requests" element={<RequestSettingsPage />} />
+              <Route path="/settings/assistant" element={<AssistantSettingsPage />} />
               <Route path="/users/residents" element={<RegistryPage key="residents" users="residents" />} />
               <Route path="/users/staff" element={<StaffPage />} />
               <Route path="/time-rules" element={<TimeRulesPage />} />

@@ -10,6 +10,7 @@ import { useLogout } from "@refinedev/core";
 
 import {
   canSeeAudit,
+  canSeeAssistantSettings,
   canSeeTasks,
   canSeeTemplates,
   canUseEmulation,
@@ -93,6 +94,8 @@ export function AppLayout() {
   const settings = [
     ...(manager ? [{ key: "/registry-import", label: "Импорт и экспорт" }] : []),
     ...(manager && !identity?.me.emulation ? [{ key: "/settings/requests", label: "Настройки обращений" }] : []),
+    // ADR-021: настройки ассистента — вне эмуляции (privileged).
+    ...(canSeeAssistantSettings(roles) && !identity?.me.emulation ? [{ key: "/settings/assistant", label: "AI-ассистент" }] : []),
     ...(canSeeTemplates(roles) ? [
       { key: "/time-rules", label: "Регламенты" },
       { key: "/templates", label: "Шаблоны сообщений" },

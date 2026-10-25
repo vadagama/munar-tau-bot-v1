@@ -30,7 +30,7 @@ export class ApiClientError extends Error {
 export interface ApiRequest {
   idempotencyKey?: string;
   file?: File;
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   query?: Record<string, string | undefined>;
 }

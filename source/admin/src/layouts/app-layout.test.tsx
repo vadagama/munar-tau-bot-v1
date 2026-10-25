@@ -54,8 +54,25 @@ it("порядок главного меню и вложенные настро�
   ]);
   fireEvent.click(screen.getByText("Настройки", { exact: true }));
   expect(within(screen.getAllByRole("menu")[1]!).getAllByRole("menuitem").map(item => item.textContent)).toEqual([
-    "Импорт и экспорт", "Настройки обращений", "Регламенты", "Шаблоны сообщений", "Эмуляция ролей (пилот)",
+    "Импорт и экспорт", "Настройки обращений", "AI-ассистент", "Регламенты", "Шаблоны сообщений", "Эмуляция ролей (пилот)",
   ]);
+});
+it("настройки AI-ассистента скрыты в эмуляции и вне ролей (ADR-021)", () => {
+  state.roles = ["chairman", "tech_admin"];
+  show();
+  fireEvent.click(screen.getByText("Настройки", { exact: true }));
+  expect(screen.getByRole("menuitem", { name: "AI-ассистент" })).toBeVisible();
+  cleanup();
+  state.emulating = true;
+  show();
+  fireEvent.click(screen.getByText("Настройки", { exact: true }));
+  expect(screen.queryByRole("menuitem", { name: "AI-ассистент" })).toBeNull();
+  cleanup();
+  state.emulating = false;
+  state.roles = ["administrator"];
+  show();
+  fireEvent.click(screen.getByText("Настройки", { exact: true }));
+  expect(screen.queryByRole("menuitem", { name: "AI-ассистент" })).toBeNull();
 });
 it("прямая ссылка раскрывает пользователей и выделяет сотрудников", () => {
   state.roles = ["chairman"];

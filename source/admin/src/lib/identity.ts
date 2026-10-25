@@ -37,6 +37,11 @@ export function canUseEmulation(roles: string[]): boolean {
 
 export function canSeeTemplates(roles:string[]):boolean {return roles.some(role=>["chairman","administrator","tech_admin"].includes(role));}
 
+/** Настройки AI-ассистента — председатель/техадмин (ADR-021, план S0.4). */
+export function canSeeAssistantSettings(roles: string[]): boolean {
+  return roles.some((role) => ["chairman", "tech_admin"].includes(role));
+}
+
 /** Задания доступны всем сотрудникам; сервер ограничивает конкретные карточки. */
 export function canSeeTasks(roles: string[]): boolean {
   return roles.some(role => STAFF_ROLES.some(staffRole => staffRole === role));
