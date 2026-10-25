@@ -96,6 +96,8 @@ UNIQUE (building_id, kind, number) — «номер квартиры совпа�
 
 `staff_scope`: assignment_id FK, building_id FK, PK (assignment_id, building_id) — область домов; отсутствие строк у активного назначения = весь ОСИ (только для chairman/tech_admin) `[согласовано 16.10.2026]`. Председатель действует по всему ОСИ без назначения (ROL-02a). Выдача спецправ (financial/registry_export/regulations) проверяется доменом `admin` по матрице (только председатель), не триггером.
 
+> Уточнение (ADR-014, 18.10.2026): статус сотрудника и полномочия вычисляются по действующим назначениям — назначение задаётся набором ролей (`assigned_roles`), наследование (председатель → администратор → заместитель → исполнитель; заместитель и выше наследуют также дежурного, проверяющего документов и finance) вычисляется при сборке Actor (`effective_roles`); дополнительных строк `staff_assignment` для унаследованных ролей нет. Служебная область временно весь ОСИ: сохранённые `staff_scope` не удаляются, но в этом режиме не ограничивают; у новых назначений сроков нет, прежние `valid_from`/`valid_until` продолжают проверяться. Спецправа следуют ролям: финансовые — у finance и старших деловых ролей; экспорт реестра и регламенты — у администратора и председателя; отдельные переключатели прав в UI отложены. Изменение набора ролей атомарно (expected_version, Idempotency-Key), снимает прикладные сеансы и порождает персональное событие `staff.roles` в worker-бота (NTF-03).
+
 ### 2.7. invite — приглашение
 
 id PK, created_by FK person, premises_id FK, role enum connection_role, token text UNIQUE NOT NULL (генерируется сервером), expires_at timestamptz NOT NULL (72 ч по TIM, REG-03), used_at, used_by_profile FK profile, status enum invite_status {active, used, expired, revoked}. Одноразовость — уникальность used_by + статус; срок — таймер TIM.
@@ -281,6 +283,8 @@ VS-8 (23.10.2026): [ADR-018](../decisions/018-vs8-documents-participation-report
 - `notification`: id PK, recipient_person_id FK, event_type text, event_ref jsonb, dedup_key text UNIQUE (идемпотентность at-least-once), channel enum notif_channel {telegram, simulator}, state enum notif_state {queued, sent, failed}, attempts int, last_error text, sent_at, created_at — NTF-02; ошибки важной доставки видны администратору.
 - `notification_pref`: person_id FK, event_type text, enabled boolean, PK (person_id, event_type) — настройки; обязательное согласование остаётся видимым в карточке (FLOW-03).
 
+> Уточнение (ADR-009, миграция `20261017130000`): `notification` и `notification_digest_item` несут колонку `bot` (`resident`/`worker`, по умолчанию resident) — канал-бот фиксируется при постановке в очередь, отправка выбирает токен по ней; та же колонка добавлена в `request_upload_job` и `bot_inbound`.
+
 ## 11. Импорт реестра
 
 - `import_batch`: id PK, file_path text (Storage), state enum import_state {uploaded, validating, validation_failed, validated, committing, committed, failed}, stats jsonb (число строк по листам), errors jsonb `[согласовано 16.10.2026]` (список: sheet, row, field, code, message — IMP-02), created_by, created_at, committed_at.
@@ -290,8 +294,8 @@ VS-8 (23.10.2026): [ADR-018](../decisions/018-vs8-documents-participation-report
 
 ## 12. Бот
 
-- `bot_inbound`: update_id bigint PRIMARY KEY (идемпотентность Telegram, REQ-05), payload jsonb, received_at, processed_at NULL, status enum {received, processed, error}, error text.
-- `bot_dialog`: profile_id FK profile PRIMARY KEY, state text (ключ шага сценария), context jsonb, updated_at — состояние диалогов в PostgreSQL (ADR-003: диалог продолжается после завершения вызова функции).
+- `bot_inbound`: update_id bigint, payload jsonb, received_at, processed_at NULL, status enum {received, processed, error}, error text (идемпотентность Telegram, REQ-05). Уточнение (миграция `20261017130000`): PK составной `(bot, update_id)` — нумерации update_id у двух ботов (ADR-009) независимы; колонка `bot` (`resident`/`worker`) есть также в `notification`, `notification_digest_item`, `request_upload_job`.
+- `bot_dialog`: profile_id FK profile PRIMARY KEY, state text (ключ шага сценария), context jsonb, updated_at — состояние диалогов в PostgreSQL (ADR-003: диалог продолжается после завершения вызова функции). Уточнение (ADR-017, миграция `20261021173310`): действующее состояние диалогов — `bot_dialog_channel`: PK `(bot, telegram_user_id)`, nullable `profile_id` (проверенный Telegram до появления profile), `context_id`, `format_version`, `state jsonb`, `updated_at`; таблица закрыта RLS и revoke. `bot_dialog` сохраняется как снимок для отката; переходное состояние ввода сбрасывается. Дополнение (миграция `20261025120000`): колонка `menu_registered boolean` — флаг применённого нативного меню; вне `state`, поскольку пишется транзакциями вебхука под FOR UPDATE.
 
 ## 13. Служебные таблицы
 
@@ -454,3 +458,20 @@ report_launch — append-only даты общего запуска; report_kpi_a
 не получают исходные связи, сообщения и записи закрытой истории.
 
 REP-05: report_export_job хранит immutable intent (kind, filters, scope_snapshot, permission_snapshot, as_of, effective/real profile/person, emulation_session_id, is_test), state pending/running/ready/failed, attempts≤3 и lease. Готовый private path/размер/число строк и внутренние object_ids используются для повторной PDP; клиентам поля не выдаются. Финальные записи неизменяемы, таблица закрыта RLS. SQL-миграции репозитория должны предшествовать новой API/jobs-функции.
+
+
+## Актуализация схемы (19–25.10.2026)
+
+Миграции после среза 17.10, не отражённые в разделах выше:
+
+- `20261019120000` (REG-11, решение 19.10.2026): `building_parking` и `building.kind` удалены — все помещения, включая парковочные места, существуют в составе домов; демо-паркинги удалены вместе с помещениями и связями, обращения остались без привязки; код здания уникален сам (`building_code_key`).
+- `20261019130000` (REG-11): `building.construction_phase smallint` 1–5, NULL — не указана (очередь строительства по застройщику, без изменения прав доступа).
+- `20261019150000` (ADR-015, REG-01): анкета-минимум — `registration.premises_id` и `role` стали nullable; анкета может подаваться без помещения и роли, доступ открывается после подтверждения, привязка — отдельно (/add).
+- `20261021151218` (ADR-016, REG-01/02, PRV-02): `registration` — одна основная анкета на Telegram: `version` (триггер при каждом UPDATE), `confirmed_draft jsonb` (проверяемые исправления), `reactivating`, `superseded_by`; частичный уникальный индекс основной анкеты по `telegram_user_id` (premises_id is null, state<>'withdrawn', superseded_by is null); таймеры сверхсуженных анкет гасятся.
+- `20261021173310` и `20261021173636`: `bot_dialog_channel` (ADR-017, см. раздел 12) и `request_message_read` — личные квитанции прочтения (person_id, message_id, read_at, составной PK) только явно показанных входящих; RLS+revoke.
+- `20261023090000…20261023200121` (VS-8): документы — `document`, `document_scope`, `document_version`, `document_log`, `document_obligation`; финансовые публикации — `financial_rule` (+version), `financial_obligation`, `financial_publication_version`, `financial_publication_approval`, `financial_package_document`, `financial_placement`, `financial_issue`, `publication_document`; планировщик публикаций (`publication.scheduled_by`, `publication_log.reason`); история аудитории (ADR-019) — `audience_history_meta`, `audience_connection_event`; опросы — `poll`, `poll_answer`, `poll_answer_log`, `poll_result` (+participant), `poll_reconciliation`; инициативы — `initiative`, `initiative_log`, `initiative_support` (+log), `initiative_comment`, `moderation_action`, `moderation_appeal`, `moderation_decision`, `initiative_reconciliation`; фото — `attachment` (owner_type `initiative`/`document`, `discarded_at`, guard-триггеры, заморозка состава при публикации); история отчётности (REP-06/KPI-01, см. выше) и `report_export_job` (REP-05). Все таблицы RLS+revoke.
+- `20261023193000`: ограничение `profile_placeholder_telegram_id_test` — профиль с telegram_user_id ≥ 900000000000 обязан быть тестовым (сид-заглушки; диапазон зарезервирован константой TELEGRAM_PLACEHOLDER_ID_MIN, инцидент 23.10).
+- `20261023200000`: `profile.telegram_username` и `registration.telegram_username` — display-only метаданные имени в Telegram (не ключ аутентификации и сопоставления, ADR-001/004), актуализируются при входящих обновлениях бота (best-effort).
+- `20261024120000` (REG-02a/UI-01): `registration.withdrawn_at` — дата отзыва анкеты самостоятельным фактом наряду с `decided_at`.
+- `20261024130000` (ADR-020): `invite.premises_id` и `invite.role` стали nullable — приглашение только регистрирует жильца, помещение и роль собственник выбирает при привязке (/bind); активные приглашения старого типа (с помещением) погашены (status='expired').
+- `20261025120000`: `bot_dialog_channel.menu_registered` — флаг применённого нативного меню чата жителя (см. раздел 12; LLD-04).

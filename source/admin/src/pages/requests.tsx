@@ -4,8 +4,8 @@ import { DeadlineInput } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions } from "../components/process-card";
 import { requestGuidance, processActionHint } from "../components/process-guidance";
 import { ConfigurableTable } from "../components/configurable-table";
+import type { ConfigurableColumn } from "../components/table-columns";
 import { App as AntApp } from "antd";
-import type { TableColumnsType } from "antd";
 import { taskAssigneeOptions } from "./task-assignees";
 import { REQUEST_ACTION_ICONS } from "./request-action-icons";
 import { TASK_STATE_TEXT } from "../../../core/src/locales/tasks";
@@ -430,7 +430,7 @@ export function RequestsPage() {
       ? ["approve_cancel", "reject_cancel"]
       : []),
   ];
-  const tableColumns: TableColumnsType<Row> = [
+  const tableColumns: ConfigurableColumn<Row>[] = [
     {
       title: "Номер",
       key: "number", dataIndex: "number",
@@ -453,8 +453,14 @@ export function RequestsPage() {
       render: (v) => <Tag>{REQUEST_STATES[String(v)]}</Tag>,
     },
     {
-      title: "Первый ответ до",
+      title: "Дата регистрации",
+      key: "open_at", dataIndex: "open_at",
+      render: (v, r) => formatDateTime(v ?? r.created_at),
+    },
+    {
+      title: "Срок",
       key: "first_response_due_at", dataIndex: "first_response_due_at",
+      defaultHidden: true,
       render: (v) =>
         v ? formatDateTime(v) : "—",
     },
@@ -526,7 +532,7 @@ export function RequestsPage() {
             <div className="mobile-summary__top"><Button type="link" disabled={saving || fileBusy} onClick={() => void open(String(row.id))}>{String(row.number ?? "Черновик")}</Button><Tag>{REQUEST_STATES[String(row.state)]}</Tag></div>
             <p className="mobile-summary__title">{String(row.description ?? "")}</p>
             <span className="mobile-summary__meta">{String(row.author_name ?? "Инициатор не указан")} · {KINDS[String(row.kind)]}</span>
-            <Typography.Text type="secondary">Первый ответ до: {formatDateTime(row.first_response_due_at)}</Typography.Text>
+            <Typography.Text type="secondary">Дата регистрации: {formatDateTime(row.open_at ?? row.created_at)}</Typography.Text>
             {requestOverdueDetails(row).map(detail => <Typography.Text type="danger" key={detail}>{detail}</Typography.Text>)}
           </div>}
           rowKey="id"
