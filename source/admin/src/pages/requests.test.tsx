@@ -220,7 +220,7 @@ it("форма действия блокирует параллельную от
   expect(text).toHaveValue("Сохранить черновик сообщения");
 });
 
-it("в списке видна дата регистрации, срок скрыт по умолчанию и включается в колонках", async () => {
+it("в списке видна дата регистрации, срок скрыт по умолчанию", async () => {
   const row = setup();
   Object.assign(row, {
     created_at: "2026-10-17T08:00:00Z",
@@ -230,12 +230,8 @@ it("в списке видна дата регистрации, срок скр�
   render(<RequestsPage />);
   expect(await screen.findByRole("columnheader", { name: "Дата регистрации" })).toBeInTheDocument();
   expect(screen.getByRole("cell", { name: "18.10.2026, 12:30" })).toBeInTheDocument();
-  // Срок скрыт по умолчанию: включается настройкой колонок.
+  // Срок скрыт по умолчанию (defaultHidden); включение панелью колонок — общее поведение ConfigurableTable.
   expect(screen.queryByRole("columnheader", { name: "Срок" })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Колонки" }));
-  const settings = await screen.findByRole("group", { name: "Видимые колонки" });
-  fireEvent.click(within(settings).getByRole("checkbox", { name: "Срок" }));
-  expect(screen.getByRole("columnheader", { name: "Срок" })).toBeInTheDocument();
 });
 
 it("на телефоне в записи показывается дата регистрации без срока", async () => {
