@@ -3,7 +3,7 @@ import type { Actor } from "../../pdp/types.ts";
 import { ApiError } from "../../errors/api.ts";
 import type { RegistryDeps } from "../registry/service.ts";
 import { buildAuditInput } from "../audit/entry.ts";
-import { getDashboard } from "./service.ts";
+import { getDashboard, type DashboardWidget } from "./service.ts";
 import { deepseekAnswer } from "./assistant-provider.ts";
 export interface AssistantConfig { apiKey: string; profileIds: readonly string[] }
 export type AssistantStatus = { state: "disabled" } | { state: "unavailable" } | { state: "enabled" | "limit"; remaining: number | null; daily_limit: number | null };
@@ -37,15 +37,33 @@ export async function reserveAssistantRequest(deps: RegistryDeps, actor: Actor):
   if (!rows.length) throw new ApiError("RATE_LIMITED", "Лимит AI: 20 запросов в сутки. Он обновится в полночь по Алматы.");
   return 20 - Number(rows[0]!.used);
 }
+/** Opaque navigation refs carry no database IDs or resident-authored text to the provider. */
+export function assistantContext(widgets: DashboardWidget[]) {
+  const sources: Array<{ ref: string; title: string; href: string; total?: number }> = [];
+  const entityNames: Record<string,string> = { new: "Обращение", action: "Обращение", tasks: "Задание", incidents: "Авария" };
+  const summary = widgets.map((w, i) => {
+    const ref = `ref:q${i}`;
+    sources.push({ ref, title: w.title, href: w.href, total: w.total });
+    const items = w.items.flatMap(item => {
+      const number = /^№(\d+)\b/.exec(item.label)?.[1];
+      if (!number || !entityNames[w.id]) return [];
+      let source = sources.find(s => s.href === item.href);
+      if (!source) { source = { ref: `ref:e${sources.length}`, title: `${entityNames[w.id]} №${number}`, href: item.href }; sources.push(source); }
+      return [{ title: source.title, ref: source.ref }];
+    });
+    return { title: w.title, total: w.total, ref, items };
+  });
+  return { sources, summary };
+}
 export async function askAssistant(deps: RegistryDeps, actor: Actor, config: AssistantConfig | undefined, input: Record<string, unknown>, answer = deepseekAnswer) {
   if (!allowed(actor, config)) throw new ApiError("FORBIDDEN", "AI-ассистент отключён для этого пользователя");
   if (typeof input.question !== "string" || !input.question.trim() || input.question.length > 2000) throw new ApiError("VALIDATION_FAILED", "Введите вопрос от 1 до 2 000 символов");
   // Never accept a client-supplied context, role, history or source IDs.
   const dashboard = await getDashboard(deps, actor);
-  const summary = dashboard.widgets.map(w => ({ title: w.title, total: w.total }));
+  const { summary, sources } = assistantContext(dashboard.widgets);
   const remaining = await reserveAssistantRequest(deps, actor);
   await deps.audit.append(deps.db, buildAuditInput(actor, { action: "tech.dashboard.ai.request", entityType: "assistant", meta: { model: "deepseek-flash" } }));
   const result = await answer(config.apiKey, input.question.trim(), summary, actor.profile.language);
   return { ...result, remaining, generated_at: dashboard.generated_at,
-    sources: dashboard.widgets.map(w => ({ title: w.title, href: w.href, total: w.total })) };
+    sources };
 }

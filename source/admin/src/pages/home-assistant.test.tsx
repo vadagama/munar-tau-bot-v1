@@ -14,7 +14,7 @@ describe("home assistant", () => {
     expect(screen.queryByText("AI-ассистент")).not.toBeInTheDocument();
   });
   it("sends only the question, renders text safely and provides server source links", async () => {
-    vi.mocked(apiFetch).mockResolvedValue({ text: '<script>alert(1)</script>', remaining: 19, sources: [{ title: "Обращения", total: 12, href: "/requests?dashboard_queue=attention" }], generated_at: "2026-10-25T00:00:00Z" });
+    vi.mocked(apiFetch).mockResolvedValue({ text: '<script>alert(1)</script>\n\n[Обращения](ref:q0)', remaining: 19, sources: [{ ref: "ref:q0", title: "Обращения", total: 12, href: "/requests?dashboard_queue=attention" }], generated_at: "2026-10-25T00:00:00Z" });
     render(<MemoryRouter><HomeAssistant status={enabled} /></MemoryRouter>);
     fireEvent.change(screen.getByRole("textbox", { name: "Вопрос ассистенту" }), { target: { value: "Что требует внимания?" } });
     fireEvent.click(screen.getByRole("button", { name: "Спросить" }));

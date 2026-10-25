@@ -22,7 +22,6 @@
 .home-assistant-prompts { margin-bottom: 12px; }
 .home-assistant-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; }
 .home-assistant-answer { margin-top: 24px; }
-.home-assistant-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 767px) {
   .home-assistant .ant-card-head-wrapper { align-items: flex-start; flex-direction: column; padding-block: 12px; }
   .home-assistant-footer { align-items: flex-start; flex-direction: column; }
@@ -30,3 +29,20 @@
 .home-assistant-prompts { max-width: 100%; }
 .home-assistant-prompts .ant-space-item { max-width: 100%; }
 .home-assistant-prompts .ant-btn { max-width: 100%; height: auto; white-space: normal; text-align: left; padding-block: 6px; }
+.assistant-answer-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.assistant-answer-heading h3 { margin: 0; font-size: 18px; }
+.assistant-rich-text { min-width: 0; line-height: 1.7; overflow-wrap: anywhere; }
+.assistant-rich-text h4 { font-size: 15px; margin: 20px 0 8px; }
+.assistant-rich-text > :first-child { margin-top: 0; }
+.assistant-rich-text p { white-space: pre-wrap; margin: 0 0 12px; }
+.assistant-rich-text ul, .assistant-rich-text ol { padding-left: 24px; margin: 8px 0 16px; }
+.assistant-rich-text li { padding-left: 4px; margin-block: 6px; }
+.assistant-rich-text blockquote { border-left: 3px solid currentColor; padding-left: 12px; margin: 16px 0; }
+.assistant-rich-text pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.assistant-table-scroll { max-width: 100%; overflow-x: auto; margin-block: 16px; }
+.assistant-table-scroll table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.assistant-table-scroll th, .assistant-table-scroll td { text-align: left; padding: 10px 12px; border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent); overflow-wrap: anywhere; }
+.assistant-table-scroll th { font-weight: 600; }
+.assistant-answer-note { margin: 16px 0 0 !important; font-size: 12px; }
+
+.assistant-rich-text a { text-decoration: underline; text-underline-offset: 3px; }

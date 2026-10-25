@@ -2,7 +2,7 @@ import * as dashboard from "./service.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Actor } from "../../pdp/types.ts";
 import type { RegistryDeps } from "../registry/service.ts";
-import { assistantStatus, askAssistant, assistantConfig, reserveAssistantRequest } from "./assistant.ts";
+import { assistantStatus, askAssistant, assistantContext, assistantConfig, reserveAssistantRequest } from "./assistant.ts";
 import { deepseekAnswer } from "./assistant-provider.ts";
 const actor = { person: { id: "person", status: "active", isTest: false }, profile: { id: "profile", language: "ru" }, assignments: [], emulation: null } as unknown as Actor;
 const config = { apiKey: "test-secret", profileIds: ["profile"] };
@@ -46,9 +46,9 @@ describe("assistant boundary", () => {
       return { text: "Восемь", truncated: false };
     });
     const result = await askAssistant(d, actor, config, { question: "Сводка", summary: [{ title: "injected", total: 999 }], role: "chairman" }, answer);
-    expect(answer).toHaveBeenCalledWith("test-secret", "Сводка", [{ title: "Новые обращения", total: 8 }], "ru");
+    expect(answer).toHaveBeenCalledWith("test-secret", "Сводка", [{ title: "Новые обращения", total: 8, ref: "ref:q0", items: [] }], "ru");
     expect(JSON.stringify(vi.mocked(d.audit.append).mock.calls)).not.toMatch(/Сводка|private|test-secret/);
-    expect(result.sources).toEqual([{ title: "Новые обращения", href: "/requests", total: 8 }]);
+    expect(result.sources).toEqual([{ title: "Новые обращения", href: "/requests", total: 8, ref: "ref:q0" }]);
     vi.mocked(d.db.query).mockResolvedValue([]); answer.mockClear();
     await expect(askAssistant(d, actor, config, { question: "Сводка" }, answer)).rejects.toMatchObject({ code: "RATE_LIMITED" });
     expect(answer).not.toHaveBeenCalled();
@@ -74,4 +74,11 @@ describe("DeepSeek transport", () => {
       await expect(deepseekAnswer("secret", "?", [], "ru", vi.fn().mockResolvedValue(response))).rejects.toThrow("AI-ассистент временно недоступен");
     }
   });
+});
+
+it("gives the model opaque references and numbers, never entity IDs or descriptions", () => {
+  const result = assistantContext([{ id: "new", title: "Новые", total: 1, href: "/requests", items: [{ id: "private-id", label: "№120 · private resident text", state: "new", href: "/requests?request=private-id&entity_page=1" }] }]);
+  expect(result.summary[0]!.items[0]).toEqual({ title: "Обращение №120", ref: "ref:e1" });
+  expect(JSON.stringify(result.summary)).not.toMatch(/private/);
+  expect(result.sources[1]!.href).toContain("request=private-id");
 });

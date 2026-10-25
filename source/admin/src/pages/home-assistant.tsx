@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Card, Input, Space, Typography } from "antd";
 import { SendOutlined } from "@ant-design/icons";
-import { Link } from "react-router-dom";
+import { AssistantRichText, type AssistantSource } from "./assistant-rich-text";
 import type { AssistantStatus } from "../../../core/src/domains/dashboard/assistant";
 import { apiFetch } from "../lib/api";
 import { formatDateTime } from "../lib/format-date";
-interface Answer { text: string; truncated: boolean; remaining: number | null; generated_at: string; sources: Array<{ title: string; href: string; total: number }> }
+interface Answer { text: string; truncated: boolean; remaining: number | null; generated_at: string; sources: AssistantSource[] }
 export function HomeAssistant({ status }: { status: AssistantStatus }) {
   if (status.state === "disabled") return null;
   if (status.state === "unavailable") return <Alert showIcon type="info" message="AI-ассистент временно недоступен. Виджеты продолжают работать." />;
@@ -43,15 +43,14 @@ function AssistantForm({ status }: { status: Extract<AssistantStatus, { remainin
       </Space>
       {remaining !== 0 ? <form onSubmit={e => { e.preventDefault(); void submit(); }}>
         <Input.TextArea aria-label="Вопрос ассистенту" placeholder="Задайте вопрос по сводке главной" value={question} onChange={e => setQuestion(e.target.value)} maxLength={2000} autoSize={{ minRows: 2, maxRows: 6 }} disabled={pending} />
-        <div className="home-assistant-footer"><Typography.Text type="secondary">В DeepSeek отправятся ваш вопрос и количества записей в доступных очередях.</Typography.Text>
+        <div className="home-assistant-footer"><Typography.Text type="secondary">В DeepSeek отправятся ваш вопрос, количества записей и номера доступных карточек.</Typography.Text>
           <Button htmlType="submit" type="primary" icon={<SendOutlined aria-hidden="true" />} loading={pending} disabled={!question.trim()}>{pending ? "Готовлю ответ" : "Спросить"}</Button></div>
       </form> : <Alert type="info" message="Лимит исчерпан до полуночи по Алматы." />}
       <div aria-live="polite" aria-busy={pending}>
         {error && <Alert showIcon type="error" message={error} />}
-        {answer && <div className="home-assistant-answer"><Typography.Paragraph className="home-assistant-text">{answer.text}</Typography.Paragraph>
+        {answer && <div className="home-assistant-answer"><div className="assistant-answer-heading"><h3>Ответ ассистента</h3><Typography.Text type="secondary">{formatDateTime(answer.generated_at)}</Typography.Text></div><AssistantRichText text={answer.text} sources={answer.sources} />
           {answer.truncated && <Typography.Paragraph type="secondary">Ответ сокращён по лимиту длины.</Typography.Paragraph>}
-          <Typography.Paragraph type="secondary">Сводка на {formatDateTime(answer.generated_at)}. Проверьте выводы по источникам:</Typography.Paragraph>
-          <Space wrap>{answer.sources.map(source => <Link key={source.href} to={source.href}>{source.title} ({source.total}) →</Link>)}</Space>
+          <Typography.Paragraph type="secondary" className="assistant-answer-note">Выводы AI — подсказка. Проверяйте детали в исходных записях.</Typography.Paragraph>
         </div>}
       </div>
     </Card>
