@@ -123,15 +123,16 @@ it("открытая карточка выделена на доске, оста
 const _kindCheck: ListKind = "table";
 void _kindCheck;
 
-it("доска — одна линия колонок, страница скроллится браузером", () => {
+it("доска — одна линия колонок, прокрутка внутри контейнера доски", () => {
   const { container } = render(
     <BoardView columns={[{ value: "a", label: "Новая" }]} rows={[{ id: 1 }]}
       stateOf={() => "a"} renderCard={() => "Карточка"} />, 
   );
   const board = container.firstElementChild as HTMLElement;
-  // Колонки не переносятся на новый ряд: не влезающие уходят в прокрутку браузера.
+  // Колонки не переносятся на новый ряд: не влезающие уходят в горизонтальную
+  // прокрутку самого контейнера доски — страница не уезжает вбок (важно на телефоне).
   expect(board.style.flexWrap).toBe("nowrap");
   expect(board.style.height).toBe("");
-  expect(board.style.overflowX).toBe("");
+  expect(board.style.overflowX).toBe("auto");
   expect(board.style.overflowY).toBe("");
 });

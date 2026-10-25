@@ -1,8 +1,9 @@
 import { EmulationRoleSelect } from "./emulation-role-select";
 import { PAGE_REFRESH_EVENT, usePageRefresh } from "../lib/use-page-refresh";
 import { DayQueueProvider, useDayQueue } from "../lib/day-queue";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Badge, Button, Layout, Menu, Space, Typography, theme } from "antd";
+import { MenuOutlined } from "@ant-design/icons";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useLogout } from "@refinedev/core";
 
@@ -15,6 +16,8 @@ import {
 } from "../lib/identity";
 import { apiFetch } from "../lib/api";
 import { BrandLogo } from "../components/brand-logo";
+import { useNarrow } from "../lib/use-narrow";
+import "./app-layout.css";
 
 const { Header, Sider, Content } = Layout;
 
@@ -61,16 +64,31 @@ export function MenuLabel({ label, count }: { label: string; count: number }) {
   );
 }
 
-// Layout кабинета (VS-1): меню по ролям, баннер эмуляции, выход.
+// Layout кабинета: на узких экранах (<992px) меню становится оверлеем
+// с гамбургером в шапке, затемнением и закрытием по тапу/Esc/переходу.
 export function AppLayout() {
-  const [narrow, setNarrow] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const narrow = useNarrow();
+  const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { identity, roles, refreshIdentity } = useCabinetIdentity();
   usePageRefresh(refreshIdentity);
   const { mutate: logout } = useLogout();
   const queue = useDayQueue();
+
+  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
+
+  useEffect(() => {
+    if (!(narrow && menuOpen)) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [narrow, menuOpen]);
 
   const manager = roles.some(role => ["chairman", "administrator", "deputy"].includes(role));
   const settings = [
@@ -126,10 +144,11 @@ export function AppLayout() {
   return (
     <DayQueueProvider>
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider theme="light" width={240} breakpoint="lg" collapsedWidth={0}
-        collapsed={collapsed} onCollapse={setCollapsed} onBreakpoint={setNarrow}
+      {narrow && menuOpen && <div className="app-sider-mask" aria-hidden="true" onClick={() => setMenuOpen(false)} />}
+      <Sider theme="light" width={240} collapsedWidth={0} collapsed={narrow && !menuOpen}
         style={{ borderInlineEnd: "1px solid #eceef0",
-          ...(narrow ? { position: "fixed", zIndex: 1000, height: "100dvh" } : null) }}>
+          ...(narrow ? { position: "fixed", top: 0, bottom: 0, zIndex: 1000, height: "100dvh",
+            boxShadow: "0 8px 24px rgba(16, 24, 40, 0.12)" } : null) }}>
         <div style={{ padding: "16px 16px 12px" }}>
           <BrandLogo size={24} caption="Кабинет ОСИ" />
         </div>
@@ -142,17 +161,22 @@ export function AppLayout() {
           defaultOpenKeys={activeGroup ? [activeGroup] : []}
           items={items}
           onClick={({ key }) => { if (key === location.pathname) window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
-            else navigate(key); if (narrow) setCollapsed(true); }}
+            else navigate(key); if (narrow) setMenuOpen(false); }}
         />
         </div>
       </Sider>
       <Layout style={{ minWidth: 0 }}>
-        <Header style={{ background: "#fff", borderBottom: "1px solid #eceef0", paddingInline: 24, minHeight: 56, height: "auto", gap: 12, flexWrap: "wrap", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography.Title level={4} style={{ margin: 0, lineHeight: "32px", fontSize: 18 }}>
-            Кабинет администратора
-          </Typography.Title>
-          <Space wrap style={{ maxWidth: "100%" }}>
-            <Typography.Text type="secondary">
+        <Header className="app-header">
+          <div className="app-header__left">
+            {narrow && <Button className="app-header__menu-button" type="text" icon={<MenuOutlined />}
+              aria-label="Открыть меню" onClick={() => setMenuOpen(true)} />}
+            <span className="app-header__brand"><BrandLogo size={22} /></span>
+            <Typography.Title level={4} className="app-header__title">
+              Кабинет администратора
+            </Typography.Title>
+          </div>
+          <Space wrap size={8} className="app-header__actions">
+            <Typography.Text type="secondary" className="app-header__user">
               {identity?.fullName ?? "…"}
             </Typography.Text>
             {identity?.me.emulation && <EmulationRoleSelect
@@ -163,7 +187,7 @@ export function AppLayout() {
             </Button>
           </Space>
         </Header>
-        <Content style={{ width: "100%", padding: "24px 24px 48px" }}>
+        <Content className="app-content">
           <EmulationBanner />
           <Outlet key={location.pathname === "/emulation" ? "emulation" : identity?.me.profile.id} />
         </Content>

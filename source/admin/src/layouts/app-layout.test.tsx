@@ -17,6 +17,26 @@ vi.mock("../lib/identity", async importOriginal => ({
 }));
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn().mockResolvedValue({ persons: [] }) }));
 afterEach(() => { cleanup(); state.emulating = false; vi.clearAllMocks(); });
+
+// Стаб узкого экрана для сценариев телефона: совпадает со стабом setup.ts,
+// но с управляемым matches (в jsdom matchMedia по умолчанию всегда десктоп).
+function stubNarrowScreen(matches: boolean) {
+  const original = window.matchMedia;
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+  return () => Object.defineProperty(window, "matchMedia", { writable: true, value: original });
+}
 function show(path = "/") {
   render(<MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
     <Routes><Route element={<AppLayout />}>
@@ -102,5 +122,50 @@ it.each([
  expect(screen.getByRole("menuitem", {name: label})).toHaveClass("ant-menu-item-selected");
  for (const name of ["Здания", "Помещения", "Привязки помещений", "Очереди"]) {
    expect(screen.getByRole("menuitem", {name})).toBeVisible();
+ }
+});
+
+it("на десктопе меню видно без гамбургера", () => {
+ show();
+ expect(screen.getByRole("menu")).toBeVisible();
+ expect(screen.queryByRole("button", { name: "Открыть меню" })).toBeNull();
+});
+
+it("на телефоне меню скрыто, гамбургер открывает оверлей, маска и Esc закрывают", () => {
+ const restore = stubNarrowScreen(true);
+ try {
+   show();
+   // Меню свёрнуто в ноль: сайдбар в состоянии collapsed, в шапке — кнопка меню.
+   expect(document.querySelector(".ant-layout-sider")).toHaveClass("ant-layout-sider-collapsed");
+   expect(screen.getByRole("button", { name: "Открыть меню" })).toBeVisible();
+
+   fireEvent.click(screen.getByRole("button", { name: "Открыть меню" }));
+   expect(document.querySelector(".ant-layout-sider")).not.toHaveClass("ant-layout-sider-collapsed");
+   expect(screen.getByRole("menu")).toBeVisible();
+   // Фон не прокручивается под открытым оверлеем.
+   expect(document.body.style.overflow).toBe("hidden");
+
+   // Тап по затемнению закрывает меню и возвращает прокрутку.
+   fireEvent.click(document.querySelector(".app-sider-mask")!);
+   expect(document.querySelector(".ant-layout-sider")).toHaveClass("ant-layout-sider-collapsed");
+   expect(document.body.style.overflow).toBe("");
+
+   fireEvent.click(screen.getByRole("button", { name: "Открыть меню" }));
+   fireEvent.keyDown(window, { key: "Escape" });
+   expect(document.querySelector(".ant-layout-sider")).toHaveClass("ant-layout-sider-collapsed");
+ } finally {
+   restore();
+ }
+});
+
+it("на телефоне выбор пункта меню закрывает оверлей и ведёт на раздел", () => {
+ const restore = stubNarrowScreen(true);
+ try {
+   show();
+   fireEvent.click(screen.getByRole("button", { name: "Открыть меню" }));
+   fireEvent.click(screen.getByRole("menuitem", { name: "Обращения" }));
+   expect(document.querySelector(".ant-layout-sider")).toHaveClass("ant-layout-sider-collapsed");
+ } finally {
+   restore();
  }
 });

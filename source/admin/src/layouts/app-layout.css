@@ -1,0 +1,89 @@
+/* Каркас кабинета: шапка, меню-оверлей и контент.
+   Отступы и состав шапки адаптивные: на телефоне — гамбургер и логотип,
+   заголовок страницы поднимает сам PageLayout. */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  height: auto;
+  min-height: 56px;
+  padding-inline: 24px;
+  background: #fff;
+  border-bottom: 1px solid #eceef0;
+}
+
+.app-header__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-header__title {
+  margin: 0;
+  line-height: 32px;
+  font-size: 18px;
+}
+
+.app-header__actions {
+  max-width: 100%;
+}
+
+/* Гамбургер и бренд в шапке нужны только на узких экранах. */
+.app-header__menu-button,
+.app-header__brand {
+  display: none;
+}
+
+/* Затемнение под меню-оверлеем на узких экранах. */
+.app-sider-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: rgba(31, 35, 40, 0.45);
+}
+
+.app-content {
+  width: 100%;
+  padding: 24px 24px 48px;
+}
+
+/* Планшет: умеренно компактнее. */
+@media (max-width: 1199px) {
+  .app-content {
+    padding: 20px 16px 40px;
+  }
+}
+
+/* Телефон: гамбургер + логотип вместо заголовка каркаса, оверлей-меню. */
+@media (max-width: 991px) {
+  .app-header {
+    padding-inline: 12px;
+  }
+
+  .app-header__menu-button,
+  .app-header__brand {
+    display: inline-flex;
+  }
+
+  .app-header__title {
+    display: none;
+  }
+
+  .app-content {
+    padding: 16px 12px max(32px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Телефон: имя пользователя в шапке скрываем, переключатель персоны и «Выйти» остаются. */
+@media (max-width: 479px) {
+  .app-header__user {
+    display: none;
+  }
+}

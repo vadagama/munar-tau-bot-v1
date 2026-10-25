@@ -69,3 +69,52 @@
   justify-content: flex-end;
   margin-bottom: 12px;
 }
+
+/* Телефон: один столбец, поля фильтров на всю ширину, компактные ритмы. */
+@media (max-width: 767px) {
+  .cabinet-page,
+  .cabinet-page__workspace {
+    gap: 16px;
+  }
+
+  .cabinet-page__header,
+  .cabinet-page__actions,
+  .cabinet-page__filters,
+  .cabinet-page__filter-fields {
+    gap: 12px;
+  }
+
+  .cabinet-page__header .cabinet-page__title {
+    font-size: 18px;
+    line-height: 1.4;
+  }
+
+  .cabinet-page__view {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+
+  .cabinet-page__filters,
+  .cabinet-page__filter-fields {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cabinet-page__filters > *,
+  .cabinet-page__filter-fields > *,
+  .cabinet-page__filter-fields .ant-space-item {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .cabinet-page__filter-fields .ant-select,
+  .cabinet-page__filter-fields .ant-picker,
+  .cabinet-page__filter-fields .ant-input-affix-wrapper,
+  .cabinet-page__filter-fields .ant-input-group-wrapper {
+    width: 100%;
+  }
+
+  .cabinet-page__table-settings {
+    margin-left: 0;
+  }
+}

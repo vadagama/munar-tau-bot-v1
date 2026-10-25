@@ -173,6 +173,11 @@ export function BoardView<T>(props: {
         gap: token.marginSM,
         alignItems: "flex-start",
         boxSizing: "border-box",
+        // На телефоне колонок больше, чем ширины экрана: доска прокручивается
+        // внутри контейнера, а не растягивает страницу.
+        overflowX: "auto",
+        paddingTop: 2,
+        paddingBottom: token.marginSM,
       }}
     >
       {props.columns.map((c) =>

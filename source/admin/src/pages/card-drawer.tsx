@@ -1,5 +1,6 @@
 import { createContext, useEffect, useState, type ReactNode } from "react";
 import { Alert, Button, ConfigProvider, Drawer, Space } from "antd";
+import { useNarrow } from "../lib/use-narrow";
 
 export const CARD_DRAWER_WIDTH = "min(960px, 100vw)";
 type Editor = { id: string; full: boolean; cancel: () => void; busy: () => boolean };
@@ -22,6 +23,7 @@ export function CardDrawer(props: {
 }) {
   const [host, setHost] = useState<HTMLDivElement | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
+  const narrow = useNarrow();
   useEffect(() => { props.onEditingChange?.(!!editor); }, [editor, props.onEditingChange]);
   const [discard, setDiscard] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -35,7 +37,7 @@ export function CardDrawer(props: {
     <Drawer open={props.open} title={props.title} width={expanded ? "100vw" : CARD_DRAWER_WIDTH}
       onClose={close} keyboard={!props.closeDisabled} maskClosable={!props.closeDisabled}
       afterOpenChange={(open) => { if (!open) setDiscard(false); }}
-      extra={editor ? null : <Space><Button aria-label={expanded ? "Свернуть карточку" : "Развернуть карточку"} onClick={() => setExpanded(!expanded)}>{expanded ? "Свернуть" : "Развернуть"}</Button><Button disabled={props.closeDisabled} onClick={close}>Закрыть карточку</Button></Space>} footer={typeof props.footer === "function" ? props.footer(close) : props.footer}>
+      extra={editor ? null : <Space>{!narrow && <Button aria-label={expanded ? "Свернуть карточку" : "Развернуть карточку"} onClick={() => setExpanded(!expanded)}>{expanded ? "Свернуть" : "Развернуть"}</Button>}<Button disabled={props.closeDisabled} onClick={close}>Закрыть карточку</Button></Space>} footer={typeof props.footer === "function" ? props.footer(close) : props.footer}>
       <DrawerActionContext.Provider value={{ host, editor, setEditor }}>
         {discard && <Alert type="warning" showIcon message="Остались несохранённые изменения"
           action={<Space wrap>
