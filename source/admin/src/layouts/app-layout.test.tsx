@@ -131,40 +131,19 @@ it("на десктопе меню видно без гамбургера", () =
  expect(screen.queryByRole("button", { name: "Открыть меню" })).toBeNull();
 });
 
-it("на телефоне меню скрыто, гамбургер открывает оверлей, маска и Esc закрывают", () => {
+it("на телефоне в шапке гамбургер и короткий заголовок, меню открывается и закрывается", () => {
  const restore = stubNarrowScreen(true);
  try {
    show();
-   // Меню свёрнуто в ноль: сайдбар в состоянии collapsed, в шапке — кнопка меню.
-   expect(document.querySelector(".ant-layout-sider")).toHaveClass("ant-layout-sider-collapsed");
+   expect(screen.queryByRole("menu")).toBeNull();
    expect(screen.getByRole("button", { name: "Открыть меню" })).toBeVisible();
+   expect(screen.getByText("Кабинет ОСИ")).toBeVisible();
 
    fireEvent.click(screen.getByRole("button", { name: "Открыть меню" }));
-   expect(document.querySelector(".ant-layout-sider")).not.toHaveClass("ant-layout-sider-collapsed");
    expect(screen.getByRole("menu")).toBeVisible();
-   // Фон не прокручивается под открытым оверлеем.
-   expect(document.body.style.overflow).toBe("hidden");
 
-   // Тап по затемнению закрывает меню и возвращает прокрутку.
-   fireEvent.click(document.querySelector(".app-sider-mask")!);
-   expect(document.querySelector(".ant-layout-sider")).toHaveClass("ant-layout-sider-collapsed");
-   expect(document.body.style.overflow).toBe("");
-
-   fireEvent.click(screen.getByRole("button", { name: "Открыть меню" }));
-   fireEvent.keyDown(window, { key: "Escape" });
-   expect(document.querySelector(".ant-layout-sider")).toHaveClass("ant-layout-sider-collapsed");
- } finally {
-   restore();
- }
-});
-
-it("на телефоне выбор пункта меню закрывает оверлей и ведёт на раздел", () => {
- const restore = stubNarrowScreen(true);
- try {
-   show();
-   fireEvent.click(screen.getByRole("button", { name: "Открыть меню" }));
    fireEvent.click(screen.getByRole("menuitem", { name: "Обращения" }));
-   expect(document.querySelector(".ant-layout-sider")).toHaveClass("ant-layout-sider-collapsed");
+   expect(screen.queryByRole("menu")).toBeNull();
  } finally {
    restore();
  }

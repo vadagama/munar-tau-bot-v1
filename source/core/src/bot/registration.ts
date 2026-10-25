@@ -60,6 +60,22 @@ export async function actorForTelegram(
     ? buildActorForProfile(repo, deps.db, profile, new Date())
     : null;
 }
+/** Актёр по person_id — публикация альбома переписки от имени отправителя. */
+export async function actorForPerson(
+  deps: RegistryDeps,
+  personId: string,
+): Promise<Actor | null> {
+  const [p] = await deps.db.query<{ id: string }>(
+    "select pr.id from profile pr join person n on n.id=pr.person_id where pr.person_id=$1 and pr.archived_at is null and n.status='active'",
+    [personId],
+  );
+  if (!p) return null;
+  const repo = new SqlAdminRepo();
+  const profile = await repo.getProfile(deps.db, p.id);
+  return profile
+    ? buildActorForProfile(repo, deps.db, profile, new Date())
+    : null;
+}
 
 /** Типы помещений анкеты: номера строк равны callback-данным кнопок. */
 const KIND_OPTIONS = ["apartment", "commercial", "parking_slot", "storage"];

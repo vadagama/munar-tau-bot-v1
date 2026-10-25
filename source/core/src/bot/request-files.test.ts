@@ -7,7 +7,11 @@ import { processRequestUploads, queueRequestFile } from "./request-files.ts";
 import { replyText } from "./keyboard.ts";
 import { t as templateText } from "../templates/store.ts";
 import type { Row } from "../domains/registry/validation.ts";
-function fixture(attempts = 0, loseLease = false) {
+function fixture(
+  attempts = 0,
+  loseLease = false,
+  group: { pending?: number; rows?: Row[] } | null = null,
+) {
   const job = {
     attachment_id: "file",
     telegram_file_id: "telegram-file",
@@ -18,11 +22,24 @@ function fixture(attempts = 0, loseLease = false) {
     mime: "application/pdf",
     filename: "test.pdf",
     attempts,
+    ...(group
+      ? {
+        owner_type: "request",
+        owner_id: "r1",
+        bot: "resident",
+        person_id: "pers-1",
+        media_group_id: "G1",
+        caption: "фото проблемы",
+      }
+      : {}),
   };
   let state = "queued",
     attachment = "incomplete",
     stored: Uint8Array | undefined;
   const notifications: (string | { ru: string; kk: string })[] = [];
+  const inserted: { text: unknown; source: unknown }[] = [];
+  const reowned: string[] = [];
+  const discarded: string[] = [];
   const db: DbClient = {
     async query<T>(sql: string, params: readonly unknown[] = []): Promise<T[]> {
       let rows: unknown[] = [];
@@ -37,14 +54,58 @@ function fixture(attempts = 0, loseLease = false) {
           state = "complete";
           rows = [{ attachment_id: "file" }];
         }
-      } else if (sql.startsWith("update attachment")) attachment = "complete";
-      else if (sql.includes("last_error='FILE_TRANSFER_FAILED'")) {
+      } else if (sql.startsWith("update attachment set owner_type=")) {
+        reowned.push(...((params[1] ?? []) as string[]));
+        rows = ((params[1] ?? []) as string[]).map((id) => ({ id }));
+      } else if (sql.startsWith("update attachment set discarded_at")) {
+        discarded.push(...((params[0] ?? []) as string[]));
+      } else if (sql.startsWith("update attachment set status=")) {
+        attachment = "complete";
+      } else if (sql.includes("last_error='FILE_TRANSFER_FAILED'")) {
         state = job.attempts >= 3 ? "failed" : "queued";
         rows = [{ attachment_id: "file" }];
       } else if (sql.startsWith("insert into outbox")) {
         const notice=JSON.parse(String(params[0]));
         const value=notice.template ? notice : notice.text;
         notifications.push({ru:renderNotice(value,"ru"),kk:renderNotice(value,"kk")});
+      } else if (sql.startsWith("insert into message")) {
+        inserted.push({ text: params[4], source: params[7] });
+      } else if (
+        group &&
+        sql.startsWith("select count(*)::text n from request_upload_job")
+      ) {
+        rows = [{ n: String(group.pending ?? 0) }];
+      } else if (group && sql.startsWith("select j.attachment_id,j.caption")) {
+        rows = group.rows ?? [];
+      } else if (sql.includes("file_policy where singleton")) {
+        rows = [{ max_bytes: 1048576, max_per_message: 10, extensions: ["pdf"] }];
+      } else if (sql.startsWith("select pr.id from profile pr join person")) {
+        rows = [{ id: "prof-1" }];
+      } else if (sql.startsWith("select id, person_id, telegram_user_id")) {
+        rows = [{
+          id: "prof-1",
+          person_id: "pers-1",
+          telegram_user_id: 100,
+          supabase_user_id: null,
+          language: "ru",
+          is_test: true,
+          archived_at: null,
+        }];
+      } else if (sql.startsWith("select id, full_name, phone_e164")) {
+        rows = [{
+          id: "pers-1",
+          full_name: "Тест",
+          phone_e164: null,
+          status: "active",
+          is_test: true,
+          comment: null,
+        }];
+      } else if (sql.includes("as participant")) {
+        rows = [{ participant: true, active_author: true }];
+      } else if (sql.startsWith("select * from request where id=$1")) {
+        rows = [{ ...OPEN_REQUEST }];
+      } else if (sql.startsWith("insert into audit_log")) {
+        rows = [{ id: 1, at: "2026-10-25T00:00:00Z" }];
       }
       return rows as T[];
     },
@@ -68,6 +129,9 @@ function fixture(attempts = 0, loseLease = false) {
     state: () => state,
     attachment: () => attachment,
     notifications,
+    inserted: () => inserted,
+    reowned: () => reowned,
+    discarded: () => discarded,
   };
 }
 afterEach(() => vi.unstubAllGlobals());
@@ -141,6 +205,99 @@ it("потерявший lease обработчик не объявляет фа
   expect(f.notifications).toEqual([]);
 });
 
+const ALBUM_ROWS = (fileStatus: string): Row[] => [
+  {
+    attachment_id: "file",
+    caption: "фото проблемы",
+    created_at: "2026-10-25T10:00:00Z",
+    status: fileStatus,
+    discarded_at: null,
+    request_id: "r1",
+  },
+  {
+    attachment_id: "file2",
+    caption: "",
+    created_at: "2026-10-25T10:00:01Z",
+    status: "complete",
+    discarded_at: null,
+    request_id: "r1",
+  },
+];
+
+it("альбом в переписке публикуется одним сообщением после загрузки всех файлов", async () => {
+  const f = fixture(0, false, { pending: 0, rows: ALBUM_ROWS("complete") });
+  vi.stubGlobal(
+    "fetch",
+    (url: string) =>
+      Promise.resolve(
+        url.endsWith("/getFile")
+          ? new Response(
+            JSON.stringify({
+              ok: true,
+              result: { file_path: "documents/file.pdf", file_size: 4 },
+            }),
+          )
+          : new Response(new TextEncoder().encode("%PDF")),
+      ),
+  );
+  await processRequestUploads(f.deps, f.storage, {
+    resident: "not-a-real-token",
+    worker: "not-a-real-token",
+  });
+  expect(f.state()).toBe("complete");
+  // Альбом ушёл одним сообщением с подписью и обоими вложениями.
+  expect(f.inserted()).toEqual([{ text: "фото проблемы", source: "bot" }]);
+  expect(f.reowned()).toEqual(["file", "file2"]);
+  // Автор получает только пофайловые подтверждения сохранения.
+  expect(f.notifications).toEqual([
+    { ru: "Файл сохранён", kk: "Файл сақталды" },
+  ]);
+});
+
+it("альбом ждёт остальные файлы группы и не публикуется раньше времени", async () => {
+  const f = fixture(0, false, { pending: 1, rows: [] });
+  vi.stubGlobal(
+    "fetch",
+    (url: string) =>
+      Promise.resolve(
+        url.endsWith("/getFile")
+          ? new Response(
+            JSON.stringify({
+              ok: true,
+              result: { file_path: "documents/file.pdf", file_size: 4 },
+            }),
+          )
+          : new Response(new TextEncoder().encode("%PDF")),
+      ),
+  );
+  await processRequestUploads(f.deps, f.storage, {
+    resident: "not-a-real-token",
+    worker: "not-a-real-token",
+  });
+  expect(f.state()).toBe("complete");
+  expect(f.inserted()).toEqual([]);
+  expect(f.reowned()).toEqual([]);
+});
+
+it("безнадёжный файл альбома списывается, остальные публикуются", async () => {
+  const f = fixture(2, false, { pending: 0, rows: ALBUM_ROWS("incomplete") });
+  vi.stubGlobal(
+    "fetch",
+    () => Promise.reject(new Error("secret-token-must-not-leak")),
+  );
+  await processRequestUploads(f.deps, f.storage, {
+    resident: "secret-token-must-not-leak",
+    worker: "secret-token-must-not-leak",
+  });
+  expect(f.state()).toBe("failed");
+  expect(f.discarded()).toEqual(["file"]);
+  expect(f.inserted()).toEqual([{ text: "фото проблемы", source: "bot" }]);
+  expect(f.reowned()).toEqual(["file2"]);
+  const notice = f.notifications[0] as { ru: string; kk: string };
+  expect(notice.ru).toContain("не сохранён");
+  expect(f.notifications.join()).not.toContain("secret-token");
+});
+
 /** Харнесс queueRequestFile: минимальная цепочка actorForTelegram и черновик. */
 function queueFixture(dialogState: Row) {
   let dialog = dialogState;
@@ -178,23 +335,33 @@ function queueFixture(dialogState: Row) {
         return Promise.resolve([] as T[]);
       }
       if (sql.startsWith("select * from request where id=$1"))
-        return Promise.resolve([{
-          id: "r1",
-          author_person_id: "pers-1",
-          state: "draft",
-          is_test: true,
-          building_id: null,
-          premises_id: null,
-          kind: "request",
-          complaint_subject_person_id: null,
-          confirmation_version: 1,
-          version: 1,
-        }] as T[]);
+        return Promise.resolve([{ ...OPEN_REQUEST }] as T[]);
       if (sql.includes("as participant"))
         return Promise.resolve([
           { participant: true, active_author: true },
         ] as T[]);
-      if (sql.startsWith("select * from file_policy where singleton"))
+      if (sql.startsWith("update attachment set owner_type='message'"))
+        return Promise.resolve(
+          ((params?.[1] ?? []) as string[]).map((id) => ({ id })) as T[],
+        );
+      if (sql.startsWith("insert into audit_log"))
+        return Promise.resolve([{
+          id: 1,
+          at: "2026-10-25T00:00:00Z",
+          actor_person_id: "pers-1",
+          actor_profile_id: "prof-1",
+          emulation_session_id: null,
+          emulated_person_id: null,
+          action: "request.message",
+          entity_type: "request",
+          entity_id: "r1",
+          before: null,
+          after: null,
+          reason: null,
+          scope_buildings: "[]",
+          meta: "{}",
+        }] as T[]);
+      if (sql.includes("file_policy where singleton"))
         return Promise.resolve([{
           max_bytes: 20 * 1024 * 1024,
           max_per_message: 10,
@@ -207,7 +374,7 @@ function queueFixture(dialogState: Row) {
   };
   const db: DbClient = {
     ...exec,
-    transaction: <T>(fn: (e: DbExecutor) => Promise<T>) => fn(exec),
+    transaction: <T>(fn: (e: DbExecutor) => Promise<T>) => fn(db),
     close: () => Promise.resolve(),
   };
   return {
@@ -215,6 +382,7 @@ function queueFixture(dialogState: Row) {
       typeof queueRequestFile
     >[0],
     state: () => dialog,
+    baseQuery: exec.query,
   };
 }
 
@@ -248,8 +416,143 @@ it("медиа вне файлового диалога отвечает пре�
     templateText(undefined, "ru", "requests.fayl_prinyat_v_ochered_poka_ne_sohranen"),
   );
 });
+/** Активная переписка (PR #111): приглашение «Написать» по открытому обращению. */
+const SAY_DIALOG: Row = {
+  scenario: "requests",
+  request_id: "r1",
+  input_form: {
+    token: "t1",
+    command: "/say",
+    object_id: "r1",
+    number: "З-1",
+    version: 1,
+    title: "Написать сообщение",
+    fields: ["text"],
+    values: [],
+    index: 0,
+    confirm_command: "/rinput",
+    cancel_command: "/request З-1",
+  },
+};
+const OPEN_REQUEST: Row = {
+  id: "r1",
+  author_person_id: "pers-1",
+  state: "in_work",
+  is_test: true,
+  building_id: null,
+  premises_id: null,
+  kind: "request",
+  complaint_subject_person_id: null,
+  confirmation_version: 1,
+  version: 1,
+  number: "З-1",
+};
+
+it("скрепка в переписке (/say): одиночное фото уходит сообщением и возвращает карточку", async () => {
+  const f = queueFixture(structuredClone(SAY_DIALOG));
+  const query = vi.spyOn(f.deps.db, "query");
+  const reply = await queueRequestFile(f.deps, "100", {
+    photo: [{ file_id: "f1", file_size: 100, width: 1, height: 1 }],
+  }, 5);
+  const insert = query.mock.calls.find(([sql]) =>
+    sql.startsWith("insert into message")
+  );
+  expect(insert).toBeDefined();
+  // Вложение переносится в сообщение в той же транзакции.
+  expect(
+    query.mock.calls.some(([sql]) =>
+      sql.startsWith("update attachment set owner_type='message'")
+    ),
+  ).toBe(true);
+  expect(
+    query.mock.calls.some(([sql]) =>
+      sql.startsWith("insert into request_upload_job")
+    ),
+  ).toBe(true);
+  // Ответ — обновлённая карточка обращения, как после текстового сообщения.
+  expect(replyText(reply)).toContain("З-1");
+  // Форма закрыта: следующий текст не отправит второе сообщение невзначай.
+  expect(f.state().input_form).toBeUndefined();
+});
+
+it("скрепка в переписке: альбом принимается в очередь без немедленной публикации", async () => {
+  const f = queueFixture(structuredClone(SAY_DIALOG));
+  const query = vi.spyOn(f.deps.db, "query");
+  const reply = await queueRequestFile(f.deps, "100", {
+    photo: [{ file_id: "f1", file_size: 100, width: 1, height: 1 }],
+    media_group_id: "G1",
+    caption: "фото проблемы",
+  }, 6);
+  const job = query.mock.calls.find(([sql]) =>
+    sql.startsWith("insert into request_upload_job")
+  );
+  expect(job).toBeDefined();
+  expect(job?.[1]).toContain("G1");
+  expect(job?.[1]).toContain("фото проблемы");
+  // Сообщение собирает джоба после загрузки материалов — сразу не публикуем.
+  expect(
+    query.mock.calls.some(([sql]) => sql.startsWith("insert into message")),
+  ).toBe(false);
+  expect(replyText(reply)).toBe(
+    templateText(undefined, "ru", "message.requests.media_queued"),
+  );
+  expect(reply).toMatchObject({
+    buttons: [[{ data: "/request З-1" }]],
+  });
+  // Форма остаётся активной: следующий текст уйдёт сообщением.
+  expect(f.state().input_form).toBeDefined();
+});
+
+it("скрепка в переписке: второй и следующие файлы альбома подтверждаются молча", async () => {
+  const f = queueFixture(structuredClone(SAY_DIALOG));
+  const query = vi.spyOn(f.deps.db, "query");
+  query.mockImplementation((sql: string, params?: readonly unknown[]) => {
+    if (
+      sql.startsWith(
+        "select 1 from request_upload_job where person_id=$1 and media_group_id=$2",
+      )
+    ) return Promise.resolve([{ ok: 1 }] as never);
+    return (
+      f.baseQuery as (
+        sql: string,
+        params?: readonly unknown[],
+      ) => Promise<unknown[]>
+    )(sql, params);
+  });
+  const reply = await queueRequestFile(f.deps, "100", {
+    photo: [{ file_id: "f2", file_size: 100, width: 1, height: 1 }],
+    media_group_id: "G1",
+  }, 7);
+  expect(
+    query.mock.calls.some(([sql]) =>
+      sql.startsWith("insert into request_upload_job")
+    ),
+  ).toBe(true);
+  expect(replyText(reply)).toBe("");
+});
+
+it("скрепка при открытом обращении без формы: фото уходит сообщением и возвращает карточку", async () => {
+  const f = queueFixture({ scenario: "requests", request_id: "r1" });
+  const query = vi.spyOn(f.deps.db, "query");
+  const reply = await queueRequestFile(f.deps, "100", {
+    document: { file_id: "d1", file_size: 100, file_name: "акт.pdf", mime_type: "application/pdf" },
+  }, 8);
+  expect(
+    query.mock.calls.some(([sql]) => sql.startsWith("insert into message")),
+  ).toBe(true);
+  expect(replyText(reply)).toContain("З-1");
+});
+
+it.each(["input_form", "visit_form", "visit_context", "share_form"])('non-say media inside %s still asks for text',async(formType)=>{
+ const f=queueFixture({scenario:'requests',request_id:'wrong-request',draft_id:'old-draft',[formType]:{command:'/problem',object_id:'correct-request',number:'З-1',cancel_command:'/request З-1'}});
+ const query=vi.spyOn(f.deps.db,'query');
+ const reply=await queueRequestFile(f.deps,'100',{photo:[{file_id:'f',file_size:100}]},9);
+ expect(replyText(reply)).toContain('Введите текст сообщения');
+ expect(query.mock.calls.some(([sql])=>sql.startsWith('insert into attachment')||sql.startsWith('insert into message')||sql.startsWith('insert into request_upload_job'))).toBe(false);
+});
+
 it.each(['input_form','visit_form','visit_context','share_form'])('media inside %s cannot publish to a previously opened request',async(formType)=>{
- const f=queueFixture({scenario:'requests',request_id:'wrong-request',draft_id:'old-draft',[formType]:{command:'/say',object_id:'correct-request',number:'З-1',cancel_command:'/request З-1'}});
+ const f=queueFixture({scenario:'requests',request_id:'wrong-request',draft_id:'old-draft',[formType]:{command:'/other',object_id:'correct-request',number:'З-1',cancel_command:'/request З-1'}});
  const query=vi.spyOn(f.deps.db,'query');
  const reply=await queueRequestFile(f.deps,'100',{photo:[{file_id:'f',file_size:100}]},3);
  expect(replyText(reply)).toContain('Введите текст сообщения');

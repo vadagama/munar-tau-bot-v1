@@ -1,3 +1,4 @@
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { initiativeDeadline } from "./initiative-values";
 import { useEffect,useRef,useState } from "react";
 import { Alert,Button,Empty,Form,Input,List,Select,Space,Spin,Typography } from "antd";
@@ -25,10 +26,11 @@ export function InitiativeModerationQueue({mode}:{mode:"actions"|"appeals"}){
  const fingerprint=JSON.stringify(body);if(intent.current&&intent.current!==fingerprint)key.current=crypto.randomUUID();intent.current=fingerprint;const g=cardGeneration.current;setBusy(true);setError(null);
  try{await apiFetch(appeal?`/v1/moderation/appeals/${card.id}/resolve`:`/v1/moderation/${card.id}/appeal`,{method:"POST",body,idempotencyKey:key.current});if(g===cardGeneration.current){setEditing(false);form.resetFields();key.current=crypto.randomUUID();void open(card.id);void load();}}catch(e){if(g===cardGeneration.current){setConflict(isVersionConflict(e));setError(e instanceof Error?e.message:"Не удалось сохранить");}}finally{if(g===cardGeneration.current)setBusy(false);}}
  const appeal=mode==="appeals"?card as AppealView|null:null,action=appeal?.action??card as ModerationView|null;
+ usePageRefresh(load, () => !loading && !drawer);
  return <>
- <Button loading={loading} onClick={()=>void load()}>Обновить {mode==="appeals"?"оспаривания":"модерацию"}</Button>
+
  {error&&!drawer&&<Alert role="alert" type="error" message={error}/>}
- {!loading&&!rows.length?<Empty description={mode==="appeals"?"Оспариваний пока нет":"Решений модерации пока нет"}/>:<ConfigurableTable storageKey={`initiatives-${mode}`} rowKey="id" dataSource={rows} loading={loading} pagination={false} columns={[
+ {!loading&&!rows.length?<Empty description={mode==="appeals"?"Оспариваний пока нет":"Решений модерации пока нет"}/>:<ConfigurableTable storageKey={`initiatives-${mode}`} onMobileRowClick={row => void open(row.id)} rowKey="id" dataSource={rows} loading={loading} pagination={false} columns={[
   {key:"reason",title:mode==="appeals"?"Обоснование оспаривания":"Причина модерации",render:(_v:unknown,row:ModerationView|AppealView)=><Button type="link" onClick={()=>void open(row.id)}>{row.reason}</Button>},
   {key:"state",title:"Состояние",render:(_v:unknown,row:ModerationView|AppealView)=>"status" in row?(row.status==="open"?"Открыто":"Рассмотрено"):row.revoked_at?"Снято":row.kind==="hide_comment"?"Комментарий скрыт":`Ограничение до ${pollDate(row.until_at)}`},
  ]}/>}

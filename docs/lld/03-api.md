@@ -599,3 +599,31 @@ POST /v1/initiatives/{id}/photos/{fileId}/discard требует expected_versio
 GET принимает from/to (даты Алматы, `[from,to)`), building_ids (UUID через запятую), assignee_id, state, offset, limit≤100. Возвращает отдельные flows/snapshot/durations/sample_sizes, as_of (исключённая микросекундная граница), filter_options и страницу items. Неизвестная история — null/unknown, без VS-6 payments возвращает available=false. Личные задания не открывают исходные обращения.
 
 POST export принимает kind=requests/tasks/incidents и те же фильтры, Idempotency-Key обязателен; ответ202 pending. Снимок области и прав неизменяем. GET состояния/URL переавторизует инициатора и эмуляцию, потеря части исходной области запрещает весь файл. DTO не содержит Storage path, object_ids и снимков полномочий. Excel содержит разрешённые служебные колонки, без телефонов, переписки, вложений и индивидуальных ответов; формулы не исполняются.
+
+
+## Актуализация перечня эндпоинтов (25.10.2026)
+
+Фактическая поверхность API — группы ROUTES в `functions/api/*.ts`; перечень §3 выше сохраняется как проектный. Ниже — отличия факта от §3.
+
+Реализовано сверх §3:
+
+- registry: `GET /v1/registry/staff` (ADR-014), `DELETE /v1/registry/buildings/:id` и `/v1/registry/premises/:id`, `GET /v1/registry/notification-failures`, `POST /v1/registry/persons/:id/telegram-recovery` (AUTH-04, вместо проектного `/v1/admin/telegram-link`), `GET /v1/registry/template`, `POST /v1/registry/imports` + `GET /:id` + `/:id/template-errors` + `/:id/commit`, `POST /v1/registry/export`, `GET/POST /v1/registry/time-rules` (+`GET/PATCH/DELETE /:key`).
+- registrations: `GET /v1/registrations/journal` (право registration.review), `POST /v1/registrations/:id/manage` (ADR-016), `POST /v1/registrations/invites` + `POST /v1/invites/:token/accept` (ADR-020), `POST /v1/tenant-approval`, `POST /v1/registrations/:id/{approve,reject,clarify,dispute}`.
+- requests: `POST /v1/requests/staff/search`, `GET /v1/requests/context`, `GET /v1/requests/:id/timeline/:section`, `POST /v1/requests/:id/read` (квитанции прочтения), `GET /v1/requests/:id/share-candidates`, `PATCH/DELETE /v1/requests/:id/draft`.
+- tasks: `POST /v1/requests/:id/start-work`, `GET /v1/requests/:id/task-assignees` (ADR-013), `GET /v1/requests/:id/visits` (право request.use) + `POST/PATCH /v1/visits`, `POST /v1/tasks/:id/problems` + `POST /v1/task-problems/:id/link`, `POST /v1/tasks/:id/reports`, `GET/POST /v1/common-works` (+`/:id`, `/:id/requests`, `/:id/transitions`, `DELETE /:id`), `GET /v1/common-works/:id/task-assignees`, `GET/POST /v1/job-templates` (+`/:id/versions`, `/:id/run`, `/:id/schedule`), `POST /v1/job-runs/:id/retry`.
+- incidents: `GET /v1/incidents/context`, `GET/POST /v1/emergency-signals` (+`/:id/assign`, `/:id/accept`), `GET /v1/emergency/contact`, `GET/POST /v1/duty-shifts`, `POST /v1/incidents/:id/distribute`.
+- documents/publications (VS-8): `GET /v1/documents/version-options`, `GET /v1/documents/candidates`, `GET/POST /v1/documents/obligations` (+`/:id/fulfill`, `/:id/reassign`), версии документов и согласование (submit/approve/return/needs-fix); `GET/POST/PATCH /v1/financial-rules`, `GET/POST /v1/financial-obligations` (+`/:id/reassign`, `/:id/placements`), `GET /v1/publications/:id/files/:fileId/url`.
+- polls: `GET/PATCH /v1/polls/:id`, `POST /v1/polls/:id/answer`, `GET /v1/polls/:id/results`.
+- notifications: `GET/POST /v1/notifications/preferences`, `GET /v1/notifications/failures`, `POST /v1/notifications/followups/:id/complete`.
+- templates (ADR-010/011): `GET /v1/templates`, `POST /v1/templates/preview`, `GET /v1/templates/:key/versions`, `POST /v1/templates/:key` (права settings.templates.read/edit).
+- admin: `GET /v1/admin/persons-lookup`; assignments — `PATCH /v1/admin/assignments/:id`, `POST /v1/admin/assignments/:id/revoke`.
+- emulation: `POST /v1/emulation/simulate` (симулятор; уведомления тестовых персон не покидают систему — channel `simulator` в таблице `notification`; проектный `GET /v1/emulation/inbox` не реализован).
+
+Не реализовано в main (перечень §3 остаётся проектным):
+
+- §3.8 `payments` (PAY, VS-6) — целиком, включая §4.5 (финансовая карточка плательщика); `GET /v1/reports/payments` существует, но возвращает available=false (см. контракт REP выше).
+- §3.11 `/v1/regulations/*` — вместо них фактический API `/v1/registry/time-rules` (изменения значений версионируются в `time_rule_version`); эндпоинты активации версий, правовых границ и диагностики таймеров не реализованы.
+- §3.12 — `GET /v1/notifications/mine`, `PUT /v1/notifications/prefs`, `GET /v1/notifications/delivery-errors` не реализованы; действуют `/v1/notifications/preferences` и `/v1/notifications/failures`.
+- §3.14 — `POST /v1/admin/telegram-link` и `GET/POST /v1/admin/support-access` не реализованы (первое заменено `registry/persons/:id/telegram-recovery`).
+- §3.15 `ops`, `privacy` — API нет (VS-9); домен privacy — сервис без маршрутов.
+- §3.16 — `GET /v1/emulation/inbox` не реализован.

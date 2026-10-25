@@ -1,9 +1,10 @@
+import { PageSearch } from "../components/page-controls";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { TelegramHandle } from "../components/telegram-handle";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect, useState } from "react";
-import { Alert, Input, Space, Typography } from "antd";
+import { Alert, Space, Typography } from "antd";
 import { apiFetch } from "../lib/api";
 import { displayKind, displayRole } from "./registry";
 type Row = Record<string, unknown>;
@@ -45,10 +46,10 @@ export function InvitesPage() {
   return (
     <PageLayout title="Приглашения"
       filters={<Space wrap>
-        <Input.Search aria-label="Поиск приглашений" placeholder="Кто пригласил, Telegram или помещение"
+        <PageSearch aria-label="Поиск приглашений" placeholder="Кто пригласил, Telegram или помещение"
           value={search} onChange={e => setSearch(e.target.value)} style={{ width: 320 }} />
       </Space>}>
-      <Typography.Paragraph type="secondary">
+      <Typography.Paragraph className="cabinet-page__intro" type="secondary">
         Подтверждённый собственник создаёт приглашение в боте: жилец по ссылке
         регистрируется, после чего собственник привязывает его к помещению и
         выбирает роль. Приглашение действует 72 календарных часа по текущему

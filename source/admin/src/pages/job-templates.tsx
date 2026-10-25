@@ -1,3 +1,5 @@
+import { FilterOutlined } from "@ant-design/icons";
+import { PageSearch } from "../components/page-controls";
 import { PROCESS_MANAGER_ROLES } from "../components/process-guidance";
 import { DeadlineInput } from "../components/deadline-input";
 import { ProcessOverview } from "../components/process-card";
@@ -169,9 +171,9 @@ export function JobTemplates(
   return (
     <PageLayout title="Шаблоны заданий"
       filters={<Space wrap>
-        <Input.Search aria-label="Поиск шаблонов заданий" placeholder="Название или описание"
+        <PageSearch aria-label="Поиск шаблонов заданий" placeholder="Название или описание"
           value={search} onChange={event => setSearch(event.target.value)} style={{ width: 280, maxWidth: "100%" }} />
-        <Select aria-label="Состояние шаблона" placeholder="Все состояния" allowClear
+        <Select prefix={<FilterOutlined aria-hidden />} aria-label="Состояние шаблона" placeholder="Все состояния" allowClear
           value={stateFilter} onChange={setStateFilter} style={{ width: 230 }}
           options={[{ value: "active", label: "Действующие" }, { value: "inactive", label: "Неактивные" }]} />
         <Space wrap>
@@ -186,6 +188,38 @@ export function JobTemplates(
       {invalidPeriod && <Alert type="warning" showIcon message="Дата начала периода позже даты окончания" />}
       {error && !action && <Alert type="error" message={error} />}
 
+      <ConfigurableTable storageKey="columns.job-templates" onMobileRowClick={r => { setScheduleDirty(false); setSchedule(r); }} settingsPlacement="page"
+        rowKey="id"
+        loading={busy}
+        dataSource={filteredRows}
+        mobileRender={r => <div className="mobile-summary">
+          <Button type="link" onClick={() => {setScheduleDirty(false); setSchedule(r);}}>{String(r.name)}</Button>
+          <Typography.Text type="secondary">Версия {String(r.version)}</Typography.Text>
+          <div className="mobile-summary__actions">
+            <Button onClick={() => {setScheduleDirty(false); setSchedule(r);}}>Расписание и запуски</Button>
+            <Button onClick={() => begin("edit", r)}>Новая версия</Button>
+            <Button onClick={() => void history(r)}>История версий</Button>
+            <Button disabled={!r.active} onClick={() => begin("run", r)}>Создать задание</Button>
+          </div>
+        </div>}
+        scroll={{ x: 600 }}
+        columns={[{ title: "Шаблон", dataIndex: "name" }, {
+          title: "Версия",
+          dataIndex: "version",
+        }, {
+          title: "Действия",
+          render: (_, r) => (
+            <Space wrap>
+              <Button onClick={() => { setScheduleDirty(false); setSchedule(r); }}>Расписание и запуски</Button>
+              <Button onClick={() => begin("edit", r)}>Новая версия</Button>
+              <Button onClick={() => void history(r)}>История версий</Button>
+              <Button disabled={!r.active} onClick={() => begin("run", r)}>
+                Создать задание
+              </Button>
+            </Space>
+          ),
+        }]}
+      />
       <Collapse
         ghost
         items={[{
@@ -214,28 +248,6 @@ export function JobTemplates(
                 </List.Item>
               )}
             />
-          ),
-        }]}
-      />
-      <ConfigurableTable storageKey="columns.job-templates" settingsPlacement="page"
-        rowKey="id"
-        loading={busy}
-        dataSource={filteredRows}
-        scroll={{ x: 600 }}
-        columns={[{ title: "Шаблон", dataIndex: "name" }, {
-          title: "Версия",
-          dataIndex: "version",
-        }, {
-          title: "Действия",
-          render: (_, r) => (
-            <Space wrap>
-              <Button onClick={() => { setScheduleDirty(false); setSchedule(r); }}>Расписание и запуски</Button>
-              <Button onClick={() => begin("edit", r)}>Новая версия</Button>
-              <Button onClick={() => void history(r)}>История версий</Button>
-              <Button disabled={!r.active} onClick={() => begin("run", r)}>
-                Создать задание
-              </Button>
-            </Space>
           ),
         }]}
       />

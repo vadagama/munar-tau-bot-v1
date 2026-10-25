@@ -238,7 +238,7 @@ function IncidentPanel() {
   return (
     <PageLayout title="Аварии и дежурство"
       extra={activeTab === "incidents" ? <ViewToggle kind={view} onChange={setView} /> : null}
-      actions={manager ? (<><Button type="primary" onClick={() => void begin("create")}>Зарегистрировать сигнал</Button>{activeTab === "duty" && (<Space>
+      actions={manager ? (<><Button type="primary" onClick={() => void begin("create")}>Зарегистрировать сигнал</Button>{activeTab === "duty" && (<Space wrap>
                     <Button onClick={() => void begin("shift")}>
                       Добавить смену
                     </Button>
@@ -259,7 +259,7 @@ function IncidentPanel() {
           message={error}
         />
       )}
-      <Alert
+      <Alert className="cabinet-page__intro"
         type="info"
         showIcon
         message="Сигнал не означает подтверждения выезда. Частичное восстановление не завершает общую аварию."
@@ -302,26 +302,20 @@ function IncidentPanel() {
                     )}
                   />
                 ) : (
-                  <ConfigurableTable storageKey="columns.incidents" settingsPlacement={activeTab === "incidents" ? "page" : "inline"}
+                  <ConfigurableTable storageKey="columns.incidents" onMobileRowClick={r => void open(String(r.id))} settingsPlacement={activeTab === "incidents" ? "page" : "inline"} mobileSortPlacement={activeTab === "incidents" ? "page" : "none"}
                     rowKey="id"
                     dataSource={rows}
+                    mobileRender={r => <div className="mobile-summary"><Typography.Text type="secondary">{String(r.number)} · {names[String(r.state)] ?? String(r.state)}</Typography.Text><div><Button type="link" onClick={() => void open(String(r.id))}>{String(r.title)}</Button></div></div>}
                     loading={busy}
                     scroll={{ x: 650 }}
                     locale={{ emptyText: "Доступных инцидентов нет" }}
                     columns={[{ title: "Номер", dataIndex: "number" }, {
                       title: "Проблема",
-                      dataIndex: "title",
+                      dataIndex: "title", render: (title, r) => <Button type="link" onClick={() => void open(String(r.id))}>{String(title)}</Button>,
                     }, {
                       title: "Состояние",
                       dataIndex: "state",
                       render: (s) => names[String(s)] ?? s,
-                    }, {
-                      title: "",
-                      render: (_, r) => (
-                        <Button onClick={() => void open(String(r.id))}>
-                          Открыть
-                        </Button>
-                      ),
                     }]}
                   />
                 )}
@@ -332,7 +326,7 @@ function IncidentPanel() {
             key: "signals",
             label: "Срочные сигналы",
             children: (
-              <ConfigurableTable storageKey="columns.emergency-signals" settingsPlacement={activeTab === "signals" ? "page" : "inline"}
+              <ConfigurableTable storageKey="columns.emergency-signals" settingsPlacement={activeTab === "signals" ? "page" : "inline"} mobileSortPlacement={activeTab === "signals" ? "page" : "none"}
                 rowKey="id"
                 dataSource={signals}
                 scroll={{ x: 650 }}
@@ -340,7 +334,7 @@ function IncidentPanel() {
                   title: "Принятие",
                   dataIndex: "accepted_at",
                   render: (_, r) => (
-                    <Space>
+                    <Space wrap>
                       {manager && (
                         <Button
                           onClick={() => {
@@ -384,7 +378,7 @@ function IncidentPanel() {
               children: (
                 <>
 
-                  <ConfigurableTable storageKey="columns.duty-shifts" settingsPlacement={activeTab === "duty" ? "page" : "inline"}
+                  <ConfigurableTable storageKey="columns.duty-shifts" settingsPlacement={activeTab === "duty" ? "page" : "inline"} mobileSortPlacement={activeTab === "duty" ? "page" : "none"}
                     rowKey="id"
                     dataSource={shifts}
                     scroll={{ x: 650 }}

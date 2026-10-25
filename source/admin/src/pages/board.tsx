@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { Empty, Segmented, Space, Spin, Typography, theme } from "antd";
 import "./board.css";
+import { useMobile } from "../lib/use-mobile";
 
 export type BoardColumn = { value: string; label: string };
 export type ListKind = "table" | "board";
@@ -9,6 +10,7 @@ export type ListKind = "table" | "board";
 export function useBoardView(
   storageKey: string,
 ): [ListKind, (kind: ListKind) => void] {
+  const mobile = useMobile();
   const [kind, setKind] = useState<ListKind>(() => {
     try {
       return localStorage.getItem(storageKey) === "board" ? "board" : "table";
@@ -24,7 +26,7 @@ export function useBoardView(
       // Нет доступа к localStorage (приватный режим): вид работает до перезагрузки.
     }
   };
-  return [kind, change];
+  return [mobile ? "table" : kind, change];
 }
 
 /** Тогл «Таблица | Доска» для правого верхнего угла списка. */
@@ -32,6 +34,8 @@ export function ViewToggle(props: {
   kind: ListKind;
   onChange: (kind: ListKind) => void;
 }) {
+  const mobile = useMobile();
+  if (mobile) return null;
   return (
     <Segmented
       aria-label="Вид списка"

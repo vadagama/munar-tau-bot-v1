@@ -1,3 +1,6 @@
+import { FilterOutlined } from "@ant-design/icons";
+import { SortAscendingOutlined } from "@ant-design/icons";
+import { PageSearch } from "../components/page-controls";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -17,6 +20,7 @@ import {
 } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import { apiFetch } from "../lib/api";
+import { useMobile } from "../lib/use-mobile";
 import { formatDateTime } from "../lib/format-date";
 import { canSeeTemplates, useCabinetIdentity } from "../lib/identity";
 interface Version {
@@ -70,6 +74,8 @@ const sections: Record<string, string> = {
   common: "Общие реплики",
 };
 export function TemplatesPage() {
+  const mobile = useMobile();
+  const [mobileSort, setMobileSort] = useState<string>();
   const { roles, identity } = useCabinetIdentity();
   const allowed = canSeeTemplates(roles);
   const editable = allowed && !identity?.me.emulation;
@@ -317,16 +323,25 @@ export function TemplatesPage() {
       search.toLowerCase(),
     )
   );
+  if (mobile && mobileSort) {
+    const [field, direction] = mobileSort.split(":");
+    filtered.sort((a, b) => {
+      const value = (row: Template) => field === "title" ? row.title : field === "status"
+        ? (row.overridden ? "Настроен" : "По умолчанию") : row.active?.created_at ?? "";
+      return value(a).localeCompare(value(b), "ru", { numeric: true }) * (direction === "desc" ? -1 : 1);
+    });
+  }
+
   return (
     <PageLayout title="Шаблоны сообщений"
       filters={<Space wrap>
-        <Input.Search
+        <PageSearch
           aria-label="Поиск шаблонов"
           placeholder="Сценарий, команда или сообщение"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Select
+        <Select prefix={<FilterOutlined aria-hidden />}
           aria-label="Секция"
           allowClear
           placeholder="Все секции"
@@ -338,9 +353,15 @@ export function TemplatesPage() {
             label,
           }))}
         />
+        {mobile && <Select prefix={<SortAscendingOutlined aria-hidden />} aria-label="Сортировка шаблонов" placeholder="Сортировка" allowClear
+          value={mobileSort} onChange={setMobileSort} options={[
+            {value:"title:asc",label:"Название ↑"},{value:"title:desc",label:"Название ↓"},
+            {value:"status:asc",label:"Статус ↑"},{value:"status:desc",label:"Статус ↓"},
+            {value:"date:desc",label:"Сначала недавно изменённые"},{value:"date:asc",label:"Сначала давно изменённые"},
+          ]} />}
       </Space>}>
 
-      <Typography.Paragraph>
+      <Typography.Paragraph className="cabinet-page__intro">
         Выберите сценарий и шаг: редактируется целое сообщение с кнопками.
         Справа показан ответ жителю на вымышленных данных. История изменений
         сохраняется.
@@ -348,6 +369,7 @@ export function TemplatesPage() {
       {error && !selected && <Alert type="error" message={error} showIcon />}
 
       <Collapse
+        className="template-sections"
         defaultActiveKey={Object.keys(sections)}
         items={Object.entries(sections).filter(([id]) =>
           filtered.some((i) => i.section === id)
@@ -358,6 +380,8 @@ export function TemplatesPage() {
           })`,
           children: (
             <Collapse
+              className="template-scenarios"
+              ghost={mobile}
               defaultActiveKey={[
                 filtered.find((i) => i.section === id)?.scenario ?? "Сообщения",
               ]}
@@ -371,8 +395,23 @@ export function TemplatesPage() {
                 key: scenario,
                 label: scenario,
                 children: (
-                  <ConfigurableTable storageKey={`columns.templates.${id}.${scenario}`} settingsPlacement="inline"
+                  <ConfigurableTable storageKey={`columns.templates.${id}.${scenario}`} onMobileRowClick={row => void open(row)} settingsPlacement="inline" mobileSortPlacement="none"
                     size="small"
+                    mobileRender={(row) => (
+                      <div className="template-mobile-row">
+                        <Button type="link" className="template-mobile-title" onClick={() => void open(row)}>
+                          {row.title}
+                        </Button>
+                        <div className="template-mobile-meta">
+                          <Tag color={row.overridden ? "blue" : undefined}>
+                            {row.overridden ? "Настроен" : "По умолчанию"}
+                          </Tag>
+                          {row.active && <Typography.Text type="secondary">
+                            Изменён {formatDateTime(row.active.created_at)}
+                          </Typography.Text>}
+                        </div>
+                      </div>
+                    )}
                     pagination={false}
                     rowKey="key"
                     dataSource={filtered.filter((i) =>
@@ -524,7 +563,7 @@ export function TemplatesPage() {
                 />
                 {selected.variables.length > 0
                   ? (
-                    <ConfigurableTable storageKey="columns.template-variables" settingsPlacement="inline"
+                    <ConfigurableTable storageKey="columns.template-variables" settingsPlacement="inline" mobileSortPlacement="inline"
                       size="small"
                       pagination={false}
                       rowKey="name"

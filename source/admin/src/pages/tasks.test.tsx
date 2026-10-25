@@ -168,6 +168,10 @@ it("409 обновляет версию задания, сохраняет вв�
 it("вложенная форма связи найденной проблемы остаётся в карточке и защищает решение от потери", async () => {
  const row={...task,can_manage:true,log:[{id:"problem",meta:{action:"found_problem",location:"Подвал",description:"Найдена течь"}}]};
  vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/tasks"?{items:[row]}:row);
+ // rc-motion проходит подготовку через RAF. В jsdom после предыдущих
+ // Drawer кадровый цикл может задержаться; даём ему детерминированный таймер.
+ vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => window.setTimeout(() => callback(performance.now()), 0));
+ vi.spyOn(window, "cancelAnimationFrame").mockImplementation(handle => window.clearTimeout(handle));
  render(<TasksPage />);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  fireEvent.click(await screen.findByText("Связать с заданием",{selector:"button > span"}));
@@ -175,7 +179,7 @@ it("вложенная форма связи найденной проблемы
  expect(screen.getAllByRole("dialog")).toHaveLength(1);
  fireEvent.change(field,{target:{value:"Поручить сантехнику"}});
  fireEvent.click(screen.getByText("Отмена",{selector:"button > span"}));
- expect(screen.getByText("Выйти без сохранения введённых данных?")).toBeVisible();
+ await waitFor(() => expect(screen.getByText("Выйти без сохранения?")).toBeInTheDocument());
  fireEvent.click(screen.getByText("Продолжить редактирование",{selector:"button > span"}));
  expect(field).toHaveValue("Поручить сантехнику");
  fireEvent.click(screen.getByText("Отмена",{selector:"button > span"}));

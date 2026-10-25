@@ -33,6 +33,8 @@ FIN-01–03: рассылка использует неизменяемую ве
 
 Отдельных cron-строк для дайджеста, эскалаций и контроля копий нет: их сроки живут в `timer`/`job_queue` по правилам TIM (TIM-01–04) — перенос графика ОСИ меняет время дайджеста автоматически (NTF-01).
 
+> Уточнение (демостенд, 25.10.2026): на облачном демонстрационном стенде помимо минутного тика работает `notifications-fast-tick` каждые 5 секунд — вызывает `jobs` только при готовых Telegram-уведомлениях (быстрая доставка в демо); оба вызова закреплены за `eu-central-1`.
+
 ## 3. Обработчик `jobs`
 
 Алгоритм одного вызова:
@@ -167,8 +169,21 @@ read и resident. Тестовые уведомления направляютс
 
 Актуальный порядок в первых 30 секундах бюджета: перенос файлов → emergency → закрытие/сверка опросов → сверка инициатив → KPI → один Excel-экспорт → документы/финансы → плановые публикации → регистрация/импорт/обращения/задания/регулярные работы → fanout. Последние 15 секунд общего бюджета 45 секунд зарезервированы для outbox, дайджеста и доставки. Между единицами проверяется deadline; начатый HTTP/SQL может завершиться позже него.
 
+> Уточнение точного порядка (25.10.2026, `functions/jobs/index.ts`): `processRequestUploads` → `sweepEmergencies` → `closeDuePolls` → `reconcileOpenPolls` → `reconcileInitiativeSupport` → `captureReportKpi` → `processReportExports` → `sweepDocumentObligations` → `reopenFinancialObligations` → `sweepFinancialObligations` → `publishScheduled` → `sweepRegistrations` → `processImportBatches` → `sweepRequests` → `sweepTaskTimers` → `enqueueSchedules` → `processScheduledJobs` → `sweepConfirmationTimers` → `fanoutBroadcasts` → `dispatchNotices` (до deadline−10 с) → `sweepDigests` (до deadline−10 с); после — `sendNotifications` и синхронизация меню (`residentMenuSync`, см. ниже). Ранее в перечне отсутствовал `sweepConfirmationTimers` (подтверждения обращений) между регулярными работами и fanout.
+
 KPI использует try-gate аудитории `(814733,8)` и statement_timeout по остатку бюджета. Исторические интервалы связей позволяют датировать достижение даже без DML в момент календарной границы; при занятом gate задача откладывается.
 
 Экспорт: gate → job row, SKIP LOCKED, lease 90 секунд, максимум 3 попытки. Перед выборкой и ready инициатор собирается заново; исходные полномочия ограничивают источник даже при их росте. Excel и Storage выполняются вне транзакции, завершение проверяет lease_token и PDP всех object_ids. Старый worker не завершает новый lease; истёкшая третья попытка становится failed. Путь включает test/real, UUID задания и lease_token. Файл приватный; незавершившийся worker может оставить недоступный объект Storage, очистка таких объектов требует эксплуатационного регламента.
 
 Новые длительности document_prepare/document_after_acceptance и финансовые сроки входят в неизменяемый TIM-контракт. Миграции не назначают произвольные сроки: ОСИ настраивает значения явно; начатые версии регламентов не переписываются.
+
+
+## Нативное меню бота (25.10.2026)
+
+Воркер доставки приводит нативное командное меню чата жителя (Telegram `setMyCommands`/`deleteMyCommands`, scope chat) к состоянию регистрации (REG-01/02, тот же предикат, что у inline-кнопки «Регистрация»):
+
+- Состав меню — `core/src/bot/chat-menu.ts`: 14 команд (start, register, requests, newrequest, objects, add, invite, bind, accesses, status, fix, delete, notifications, help) в областях default/ru (русские тексты) и kk; при действующем профиле пункт `register` скрыт (`RESIDENT_MENU_REGISTERED`).
+- При каждом уведомлении после записи `sent` и вне транзакции выполняется `syncResidentChatMenu`: состояние регистрации вычисляется независимо от наличия строки диалога (житель, ещё не писавший боту, тоже получает меню без «Регистрации»); сбой apply не влияет на доставку — флаг не меняется, синк повторится при следующей доставке; после удаления анкеты меню возвращается к полному списку.
+- Флаг применённого меню — `bot_dialog_channel.menu_registered` (вне state jsonb: пишется транзакциями вебхука под FOR UPDATE); один apply на изменение, при отсутствии строка диалога создаётся заглушкой.
+- `residentMenuSync` в `functions/jobs/index.ts` вызывается только с resident-токеном; для зарегистрированного — три вызова setMyCommands (default, ru, kk), для незарегистрированного — deleteMyCommands в тех же областях.
+- Базовый список команд для глобальной области бота выставляется деплой-скриптом `tools/scripts/set-bot-commands.ts` после деплоя.

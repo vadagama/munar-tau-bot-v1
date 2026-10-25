@@ -112,6 +112,46 @@ it("карточка показывает действия по состояни
   ).toBe("/confirm З-26-1 1");
 });
 
+it("карточка без отчётов не показывает строку «Отчёты», с отчётами — счётчик", () => {
+  const base = {
+    number: "З-26-1",
+    state: "in_work",
+    author_person_id: "author",
+    description: "d",
+    messages: [],
+  };
+  expect(replyText(requestCardText(base))).not.toContain("Отчёты:");
+  const withReports = requestCardText({
+    ...base,
+    confirmation: { payload: { task_results: [{}, {}] } },
+  });
+  expect(replyText(withReports)).toContain("Отчёты: 2");
+  // Команда просмотра отчётов остаётся в шаблоне переопределения.
+  expect(
+    typeof withReports === "object" &&
+      withReports.buttons?.flat().some((b) => b.data === "/result З-26-1"),
+  ).toBe(true);
+});
+
+it("карточка всегда предлагает возврат к списку обращений кнопкой без номера", () => {
+  const card = requestCardText({
+    number: "З-26-1",
+    state: "in_work",
+    author_person_id: "author",
+    description: "d",
+    messages: [],
+    can_comment: true,
+  });
+  expect(typeof card === "object" && card.buttons?.at(-1)).toEqual([
+    { text: "Мои обращения", data: "/requests" },
+  ]);
+  // data без номера: номер превратил бы кнопку в поисковый запрос.
+  expect(
+    typeof card === "object" &&
+      card.buttons?.flat().every((b) => b.data !== "/requests З-26-1"),
+  ).toBe(true);
+});
+
 it("карточка подписывает сообщения датой и автором", () => {
   const card = requestCardText({
     number: "З-26-2",
@@ -142,6 +182,46 @@ it("карточка подписывает сообщения датой и а�
   expect(text).toContain("создано 15.10.2026 18:40");
   expect(text).toContain("Администратор");
   expect(text).toContain("Вы");
+});
+
+it("файлы сообщения показываются в карточке строкой «📎 имя» с экранированием", () => {
+  const card = requestCardText({
+    number: "З-26-9",
+    state: "in_work",
+    author_person_id: "author",
+    description: "d",
+    messages: [
+      {
+        id: "m1",
+        channel: "resident",
+        text: "Акт прилагаю",
+        created_at: "2026-10-25T09:00:00Z",
+        author_person_id: "author",
+        author_kind: "author",
+      },
+      {
+        id: "m2",
+        channel: "resident",
+        text: "",
+        created_at: "2026-10-25T09:05:00Z",
+        author_person_id: "author",
+        author_kind: "author",
+      },
+    ],
+    attachments: [
+      { id: "a1", owner_type: "message", owner_id: "m1", filename: "акт.pdf" },
+      { id: "a2", owner_type: "message", owner_id: "m1", filename: "<отчёт>&.pdf" },
+      { id: "a3", owner_type: "message", owner_id: "m2", filename: "схема.png" },
+      { id: "a4", owner_type: "request", owner_id: "r1", filename: "черновик.pdf" },
+    ],
+  });
+  const text = replyText(card);
+  expect(text).toContain("📎 акт.pdf");
+  expect(text).toContain("📎 &lt;отчёт&gt;&amp;.pdf");
+  // Сообщение без текста несёт только список файлов.
+  expect(text).toContain("📎 схема.png");
+  // Файл без сообщения в карточке не показывается.
+  expect(text).not.toContain("черновик.pdf");
 });
 
 it("закрытая карточка предлагает оценку кнопками 1–5 с командой /rate", () => {
@@ -183,6 +263,97 @@ it("черновик открывается кнопкой возобновле�
   expect(
     typeof reply === "object" && reply.buttons?.[0]?.[0]?.data,
   ).toBe("/newrequest");
+});
+
+it("менее 10 обращений — список без пагинации", () => {
+  const reply = requestListText(
+    [{
+      number: "З-26-1",
+      state: "in_work",
+      author_person_id: "author",
+      description: "d",
+    }],
+    "author",
+    1,
+  );
+  expect(
+    typeof reply === "object" &&
+      reply.buttons?.flat().map((b) => b.data),
+  ).toEqual(["/request З-26-1"]);
+});
+
+it("пустой список предлагает новое обращение", () => {
+  const reply = requestListText([], "author", 1);
+  expect(replyText(reply)).toContain("Обращений нет");
+  expect(
+    typeof reply === "object" &&
+      reply.buttons?.flat().map((b) => [b.text, b.data]),
+  ).toEqual([["Новое обращение", "/newrequest"]]);
+});
+
+it("кнопка архива появляется только когда есть закрытые обращения", () => {
+  const rows = [{
+    number: "З-26-1",
+    state: "in_work",
+    author_person_id: "author",
+    description: "d",
+  }];
+  const plain = requestListText(rows, "author", 1);
+  expect(replyText(plain)).not.toContain("Архив");
+  const withArchive = requestListText(
+    rows,
+    "author",
+    1,
+    "ru",
+    undefined,
+    undefined,
+    { hasArchive: true },
+  );
+  expect(
+    typeof withArchive === "object" && withArchive.buttons?.at(-1)?.[0],
+  ).toEqual({ text: "Архив", data: "/requests archive" });
+});
+
+it("архив: пагинация внутри архива и выход к активным без кнопки архива", () => {
+  const rows = Array.from(
+    { length: 11 },
+    (_, i) => ({
+      number: `З-26-${i}`,
+      state: "closed",
+      author_person_id: "author",
+      description: "d",
+    }),
+  );
+  const first = requestListText(
+    rows,
+    "author",
+    1,
+    "ru",
+    undefined,
+    undefined,
+    { archive: true },
+  );
+  const data = typeof first === "object"
+    ? first.buttons?.flat().map((b) => b.data)
+    : [];
+  expect(data).toContain("/requests archive page:2");
+  expect(data).not.toContain("/requests page:2");
+  expect(data).toContain("/requests");
+  expect(data).not.toEqual(expect.arrayContaining(["/requests archive"]));
+  expect(data).not.toContain("/newrequest");
+  const second = requestListText(
+    rows,
+    "author",
+    2,
+    "ru",
+    undefined,
+    undefined,
+    { archive: true },
+  );
+  expect(
+    typeof second === "object" &&
+      second.buttons?.flat().find((b) => b.data === "/requests archive page:1"),
+  ).toBeTruthy();
 });
 
 it("целая карточка и подпись кнопки меняются одним шаблоном, данные экранируются", () => {

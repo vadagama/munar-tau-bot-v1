@@ -1,3 +1,5 @@
+import { FilterOutlined } from "@ant-design/icons";
+import { PageSearch } from "../components/page-controls";
 import { PROCESS_MANAGER_ROLES } from "../components/process-guidance";
 import { DeadlineInput } from "../components/deadline-input";
 import { processActionHint } from "../components/process-guidance";
@@ -168,9 +170,9 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
   return (
     <PageLayout title="Общие работы"
       filters={<Space wrap>
-        <Input.Search aria-label="Поиск общих работ" placeholder="Номер или описание"
+        <PageSearch aria-label="Поиск общих работ" placeholder="Номер или описание"
           value={search} onChange={event => setSearch(event.target.value)} style={{ width: 280, maxWidth: "100%" }} />
-        <Select aria-label="Состояние общей работы" placeholder="Все состояния" allowClear
+        <Select prefix={<FilterOutlined aria-hidden />} aria-label="Состояние общей работы" placeholder="Все состояния" allowClear
           value={stateFilter} onChange={setStateFilter} style={{ width: 230 }}
           options={Object.entries(labels).map(([value, label]) => ({ value, label }))} />
         <Space wrap>
@@ -185,7 +187,7 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
       {invalidPeriod && <Alert type="warning" showIcon message="Дата начала периода позже даты окончания" />}
       {error && !card && !action && <Alert type="error" message={error} />}
 
-      <ConfigurableTable storageKey="columns.common-works" settingsPlacement="page"
+      <ConfigurableTable storageKey="columns.common-works" onMobileRowClick={r => void open(r.id)} settingsPlacement="page"
         rowKey="id"
         dataSource={filteredRows}
         loading={busy}

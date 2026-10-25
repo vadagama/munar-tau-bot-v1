@@ -1,5 +1,6 @@
+import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect,useRef,useState } from "react";
-import { Alert,Button,List,Space,Spin,Typography } from "antd";
+import { Alert,List,Space,Spin,Typography } from "antd";
 import { DetailSection } from "../components/detail-section";
 import { apiFetch } from "../lib/api";
 import { pollDate,type PollSummary,type PollView } from "./poll-types";
@@ -12,9 +13,10 @@ export function PollResults({poll}:{poll:PollView}){
     catch(e){if(g===generation.current){setResult(null);setError(e instanceof Error?e.message:"Результаты недоступны");}}
     finally{if(g===generation.current)setBusy(false);}
   }
+  usePageRefresh(load, () => !busy);
   useEffect(()=>{void load();return()=>{generation.current++;};},[poll.id]);
   return <DetailSection title="Сводные результаты">
-    <Space wrap><Button loading={busy} onClick={()=>void load()}>Обновить результаты</Button>{busy&&!result&&<Spin aria-label="Загрузка результатов"/>}</Space>
+    <Space wrap>{busy&&!result&&<Spin aria-label="Загрузка результатов"/>}</Space>
     {error&&<Alert role="alert" type="error" showIcon message={error}/>}
     {result&&<>
       <Typography.Paragraph strong>Ответили: {result.participants_count}</Typography.Paragraph>

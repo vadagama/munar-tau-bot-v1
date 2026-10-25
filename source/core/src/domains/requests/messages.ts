@@ -123,12 +123,17 @@ export async function addMessage(
             templateNotice("notices.requests_messages_add_message_1", {row_number: row.number}),
             `${id}:message:${messageId}`,
             true,
+            true,
+            // Автор не получает уведомление о собственном сообщении: карточка
+            // с этим сообщением уже возвращена ему в ответе.
+            actor.person.id,
           );
           await informManagers(
             exec,
             row,
             templateNotice("notices.requests_messages_add_message_101", {row_number: row.number}),
             `${messageId}:admin`,
+            actor.person.id,
           );
         }
         await recordAudit(

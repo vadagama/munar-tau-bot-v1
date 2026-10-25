@@ -21,6 +21,7 @@ export function requestListText(
   lang: Lang = "ru",
   store?: TemplateStore,
   residentBotUsername?: string,
+  view: { archive?: boolean; hasArchive?: boolean } = {},
 ): BotReply {
   // Username бота жителя для глубокой ссылки из списка: из среды или фолбэк
   // по фактически созданному боту (ADR-009; @munar_tau_bot не существует).
@@ -67,14 +68,47 @@ export function requestListText(
         ),
       ]
   );
-  if(page>1)buttons.push([btn(messageButton(store,lang,"bot.controls","back"),`/requests page:${page-1}`)]);
+  // Пагинация остаётся внутри текущего вида (активные/архив), рядами по паре.
+  const viewToken = view.archive ? "archive " : "";
+  const nav: InlineButton[] = [];
+  if (page > 1) {
+    nav.push(
+      btn(
+        messageButton(store, lang, "bot.controls", "back"),
+        `/requests ${viewToken}page:${page - 1}`,
+      ),
+    );
+  }
   if (rows.length > 10) {
-    buttons.push([
+    nav.push(
       btn(
         messageButton(store, lang, "message.requests.list", "next"),
-        `/requests page:${page + 1}`,
+        `/requests ${viewToken}page:${page + 1}`,
       ),
+    );
+  }
+  if (nav.length) buttons.push(nav);
+  if (view.archive) {
+    // Выход из архива к активным; подпись отличается от кнопки пагинации.
+    buttons.push([
+      btn(messageButton(store, lang, "message.requests.list", "active"), "/requests"),
     ]);
+  } else {
+    // Архив — только когда закрытые обращения уже есть.
+    if (view.hasArchive) {
+      buttons.push([
+        btn(
+          messageButton(store, lang, "message.requests.list", "archive"),
+          "/requests archive",
+        ),
+      ]);
+    }
+    // Пустой список — путь к действию вместо тупика.
+    if (!visible.length) {
+      buttons.push([
+        btn(messageButton(store, lang, "bot.controls", "newrequest"), "/newrequest"),
+      ]);
+    }
   }
   return { text, buttons };
 }
@@ -91,6 +125,12 @@ export function requestCardText(
     | Row
     | undefined;
   const reports = (result?.task_results as Row[]) ?? [];
+  // Файлы сообщения показываются строкой «📎 имя» под текстом сообщения.
+  const attachments = (row.attachments as Row[] | undefined) ?? [];
+  const attachmentLines = (m: Row): string => attachments
+    .filter((a) => a.owner_type === 'message' && a.owner_id === m.id)
+    .map((a) => '📎 ' + esc(preview(String(a.filename ?? ''), 40)))
+    .join('\n');
   const authorLabel = (m: Row): string => {
     if (m.author_person_id === row.author_person_id) {
       return templateText(store, lang, "requests.vy");
@@ -120,14 +160,21 @@ export function requestCardText(
     description: preview(row.description, 600),
     messages: safeBlock(
       messages.length
-        ? messages.map((m) =>
-          `${esc(fmtDate(m.created_at))} — ${authorLabel(m)}: ${
-            esc(preview(m.text, 400))
-          }`
-        ).join("\n")
+        ? messages.map((m) => {
+          const body = esc(preview(m.text, 400));
+          const files = attachmentLines(m);
+          return `${esc(fmtDate(m.created_at))} — ${authorLabel(m)}: ${body}${
+            files && body ? '\n' : ''
+          }${files}`;
+        }).join('\n')
         : "—",
     ),
     result: result ? `\n${preview(result.summary, 600)}` : "",
+    reports: reports.length
+      ? `\n${message(store, lang, "requests.otchety_stroka", {
+        count: reports.length,
+      })}`
+      : "",
     report_count: reports.length,
     report_command: reports.length ? `/result ${row.number}` : "",
   });
@@ -163,5 +210,8 @@ export function requestCardText(
     if(['closed','canceled','rejected'].includes(String(row.state)))buttons.push([control('reopen')]);
   }
   if(row.can_share)buttons.push([control('share'),control('unshare')]);
-  return buttons.length ? { text, buttons } : text;
+  // Возврат к списку — явная кнопка вместо тупика; data без номера,
+  // иначе номер превратил бы команду в поисковый запрос.
+  buttons.push([btn(messageButton(store, lang, 'bot.controls', 'requests'), '/requests')]);
+  return { text, buttons };
 }

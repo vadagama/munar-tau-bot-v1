@@ -229,13 +229,14 @@ export function PublicationsPage() {
 
       {error && !card && !action && <Alert type="error" message={error} showIcon />}
 
-      <ConfigurableTable storageKey="columns.publications" settingsPlacement="page"
+      <ConfigurableTable storageKey="columns.publications" onMobileRowClick={r => void open(String(r.id))} settingsPlacement="page"
         rowKey="id"
         dataSource={rows}
+        mobileRender={r => <div className="mobile-summary"><Button type="link" onClick={() => void open(String(r.id))}>{String(r.title)}</Button><div>{kinds[String(r.kind)]} · {states[String(r.state)]}</div></div>}
         loading={busy}
         scroll={{ x: 650 }}
         locale={{ emptyText: "Публикаций нет" }}
-        columns={[{ title: "Название", dataIndex: "title" }, {
+        columns={[{ title: "Название", dataIndex: "title", render: (title, r) => <Button type="link" onClick={() => void open(String(r.id))}>{String(title)}</Button> }, {
           title: "Вид",
           dataIndex: "kind",
           render: (k) => kinds[String(k)],
@@ -243,11 +244,6 @@ export function PublicationsPage() {
           title: "Состояние",
           dataIndex: "state",
           render: (s) => states[String(s)],
-        }, {
-          title: "",
-          render: (_, r) => (
-            <Button onClick={() => void open(String(r.id))}>Открыть</Button>
-          ),
         }]}
       />
       {roles.some(r => ["finance", "chairman", "administrator", "deputy"].includes(r)) && <FinancialPublication manager={manager} />}

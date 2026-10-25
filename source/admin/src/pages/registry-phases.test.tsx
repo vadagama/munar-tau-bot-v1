@@ -11,9 +11,10 @@ it("ищет очереди по зданию, фильтрует по сост�
     ? [{ id: "b1", code: "107/1", construction_phase: 1 }, { id: "b2", code: "108/2", construction_phase: 2 }]
     : [{ id: "p1", building_id: "b1" }] }));
   render(<RegistryPhasesPage />);
-  expect(await screen.findByText("107/1")).toBeVisible();
+  expect(await screen.findByRole("button", {name:"1-я очередь"})).toBeVisible();
+  expect(screen.queryByText("107/1")).toBeNull();
   fireEvent.change(screen.getByLabelText("Поиск очередей"), { target: { value: "108/2" } });
-  expect(screen.getByText("108/2")).toBeVisible();
+  expect(screen.getByRole("button", {name:"2-я очередь"})).toBeVisible();
   expect(screen.queryByText("107/1")).toBeNull();
   fireEvent(window, new Event("cabinet:refresh-page"));
   await waitFor(() => expect(screen.getByLabelText("Поиск очередей")).toHaveValue("108/2"));
@@ -22,7 +23,7 @@ it("ищет очереди по зданию, фильтрует по сост�
   fireEvent.click(await screen.findByText("Без зданий", { selector: ".ant-select-item-option-content" }));
   expect(screen.queryByText("107/1")).toBeNull();
   expect(screen.queryByText("108/2")).toBeNull();
-  expect(screen.getByText("5-я очередь", { selector: "td" })).toBeVisible();
+  expect(screen.getByRole("button", {name:"5-я очередь"})).toBeVisible();
 });
 it("показывает ошибку загрузки", async () => {
   vi.mocked(apiFetch).mockRejectedValue(new Error("Нет доступа к реестру"));

@@ -41,14 +41,14 @@ export function FinancialPublication(props: { manager: boolean }) {
   }
   const definition = (rule?.definition ?? (card?.rule_snapshot as Row | undefined)?.definition) as Row | undefined;
   return <DetailSection title="Финансовые обязанности и регламенты">
-    <Space wrap><Button disabled={busy} onClick={() => void load()}>Обновить финансовые обязанности</Button>
+    <Space wrap>
       {props.manager && <Button disabled={busy} onClick={() => { cardGeneration.current++; setCard(null); setRule(null); setEditingRule(true); }}>Новый финансовый регламент</Button>}
       {props.manager && <Button disabled={busy} onClick={() => { cardGeneration.current++; setCard(null); setRule(null); setDutyAction("create"); }}>Новая финансовая обязанность</Button>}
     </Space>
     {error && <Alert type="error" showIcon message={error} />}
     {notice && <Alert type="success" showIcon message={notice} closable onClose={() => setNotice(null)} />}
     <Tabs items={[{ key: "duties", label: "Обязанности", children: <>
-      <ConfigurableTable storageKey="columns.financial-obligations" settingsPlacement="inline" rowKey="id" dataSource={rows} loading={busy && !card} pagination={false} locale={{ emptyText: "Финансовых обязанностей нет" }} scroll={{ x: 700 }} columns={[
+      <ConfigurableTable storageKey="columns.financial-obligations" onMobileRowClick={busy ? undefined : row => void open(row)} settingsPlacement="inline" rowKey="id" dataSource={rows} loading={busy && !card} pagination={false} locale={{ emptyText: "Финансовых обязанностей нет" }} scroll={{ x: 700 }} columns={[
         { title: "Период", render: (_, row) => `${day(row.period_from)} — ${day(row.period_to)}` }, { title: "Первоначальный срок", dataIndex: "due_at", render: moment },
         { title: "Подготовитель", dataIndex: "prepared_name" }, { title: "Состояние", render: (_, row) => row.completed_at ? "Завершена" : "Не завершена" },
         { title: "Действия", key: "actions", render: (_, row) => <Button disabled={busy} onClick={() => void open(row)}>Открыть обязанность</Button> },

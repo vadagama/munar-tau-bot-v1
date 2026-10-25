@@ -82,7 +82,7 @@ export function DocumentObligations({ manager }: { manager: boolean }) {
   }
   const personOptions = people.map(p => ({ value: p.id, label: String(p.full_name) }));
   return <>
-    <Space wrap><Button disabled={busy} onClick={() => void load()}>Обновить обязанности</Button>{manager && <Button disabled={busy} onClick={() => void begin("create")}>Новое обязательство</Button>}</Space>
+    <Space wrap>{manager && <Button disabled={busy} onClick={() => void begin("create")}>Новое обязательство</Button>}</Space>
     {error && !action && <Alert type="error" message={error} showIcon />}
     <ConfigurableTable storageKey="columns.document-obligations" settingsPlacement="inline" rowKey="id" dataSource={rows} loading={busy && !action} locale={{ emptyText: "Документальных обязательств нет" }} scroll={{ x: 700 }} columns={[
       { title: "Объект", dataIndex: "source_number" }, { title: "Документ", dataIndex: "kind", render: (v: string) => kinds[v] ?? v },

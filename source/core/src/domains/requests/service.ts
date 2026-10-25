@@ -161,6 +161,7 @@ export async function inform(
   key: string,
   includeParticipants = false,
   required = true,
+  excludePersonId?: string,
 ): Promise<void> {
   const people = new Set([row.author_person_id]);
   if (includeParticipants) {
@@ -170,6 +171,9 @@ export async function inform(
     );
     rows.forEach((r) => people.add(r.person_id));
   }
+  // Актор не получает уведомление о собственном действии — после сбора
+  // участников, чтобы исключённый участник не попал обратно.
+  if (excludePersonId) people.delete(excludePersonId);
   for (const id of people) await notifyPerson(exec, id, text, `${key}:${id}`, {type:required ? "request.required" : "request.status",requestId:row.id,audience:"resident",important:required,isTest:row.is_test});
 }
 export async function informManagers(
@@ -177,13 +181,15 @@ export async function informManagers(
   row: RequestRow,
   text: NoticeText,
   key: string,
+  excludePersonId?: string,
 ): Promise<void> {
   const people = await exec.query<{ person_id: string }>(
     `select distinct a.person_id from staff_assignment a join person n on n.id=a.person_id
  where a.status='active' and n.status='active' and n.is_test=$1 and a.person_id is distinct from $2::uuid
+ and a.person_id is distinct from $4::uuid
  and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())
  and (a.role='chairman' or ($3<>'chairman' and a.role in ('administrator','deputy')))`,
-    [row.is_test,row.complaint_subject_person_id,row.complaint_route ?? "administrator"],
+    [row.is_test,row.complaint_subject_person_id,row.complaint_route ?? "administrator",excludePersonId ?? null],
   );
   for (const p of people) {
     await notifyPerson(exec, p.person_id, text, `${key}:${p.person_id}`, {type:"request.staff",requestId:row.id,audience:"staff",isTest:row.is_test,bot:"worker"});
@@ -396,6 +402,8 @@ export async function listRequests(
   filter: Row = {},
 ): Promise<Row[]> {
   // Серверная область в SQL до пагинации; поиск по доступному обращению и его автору.
+  // states — массив состояний (например, только активные или только закрытые);
+  // limit — максимум строк (по умолчанию 100), например для проверки «есть ли архив».
   let offset = 0;
   if (filter.cursor) {
     try {
@@ -420,7 +428,8 @@ export async function listRequests(
  and ($5::text is null or r.state=$5) and ($6::text is null or r.number ilike '%'||$6||'%' or r.description ilike '%'||$6||'%' or initiator.full_name ilike '%'||$6||'%' or exists(select 1 from message m where m.request_id=r.id and m.channel='resident' and m.restricted_at is null and m.text ilike '%'||$6||'%'))
  and ($7::uuid is null or r.premises_id=$7) and ($8::timestamptz is null or r.created_at>=$8) and ($9::timestamptz is null or r.created_at<=$9)
  and ($11::uuid is null or r.building_id=$11)
- order by case when r.state in ('need_clarification','awaiting_confirmation') then 0 else 1 end,r.created_at desc,r.id desc limit 100 offset $10`,
+ and ($12::text[] is null or r.state=any($12))
+ order by case when r.state in ('need_clarification','awaiting_confirmation') then 0 else 1 end,r.created_at desc,r.id desc limit $13 offset $10`,
     [
       actor.person.isTest,
       actor.person.id,
@@ -433,6 +442,8 @@ export async function listRequests(
       filter.to ?? null,
       offset,
       filter.building_id ?? null,
+      filter.states ?? null,
+      filter.limit ?? 100,
     ],
   );
   return Promise.all(rows.map((r) => publicRequest(deps.db, actor, r)));

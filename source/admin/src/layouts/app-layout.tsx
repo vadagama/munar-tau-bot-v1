@@ -1,9 +1,10 @@
 import { EmulationRoleSelect } from "./emulation-role-select";
 import { PAGE_REFRESH_EVENT, usePageRefresh } from "../lib/use-page-refresh";
 import { DayQueueProvider, useDayQueue } from "../lib/day-queue";
+import { MenuOutlined, UserOutlined } from "@ant-design/icons";
+import { useMobile } from "../lib/use-mobile";
 import { useEffect, useState } from "react";
-import { Alert, Badge, Button, Layout, Menu, Space, Typography, theme } from "antd";
-import { MenuOutlined } from "@ant-design/icons";
+import { Alert, Badge, Button, Drawer, Dropdown, Layout, Menu, Space, Typography, theme } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useLogout } from "@refinedev/core";
 
@@ -16,8 +17,6 @@ import {
 } from "../lib/identity";
 import { apiFetch } from "../lib/api";
 import { BrandLogo } from "../components/brand-logo";
-import { useNarrow } from "../lib/use-narrow";
-import "./app-layout.css";
 
 const { Header, Sider, Content } = Layout;
 
@@ -67,7 +66,7 @@ export function MenuLabel({ label, count }: { label: string; count: number }) {
 // Layout кабинета: на узких экранах (<992px) меню становится оверлеем
 // с гамбургером в шапке, затемнением и закрытием по тапу/Esc/переходу.
 export function AppLayout() {
-  const narrow = useNarrow();
+  const narrow = useMobile();
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -141,42 +140,34 @@ export function AppLayout() {
   const selectedPath = location.pathname;
   const activeGroup = items.find(item => item.children?.some(child => child.key === selectedPath))?.key;
 
+  const navigation = <>
+    <div style={{ padding: "16px 16px 12px" }}><BrandLogo size={24} caption="Кабинет ОСИ" /></div>
+    <Menu theme="light" mode="inline" selectedKeys={[selectedPath]} key={activeGroup}
+      defaultOpenKeys={activeGroup ? [activeGroup] : []} items={items}
+      onClick={({ key }) => {
+        if (key === location.pathname) window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
+        else navigate(key);
+        setMenuOpen(false);
+      }} />
+  </>;
   return (
     <DayQueueProvider>
     <Layout style={{ minHeight: "100vh" }}>
-      {narrow && menuOpen && <div className="app-sider-mask" aria-hidden="true" onClick={() => setMenuOpen(false)} />}
-      <Sider theme="light" width={240} collapsedWidth={0} collapsed={narrow && !menuOpen}
-        style={{ borderInlineEnd: "1px solid #eceef0",
-          ...(narrow ? { position: "fixed", top: 0, bottom: 0, zIndex: 1000, height: "100dvh",
-            boxShadow: "0 8px 24px rgba(16, 24, 40, 0.12)" } : null) }}>
-        <div style={{ padding: "16px 16px 12px" }}>
-          <BrandLogo size={24} caption="Кабинет ОСИ" />
-        </div>
-        <div style={narrow ? { maxHeight: "calc(100dvh - 56px)", overflowY: "auto" } : undefined}>
-        <Menu
-          theme="light"
-          mode="inline"
-          selectedKeys={[selectedPath]}
-          key={activeGroup}
-          defaultOpenKeys={activeGroup ? [activeGroup] : []}
-          items={items}
-          onClick={({ key }) => { if (key === location.pathname) window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
-            else navigate(key); if (narrow) setMenuOpen(false); }}
-        />
-        </div>
-      </Sider>
+      {narrow ? <Drawer title="Меню кабинета" placement="left" width="min(320px, 100vw)"
+        open={menuOpen} onClose={() => setMenuOpen(false)} styles={{ body: { padding: 0 } }}>
+        {navigation}
+      </Drawer> : <Sider theme="light" width={240} style={{ borderInlineEnd: "1px solid #eceef0" }}>{navigation}</Sider>}
       <Layout style={{ minWidth: 0 }}>
-        <Header className="app-header">
-          <div className="app-header__left">
-            {narrow && <Button className="app-header__menu-button" type="text" icon={<MenuOutlined />}
-              aria-label="Открыть меню" onClick={() => setMenuOpen(true)} />}
-            <span className="app-header__brand"><BrandLogo size={22} /></span>
-            <Typography.Title level={4} className="app-header__title">
-              Кабинет администратора
-            </Typography.Title>
-          </div>
-          <Space wrap size={8} className="app-header__actions">
-            <Typography.Text type="secondary" className="app-header__user">
+        <Header className="cabinet-header" style={{ background: "#fff", borderBottom: "1px solid #eceef0", paddingInline: 24, minHeight: 56, height: "auto", gap: 12, flexWrap: "wrap", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          {narrow && <Button type="text" icon={<MenuOutlined />} aria-label="Открыть меню" onClick={() => setMenuOpen(true)} />}
+          <Typography.Title level={4} style={{ margin: 0, lineHeight: "32px", fontSize: 18 }}>
+            {narrow ? "Кабинет ОСИ" : "Кабинет администратора"}
+          </Typography.Title>
+          {narrow ? <Dropdown trigger={["click"]} menu={{ items: [
+            { key: "name", label: identity?.fullName ?? "Профиль", disabled: true },
+            { key: "logout", label: "Выйти", onClick: () => logout() },
+          ] }}><Button type="text" icon={<UserOutlined />} aria-label="Профиль" /></Dropdown> : <Space wrap style={{ maxWidth: "100%" }}>
+            <Typography.Text type="secondary">
               {identity?.fullName ?? "…"}
             </Typography.Text>
             {identity?.me.emulation && <EmulationRoleSelect
@@ -185,9 +176,10 @@ export function AppLayout() {
             <Button size="small" onClick={() => logout()}>
               Выйти
             </Button>
-          </Space>
+          </Space>}
         </Header>
-        <Content className="app-content">
+        {narrow && identity?.me.emulation && <div className="mobile-emulation-switch"><EmulationRoleSelect key={identity.me.profile.id} profileId={identity.me.profile.id} onSwitched={refreshIdentity} /></div>}
+        <Content className="cabinet-content" style={{ width: "100%", padding: "24px 24px 48px" }}>
           <EmulationBanner />
           <Outlet key={location.pathname === "/emulation" ? "emulation" : identity?.me.profile.id} />
         </Content>

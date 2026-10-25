@@ -29,6 +29,12 @@ import {
   sweepRegistrations,
   type TelegramSender,
 } from "../../core/src/domains/registrations/jobs.ts";
+import {
+  RESIDENT_MENU_REGISTERED,
+  RESIDENT_MENU_UNREGISTERED,
+  type BotCommandItem,
+  type ChatMenuSync,
+} from "../../core/src/bot/chat-menu.ts";
 import type { RegistryDeps } from "../../core/src/domains/registry/service.ts";
 // Функция jobs — фоновый обработчик по расписанию (LLD-01 §2, LLD-04 §1–3).
 // VS-2: свип регистрации, проверка импорта и доставка уведомлений.
@@ -93,6 +99,59 @@ export async function telegramSendMessage(
 
 export const JOBS_SECRET_ENV = "X_JOBS_SECRET";
 
+async function telegramApi(
+  token: string,
+  method: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const response = await fetch(
+    `https://api.telegram.org/bot${token}/${method}`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000),
+    },
+  );
+  const result = await response.json().catch(() => ({})) as { ok?: boolean };
+  if (!response.ok || result.ok !== true) {
+    throw new Error(`TELEGRAM_${response.status}`);
+  }
+}
+
+/**
+ * Синхронизация нативного меню команд чата жителя (REG-01/02): при действующем
+ * профиле chat-области (default + ru + kk) получают список без «Регистрации»,
+ * при потере профиля области сбрасываются к default-меню deleteMyCommands.
+ * Вызывается только после успешной доставки, вне транзакций БД.
+ */
+export function residentMenuSync(token: string): ChatMenuSync {
+  return async (chatId, registered) => {
+    const commands = registered
+      ? RESIDENT_MENU_REGISTERED
+      : RESIDENT_MENU_UNREGISTERED;
+    const areas: { language_code?: string; commands: BotCommandItem[] }[] = [
+      { commands: commands.ru },
+      { language_code: "ru", commands: commands.ru },
+      { language_code: "kk", commands: commands.kk },
+    ];
+    const scope = { type: "chat", chat_id: Number(chatId) };
+    for (const area of areas) {
+      await telegramApi(
+        token,
+        registered ? "setMyCommands" : "deleteMyCommands",
+        {
+          scope,
+          ...(registered ? { commands: area.commands } : {}),
+          ...(area.language_code
+            ? { language_code: area.language_code }
+            : {}),
+        },
+      );
+    }
+  };
+}
+
 function health(): Response {
   return new Response(
     JSON.stringify({
@@ -110,6 +169,7 @@ export async function handle(
   env: EnvSource,
   deps?: RegistryDeps,
   sender?: TelegramSender,
+  syncCommands?: ChatMenuSync,
 ): Promise<Response> {
   try {
     const url = new URL(request.url);
@@ -201,7 +261,20 @@ export async function handle(
               text,
               replyMarkup,
             ));
-        const sent = await sendNotifications(actual, send, deadline);
+        const sent = await sendNotifications(
+          actual,
+          send,
+          deadline,
+          // Токен читается без requireEnv: без него доставка продолжается,
+          // только синхронизация меню чата не выполняется.
+          syncCommands ??
+            (deps
+              ? undefined
+              : (() => {
+                const token = env(botTokenEnv("resident"));
+                return token ? residentMenuSync(token) : undefined;
+              })()),
+        );
         return new Response(JSON.stringify({ status: "ok", processed, sent }), {
           status: 200,
           headers: JSON_HEADERS,

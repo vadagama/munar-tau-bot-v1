@@ -20,6 +20,7 @@ import { ApiError } from "../errors/api.ts";
 import { type Row } from "../domains/registry/validation.ts";
 import { actorForTelegram } from "./registration.ts";
 import { type BotReply, btn } from "./keyboard.ts";
+import { CLOSED_STATES, STATES } from "../domains/requests/fsm.ts";
 import {
   createRequest,
   deleteDraft,
@@ -171,6 +172,16 @@ export async function requestStep(
     }
     if(command==='/rskip'&&pending?.command==='/rate'&&pending.index===0&&number===pending.token){pending.values=[''];pending.index=1;return save(inputFormReply(pending,L,deps.templates));}
     if(pending && !input.startsWith('/')) {
+      // Сообщение по обращению уходит сразу: текст — это и есть сообщение,
+      // дополнительный предпросмотр и «Подтвердить» перед обычной перепиской
+      // не нужны. Ветка /rinput ниже сохранена для диалогов, начатых раньше.
+      if(pending.command==='/say') {
+        if(!input.trim()||input.length>10000)throw new ApiError('VALIDATION_FAILED');
+        pending.values=[input.trim()];pending.index=pending.fields.length;
+        await addMessage(d,actor,pending.object_id,{text:pending.values[0],channel:'resident',source:'bot'},`resident:input:${pending.token}`);
+        delete state.input_form;
+        return save(requestCardText(await getRequest(d,actor,pending.object_id),L,deps.templates));
+      }
       if(pending.index<pending.fields.length) {
         if(!input.trim()||input.length>10000)throw new ApiError('VALIDATION_FAILED');
         pending.values.push(input.trim());pending.index++;
@@ -189,7 +200,9 @@ export async function requestStep(
     if(command && ['/say','/return','/cancelrequest','/appeal','/reopen'].includes(command)&&!args.length) {
       const row=await find();
       state.request_id=row.id;delete state.draft_id;delete state.step;
-      state.input_form={token:crypto.randomUUID(),command,object_id:String(row.id),number:String(row.number),version:Number(row.version),title:messageButton(deps.templates,L,'bot.controls',command.slice(1)),fields:[command==='/say'?'text':'reason'],values:[],index:0,confirm_command:'/rinput',cancel_command:`/request ${row.number}`} satisfies BotInput;
+      // Приглашение ввода несёт номер обращения: пользователь видит, куда
+      // уйдёт сообщение, без отдельного шага предпросмотра.
+      state.input_form={token:crypto.randomUUID(),command,object_id:String(row.id),number:String(row.number),version:Number(row.version),title:messageButton(deps.templates,L,'bot.controls',command.slice(1)),fields:[command==='/say'?'text':'reason'],values:[],index:0,confirm_command:'/rinput',cancel_command:`/request ${row.number}`,...(command==='/say'?{prompt:message(deps.templates,L,'message.requests.say_prompt',{number:String(row.number)})}:{})} satisfies BotInput;
       return save(inputFormReply(state.input_form as BotInput,L,deps.templates));
     }
     if (command === "/result") {
@@ -553,10 +566,23 @@ export async function requestStep(
           templateText(deps.templates, L, "requests.nekorrektnaya_stranitsa"),
         );
       }
+      // По умолчанию — только активные обращения; закрытые — в архиве по кнопке.
+      const archive = tokens.includes("archive");
+      const search =
+        tokens.filter((t) => t !== pageToken && t !== "archive").join(" ") ||
+        undefined;
+      const states = archive
+        ? [...CLOSED_STATES]
+        : STATES.filter((s) => !CLOSED_STATES.includes(s));
       const rows = await listRequests(d, actor, {
         cursor: btoa(String((page - 1) * 10)),
-        search: tokens.filter((t) => t !== pageToken).join(" ") || undefined,
+        search,
+        states,
       });
+      // Кнопка архива — только когда закрытые обращения уже есть.
+      const hasArchive = !archive &&
+        (await listRequests(d, actor, { states: [...CLOSED_STATES], limit: 1 }))
+          .length > 0;
       state.scenario = "requests";
       delete state.request_id;
       delete state.draft_id;
@@ -569,6 +595,7 @@ export async function requestStep(
           L,
           deps.templates,
           deps.residentBotUsername,
+          { archive, hasArchive },
         ),
       );
     }

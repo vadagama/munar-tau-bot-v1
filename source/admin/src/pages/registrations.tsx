@@ -1,3 +1,5 @@
+import { FilterOutlined } from "@ant-design/icons";
+import { PageSearch } from "../components/page-controls";
 import { REGISTRATION_REVIEWER_ROLES } from "../components/process-guidance";
 import { ProcessOverview } from "../components/process-card";
 import { ConfigurableTable } from "../components/configurable-table";
@@ -216,9 +218,9 @@ export function RegistrationsPage() {
     <PageLayout title="Регистрации"
       extra={<ViewToggle kind={view} onChange={setView} />}
       filters={<Space wrap>
-        <Input.Search aria-label="Поиск анкет" placeholder="ФИО, телефон или Telegram" value={search}
+        <PageSearch aria-label="Поиск анкет" placeholder="ФИО, телефон или Telegram" value={search}
           onChange={e => setSearch(e.target.value)} style={{ width: 320 }} />
-        <Select
+        <Select prefix={<FilterOutlined aria-hidden />}
           aria-label="Состояние анкеты"
           allowClear
           placeholder="Все состояния"
@@ -230,7 +232,7 @@ export function RegistrationsPage() {
             label,
           }))}
         />
-      </Space>}> <Typography.Paragraph type="secondary">
+      </Space>}> <Typography.Paragraph className="cabinet-page__intro" type="secondary">
             Проверьте анкету по реестру. Спор остаётся открытым до явного решения.
           </Typography.Paragraph>
 
@@ -305,7 +307,7 @@ export function RegistrationsPage() {
           }}
         />
       ) : (
-        <ConfigurableTable storageKey="columns.registrations" settingsPlacement="page"
+        <ConfigurableTable storageKey="columns.registrations" onMobileRowClick={row => { if (row.person_id) void openJournal(row); }} settingsPlacement="page"
           rowKey="id"
           loading={busy}
           dataSource={visible}
