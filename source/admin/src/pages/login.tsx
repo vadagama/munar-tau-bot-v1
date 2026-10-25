@@ -78,6 +78,9 @@ export function LoginPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        width: "100%",
+        boxSizing: "border-box",
+        padding: 16,
         // Фон — визуализация ЖК (из карточки novostroyki-almaty.kz). Картинка
         // солнечная и используется без затемняющего слоя: белый карточке входа
         // хватает собственной тени для читаемости.
@@ -86,7 +89,7 @@ export function LoginPage() {
         backgroundPosition: "center",
       }}
     >
-      <Card style={{ width: 400, borderRadius: 14, boxShadow: token.boxShadowSecondary }}>
+      <Card style={{ width: "min(400px, 100%)", borderRadius: 14, boxShadow: token.boxShadowSecondary }}>
         {/* Локап стеком — знак и название на одной центральной оси с заголовком;
             горизонтальный вариант конкурировал с заголовком по ширине и центру. */}
         <div style={{ textAlign: "center", marginBottom: 24 }}>

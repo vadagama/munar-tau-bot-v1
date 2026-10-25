@@ -3,7 +3,7 @@ import { PAGE_REFRESH_EVENT, usePageRefresh } from "../lib/use-page-refresh";
 import { DayQueueProvider, useDayQueue } from "../lib/day-queue";
 import { MenuOutlined, UserOutlined } from "@ant-design/icons";
 import { useMobile } from "../lib/use-mobile";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Badge, Button, Drawer, Dropdown, Layout, Menu, Space, Typography, theme } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useLogout } from "@refinedev/core";
@@ -63,7 +63,8 @@ export function MenuLabel({ label, count }: { label: string; count: number }) {
   );
 }
 
-// Layout кабинета (VS-1): меню по ролям, баннер эмуляции, выход.
+// Layout кабинета: на узких экранах (<992px) меню становится оверлеем
+// с гамбургером в шапке, затемнением и закрытием по тапу/Esc/переходу.
 export function AppLayout() {
   const narrow = useMobile();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -73,6 +74,20 @@ export function AppLayout() {
   usePageRefresh(refreshIdentity);
   const { mutate: logout } = useLogout();
   const queue = useDayQueue();
+
+  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
+
+  useEffect(() => {
+    if (!(narrow && menuOpen)) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [narrow, menuOpen]);
 
   const manager = roles.some(role => ["chairman", "administrator", "deputy"].includes(role));
   const settings = [

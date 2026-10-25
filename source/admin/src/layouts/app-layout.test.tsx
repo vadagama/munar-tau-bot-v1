@@ -17,6 +17,26 @@ vi.mock("../lib/identity", async importOriginal => ({
 }));
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn().mockResolvedValue({ persons: [] }) }));
 afterEach(() => { cleanup(); state.emulating = false; vi.clearAllMocks(); });
+
+// Стаб узкого экрана для сценариев телефона: совпадает со стабом setup.ts,
+// но с управляемым matches (в jsdom matchMedia по умолчанию всегда десктоп).
+function stubNarrowScreen(matches: boolean) {
+  const original = window.matchMedia;
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+  return () => Object.defineProperty(window, "matchMedia", { writable: true, value: original });
+}
 function show(path = "/") {
   render(<MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
     <Routes><Route element={<AppLayout />}>
@@ -102,5 +122,29 @@ it.each([
  expect(screen.getByRole("menuitem", {name: label})).toHaveClass("ant-menu-item-selected");
  for (const name of ["Здания", "Помещения", "Привязки помещений", "Очереди"]) {
    expect(screen.getByRole("menuitem", {name})).toBeVisible();
+ }
+});
+
+it("на десктопе меню видно без гамбургера", () => {
+ show();
+ expect(screen.getByRole("menu")).toBeVisible();
+ expect(screen.queryByRole("button", { name: "Открыть меню" })).toBeNull();
+});
+
+it("на телефоне в шапке гамбургер и короткий заголовок, меню открывается и закрывается", () => {
+ const restore = stubNarrowScreen(true);
+ try {
+   show();
+   expect(screen.queryByRole("menu")).toBeNull();
+   expect(screen.getByRole("button", { name: "Открыть меню" })).toBeVisible();
+   expect(screen.getByText("Кабинет ОСИ")).toBeVisible();
+
+   fireEvent.click(screen.getByRole("button", { name: "Открыть меню" }));
+   expect(screen.getByRole("menu")).toBeVisible();
+
+   fireEvent.click(screen.getByRole("menuitem", { name: "Обращения" }));
+   expect(screen.queryByRole("menu")).toBeNull();
+ } finally {
+   restore();
  }
 });
