@@ -213,6 +213,24 @@ it("карточка всегда предлагает возврат к спи�
   ).toBe(true);
 });
 
+it("карточка не предлагает совместный доступ даже при can_share", () => {
+  // Кнопки убраны из карточки (25.10.2026); действие остаётся командами.
+  const card = requestCardText({
+    number: "З-26-1",
+    state: "in_work",
+    author_person_id: "author",
+    description: "d",
+    messages: [],
+    can_comment: true,
+    can_share: true,
+  });
+  const data = typeof card === "object"
+    ? card.buttons?.flat().map((b) => b.data)
+    : [];
+  expect(data).not.toContain("/share З-26-1");
+  expect(data).not.toContain("/unshare З-26-1");
+});
+
 it("карточка подписывает сообщения датой и автором", () => {
   const card = requestCardText({
     number: "З-26-2",
