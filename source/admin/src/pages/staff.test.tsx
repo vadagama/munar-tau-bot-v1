@@ -8,7 +8,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { StaffPage } from "./staff";
 import { apiFetch } from "../lib/api";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
@@ -18,13 +18,9 @@ vi.mock(
     useCabinetIdentity: () => ({
       roles: ["chairman"],
       identity: { me: { person: { id: "chair" } } },
-    }),
-  }),
+ }),
+ }),
 );
-const computed = window.getComputedStyle.bind(window);
-beforeEach(() => {
-  vi.spyOn(window, "getComputedStyle").mockImplementation((el) => computed(el));
-});
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -78,15 +74,15 @@ function setup() {
           "doc_reviewer",
         ],
         can_edit: true,
-      };
-    }
+ };
+ }
     if (path === "/v1/staff/worker/roles" && options?.method === "POST") {
       return { id: "worker", roles: [], version: "v2" };
-    }
+ }
     if (path === "/v1/staff/worker") return detail;
     if (path.startsWith("/v1/staff/candidates")) return { items: [] };
     throw Error(path);
-  });
+ });
 }
 it("Telegram-имя сотрудника — колонка ссылкой, поиск по нему, имя в карточке", async () => {
   setup();
@@ -114,7 +110,7 @@ it("редактирует перечень ролей в единственно
   fireEvent.click(screen.getByLabelText("Дежурный"));
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Дежурство" },
-  });
+ });
   fireEvent.click(
     button("Сохранить роли", actionRegion("Изменение ролей")),
   );
@@ -128,8 +124,8 @@ it("редактирует перечень ролей в единственно
           roles: ["executor", "duty"],
           expected_version: "v1",
           reason: "Дежурство",
-        },
-      }),
+ },
+ }),
     )
   );
   expect(screen.queryByLabelText("Дома")).toBeNull();
@@ -149,7 +145,7 @@ it("прекращение полномочий показывает обяза�
   ).toBe(true);
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Завершение работы" },
-  });
+ });
   fireEvent.click(
     button("Прекратить полномочия", actionRegion("Прекращение полномочий")),
   );
@@ -161,8 +157,8 @@ it("прекращение полномочий показывает обяза�
           roles: [],
           expected_version: "v1",
           reason: "Завершение работы",
-        },
-      }),
+ },
+ }),
     )
   );
 });
@@ -177,9 +173,9 @@ it("добавляет зарегистрированного пользоват
           id: "new",
           full_name: "Новый Тестов",
           phone_e164: "+70000000001",
-        }],
-      };
-    }
+ }],
+ };
+ }
     if (path === "/v1/staff/new") {
       return {
         ...detail,
@@ -187,13 +183,13 @@ it("добавляет зарегистрированного пользоват
         full_name: "Новый Тестов",
         roles: [],
         version: "empty",
-      };
-    }
+ };
+ }
     if (path === "/v1/staff/new/roles") {
       return { id: "new", roles: ["duty"], version: "added" };
-    }
+ }
     return original(path, opts);
-  });
+ });
   render(<StaffPage />);
   fireEvent.click(
     await findButton("Добавить сотрудника"),
@@ -201,7 +197,7 @@ it("добавляет зарегистрированного пользоват
   expect(apiFetch).toHaveBeenCalledWith("/v1/staff/candidates/search", {
     method: "POST",
     body: { query: "" },
-  });
+ });
   fireEvent.mouseDown(
     screen.getByLabelText("Зарегистрированный пользователь", { selector: "input" }),
   );
@@ -210,7 +206,7 @@ it("добавляет зарегистрированного пользоват
   fireEvent.click(screen.getByLabelText("Дежурный"));
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Приём на работу" },
-  });
+ });
   fireEvent.click(
     button("Добавить сотрудника", actionRegion("Добавить сотрудника")),
   );
@@ -223,8 +219,8 @@ it("добавляет зарегистрированного пользоват
           roles: ["duty"],
           reason: "Приём на работу",
           expected_version: "empty",
-        },
-      }),
+ },
+ }),
     )
   );
 });
@@ -235,20 +231,20 @@ it("409 сохраняет выбранные роли и причину, обн
   vi.mocked(apiFetch).mockImplementation(async (path, opts) => {
     if (path === "/v1/staff/worker") {
       return { ...detail, version: ++reads === 1 ? "v1" : "v2" };
-    }
+ }
     if (path === "/v1/staff/worker/roles") {
       writes++;
       throw Object.assign(Error("Конфликт"), { status: 409 });
-    }
+ }
     return original(path, opts);
-  });
+ });
   render(<StaffPage />);
   fireEvent.click(await findButton("Иван Тестов"));
   fireEvent.click(await findButton("Изменить роли"));
   fireEvent.click(screen.getByLabelText("Дежурный"));
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Новая обязанность" },
-  });
+ });
   fireEvent.click(
     button("Сохранить роли", actionRegion("Изменение ролей")),
   );
@@ -267,17 +263,17 @@ it("ошибка фонового чтения сохраняет открыто
   vi.mocked(apiFetch).mockImplementation(async (path, opts) => {
     if (path === "/v1/staff" && fail) throw Error("Временная ошибка сети");
     return original(path, opts);
-  });
+ });
   render(<StaffPage />);
   fireEvent.click(await findButton("Иван Тестов"));
   fireEvent.click(await findButton("Изменить роли"));
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Сохранить мой ввод" },
-  });
+ });
   fail = true;
   await act(async () => {
     window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
-  });
+ });
   expect(screen.getByLabelText("Причина изменения")).toHaveValue(
     "Сохранить мой ввод",
   );

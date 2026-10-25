@@ -1,13 +1,11 @@
 import { getButton,findButton } from "../test/buttons";
 import { cleanup,fireEvent,render,screen,waitFor } from "@testing-library/react";
-import { afterEach,beforeEach,expect,it,vi } from "vitest";
+import { afterEach,expect,it,vi } from "vitest";
 import { apiFetch } from "../lib/api";
 import { InitiativeEditor } from "./initiative-editor";
 import { InitiativeModerationQueue } from "./initiative-moderation-queue";
 import type { InitiativeView } from "./initiative-types";
 vi.mock("../lib/api",()=>({apiFetch:vi.fn()}));
-const computed=window.getComputedStyle.bind(window);
-beforeEach(()=>{vi.spyOn(window,"getComputedStyle").mockImplementation(element=>computed(element));});
 afterEach(()=>{cleanup();vi.clearAllMocks();vi.restoreAllMocks();});
 it("план требует основание, сотрудника, срок и проверенное решение; пустая форма не отправляется",async()=>{
  vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/documents"?{items:[],total:0}:{items:[]});

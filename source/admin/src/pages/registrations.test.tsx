@@ -19,11 +19,8 @@ const registration = {
   created_at: "2026-10-24T08:30:00Z",
   withdrawn_at: null,
 };
-const computed = window.getComputedStyle.bind(window);
 beforeEach(() => {
-  vi.spyOn(window, "getComputedStyle").mockImplementation((element) =>
-    computed(element),
-  );
+
   localStorage.clear();
   vi.mocked(apiFetch).mockImplementation(async (path) =>
     path === "/v1/registrations" ? { items: [registration] } : { items: [] },
@@ -204,9 +201,9 @@ it("журнал: клик по имени заявителя открывает
           { at: "2026-10-23T20:42:00Z", action: "registration.approve", before: { state: "pending_review" }, after: { state: "approved" }, reason: "Проверено по реестру", actor_name: "Администратор ОСИ" },
           { at: "2026-10-23T21:09:00Z", action: "registration.approve", before: { state: "pending_review" }, after: { state: "approved" }, reason: "Привязка подтверждена", actor_name: "Администратор ОСИ" },
         ],
-      };
+ };
     return { items: [] };
-  });
+ });
   render(<RegistrationsPage />);
   fireEvent.click(await screen.findByRole("button", { name: "Пётр Петров" }));
   expect(await screen.findByText("История статусов")).toBeInTheDocument();

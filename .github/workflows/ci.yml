@@ -2,8 +2,19 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'tasks/**'
+      - '.agents/**'
+      - '**.md'
   push:
     branches: [main]
+
+# Один активный прогон на ветку или main: новый пуш отменяет устаревший,
+# чтобы не молотить параллельные прогоны ради промежуточных коммитов.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   node:
@@ -22,13 +33,37 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test
+      # Тесты кабинета вынесены в параллельные шарды (job admin-tests).
+      - run: npm run test -w core
       - run: npm run build -w admin
       - run: npm run build -w landing
       - name: Секреты в статической сборке (landing/dist)
         run: sh tools/scripts/check-build-secrets.sh landing/dist
       - name: Секреты в статической сборке (admin/dist)
         run: sh tools/scripts/check-build-secrets.sh admin/dist
+
+  # Полностраничные jsdom-сценарии кабинета — самый долгий шаг CI (~6,5 мин
+  # одним прогоном). Vitest шардит файлы детерминированно (алфавитными
+  # чанками), три шарда идут параллельно на отдельных раннерах.
+  admin-tests:
+    name: "Admin tests: shard ${{ matrix.shard }}/3"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    defaults:
+      run:
+        working-directory: source
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: source/.nvmrc
+          cache: npm
+          cache-dependency-path: source/package-lock.json
+      - run: npm ci
+      - run: npm run test -w admin -- --shard=${{ matrix.shard }}/3
 
   deno:
     name: "Deno: check / lint / test (функции)"
@@ -56,7 +91,7 @@ jobs:
   # не настроен, R3). Секреты задаются в настройках репозитория GitHub.
   deploy:
     name: "Deploy (условный): Supabase DB / functions / Cloudflare Pages"
-    needs: [node, deno]
+    needs: [node, admin-tests, deno]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     defaults:
@@ -77,6 +112,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: source/.nvmrc
+          cache: npm
+          cache-dependency-path: source/package-lock.json
 
       - name: Supabase — миграции БД (supabase db push)
         if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_PROJECT_ID != ''

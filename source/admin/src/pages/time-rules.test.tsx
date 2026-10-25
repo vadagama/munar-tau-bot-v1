@@ -1,11 +1,9 @@
 import {cleanup,fireEvent,render,screen,waitFor} from "@testing-library/react";
-import {afterEach,beforeEach,expect,it,vi} from "vitest";
+import {afterEach,expect,it,vi} from "vitest";
 import {TimeRulesPage} from "./time-rules";
 import {apiFetch} from "../lib/api";
 import {ruleContract} from "../../../core/src/domains/timing/contracts";
 vi.mock("../lib/api",()=>({apiFetch:vi.fn()}));
-const computed=window.getComputedStyle.bind(window);
-beforeEach(()=>{vi.spyOn(window,"getComputedStyle").mockImplementation(element=>computed(element));});
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.clearAllMocks();});
 it("FIN-04: ненастроенные сроки финансовых отчётов имеют понятные названия",async()=>{
  vi.mocked(apiFetch).mockResolvedValue({items:["financial_monthly_publication","financial_annual_publication"].map(key=>({id:null,key,version:null,params:null,contract:ruleContract(key)}))});

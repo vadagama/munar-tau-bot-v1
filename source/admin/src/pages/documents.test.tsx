@@ -1,17 +1,15 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { DocumentsPage } from "./documents";
 import { apiFetch } from "../lib/api";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
 vi.mock("../lib/identity", () => ({ useCabinetIdentity: () => ({ roles: ["administrator"], identity: { id: "p" } }) }));
-const computed = window.getComputedStyle.bind(window);
-beforeEach(() => { vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element)); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.restoreAllMocks(); });
 it("показывает сбой и позволяет повторить чтение без записи", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => {
     if (path === "/v1/documents") throw new Error("Список недоступен");
     return { items: [] };
-  });
+ });
   render(<DocumentsPage />);
   expect(await screen.findByText("Список недоступен")).toBeInTheDocument();
   fireEvent(window, new Event("cabinet:refresh-page"));
@@ -27,7 +25,7 @@ it("читатель видит версии без служебных дейс�
     id: "d", title: "Инструкция", document_date: "2026-10-23", audience: "resident", version: 3,
     can_prepare: false, can_review: false, can_manage: false,
     versions: [{ id: "v", version: 1, state: "approved", attachment_id: "f" }], history: [],
-  });
+ });
   render(<DocumentsPage />);
   fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
   const dialog = await screen.findByRole("dialog");
@@ -43,7 +41,7 @@ it("конфликт версии сохраняет причину возвра
     if (path === "/v1/documents") return { items: [{ id: "d", title: "Акт", kind: "act", version }] };
     return { id: "d", title: "Акт", audience: "staff", version, can_prepare: false, can_review: true, can_manage: true,
       versions: [{ id: "v", version: 1, state: "on_review", attachment_id: "file" }], history: [] };
-  });
+ });
   render(<DocumentsPage />);
   fireEvent.click(await screen.findByRole("button", { name: "Открыть" }));
   fireEvent.click(await screen.findByRole("button", { name: "Вернуть" }));

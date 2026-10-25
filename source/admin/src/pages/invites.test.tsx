@@ -16,11 +16,8 @@ const invite = {
   created_by_name: "Олег Краснов",
   created_by_telegram: "oleg_san_krasnov",
 };
-const computed = window.getComputedStyle.bind(window);
 beforeEach(() => {
-  vi.spyOn(window, "getComputedStyle").mockImplementation((element) =>
-    computed(element),
-  );
+
   vi.mocked(apiFetch).mockImplementation(async (path) =>
     path === "/v1/registrations/invites" ? { items: [invite] } : { items: [] },
   );

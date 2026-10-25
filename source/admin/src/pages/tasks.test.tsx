@@ -7,8 +7,7 @@ import {apiFetch} from "../lib/api";
 vi.mock("../lib/api",()=>({apiFetch:vi.fn()}));
 const roleHarness = vi.hoisted(() => ({ roles: ["executor"] }));
 vi.mock("../lib/identity",()=>({useCabinetIdentity:()=>({identity:{me:{person:{id:"worker"}}},roles:roleHarness.roles})}));
-const computed=window.getComputedStyle.bind(window);
-beforeEach(()=>{roleHarness.roles = ["executor"];localStorage.clear();vi.spyOn(window,"getComputedStyle").mockImplementation(el=>computed(el));});
+beforeEach(()=>{roleHarness.roles = ["executor"];localStorage.clear();});
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.clearAllMocks();});
 function enabledButton(container: HTMLElement, name: string) {
  // The label uniquely identifies a native button. Avoid a full accessible-tree
@@ -27,7 +26,7 @@ it.each(["executor", "duty", "finance", "doc_reviewer", "tech_admin"])("назн
     if(path.endsWith("/transitions"))return {...task,state:"accepted",version:2};
     if(path==="/v1/tasks/t")return task;
     throw new Error(`Unexpected ${path} ${opts?.method}`);
-  });
+ });
   render(<TasksPage/>);
   fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
   fireEvent.click(await screen.findByText("Принять",{selector:"button > span"}));
@@ -44,7 +43,7 @@ it("при отзыве доступа очищает старую карточ�
     if(path==="/v1/tasks")return {items:[task]};
     if(deny)throw new Error("Задание недоступно");
     return task;
-  });
+ });
   render(<TasksPage/>);
   fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
   await screen.findByText("Проверить герметичность");deny=true;
@@ -133,9 +132,9 @@ it("возврат из шаблона по query открывает задан�
     await screen.findByText("Проверить герметичность");
     expect(await screen.findByRole("button", {name:"ЗД-1"})).toBeInTheDocument();
     expect(window.location.search).toBe("");
-  } finally {
+ } finally {
     window.history.replaceState(null, "", "/");
-  }
+ }
 });
 
 it("409 обновляет версию задания, сохраняет ввод и требует повторного подтверждения", async () => {
@@ -147,7 +146,7 @@ it("409 обновляет версию задания, сохраняет вв�
      writes++;
      if(writes===1) throw Object.assign(new Error("Объект изменён"),{status:409});
      return {...task,state:"declined",version:3};
-   }
+ }
    throw new Error(`Unexpected ${path}`);
  });
  render(<TasksPage />);
@@ -216,7 +215,7 @@ it("отзыв доступа при обновлении после дейст�
    if(path==="/v1/tasks/t") {
      if(++reads===1) return task;
      throw Object.assign(new Error("Доступ к заданию отозван"),{status:403});
-   }
+ }
    throw new Error(`Unexpected ${path}`);
  });
  render(<TasksPage />);
@@ -247,7 +246,7 @@ it("создание задания доступно до завершения �
   vi.mocked(apiFetch).mockImplementation(async path => {
     if (path === "/v1/tasks") return new Promise(resolve => { resolveList = resolve; });
     return { items: [] };
-  });
+ });
   render(<TasksPage />);
   const create = screen.getByRole("button", { name: "Создать задание" });
   expect(create).toBeEnabled();
@@ -257,17 +256,15 @@ it("создание задания доступно до завершения �
   expect(screen.getByRole("dialog")).toBeInTheDocument();
 });
 
-
 it("карточка задания содержит обратную ссылку на доступное обращение", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => {
     if (path === "/v1/tasks") return { items: [task] };
     return { ...task, linked_request: { id: "r", number: "З-42" } };
-  });
+ });
   render(<TasksPage />);
   fireEvent.click(await screen.findByText("ЗД-1", { selector: "button > span" }));
   expect(await screen.findByRole("link", { name: "З-42" })).toHaveAttribute("href", "/requests?request=r");
 });
-
 
 it("исполнитель виден в таблице и подписан на доске, отсутствие назначения явно указано", async () => {
   const assigned = { ...task, assignee_person_id: "worker", assignee_name: "Мастер ОСИ" };
@@ -347,7 +344,6 @@ it("колонка обращения показывает только разр
   expect(within(table).queryByText("Обращение", {selector:"th, th *"})).not.toBeInTheDocument();
 });
 
-
 it("показывает только последнюю ошибку доставки вверху карточки задания", async () => {
  const card = {...task, delivery_failures: [
   {id:"latest",last_error:"BLOCKED_BY_USER",followup_state:"done"},
@@ -375,7 +371,6 @@ it("не показывает ошибку доставки при пустом 
  await screen.findByText("Проверить герметичность");
  expect(screen.queryByRole("alert", {name:"Ошибка доставки уведомления"})).toBeNull();
 });
-
 
 it("при проверке сначала показывает отчёт и решение, затем инструкцию", async () => {
  const card = {...task,state:"on_review",can_execute:false,can_manage:true,can_approve:true,reports:[{version:1,performed_work:"Первый отчёт",result:"Требовал исправлений",evidence:[]},{version:2,performed_work:"Проверено",result:"Течь устранена",evidence:[]}]};

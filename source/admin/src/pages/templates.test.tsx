@@ -17,20 +17,17 @@ vi.mock(
       roles: ["administrator"],
       identity: {
         me: { emulation: identityState.emulation ? { id: "test" } : null },
-      },
-    }),
+ },
+ }),
     canSeeTemplates: () => identityState.allowed,
-  }),
+ }),
 );
 // CSS-видимость всех узлов AntD в jsdom дорого вычисляется. Проверяем
 // действия и имена; визуальные состояния проверены отдельно в браузере.
-const computed = window.getComputedStyle.bind(window);
 beforeEach(() => {
   identityState.emulation = false;
   identityState.allowed = true;
-  vi.spyOn(window, "getComputedStyle").mockImplementation((element) =>
-    computed(element)
-  );
+
 });
 afterEach(() => {
   cleanup();
@@ -58,13 +55,13 @@ it("сохраняет пару языков с причиной и исходн
   );
   fireEvent.change(screen.getByLabelText("Русский"), {
     target: { value: "Попробуйте позже" },
-  });
+ });
   fireEvent.change(screen.getByLabelText("Қазақша"), {
     target: { value: "Кейінірек көріңіз" },
-  });
+ });
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Понятный текст" },
-  });
+ });
   fireEvent.click(screen.getByText("Сохранить версию"));
   await waitFor(() =>
     expect(
@@ -81,9 +78,9 @@ it("сохраняет пару языков с причиной и исходн
       text_kk: "Кейінірек көріңіз",
       reason: "Понятный текст",
       base_version: 0,
-    },
+ },
     idempotencyKey: expect.any(String),
-  });
+ });
 });
 
 it("предпросмотр использует сервер, сброс создаёт версию с причиной", async () => {
@@ -97,8 +94,8 @@ it("предпросмотр использует сервер, сброс со�
           ...row,
           overridden: true,
           active: { version: 3, text_ru: "Один", text_kk: "Бір" },
-        }],
-      }
+ }],
+ }
   );
   render(<TemplatesPage />);
   fireEvent.click(
@@ -108,7 +105,7 @@ it("предпросмотр использует сервер, сброс со�
   expect(await screen.findByText("Проверено")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Вернуть стандарт" },
-  });
+ });
   fireEvent.click(screen.getByText("Сбросить к дефолту"));
   await waitFor(() =>
     expect(
@@ -154,15 +151,15 @@ it("откат передаёт номер версии и обязательн�
           reason: "Исходный",
           author: "Тест",
           created_at: "2026-10-18T00:00:00Z",
-        }],
-      }
+ }],
+ }
       : {
         items: [{
           ...row,
           active: { version: 2, text_ru: "Второй", text_kk: "Екінші" },
           overridden: true,
-        }],
-      }
+ }],
+ }
   );
   render(<TemplatesPage />);
   fireEvent.click(
@@ -173,7 +170,7 @@ it("откат передаёт номер версии и обязательн�
   expect(screen.getByText("Укажите причину изменения")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Вернуть текст" },
-  });
+ });
   fireEvent.click(screen.getByText("Сделать активной"));
   await waitFor(() =>
     expect(
@@ -197,9 +194,9 @@ it("вставляет переменную в выбранное место а�
           name: "number",
           description: "Номер обращения",
           example: "З-1",
-        }],
-      }],
-    }
+ }],
+ }],
+ }
   );
   render(<TemplatesPage />);
   fireEvent.click(
@@ -227,18 +224,18 @@ it("показывает цельный шаг сценария, пример и
       name: "premises",
       description: "Список помещений",
       example: "1. Дом 1, Квартира 4",
-    }],
+ }],
     buttons: [{
       id: "place",
       ru: "{number}",
       kk: "{number}",
       variables: [{ name: "number", description: "Номер", example: "4" }],
-    }],
+ }],
     examples: [{ id: "one", title: "Одно помещение" }, {
       id: "none",
       title: "Нет помещений",
-    }],
-  };
+ }],
+ };
   vi.mocked(apiFetch).mockImplementation(async (path, options) =>
     path.endsWith("/versions") ? { items: [] } : path.endsWith("/preview")
       ? {
@@ -250,7 +247,7 @@ it("показывает цельный шаг сценария, пример и
             ?.place ?? "4",
         ]],
         buttons_kk: [["4"]],
-      }
+ }
       : { items: [full] }
   );
   render(<TemplatesPage />);
@@ -259,14 +256,14 @@ it("показывает цельный шаг сценария, пример и
   expect(screen.getByText("Полное сообщение")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Подпись — русский"), {
     target: { value: "Помещение {number}" },
-  });
+ });
   fireEvent.click(screen.getByText("Предпросмотр"));
   expect(await screen.findByText("Помещение {number}")).toBeInTheDocument();
   expect(screen.getByRole("combobox", { name: "Пример данных" }))
     .toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Причина изменения"), {
     target: { value: "Целая инструкция" },
-  });
+ });
   fireEvent.click(screen.getByText("Сохранить версию"));
   await waitFor(() =>
     expect(
@@ -288,8 +285,8 @@ it("старое переопределение видно в целом тек�
       title: "Старое приглашение",
       version: 2,
       unresolved: false,
-    }],
-  };
+ }],
+ };
   vi.mocked(apiFetch).mockImplementation(async (path) =>
     path.endsWith("/versions") ? { items: [] } : { items: [migrated] }
   );

@@ -10,11 +10,10 @@ vi.mock("../lib/api", () => ({
   ApiClientError: class extends Error { constructor(_code: string, message: string, _status: number) { super(message); } },
   apiFetch: vi.fn(),
 }));
-const computed = window.getComputedStyle.bind(window);
 beforeEach(() => { vi.mocked(apiFetch).mockResolvedValue({ persons: [
     { person: { id: "resident", full_name: "Тестовый житель" }, profile: { id: "resident-profile" }, assignments: [] },
     { person: { id: "staff", full_name: "Тестовый сотрудник" }, profile: { id: "staff-profile" }, assignments: [{ id: "role", role: "executor" }] },
-  ] }); refreshIdentity.mockClear(); vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element)); });
+  ] }); refreshIdentity.mockClear(); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it("показывает жителя без служебных назначений и сотрудника с ролью", async () => {
   render(<EmulationPage />);
@@ -57,7 +56,7 @@ it("снятие роли: крестик на теге открывает мо�
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/emulation/assignments/role/revoke", {
     method: "POST",
     body: { reason: "Роль больше не нужна" },
-  }));
+ }));
   await waitFor(() => expect(refreshIdentity).toHaveBeenCalled());
   await waitFor(() => expect(screen.queryByRole("dialog", { name: "Снять роль" })).toBeNull());
   expect(await screen.findByText(/Роль «Исполнитель» снята с персоны «Тестовый сотрудник»/)).toBeInTheDocument();
@@ -70,7 +69,7 @@ it("ошибка снятия роли видна, модалка остаётс
     return { persons: [
       { person: { id: "staff", full_name: "Тестовый сотрудник" }, profile: { id: "staff-profile" }, assignments: [{ id: "role", role: "executor" }] },
     ] };
-  });
+ });
   render(<EmulationPage />);
   await screen.findByText("Тестовый сотрудник");
   fireEvent.click(document.querySelector(".ant-tag-close-icon")!);

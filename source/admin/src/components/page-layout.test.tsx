@@ -12,7 +12,7 @@ it("располагает действия перед фильтрами и р�
   const content = screen.getByText("Рабочая область");
   for (const [a, b] of [[title, actions], [actions, filters], [filters, content]]) {
     expect(a!.compareDocumentPosition(b! ) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  }
+ }
 });
 it("не создаёт пустые строки действий и фильтров", () => {
   render(<PageLayout title="Главная">Содержимое</PageLayout>);
@@ -23,8 +23,7 @@ it("не создаёт пустые строки действий и фильт
 it("на телефоне поиск доступен вне свёрнутых фильтров, сортировка находится внутри них", () => {
   vi.spyOn(window, "matchMedia").mockImplementation(query => ({matches: query === "(max-width: 767px)", media: query, onchange:null,
     addListener:vi.fn(),removeListener:vi.fn(),addEventListener:vi.fn(),removeEventListener:vi.fn(),dispatchEvent:()=>false}));
-  const computed = window.getComputedStyle.bind(window);
-  vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
+
   render(<PageLayout title="Жители" actions={<button>Создать</button>}
     filters={<><PageSearch aria-label="Поиск жителей" /><input aria-label="Дом" /></>}>
     <ConfigurableTable storageKey="layout-mobile" rowKey="id" columns={[{title:"Имя",dataIndex:"name"}]}

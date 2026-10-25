@@ -1,13 +1,11 @@
 import { getButton,findButton } from "../test/buttons";
 import { cleanup,fireEvent,render,screen,waitFor } from "@testing-library/react";
-import { afterEach,beforeEach,expect,it,vi } from "vitest";
+import { afterEach,expect,it,vi } from "vitest";
 import { PollDraftEditor } from "./poll-draft-editor";
 import { apiFetch } from "../lib/api";
 import type { PollView } from "./poll-types";
 vi.mock("../lib/api",()=>({apiFetch:vi.fn()}));
-const computed=window.getComputedStyle.bind(window);
 const poll:PollView={id:"poll",question:"Старый вопрос",options:[{key:"stable_a",label:"Да"},{key:"stable_b",label:"Нет"}],building_ids:["house"],buildings:[{id:"house",label:"Дом 1"}],closes_at:"2026-11-01T10:00:00Z",state:"draft",version:1,cancel_reason:null,informational:true,can_manage:true,can_answer:false,can_results:false,deadline_passed:false};
-beforeEach(()=>{vi.spyOn(window,"getComputedStyle").mockImplementation(element=>computed(element));});
 afterEach(()=>{cleanup();vi.clearAllMocks();vi.restoreAllMocks();});
 async function ready(){await waitFor(()=>expect(getButton("Сохранить черновик")).toBeEnabled());}
 const writes=()=>vi.mocked(apiFetch).mock.calls.filter(([,options])=>options?.method==="PATCH");
@@ -30,7 +28,7 @@ it("409 блокирует запись до перечитывания и ср�
   vi.mocked(apiFetch).mockImplementation(async(path,options)=>{
     if(options?.method){attempt++;if(attempt===1)throw Object.assign(new Error("Версия изменилась"),{status:409});return poll;}
     return path==="/v1/registry/buildings"?{items:[{id:"house",code:"1",name:"Дом 1"}]}:{...poll,version:2,question:"Сохранённый вопрос"};
-  });
+ });
   render(<PollDraftEditor poll={poll} onCancel={vi.fn()} onSaved={saved}/>);await ready();
   fireEvent.change(screen.getByLabelText("Вопрос"),{target:{value:"Мой новый вопрос"}});
   fireEvent.change(screen.getByLabelText("Причина сохранения"),{target:{value:"Уточнение"}});

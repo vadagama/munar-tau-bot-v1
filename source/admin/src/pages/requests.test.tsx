@@ -10,6 +10,7 @@ import {
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { RequestsPage } from "./requests";
 import { apiFetch } from "../lib/api";
+import { findButton as findSharedButton } from "../test/buttons";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
 vi.mock(
   "../lib/identity",
@@ -17,31 +18,22 @@ vi.mock(
     useCabinetIdentity: () => ({
       identity: { me: { person: { id: "author" } } },
       roles: [],
-    }),
-  }),
+ }),
+ }),
 );
-const computed = window.getComputedStyle.bind(window);
 beforeEach(() => {
   localStorage.clear();
-  vi.spyOn(window, "getComputedStyle").mockImplementation((element) =>
-    computed(element)
-  );
+
 });
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
-// Find labels without computing styles for every AntD button. A short action
-// keeps its disabled opener visible; submission must select the one enabled button.
+// Short actions keep a disabled opener visible; submission must select the
+// one enabled button, so the shared helper is called with { enabled: true }.
 async function findButton(name: string, enabled = false) {
-  return waitFor(() => {
-    const buttons = screen.getAllByText(name, { selector: "button > span" })
-      .map(label => label.closest("button")!)
-      .filter(button => !enabled || !button.disabled);
-    expect(buttons).toHaveLength(1);
-    return buttons[0]!;
-  });
+  return findSharedButton(name, screen, { enabled });
 }
 function setup(manager = false) {
   const row = {
@@ -65,25 +57,25 @@ function setup(manager = false) {
         channel: "resident",
         text: "Публичный ответ",
         created_at: "2026-10-17T00:00:00Z",
-      },
+ },
       ...(manager
         ? [{
           id: "i",
           channel: "internal",
           text: "Внутреннее обсуждение",
           created_at: "2026-10-17T00:00:00Z",
-        }]
+ }]
         : []),
     ],
-  };
+ };
   vi.mocked(apiFetch).mockImplementation(async (path) => {
     if (path === "/v1/requests" || path === "/v1/requests/search") {
       return { items: [row] };
-    }
+ }
     if (path === "/v1/requests/r") return row;
     if (path === "/v1/requests/context") return { premises: [], buildings: [] };
     return { items: [] };
-  });
+ });
   return row;
 }
 it(
@@ -112,11 +104,11 @@ it(
             action: "confirm_result",
             expected_version: 4,
             payload: expect.objectContaining({ confirmation_version: 2 }),
-          }),
-        }),
+ }),
+ }),
       )
     );
-  },
+ },
   15000,
 );
 it("служебный канал явно помечен перед отправкой", async () => {
@@ -137,7 +129,7 @@ it("черновик внутреннего сообщения не перено
   fireEvent.click(await screen.findByRole("tab", { name: "Внутреннее" }));
   fireEvent.change(screen.getByLabelText("Текст сообщения"), {
     target: { value: "Служебный черновик" },
-  });
+ });
   fireEvent.click(screen.getByRole("tab", { name: "Жителю" }));
   expect(screen.getByLabelText("Текст сообщения")).toHaveValue("");
   fireEvent.click(screen.getByRole("tab", { name: "Внутреннее" }));
@@ -151,7 +143,7 @@ it("бывший автор сохраняет чтение истории бе�
     can_share: false,
     can_act_as_author: false,
     can_comment: false,
-  });
+ });
   render(<RequestsPage />);
   fireEvent.click(await findButton("З-26-00001"));
   expect(await findButton("Закрыть карточку"))
@@ -173,7 +165,7 @@ it("доска обращений: статусы в колонках, карт�
     created_at: "2026-10-17T08:00:00Z",
     open_at: "2026-10-18T07:30:00Z",
     first_response_due_at: "2026-10-19T07:30:00Z",
-  });
+ });
   render(<RequestsPage />);
   fireEvent.click(await screen.findByRole("radio", { name: "Доска" }));
   // Колонка по статусу строки и карточка с номером на доске.
@@ -203,7 +195,6 @@ it("подтверждение результата раскрывается в 
   expect(vi.mocked(apiFetch).mock.calls.slice(callsBeforeAction).some(([,opts]) => opts?.method === "POST")).toBe(false);
 }, 15000);
 
-
 it("форма действия блокирует параллельную отправку сообщения и сохраняет его черновик", async () => {
   setup();
   render(<RequestsPage />);
@@ -226,7 +217,7 @@ it("в списке видна дата регистрации, срок скр�
     created_at: "2026-10-17T08:00:00Z",
     open_at: "2026-10-18T07:30:00Z",
     first_response_due_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-  });
+ });
   render(<RequestsPage />);
   expect(await screen.findByRole("columnheader", { name: "Дата регистрации" })).toBeInTheDocument();
   expect(screen.getByRole("cell", { name: "18.10.2026, 12:30" })).toBeInTheDocument();
@@ -242,7 +233,7 @@ it("на телефоне в записи показывается дата ре
     created_at: "2026-10-17T08:00:00Z",
     open_at: "2026-10-18T07:30:00Z",
     first_response_due_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-  });
+ });
   render(<RequestsPage />);
   expect(await screen.findByText("Дата регистрации: 18.10.2026, 12:30")).toBeInTheDocument();
   expect(screen.queryByText(/Первый ответ до/)).not.toBeInTheDocument();
@@ -254,9 +245,9 @@ it("фильтр здания отправляет выбранное здани
   vi.mocked(apiFetch).mockImplementation(async (path) => {
     if (path === "/v1/requests/context") {
       return { premises: [], buildings: [{ id: "b1", name: "Дом 1" }] };
-    }
+ }
     return { items: [] };
-  });
+ });
   render(<RequestsPage />);
   const filter = screen.getByRole("combobox", { name: "Фильтр по зданию" });
   fireEvent.mouseDown(filter);
@@ -281,7 +272,7 @@ it("карточка группирует информацию и показыв
       { id: "f1", last_error: "DELIVERY_FAILED" },
       { id: "f2", last_error: "DELIVERY_FAILED" },
     ],
-  });
+ });
   render(<RequestsPage />);
   fireEvent.click(await findButton("З-26-00001"));
   await screen.findByText("Публичный ответ");
@@ -302,7 +293,7 @@ it("карточка группирует информацию и показыв
   const blocks = [warning, process, information, conversation, history, delivery];
   blocks.slice(1).forEach((block, index) => {
     expect(blocks[index]!.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
+ });
   expect(within(dialog).queryByText("Доставка не удалась")).toBeNull();
   expect(within(conversation).getByRole("tab", { name: "Внутреннее" })).toBeInTheDocument();
 });
@@ -334,7 +325,7 @@ it("прошлая задержка ответа не показывает пр�
     overdue_since: "2020-01-01T00:00:00Z",
     first_response_due_at: "2020-01-01T00:00:00Z",
     first_response_at: "2020-01-01T00:26:00Z",
-  });
+ });
   render(<RequestsPage />);
   fireEvent.click(await findButton("З-26-00001"));
   await screen.findByText("Публичный ответ");
@@ -357,7 +348,7 @@ it("запрос уточнения требует только вопрос и 
       action: "ask_clarification",
       reason: "Уточните номер подъезда",
       payload: expect.objectContaining({ question: "Уточните номер подъезда" }),
-    }) }),
+ }) }),
   ));
 });
 
@@ -371,7 +362,6 @@ it("исправление места показывает дом перед п�
   expect(building.compareDocumentPosition(premises) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(screen.getByLabelText("Причина исправления")).toBeInTheDocument();
 });
-
 
 it.each([
   ["Итоговый ответ", "submit_result", "Итоговый ответ жителю", "summary"],
@@ -387,7 +377,7 @@ it.each([
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(
     "/v1/requests/r/transitions", expect.objectContaining({ body: expect.objectContaining({
       action, payload: expect.objectContaining({ [key]: "Содержательное описание" }),
-    }) }),
+ }) }),
   ));
 });
 
@@ -400,15 +390,15 @@ it("итоговый ответ доступен и для заявки с ра�
   fireEvent.click(await findButton("Итоговый ответ", true));
   fireEvent.change(screen.getByLabelText("Итоговый ответ жителю"), {
     target: { value: "Работы выполнены" },
-  });
+ });
   fireEvent.click(await findButton("Итоговый ответ", true));
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(
     "/v1/requests/r/transitions", expect.objectContaining({ body: expect.objectContaining({
       action: "submit_result",
       payload: expect.objectContaining({
         confirmation_payload: expect.objectContaining({ summary: "Работы выполнены" }),
-      }),
-    }) }),
+ }),
+ }) }),
   ));
 });
 
@@ -422,18 +412,17 @@ it("Отклонить сохраняет причину и маршрут бе�
   expect(screen.queryByLabelText("Остановка работ и обязательства")).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Причина отклонения и урегулирование обязательств"), {
     target: { value: "Работы остановлены, обязательства урегулированы" },
-  });
+ });
   fireEvent.change(screen.getByLabelText("Дальнейший маршрут"), { target: { value: "Обратиться к поставщику" } });
   fireEvent.click(await findButton("Отклонить", true));
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(
     "/v1/requests/r/transitions", expect.objectContaining({ body: expect.objectContaining({
       action: "reject", payload: expect.objectContaining({
         stop_resolution: "Работы остановлены, обязательства урегулированы", route: "Обратиться к поставщику",
-      }),
-    }) }),
+ }),
+ }) }),
   ));
 });
-
 
 it("начало работы выбирает исполнителя и отправляет одну составную операцию с ключом повтора", async () => {
   const row = setup(true); row.state = "reviewing";
@@ -441,7 +430,7 @@ it("начало работы выбирает исполнителя и отп�
   vi.mocked(apiFetch).mockImplementation(async (path, options) => {
     if (path === "/v1/requests/r/task-assignees") return { items: [{ id: "worker", full_name: "Исполнитель дома" }] };
     return original(path, options);
-  });
+ });
   render(<RequestsPage />);
   fireEvent.click(await findButton("З-26-00001"));
   fireEvent.click(await findButton("Начать работу", true));
@@ -458,8 +447,8 @@ it("начало работы выбирает исполнителя и отп�
     method: "POST", idempotencyKey: expect.any(String), body: {
       expected_version: 4, plan: "Проверить водоснабжение", assignee_person_id: "worker",
       due_at: new Date("2099-01-01T15:00").toISOString(),
-    },
-  })));
+ },
+ })));
   expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path === "/v1/requests/r/transitions")).toHaveLength(0);
 });
 
@@ -471,7 +460,6 @@ it("связанные задания показывают ссылку, исп�
   expect(await screen.findByRole("link", { name: "ЗД-42" })).toHaveAttribute("href", "/tasks?task=task-id");
   expect(screen.getByText(/Исполнитель дома · Ожидает принятия/)).toBeInTheDocument();
 });
-
 
 it("выбор колонок обращений скрывает описание и сохраняется отдельно от заданий", async () => {
   setup();
@@ -487,7 +475,6 @@ it("выбор колонок обращений скрывает описани
   // Задания не настраивались — старое сохранение не переписывается без изменений.
   expect(JSON.parse(localStorage.getItem("columns.tasks")!)).toEqual(["assignee_name"]);
 });
-
 
 it("поиск, состояние и период применяются автоматически без кнопки Применить", async () => {
   setup();
@@ -513,9 +500,9 @@ it("запоздавший ответ предыдущего фильтра не
   vi.mocked(apiFetch).mockImplementation(async (path, options) => {
     if (path === "/v1/requests/search" && (options?.body as { state?: string } | undefined)?.state === "in_work") {
       return new Promise(resolve => { resolveOld = resolve; });
-    }
+ }
     return original(path, options);
-  });
+ });
   render(<RequestsPage />);
   await findButton("З-26-00001");
   const stateFilter = screen.getByRole("combobox", { name: "Статус обращения" });
@@ -564,16 +551,16 @@ it("принятие на рассмотрение выполняется одн
       row.state = "reviewing";
       row.version++;
       return row;
-    }
+ }
     return original(path, options);
-  });
+ });
   render(<RequestsPage />);
   fireEvent.click(await findButton("З-26-00001"));
   const button = await findButton("Принять на рассмотрение");
   fireEvent.click(button);
   await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/requests/r/transitions", expect.objectContaining({
     method: "POST", body: expect.objectContaining({ action: "start_review", expected_version: 4 }),
-  })));
+ })));
   expect(screen.queryByRole("region", { name: "Принять на рассмотрение" })).not.toBeInTheDocument();
   expect(button).toBeDisabled();
   fireEvent.click(button);
@@ -591,7 +578,7 @@ it("ошибка прямого принятия остаётся в карто�
   vi.mocked(apiFetch).mockImplementation(async (path, options) => {
     if (path === "/v1/requests/r/transitions") throw new Error("Не удалось принять обращение");
     return original(path, options);
-  });
+ });
   render(<RequestsPage />);
   fireEvent.click(await findButton("З-26-00001"));
   fireEvent.click(await findButton("Принять на рассмотрение"));

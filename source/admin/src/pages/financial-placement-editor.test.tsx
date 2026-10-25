@@ -1,10 +1,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { FinancialPlacementEditor } from "./financial-placement-editor";
 import { apiFetch } from "../lib/api";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
-const computed = window.getComputedStyle.bind(window);
-beforeEach(() => { vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element)); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.restoreAllMocks(); });
 const duty = { id: "duty", publication_id: "pub", version: 3, active_version_id: "released", rule_snapshot: { definition: { channels: ["Стенд"] } } };
 it("черновик не предлагается как доказательство размещения; выпущенная версия доступна", async () => {

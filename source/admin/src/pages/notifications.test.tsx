@@ -5,7 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { NotificationsPage } from "./notifications";
 import { apiFetch } from "../lib/api";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
@@ -13,12 +13,6 @@ vi.mock(
   "../lib/identity",
   () => ({ useCabinetIdentity: () => ({ roles: ["administrator"] }) }),
 );
-const computed = window.getComputedStyle.bind(window);
-beforeEach(() => {
-  vi.spyOn(window, "getComputedStyle").mockImplementation((element) =>
-    computed(element)
-  );
-});
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -34,8 +28,8 @@ it(
           items: [{ event_type: "publication", mode: "digest" }, {
             event_type: "request.status",
             mode: "off",
-          }],
-        }
+ }],
+ }
         : {
           items: [{
             id: "n",
@@ -45,8 +39,8 @@ it(
             attempts: 1,
             followup_id: "f",
             followup_state: "open",
-          }],
-        }
+ }],
+ }
     );
     render(<NotificationsPage section="failures" />);
     expect(await screen.findByText("Тестовый житель")).toBeInTheDocument();
@@ -54,7 +48,7 @@ it(
     fireEvent.click(await screen.findByText("Записать результат связи"));
     fireEvent.change(screen.getByLabelText("Что удалось выяснить"), {
       target: { value: "Не ответил; повторить звонок завтра" },
-    });
+ });
     fireEvent.click(await screen.findByText("Сохранить результат"));
     await waitFor(() =>
       expect(apiFetch).toHaveBeenCalledWith(
@@ -62,10 +56,10 @@ it(
         {
           method: "POST",
           body: { result: "Не ответил; повторить звонок завтра" },
-        },
+ },
       )
     );
-  },
+ },
   15000,
 );
 it("ошибка загрузки показана с повтором", async () => {
@@ -74,7 +68,6 @@ it("ошибка загрузки показана с повтором", async (
   expect(await screen.findByText("Нет соединения")).toBeInTheDocument();
   expect(screen.getByText("Повторить")).toBeInTheDocument();
 });
-
 
 it("мои настройки не запрашивают ошибки доставки", async () => {
   vi.mocked(apiFetch).mockResolvedValue({ language: "ru", items: [] });

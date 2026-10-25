@@ -6,8 +6,7 @@ import { apiFetch } from "../lib/api";
 const session = vi.hoisted(() => ({ roles: ["chairman"] }));
 vi.mock("../lib/identity", () => ({ useCabinetIdentity: () => ({ roles: session.roles }) }));
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn().mockResolvedValue({items:[]}) }));
-const computed = window.getComputedStyle.bind(window);
-beforeEach(() => { session.roles = ["chairman"]; vi.spyOn(window,"getComputedStyle").mockImplementation(el => computed(el)); });
+beforeEach(() => { session.roles = ["chairman"]; });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 it.each([false,true])("страница управления templates=%s открывается без кнопки К заданиям", templates => {
   render(<MemoryRouter><TaskToolsPage templates={templates} /></MemoryRouter>);
