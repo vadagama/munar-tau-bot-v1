@@ -1,3 +1,4 @@
+import { CardDrawer } from "./card-drawer";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -66,6 +67,8 @@ export function TimeRulesPage() {
     [error, setError] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
     [editing, setEditing] = useState<Rule | null>(null);
+  const [selected, setSelected] = useState<Rule | null>(null);
+  const [returnRule, setReturnRule] = useState<{rule: Rule; values: object} | null>(null);
   const [history, setHistory] = useState<Rule[]>([]);
   const [form] = Form.useForm();
   const load = async () => {
@@ -103,7 +106,8 @@ export function TimeRulesPage() {
         method: "POST",
         body: { params, reason },
       });
-      setEditing(null);
+      if (returnRule) { form.resetFields(); form.setFieldsValue(returnRule.values); setEditing(returnRule.rule); setReturnRule(null); }
+      else setEditing(null);
       await load();
     } catch (e) {
       if (e instanceof Error) setError(e.message);
@@ -111,6 +115,17 @@ export function TimeRulesPage() {
       setBusy(false);
     }
   };
+  const editRule = (r: Rule) => {
+    form.resetFields();
+    form.setFieldsValue({...r.params, timezone: r.params.timezone ?? "Asia/Almaty", days: r.params.days ?? [0,1,2,3,4,5,6]});
+    setEditing(r);
+  };
+  const duration = (r: Rule) => !r.version ? "Не настроен" : r.key === "digest_time" ? "Окончание текущей смены" : r.key === "work_schedule" ? `${r.params.start}:00–${r.params.end}:00 (${r.params.timezone})` : `${r.params.hours} ${r.params.clock === "working" ? "рабочих" : "календарных"} ч`;
+  const renderDetails = (r: Rule) => <Space direction="vertical">
+          {r.contract && <Typography.Paragraph>Начало: {r.contract.start}<br/>Отсчёт: {r.contract.calendar_pause}<br/>{r.contract.business_pause}<br/>Погашение: {r.contract.finish}<br/>По истечении: {r.contract.effect}<br/>Условия, версия {r.contract.version}{r.contract_legacy ? " (исходные условия старой версии)" : ""}</Typography.Paragraph>}
+          {r.kind==="legal" && <Alert type="warning" message={`Правовой регламент: ${r.legal_source ?? "источник не заполнен"}; редакция: ${r.legal_revision ?? "не заполнена"}`} description={`Допустимая длительность: ${r.legal_limits?.min_hours ?? "не задана"}–${r.legal_limits?.max_hours ?? "не задана"} ч`} />}
+          {history.filter(v=>v.key===r.key && v.version).map(v=><Typography.Paragraph key={v.id}>Версия {v.version} · {formatDateTime(v.created_at)} · автор: {v.created_by_name ?? (v.created_by ? "Сотрудник" : "Начальная настройка")}<br/>{v.reason}<br/>{ruleDetails(v)}{v.contract && <><br/>Условия, версия {v.contract.version}: {v.contract.effect}{v.contract_legacy ? " (исходные)" : ""}</>}</Typography.Paragraph>)}
+        </Space>;
   return (
     <PageLayout title="Регламенты">
       <Alert className="cabinet-page__intro"
@@ -122,40 +137,31 @@ export function TimeRulesPage() {
       <ConfigurableTable storageKey="columns.time-rules" settingsPlacement="page"
         rowKey="key"
         dataSource={rules}
+        mobileRender={r => <div className="mobile-summary">
+          <Button type="link" onClick={() => setSelected(r)}>{names[r.key] ?? r.key}</Button>
+          <Typography.Text>{duration(r)}</Typography.Text>
+          {r.version ? <Typography.Text type="secondary">Версия {r.version}</Typography.Text> : null}
+          {r.key !== "digest_time" && <Button onClick={() => editRule(r)}>Новая версия</Button>}
+        </div>}
         loading={busy}
         scroll={{ x: 900 }}
-        expandable={{expandedRowRender:r=><Space direction="vertical">
-          {r.contract && <Typography.Paragraph>Начало: {r.contract.start}<br/>Отсчёт: {r.contract.calendar_pause}<br/>{r.contract.business_pause}<br/>Погашение: {r.contract.finish}<br/>По истечении: {r.contract.effect}<br/>Условия, версия {r.contract.version}{r.contract_legacy ? " (исходные условия старой версии)" : ""}</Typography.Paragraph>}
-          {r.kind==="legal" && <Alert type="warning" message={`Правовой регламент: ${r.legal_source ?? "источник не заполнен"}; редакция: ${r.legal_revision ?? "не заполнена"}`} description={`Допустимая длительность: ${r.legal_limits?.min_hours ?? "не задана"}–${r.legal_limits?.max_hours ?? "не задана"} ч`} />}
-          {history.filter(v=>v.key===r.key && v.version).map(v=><Typography.Paragraph key={v.id}>Версия {v.version} · {formatDateTime(v.created_at)} · автор: {v.created_by_name ?? (v.created_by ? "Сотрудник" : "Начальная настройка")}<br/>{v.reason}<br/>{ruleDetails(v)}{v.contract && <><br/>Условия, версия {v.contract.version}: {v.contract.effect}{v.contract_legacy ? " (исходные)" : ""}</>}</Typography.Paragraph>)}
-        </Space>}}
-
         columns={[
           {
             title: "Правило",
             dataIndex: "key",
-            render: (v) => names[String(v)] ?? String(v),
+            render: (v, r) => <Button type="link" onClick={() => setSelected(r)}>{names[String(v)] ?? String(v)}</Button>,
           },
           { title: "Версия", dataIndex: "version" },
           {
             title: "Длительность",
-            render: (_, r) =>
-              !r.version ? "Не настроен" : r.key==="digest_time" ? "Окончание текущей смены" : r.key==="work_schedule" ? `${r.params.start}:00–${r.params.end}:00 (${r.params.timezone})` : `${r.params.hours} ${r.params.clock === "working" ? "рабочих" : "календарных"} ч`,
+            render: (_, r) => duration(r),
           },
           {
             title: "Действие",
             render: (_, r) => (
               <Button
                 disabled={r.key === "digest_time"}
-                onClick={() => {
-                  form.resetFields();
-                  form.setFieldsValue({
-                    ...r.params,
-                    timezone: r.params.timezone ?? "Asia/Almaty",
-                    days: r.params.days ?? [0, 1, 2, 3, 4, 5, 6],
-                  });
-                  setEditing(r);
-                }}
+                onClick={() => editRule(r)}
               >
                 Новая версия
               </Button>
@@ -163,16 +169,29 @@ export function TimeRulesPage() {
           },
         ]}
       />
+      <CardDrawer open={!!selected} title={selected ? names[selected.key] ?? selected.key : "Регламент"} onClose={() => setSelected(null)}>
+        {selected && renderDetails(selected)}
+      </CardDrawer>
       <Modal
         title={editing ? names[editing.key] ?? editing.key : "Регламент"}
         open={!!editing}
-        onCancel={() => setEditing(null)}
+        onCancel={() => { if (returnRule) { form.resetFields(); form.setFieldsValue(returnRule.values); setEditing(returnRule.rule); setReturnRule(null); } else setEditing(null); }}
         onOk={() => void save()}
         confirmLoading={busy}
         okText="Сохранить версию"
         cancelText="Отмена"
       >
         <Form name="registration-time-rule" form={form} layout="vertical">
+          {editing?.key !== "work_schedule" && <Alert type="info" showIcon
+            message="Часы, рабочие дни и часовой пояс общие для всех правил с рабочим отсчётом времени."
+            description={<Button type="link" disabled={!rules.some(r => r.key === "work_schedule") || busy} onClick={() => {
+              const schedule = rules.find(r => r.key === "work_schedule");
+              if (!schedule || !editing) return;
+              setReturnRule({rule: editing, values: form.getFieldsValue(true)});
+              form.resetFields(); form.setFieldsValue(schedule.params); setEditing(schedule);
+            }}>Открыть общий график</Button>} style={{marginBottom: 16}} />}
+          {editing?.key === "work_schedule" && <Alert type="info" showIcon message="Изменения общего графика применяются к новым срокам всех правил с рабочим отсчётом. Уже запущенные таймеры сохраняют прежний график." style={{marginBottom: 16}} />}
+
           <Form.Item
             name="hours"
             hidden={editing?.key==="work_schedule"}
@@ -194,16 +213,16 @@ export function TimeRulesPage() {
               ]}
             />
           </Form.Item>
-          <Form.Item name="start" label="Открытие, час">
+          <Form.Item hidden={editing?.key!=="work_schedule"} name="start" label="Открытие, час">
             <InputNumber disabled={editing?.key!=="work_schedule"} min={0} max={23} precision={0} />
           </Form.Item>
-          <Form.Item name="end" label="Окончание, час">
+          <Form.Item hidden={editing?.key!=="work_schedule"} name="end" label="Окончание, час">
             <InputNumber disabled={editing?.key!=="work_schedule"} min={1} max={24} precision={0} />
           </Form.Item>
-          <Form.Item name="timezone" label="Часовой пояс">
+          <Form.Item hidden={editing?.key!=="work_schedule"} name="timezone" label="Часовой пояс">
             <Input disabled={editing?.key!=="work_schedule"} />
           </Form.Item>
-          <Form.Item name="days" label="Рабочие дни">
+          <Form.Item hidden={editing?.key!=="work_schedule"} name="days" label="Рабочие дни">
             <Select
               disabled={editing?.key!=="work_schedule"}
               mode="multiple"

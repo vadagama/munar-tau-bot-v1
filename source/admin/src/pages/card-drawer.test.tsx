@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { CardDrawer } from "./card-drawer";
 
@@ -49,7 +49,7 @@ it("сохранение защищает все способы закрытия
   expect(screen.getByText("Форма с несохранёнными данными")).toBeInTheDocument();
 });
 
-it("подтверждение выхода не закрывает карточку, если после предупреждения началось сохранение", () => {
+it("подтверждение выхода не закрывает карточку, если после предупреждения началось сохранение", async () => {
   const onClose = vi.fn();
   const { rerender } = render(
     <CardDrawer open title="Объект" onClose={onClose} hasUnsavedChanges={() => true}>
@@ -57,7 +57,7 @@ it("подтверждение выхода не закрывает карточ
     </CardDrawer>,
   );
   fireEvent.click(screen.getByRole("button", { name: "Закрыть карточку" }));
-  expect(screen.getByRole("button", { name: "Выйти без сохранения" })).toBeVisible();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Выйти без сохранения" })).toBeVisible());
   rerender(
     <CardDrawer open title="Объект" onClose={onClose} hasUnsavedChanges={() => true} closeDisabled>
       <span>Изменённые данные</span>

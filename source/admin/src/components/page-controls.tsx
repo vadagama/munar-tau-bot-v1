@@ -6,7 +6,8 @@ import { useMobile } from "../lib/use-mobile";
 export const PageControlsContext = createContext<{
   searchTarget: HTMLDivElement | null;
   sortTarget: HTMLDivElement | null;
-  registerSort: () => () => void;
+  sortOwner?: string;
+  registerSort: (id: string) => () => void;
 } | null>(null);
 
 /** Поиск остаётся доступным, даже когда мобильные фильтры свёрнуты. */

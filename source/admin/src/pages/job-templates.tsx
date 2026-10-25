@@ -192,6 +192,16 @@ export function JobTemplates(
         rowKey="id"
         loading={busy}
         dataSource={filteredRows}
+        mobileRender={r => <div className="mobile-summary">
+          <Button type="link" onClick={() => {setScheduleDirty(false); setSchedule(r);}}>{String(r.name)}</Button>
+          <Typography.Text type="secondary">Версия {String(r.version)}</Typography.Text>
+          <div className="mobile-summary__actions">
+            <Button onClick={() => {setScheduleDirty(false); setSchedule(r);}}>Расписание и запуски</Button>
+            <Button onClick={() => begin("edit", r)}>Новая версия</Button>
+            <Button onClick={() => void history(r)}>История версий</Button>
+            <Button disabled={!r.active} onClick={() => begin("run", r)}>Создать задание</Button>
+          </div>
+        </div>}
         scroll={{ x: 600 }}
         columns={[{ title: "Шаблон", dataIndex: "name" }, {
           title: "Версия",

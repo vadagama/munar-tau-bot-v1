@@ -27,7 +27,7 @@ function ReportPanel({kinds,exportAllowed,configure}:{kinds:ReportKind[];exportA
  const labels=data?.filter_options?.buildings??[];
  const states=kind==="requests"?["new","reviewing","need_clarification","in_work","on_hold","awaiting_confirmation","rework","closed","canceled","rejected"]:kind==="tasks"?["created","awaiting_acceptance","accepted","in_progress","suspended","on_review","rework","accepted_admin","canceled"]:["signal_check","confirmed","not_confirmed","mitigation","recovery_check","completed"];
  const href=(row:ReportRow)=>kind==="requests"?`/requests?request=${encodeURIComponent(String(row.id))}`:kind==="tasks"?`/tasks?task=${encodeURIComponent(String(row.id))}`:`/incidents?incident=${encodeURIComponent(String(row.id))}`;
- return <PageLayout title="Отчётность" actions={<Button loading={busy} disabled={!kinds.length} onClick={()=>void load()}>Обновить отчёт</Button>} filters={!!kinds.length&&<Space wrap>
+ return <PageLayout title="Отчётность" filters={!!kinds.length&&<Space wrap>
  <label>От (включительно)<Input aria-label="Начало периода" type="date" value={dates.from} onChange={e=>{setOffset(0);setDates({...dates,from:e.target.value});}}/></label>
  <label>До (исключительно)<Input aria-label="Конец периода" type="date" value={dates.to} onChange={e=>{setOffset(0);setDates({...dates,to:e.target.value});}}/></label>
  <Select prefix={<FilterOutlined aria-hidden />} aria-label="Дома отчёта" mode="multiple" allowClear placeholder="Все доступные дома" style={{minWidth:200}} value={buildings} options={labels.map(b=>({value:b.id,label:b.label}))} onChange={v=>{setOffset(0);setBuildings(v);}}/>

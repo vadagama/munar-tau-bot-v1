@@ -59,7 +59,7 @@ it("инцидент показывает незавершённое восст�
       }
   );
   render(<IncidentsPage />);
-  fireEvent.click(await screen.findByText("Открыть"));
+  fireEvent.click(await screen.findByRole("button", {name:"Вода"}));
   expect(await screen.findByText(/восстановление не подтверждено/))
     .toBeInTheDocument();
   expect(screen.getByText(/Второй стояк ещё проверяется/)).toBeInTheDocument();
@@ -98,7 +98,7 @@ it(
       path === "/v1/publications" ? { items: [row] } : row
     );
     render(<PublicationsPage />);
-    fireEvent.click(await screen.findByText("Открыть"));
+    fireEvent.click(await screen.findByRole("button", {name:"Промывка"}));
     await waitFor(() =>
       expect(screen.getByText(/Фактическое восстановление: не подтверждено/))
         .toBeInTheDocument()
@@ -153,7 +153,7 @@ it("редактирование публикации использует ту 
       ? { items: path === "/v1/publications" ? [row] : [] } : row
   );
   render(<PublicationsPage />);
-  fireEvent.click(await screen.findByText("Открыть"));
+  fireEvent.click(await screen.findByRole("button", {name:"Промывка"}));
   await screen.findByText("Сообщение жителям");
   const drawer = screen.getByRole("dialog");
   fireEvent.click(within(drawer).getByRole("button", { name: "Редактировать" }));
@@ -170,7 +170,7 @@ it("согласованный финансовый отчёт предлага�
  const card={id:"p",title:"Отчёт за месяц",body:"Доходы и расходы",kind:"financial_report",state:"draft",approved_by:"chairman",files:[],history:[],can_manage:true,can_approve:false,financial_versions:[]};
  vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/publications" ? {items:[card]} : card);
  render(<PublicationsPage/>);
- fireEvent.click(await screen.findByText("Открыть"));
+ fireEvent.click(await screen.findByRole("button", {name:"Отчёт за месяц"}));
  const process=await screen.findByRole("region",{name:"Сейчас по процессу"});
  expect(within(process).getByRole("button",{name:"Опубликовать"})).toHaveClass("ant-btn-primary");
  expect(within(process).queryByRole("button",{name:"На согласование председателю"})).toBeNull();

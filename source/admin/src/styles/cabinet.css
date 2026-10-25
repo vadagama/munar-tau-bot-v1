@@ -65,3 +65,23 @@
   .mobile-sort { align-self: flex-end; width: 210px; max-width: 100%; }
   .mobile-summary__title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 }
+.discard-changes-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+@media (max-width: 767px) {
+  .ant-input-affix-wrapper { min-height: 44px; align-items: center; }
+  .ant-input-affix-wrapper > input.ant-input { min-height: 0; }
+  .ant-input-search .ant-input-group-addon .ant-btn { height: 44px; }
+  .discard-changes-actions { flex-direction: column; }
+  .discard-changes-actions .ant-btn { height: auto; white-space: normal; padding-block: 10px; }
+  .mobile-summary .ant-btn-link { height: auto; min-height: 44px; padding: 8px 0; text-align: left; white-space: normal; justify-content: flex-start; }
+  .mobile-summary .ant-btn-link > span { overflow-wrap: anywhere; }
+  .mobile-summary .ant-tag { white-space: normal; max-width: 100%; margin: 0; }
+  .mobile-summary__actions, .mobile-summary__tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .mobile-summary__actions .ant-btn { height: auto; white-space: normal; }
+  .mobile-record-fields > div:has(.ant-btn) { grid-template-columns: 1fr; }
+  .mobile-record-fields .ant-space { flex-wrap: wrap; max-width: 100%; }
+}
+@media (max-width: 767px) {
+  .mobile-summary { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+  .mobile-summary__actions { width: 100%; margin-top: 4px; }
+  .mobile-summary__actions .ant-space-item { max-width: 100%; }
+}

@@ -241,6 +241,12 @@ export function StaffPage() {
       <ConfigurableTable storageKey="columns.staff" settingsPlacement="page"
         rowKey="id"
         dataSource={rows}
+        mobileRender={row => <div className="mobile-summary">
+          <Button type="link" onClick={() => void open(row.id)}>{row.full_name}</Button>
+          <div className="mobile-summary__tags">{row.roles.length ? row.roles.map(r => <Tag key={r}>{ROLE_LABELS[r]}</Tag>) : <span>{row.scheduled ? "Будущее назначение" : "Бывший сотрудник"}</span>}</div>
+          <div>{row.phone_e164}</div><TelegramHandle username={row.telegram_username} />
+          <Typography.Text type="secondary">Открытых заданий: {row.open_tasks}</Typography.Text>
+        </div>}
         loading={busy}
         scroll={{ x: 650 }}
         pagination={{ pageSize: 20, showSizeChanger: true }}

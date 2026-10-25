@@ -1,7 +1,8 @@
 import { FilterOutlined } from "@ant-design/icons";
 import { PageSearch } from "../components/page-controls";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Select, Space, Typography } from "antd";
+import { CardDrawer } from "./card-drawer";
+import { Alert, Button, Descriptions, Select, Space, Typography } from "antd";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -23,6 +24,7 @@ export function summarizePhases(buildings: RegistryRow[], premises: RegistryRow[
 }
 
 export function RegistryPhasesPage() {
+  const [selected, setSelected] = useState<ReturnType<typeof summarizePhases>[number] | null>(null);
   const [buildings, setBuildings] = useState<RegistryRow[]>([]);
   const [premises, setPremises] = useState<RegistryRow[]>([]);
   const [busy, setBusy] = useState(false);
@@ -71,10 +73,15 @@ export function RegistryPhasesPage() {
     <ConfigurableTable storageKey="columns.registry.phases" settingsPlacement="page" rowKey="id" loading={busy}
       dataSource={error && !buildings.length ? [] : rows} scroll={{ x: 800 }} pagination={{ current: page, onChange: setPage, pageSize: 20 }}
       locale={{ emptyText: error ? "Данные не загружены" : "По выбранным условиям ничего не найдено" }} columns={[
-        { title: "Очередь", dataIndex: "name" },
-        { title: "Зданий", dataIndex: "building_count" },
-        { title: "Состав зданий", dataIndex: "buildings" },
+        { title: "Очередь", dataIndex: "name", render: (name, row) => <Button type="link" onClick={() => setSelected(row)}>{name}</Button> },
         { title: "Помещений", dataIndex: "premises_count" },
       ]} />
+    <CardDrawer open={!!selected} title={selected?.name} onClose={() => setSelected(null)}>
+      {selected && <Descriptions column={1} layout="vertical" items={[
+        {key:"buildings",label:"Состав зданий",children:selected.buildings},
+        {key:"count",label:"Зданий",children:selected.building_count},
+        {key:"premises",label:"Помещений",children:selected.premises_count},
+      ]} />}
+    </CardDrawer>
   </PageLayout>;
 }

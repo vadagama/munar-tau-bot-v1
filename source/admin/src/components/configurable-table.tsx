@@ -1,5 +1,5 @@
 import { SortAscendingOutlined } from "@ant-design/icons";
-import { useContext, useEffect, useState, type ReactNode } from "react";
+import { useContext, useEffect, useId, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Select, Table, type TableProps } from "antd";
 import { useMobile } from "../lib/use-mobile";
@@ -26,6 +26,7 @@ function ConfiguredTable<T extends object>({ storageKey, settingsPlacement = "in
   const [sort, setSort] = useState<string>();
   const host = useContext(TableSettingsContext);
   const controls = useContext(PageControlsContext);
+  const sortId = useId();
   const registerSort = controls?.registerSort;
   const register = host?.register;
   const pageSettings = settingsPlacement === "page" && !!host && !mobile;
@@ -49,15 +50,15 @@ function ConfiguredTable<T extends object>({ storageKey, settingsPlacement = "in
     ? [{value:`${index}:ascend`,label:`${column.title} ↑`}, {value:`${index}:descend`,label:`${column.title} ↓`}] : []);
   const pageSort = mobile && mobileSortPlacement === "page" && !!controls && sortOptions.length > 0;
   useEffect(() => {
-    if (pageSort && registerSort) return registerSort();
-  }, [pageSort, registerSort]);
+    if (pageSort && registerSort) return registerSort(sortId);
+  }, [pageSort, registerSort, sortId]);
   const sorting = mobileSortPlacement !== "none" && !!sortOptions.length && <Select prefix={<SortAscendingOutlined aria-hidden />} className="mobile-sort" aria-label="Сортировка списка" placeholder="Сортировка" allowClear
     value={sort} onChange={next => {
       setSort(next);
       if (props.pagination) props.pagination.onChange?.(1, props.pagination.pageSize ?? props.pagination.defaultPageSize ?? 10);
     }} options={sortOptions} />;
   if (mobile) return <>
-    {pageSort ? controls.sortTarget && createPortal(sorting, controls.sortTarget)
+    {pageSort ? controls.sortOwner === sortId && controls.sortTarget && createPortal(sorting, controls.sortTarget)
       : sorting && <details className="cabinet-page__compact-filters"><FilterSortSummary />{sorting}</details>}
     <Table<T> key={sort ?? "default"} {...props} className={`mobile-records ${props.className ?? ""}`}
     scroll={undefined} showHeader={false} tableLayout="auto"
