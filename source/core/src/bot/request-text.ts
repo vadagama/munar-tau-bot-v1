@@ -4,7 +4,7 @@ import { requestStateText } from "../locales/requests.ts";
 import type { Row } from "../domains/registry/validation.ts";
 import { ApiError } from "../errors/api.ts";
 import { type BotReply, btn, type InlineButton } from "./keyboard.ts";
-import { esc, fmtDate, fmtDay, type Lang, numbered } from "./text.ts";
+import { esc, fmtDate, fmtListStamp, type Lang } from "./text.ts";
 
 /** Telegram sendMessage: 4096 символов. Не разрываем последнюю суррогатную пару. */
 export function preview(value: unknown, limit: number): string {
@@ -29,20 +29,24 @@ export function requestListText(
   const username = residentBotUsername ?? "munar_tau_user_bot";
   if (!/^[A-Za-z0-9_]+$/.test(username)) throw new ApiError("INTERNAL");
   const visible = rows.slice(0, 10);
+  // «❗» перед номером — только у обращений, требующих ответа жителя
+  // (уточнение/подтверждение); строка «Требуют вашего ответа» внизу — из каталога.
+  const needsAnswer = (r: Row): boolean =>
+    r.state === "need_clarification" || r.state === "awaiting_confirmation";
   const list = visible.map((r) =>
-    `<b>${r.state!=='draft' && /^[0-9a-f-]{36}$/i.test(String(r.id)) ? `<a href="https://t.me/${username}?start=req_${r.id}">${esc(r.number)}</a>` : (r.number
+    `${needsAnswer(r) ? "❗ " : ""}<b>${r.state!=='draft' && /^[0-9a-f-]{36}$/i.test(String(r.id)) ? `<a href="https://t.me/${username}?start=req_${r.id}">${esc(r.number)}</a>` : (r.number
       ? esc(r.number)
       : templateText(store, lang, "requests.chernovik"))}</b>${
       r.state === "draft"
         ? ""
         : ` · ${esc(requestStateText(r.state, lang))} · ${
-          esc(fmtDay(r.created_at))
+          esc(fmtListStamp(r.created_at))
         }`
     }${
       r.can_manage !== true && r.author_person_id !== personId
         ? ` · ${templateText(store, lang, "requests.sovmestnoe")}`
         : ""
-    }\n${esc(preview(r.description, 120))}`
+    }\n"${esc(preview(r.description, 120))}"`
   );
   // Подзаголовок вида списка и строка «требуют ответа» — слова из каталога.
   const scope = view.archive
@@ -54,7 +58,7 @@ export function requestListText(
   const text = message(store, lang, "message.requests.list", {
     requests: safeBlock(
       list.length
-        ? numbered(list)
+        ? list.join("\n")
         : templateText(store, lang, "requests.obrascheniy_net"),
     ),
     scope,
