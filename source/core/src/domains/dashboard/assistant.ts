@@ -5,12 +5,18 @@ import type { RegistryDeps } from "../registry/service.ts";
 import { buildAuditInput } from "../audit/entry.ts";
 import { getDashboard, type DashboardWidget } from "./service.ts";
 import { deepseekAnswer } from "./assistant-provider.ts";
-export interface AssistantConfig { apiKey: string; profileIds: readonly string[] }
-export type AssistantStatus = { state: "disabled" } | { state: "unavailable" } | { state: "enabled" | "limit"; remaining: number | null; daily_limit: number | null };
+export interface AssistantSupport { telegram?: string; phone?: string }
+export interface AssistantConfig { apiKey: string; profileIds: readonly string[]; support?: AssistantSupport }
+export type AssistantStatus = { state: "disabled" } | { state: "unavailable" } | { state: "enabled" | "limit"; remaining: number | null; daily_limit: number | null; support?: AssistantSupport };
 export function assistantConfig(env: EnvSource): AssistantConfig | undefined {
   const apiKey = env("DEEPSEEK_API_KEY")?.trim();
   const profileIds = (env("AI_ENABLED_PROFILE_IDS") ?? "").split(",").map(x => x.trim()).filter(Boolean);
-  return apiKey && profileIds.length ? { apiKey, profileIds } : undefined;
+  const telegramName = env("AI_SUBSCRIPTION_TELEGRAM")?.trim().replace(/^https:\/\/t\.me\//, "").replace(/^@/, "");
+  const phoneNumber = env("AI_SUBSCRIPTION_PHONE")?.trim().replace(/[ ()-]/g, "");
+  const telegram = telegramName && /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/.test(telegramName) ? `https://t.me/${telegramName}` : undefined;
+  const phone = phoneNumber && /^\+[1-9]\d{6,14}$/.test(phoneNumber) ? `tel:${phoneNumber}` : undefined;
+  const contact = telegram || phone ? { support: { telegram, phone } } : {};
+  return apiKey && profileIds.length ? { apiKey, profileIds, ...contact } : undefined;
 }
 function allowed(actor: Actor, config?: AssistantConfig): config is AssistantConfig {
   return !!config?.apiKey && config.profileIds.includes(actor.profile.id) && actor.person.status === "active" && !actor.person.isTest && !actor.emulation;
@@ -18,11 +24,11 @@ function allowed(actor: Actor, config?: AssistantConfig): config is AssistantCon
 const unlimited = (actor: Actor) => actor.assignments.some(a => a.role === "tech_admin");
 export async function assistantStatus(deps: RegistryDeps, actor: Actor, config?: AssistantConfig): Promise<AssistantStatus> {
   if (!allowed(actor, config)) return { state: "disabled" };
-  if (unlimited(actor)) return { state: "enabled", remaining: null, daily_limit: null };
+  if (unlimited(actor)) return { state: "enabled", remaining: null, daily_limit: null, ...(config.support ? { support: config.support } : {}) };
   try {
     const rows = await deps.db.query<{ used: number }>(`select used from dashboard_ai_quota where profile_id=$1 and day=(now() at time zone 'Asia/Almaty')::date`, [actor.profile.id]);
     const remaining = Math.max(0, 20 - Number(rows[0]?.used ?? 0));
-    return { state: remaining ? "enabled" : "limit", remaining, daily_limit: 20 };
+    return { state: remaining ? "enabled" : "limit", remaining, daily_limit: 20, ...(config.support ? { support: config.support } : {}) };
   } catch { return { state: "unavailable" }; }
 }
 /** Shared across isolates/tabs. Failed paid attempts are deliberately not refunded. */

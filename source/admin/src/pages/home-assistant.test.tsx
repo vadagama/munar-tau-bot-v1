@@ -9,7 +9,7 @@ const enabled = { state: "enabled", remaining: 20, daily_limit: 20 } as const;
 describe("home assistant", () => {
   it("does not call paid API on mount; disabled block disappears", () => {
     const view = render(<MemoryRouter><HomeAssistant status={enabled} /></MemoryRouter>);
-    expect(screen.getByText(/Осталось 20/)).toBeInTheDocument(); expect(apiFetch).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Осталось/)).not.toBeInTheDocument(); expect(apiFetch).not.toHaveBeenCalled();
     view.rerender(<MemoryRouter><HomeAssistant status={{ state: "disabled" }} /></MemoryRouter>);
     expect(screen.queryByText("AI-ассистент")).not.toBeInTheDocument();
   });
@@ -21,7 +21,7 @@ describe("home assistant", () => {
     await waitFor(() => expect(screen.getByText('<script>alert(1)</script>')).toBeInTheDocument());
     expect(apiFetch).toHaveBeenCalledWith("/v1/dashboard/assistant", { method: "POST", body: { question: "Что требует внимания?" } });
     expect(screen.getByRole("link", { name: /Обращения/ })).toHaveAttribute("href", "/requests?dashboard_queue=attention");
-    expect(screen.getByText(/Осталось 19/)).toBeInTheDocument();
+    expect(screen.queryByText(/Осталось/)).not.toBeInTheDocument();
   });
   it("retains the twentieth answer when background refresh reports exhausted quota", async () => {
     let resolve!: (v: unknown) => void;
@@ -34,10 +34,20 @@ describe("home assistant", () => {
     expect(screen.getByText("Последний оплаченный ответ")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
-  it("keeps quota exhausted compact and labels unlimited tech access", () => {
+  it("keeps quota exhausted compact and hides quota for unlimited tech access", () => {
     const view = render(<MemoryRouter><HomeAssistant status={{ state: "limit", remaining: 0, daily_limit: 20 }} /></MemoryRouter>);
-    expect(screen.queryByRole("textbox")).not.toBeInTheDocument(); expect(screen.getByText(/полночь/)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument(); expect(screen.getByText(/Бесплатный лимит/)).toBeInTheDocument();
     view.rerender(<MemoryRouter><HomeAssistant status={{ state: "enabled", remaining: null, daily_limit: null }} /></MemoryRouter>);
-    expect(screen.getByText(/Без суточного лимита/)).toBeInTheDocument();
+    expect(screen.queryByText(/Без суточного лимита/)).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
   });
+});
+
+it("shows configured subscription contacts only after the free limit", () => {
+  const support = { telegram: "https://t.me/support_test", phone: "tel:+77001234567" };
+  const view = render(<MemoryRouter><HomeAssistant status={{ ...enabled, support }} /></MemoryRouter>);
+  expect(screen.queryByRole("link", { name: "Позвонить" })).not.toBeInTheDocument();
+  view.rerender(<MemoryRouter><HomeAssistant status={{ state: "limit", remaining: 0, daily_limit: 20, support }} /></MemoryRouter>);
+  expect(screen.getByRole("link", { name: "Написать в Telegram" })).toHaveAttribute("href", support.telegram);
+  expect(screen.getByRole("link", { name: "Позвонить" })).toHaveAttribute("href", support.phone);
 });

@@ -45,3 +45,5 @@ Deno check/lint/test, build/secret scan, браузер на fixtures.
 - https://api-docs.deepseek.com/quick_start/pricing
 - https://api-docs.deepseek.com/api/create-chat-completion/
 - https://supabase.com/docs/guides/functions/secrets
+
+Уточнение интерфейса: остаток запросов и подпись безлимита не показываются. При исчерпании квоты выводится сообщение о бесплатном лимите на сегодня и инструкция обратиться к ответственному в Telegram или по телефону для платной подписки. Контакты задаются серверными настройками AI_SUBSCRIPTION_TELEGRAM и AI_SUBSCRIPTION_PHONE. Заполненные контакты становятся кнопками; при отсутствии обоих показывается честное сообщение, что контакты пока не указаны. Оплата и платные права этой правкой не реализуются. Серверный суточный лимит сохраняется.

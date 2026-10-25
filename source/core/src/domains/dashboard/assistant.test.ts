@@ -82,3 +82,13 @@ it("gives the model opaque references and numbers, never entity IDs or descripti
   expect(JSON.stringify(result.summary)).not.toMatch(/private/);
   expect(result.sources[1]!.href).toContain("request=private-id");
 });
+
+it("normalizes subscription contacts and rejects unsafe URLs", async () => {
+  const env: Record<string,string> = { DEEPSEEK_API_KEY: "secret", AI_ENABLED_PROFILE_IDS: "profile", AI_SUBSCRIPTION_TELEGRAM: "@support_test", AI_SUBSCRIPTION_PHONE: "+7 (700) 123-45-67" };
+  const c = assistantConfig(k => env[k]);
+  expect(c?.support).toEqual({ telegram: "https://t.me/support_test", phone: "tel:+77001234567" });
+  expect(await assistantStatus(deps(), actor, c)).toMatchObject({ support: c?.support });
+  env.AI_SUBSCRIPTION_TELEGRAM = "javascript:alert(1)";
+  env.AI_SUBSCRIPTION_PHONE = "https://evil.example";
+  expect(assistantConfig(k => env[k])?.support).toBeUndefined();
+});
