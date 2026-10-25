@@ -328,7 +328,7 @@ CI (`.github/workflows/ci.yml`) на каждый PR и push в `main`: node-д�
 
 ## Среды
 
-- `ohpjqsudibkcymjjuedy` (Munar Tau Prod) — облачный демонстрационный стенд во Frankfurt (`eu-central-1`): кабинет, Telegram OIDC, webhook и jobs раз в минуту; для ответов бота — `notifications-fast-tick` каждые 5 секунд (вызывает jobs только при готовых Telegram-уведомлениях), оба вызова закреплены за `eu-central-1`. Название Prod не разрешает реальные данные жителей: рабочая среда по ADR-003 остаётся self-hosted в Казахстане
+- `ohpjqsudibkcymjjuedy` (Munar Tau Prod) — облачный демонстрационный стенд во Frankfurt (`eu-central-1`): кабинет, Telegram OIDC, webhook и jobs раз в минуту; для ответов бота — `notifications-fast-tick` каждые 2 секунды (вызывает jobs только при готовых Telegram-уведомлениях), оба вызова закреплены за `eu-central-1`. Название Prod не разрешает реальные данные жителей: рабочая среда по ADR-003 остаётся self-hosted в Казахстане
 - `fuwsmewtmxmzttwkbdex` (Munar Tau Dev, Sydney) — отдельная БД интеграционных тестов. Только она используется в `TEST_DATABASE_URL` для разрешённых локальных прогонов; в GitHub CI интеграционные тесты не запускаются. Её данные очищаются тестами; расписание доставки выключено, webhook бота на неё не направлен
 - `SUPABASE_PROJECT_ID` и `SUPABASE_DB_PASSWORD` локально относятся к демонстрационному стенду. Никогда не подставлять его URI в `TEST_DATABASE_URL`
 - OIDC callback стенда: `https://ohpjqsudibkcymjjuedy.supabase.co/auth/v1/callback`
