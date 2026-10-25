@@ -98,3 +98,5 @@ ADR фиксируют решения об аутентификации и ра�
 
 - [ADR-021: Главная кабинета — серверные очереди и аналитика](decisions/021-home-dashboard.md).
 - [Проверка новой главной кабинета](home-dashboard-acceptance.md).
+
+- [ADR-022: AI-ассистент через DeepSeek](decisions/022-dashboard-deepseek.md).

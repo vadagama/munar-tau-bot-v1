@@ -18,3 +18,15 @@
 .home-session { margin-top: 24px; }
 .home-session summary { cursor: pointer; margin-bottom: 12px; }
 @media (max-width: 380px) { .home-chart .ant-segmented-item-label { padding-inline: 4px; font-size: 12px; } }
+.home-assistant { margin-bottom: 24px; }
+.home-assistant-prompts { margin-bottom: 12px; }
+.home-assistant-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; }
+.home-assistant-answer { margin-top: 24px; }
+.home-assistant-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  .home-assistant .ant-card-head-wrapper { align-items: flex-start; flex-direction: column; padding-block: 12px; }
+  .home-assistant-footer { align-items: flex-start; flex-direction: column; }
+}
+.home-assistant-prompts { max-width: 100%; }
+.home-assistant-prompts .ant-space-item { max-width: 100%; }
+.home-assistant-prompts .ant-btn { max-width: 100%; height: auto; white-space: normal; text-align: left; padding-block: 6px; }

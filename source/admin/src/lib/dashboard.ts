@@ -1,3 +1,4 @@
+import type { AssistantStatus } from "../../../core/src/domains/dashboard/assistant";
 import { useEffect, useRef, useState } from "react";
 import type { DashboardWidget } from "../../../core/src/domains/dashboard/service";
 import type { DashboardPeriod, PeriodBucket } from "../../../core/src/domains/dashboard/period";
@@ -7,7 +8,7 @@ import { usePageRefresh } from "./use-page-refresh";
 export type { DashboardWidget, DashboardPeriod };
 export interface DashboardResponse {
   widgets: DashboardWidget[]; analytics: boolean;
-  assistant: { state: "disabled" | "limit" | "unavailable" };
+  assistant: AssistantStatus;
   generated_at: string;
 }
 export interface DashboardAnalytics {

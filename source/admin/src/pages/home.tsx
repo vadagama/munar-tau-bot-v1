@@ -1,3 +1,4 @@
+import { HomeAssistant } from "./home-assistant";
 import { useState } from "react";
 import { Alert, Badge, Button, Card, Checkbox, Descriptions, Empty, List, Modal, Select, Skeleton, Space, Tag, Typography, theme } from "antd";
 import { SettingOutlined, HolderOutlined, ArrowUpOutlined, ArrowDownOutlined } from "@ant-design/icons";
@@ -42,8 +43,7 @@ function Dashboard({ storageKey }: { storageKey: string }) {
     {result.error && <Alert type="error" showIcon message="Не удалось загрузить главную" description={result.error} action={<Button onClick={() => void result.reload()}>Повторить</Button>} />}
     {result.loading && <Skeleton active />}
     {storageError && <Alert type="warning" message="Настройки применены. Браузер не позволил сохранить их для следующего посещения." />}
-    {result.data?.assistant.state === "limit" && <Alert type="info" message="Лимит AI-ассистента исчерпан. Все доступные виджеты продолжают работать." />}
-    {result.data?.assistant.state === "unavailable" && <Alert type="info" message="AI-ассистент временно недоступен. Продолжайте работу в виджетах." />}
+    {result.data && <HomeAssistant status={result.data.assistant} />}
     <span className="home-sr-only" role="status">{announcement}</span>
     <div className="home-grid">
       {visible.map((id, index) => {

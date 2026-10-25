@@ -1,3 +1,4 @@
+import { assistantConfig, type AssistantConfig } from "../../core/src/domains/dashboard/assistant.ts";
 import { consumeRateLimit } from "../../core/src/domains/requests/rate-limit.ts";
 import { SupabaseFileStorage, type FileStorage } from "../../core/src/domains/requests/files.ts";
 import { botScenarios } from "../../core/src/bot/scenarios.ts";
@@ -21,6 +22,7 @@ import { SqlEmulationRepo } from "../../core/src/domains/emulation/repo.ts";
 import type { EmulationRepo } from "../../core/src/domains/emulation/port.ts";
 
 export interface ApiDeps {
+  assistant?: AssistantConfig;
   rateLimit?: (profileId:string)=>Promise<void>;
   storage?: FileStorage;
   /** Ключи проверки подписи JWT из JWKS (Supabase Auth; SUPABASE_JWKS инжектируется платформой). */
@@ -57,6 +59,7 @@ function sharedDbClient(connectionString: string): DbClient {
 /** Зависимости из env. Отсутствие обязательных — ConfigError (500 INTERNAL). */
 export async function defaultDeps(env: EnvSource): Promise<ApiDeps> {
   return {
+    assistant: assistantConfig(env),
     // SUPABASE_JWKS и SUPABASE_DB_URL инжектируются платформой (документация
     // Supabase, Default secrets); CABINET_ORIGIN — наш секрет функции.
     jwtKeys: await buildJwtKeys(requireEnv(env, "SUPABASE_JWKS")),
