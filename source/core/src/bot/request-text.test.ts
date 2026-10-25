@@ -112,6 +112,46 @@ it("карточка показывает действия по состояни
   ).toBe("/confirm З-26-1 1");
 });
 
+it("карточка без отчётов не показывает строку «Отчёты», с отчётами — счётчик", () => {
+  const base = {
+    number: "З-26-1",
+    state: "in_work",
+    author_person_id: "author",
+    description: "d",
+    messages: [],
+  };
+  expect(replyText(requestCardText(base))).not.toContain("Отчёты:");
+  const withReports = requestCardText({
+    ...base,
+    confirmation: { payload: { task_results: [{}, {}] } },
+  });
+  expect(replyText(withReports)).toContain("Отчёты: 2");
+  // Команда просмотра отчётов остаётся в шаблоне переопределения.
+  expect(
+    typeof withReports === "object" &&
+      withReports.buttons?.flat().some((b) => b.data === "/result З-26-1"),
+  ).toBe(true);
+});
+
+it("карточка всегда предлагает возврат к списку обращений кнопкой без номера", () => {
+  const card = requestCardText({
+    number: "З-26-1",
+    state: "in_work",
+    author_person_id: "author",
+    description: "d",
+    messages: [],
+    can_comment: true,
+  });
+  expect(typeof card === "object" && card.buttons?.at(-1)).toEqual([
+    { text: "Мои обращения", data: "/requests" },
+  ]);
+  // data без номера: номер превратил бы кнопку в поисковый запрос.
+  expect(
+    typeof card === "object" &&
+      card.buttons?.flat().every((b) => b.data !== "/requests З-26-1"),
+  ).toBe(true);
+});
+
 it("карточка подписывает сообщения датой и автором", () => {
   const card = requestCardText({
     number: "З-26-2",

@@ -90,4 +90,19 @@ export const request_textTemplates: readonly TemplateDef[] = [
     "ru": "Отчёты",
     "kk": "Есептер",
   },
+  {
+    "key": "requests.otchety_stroka",
+    "section": "requests",
+    "title": "Строка отчётов в карточке",
+    "description": "Строка отчётов в карточке обращения; передаётся переменной {reports}, пуста при отсутствии отчётов",
+    "variables": [
+      {
+        "name": "count",
+        "description": "Количество отчётов",
+        "example": "2",
+      },
+    ],
+    "ru": "Отчёты: {count}",
+    "kk": "Есептер: {count}",
+  },
 ];

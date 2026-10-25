@@ -710,6 +710,23 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
     ],
   },
   {
+    "key": "message.requests.say_prompt",
+    "section": "requests",
+    "title": "Сообщение по обращению — приглашение ввода",
+    "description": "Приглашение шага ввода текста сообщения по обращению; номер обращения обязателен в контексте шага",
+    "scenario": "Просмотр обращений",
+    "command": "/say",
+    "variables": [
+      {
+        "name": "number",
+        "description": "Номер обращения",
+        "example": "З-26-00001",
+      },
+    ],
+    "ru": "Сообщение по обращению <b>{number}</b>. Напишите, что хотите передать ОСИ.",
+    "kk": "Хабарлама өтініш бойынша <b>{number}</b>. ОСИ-ге жеткізгіңіз келгенін жазыңыз.",
+  },
+  {
     "key": "message.requests.result",
     "section": "requests",
     "title": "Результат работ",
@@ -1188,9 +1205,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count}",
+      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}{reports}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count}",
+      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}{reports}",
     "variables": [
       {
         "name": "number",
@@ -1235,6 +1252,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       {
         "name": "report_command",
         "description": "Команда просмотра отчётов; пуста при отсутствии",
+        "example": "",
+      },
+      {
+        "name": "reports",
+        "description": "Строка отчётов с заголовком; пуста при отсутствии",
         "example": "",
       },
     ],
@@ -1272,6 +1294,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "result": "",
           "report_count": "0",
           "report_command": "",
+          "reports": "",
         },
         "kk": {
           "number": "З-26-00001",
@@ -1284,6 +1307,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "result": "",
           "report_count": "0",
           "report_command": "",
+          "reports": "",
         },
         "blocks": [
           "messages",
@@ -1306,9 +1330,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count}",
+      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}{reports}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count}",
+      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}{reports}",
     "variables": [
       {
         "name": "number",
@@ -1353,6 +1377,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       {
         "name": "report_command",
         "description": "Команда просмотра отчётов; пуста при отсутствии",
+        "example": "",
+      },
+      {
+        "name": "reports",
+        "description": "Строка отчётов с заголовком; пуста при отсутствии",
         "example": "",
       },
     ],
@@ -1390,6 +1419,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "result": "",
           "report_count": "0",
           "report_command": "",
+          "reports": "",
         },
         "kk": {
           "number": "З-26-00001",
@@ -1402,6 +1432,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "result": "",
           "report_count": "0",
           "report_command": "",
+          "reports": "",
         },
         "buttons": [
           [
@@ -1431,9 +1462,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count}",
+      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}{reports}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count}",
+      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}{reports}",
     "variables": [
       {
         "name": "number",
@@ -1480,6 +1511,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "description": "Команда просмотра отчётов; пуста при отсутствии",
         "example": "",
       },
+      {
+        "name": "reports",
+        "description": "Строка отчётов с заголовком; пуста при отсутствии",
+        "example": "",
+      },
     ],
     "buttons": [
       {
@@ -1515,6 +1551,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "result": "",
           "report_count": "0",
           "report_command": "",
+          "reports": "",
         },
         "kk": {
           "number": "З-26-00001",
@@ -1527,6 +1564,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "result": "",
           "report_count": "0",
           "report_command": "",
+          "reports": "",
         },
         "buttons": [
           [
@@ -1583,9 +1621,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count}",
+      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}{reports}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count}",
+      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}{reports}",
     "variables": [
       {
         "name": "number",
@@ -1630,6 +1668,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       {
         "name": "report_command",
         "description": "Команда просмотра отчётов; пуста при отсутствии",
+        "example": "",
+      },
+      {
+        "name": "reports",
+        "description": "Строка отчётов с заголовком; пуста при отсутствии",
         "example": "",
       },
     ],
@@ -1667,6 +1710,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "result": "",
           "report_count": "0",
           "report_command": "",
+          "reports": "",
         },
         "kk": {
           "number": "З-26-00001",
@@ -1679,6 +1723,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "result": "",
           "report_count": "0",
           "report_command": "",
+          "reports": "",
         },
         "blocks": [
           "messages",
@@ -1700,9 +1745,9 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
       "requests.otchety",
     ],
     "ru":
-      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}\nОтчёты: {report_count}",
+      "<b>{number}</b> · {state}\n{place} · создано {created}\n{description}\nПоследние сообщения:\n{messages}{result}{reports}",
     "kk":
-      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}\nЕсептер: {report_count}",
+      "<b>{number}</b> · {state}\n{place} · құрылды {created}\n{description}\nСоңғы хабарламалар:\n{messages}{result}{reports}",
     "variables": [
       {
         "name": "number",
@@ -1749,6 +1794,11 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
         "description": "Команда просмотра отчётов; пуста при отсутствии",
         "example": "",
       },
+      {
+        "name": "reports",
+        "description": "Строка отчётов с заголовком; пуста при отсутствии",
+        "example": "",
+      },
     ],
     "buttons": [
       {
@@ -1784,6 +1834,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "result": "",
           "report_count": "0",
           "report_command": "",
+          "reports": "",
         },
         "kk": {
           "number": "З-26-00001",
@@ -1796,6 +1847,7 @@ export const requestsMessageTemplates: readonly TemplateDef[] = [
           "result": "",
           "report_count": "0",
           "report_command": "",
+          "reports": "",
         },
         "blocks": [
           "messages",

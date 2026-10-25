@@ -114,16 +114,39 @@ it("opening another task invalidates the old reason confirmation", async () => {
   await taskStep(deps, "1", confirm, actor);
   expect(mocks.taskTransition).not.toHaveBeenCalled();
 });
-it("a resident message stays in preview and uses its original request at confirmation", async () => {
+it("a resident message is sent at once with its original request", async () => {
   const deps = harness();
   await requestStep(deps, "1", "/say З-1", actor);
-  const preview = await requestStep(deps, "1", "<сообщение>", actor);
-  expect(replyText(preview)).toContain("&lt;сообщение&gt;");
-  expect(mocks.addMessage).not.toHaveBeenCalled();
-  const confirm = typeof preview === "string"
-    ? ""
-    : preview.buttons![0]![0]!.data;
-  await requestStep(deps, "1", confirm, actor);
+  // Текст сообщения отправляется сразу, без шага предпросмотра.
+  await requestStep(deps, "1", "<сообщение>", actor);
+  expect(mocks.addMessage).toHaveBeenCalledWith(
+    expect.anything(),
+    actor,
+    "З-1",
+    expect.objectContaining({ text: "<сообщение>", channel: "resident" }),
+    expect.any(String),
+  );
+});
+
+it("a legacy resident message still confirms via /rinput", async () => {
+  // Диалоги, начатые до отказа от предпросмотра, живут в состоянии с
+  // заполненным полем: их явное подтверждение продолжает работать.
+  const deps = harness({
+    input_form: {
+      token: "t1",
+      command: "/say",
+      object_id: "З-1",
+      number: "З-1",
+      version: 8,
+      title: "Написать сообщение",
+      fields: ["text"],
+      values: ["<сообщение>"],
+      index: 1,
+      confirm_command: "/rinput",
+      cancel_command: "/request З-1",
+    },
+  });
+  await requestStep(deps, "1", "/rinput t1", actor);
   expect(mocks.addMessage).toHaveBeenCalledWith(
     expect.anything(),
     actor,
@@ -146,11 +169,11 @@ it("a new problem form on task B cannot submit the ready report of task A", asyn
 });
 
 it('reading a different result cancels an unfinished resident message',async()=>{
- const deps=harness();await requestStep(deps,'1','/say З-1',actor);
- const preview=await requestStep(deps,'1','Отложенное сообщение',actor);
- const confirm=typeof preview==='string'?'':preview.buttons![0]![0]!.data;
+ // Legacy-диалог на шаге подтверждения; чтение другого обращения сбрасывает
+ // временную форму — устаревшее подтверждение ничего не отправляет.
+ const deps=harness({input_form:{token:'t1',command:'/say',object_id:'З-1',number:'З-1',version:8,title:'Написать сообщение',fields:['text'],values:['Отложенное сообщение'],index:1,confirm_command:'/rinput',cancel_command:'/request З-1'}});
  await requestStep(deps,'1','/result З-2',actor);
- await requestStep(deps,'1',confirm,actor);
+ await requestStep(deps,'1','/rinput t1',actor);
  expect(mocks.addMessage).not.toHaveBeenCalled();
 });
 

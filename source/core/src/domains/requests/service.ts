@@ -161,6 +161,7 @@ export async function inform(
   key: string,
   includeParticipants = false,
   required = true,
+  excludePersonId?: string,
 ): Promise<void> {
   const people = new Set([row.author_person_id]);
   if (includeParticipants) {
@@ -170,6 +171,9 @@ export async function inform(
     );
     rows.forEach((r) => people.add(r.person_id));
   }
+  // Актор не получает уведомление о собственном действии — после сбора
+  // участников, чтобы исключённый участник не попал обратно.
+  if (excludePersonId) people.delete(excludePersonId);
   for (const id of people) await notifyPerson(exec, id, text, `${key}:${id}`, {type:required ? "request.required" : "request.status",requestId:row.id,audience:"resident",important:required,isTest:row.is_test});
 }
 export async function informManagers(
@@ -177,13 +181,15 @@ export async function informManagers(
   row: RequestRow,
   text: NoticeText,
   key: string,
+  excludePersonId?: string,
 ): Promise<void> {
   const people = await exec.query<{ person_id: string }>(
     `select distinct a.person_id from staff_assignment a join person n on n.id=a.person_id
  where a.status='active' and n.status='active' and n.is_test=$1 and a.person_id is distinct from $2::uuid
+ and a.person_id is distinct from $4::uuid
  and (a.valid_from is null or a.valid_from<=now()) and (a.valid_until is null or a.valid_until>now())
  and (a.role='chairman' or ($3<>'chairman' and a.role in ('administrator','deputy')))`,
-    [row.is_test,row.complaint_subject_person_id,row.complaint_route ?? "administrator"],
+    [row.is_test,row.complaint_subject_person_id,row.complaint_route ?? "administrator",excludePersonId ?? null],
   );
   for (const p of people) {
     await notifyPerson(exec, p.person_id, text, `${key}:${p.person_id}`, {type:"request.staff",requestId:row.id,audience:"staff",isTest:row.is_test,bot:"worker"});
