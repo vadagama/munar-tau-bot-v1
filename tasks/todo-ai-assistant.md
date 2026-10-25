@@ -16,8 +16,8 @@ PR на согласование, мерж — только после одоб�
 
 ### S0.1. ADR-021 — Cloudflare Worker в стеке
 
-- [ ] ADR-021: контекст → решение → альтернативы → проверки
-- [ ] Условия зафиксированы: read-only пилот на вымышленных данных; запись —
+- [x] ADR-021: контекст → решение → альтернативы → проверки
+- [x] Условия зафиксированы: read-only пилот на вымышленных данных; запись —
   только после явного подтверждения человека в UI; реальные данные — после
   ИБ-анализа и отдельного ADR
 - Зависимости: —.
@@ -26,12 +26,12 @@ PR на согласование, мерж — только после одоб�
 
 ### S0.2. Миграции и домен assistant
 
-- [ ] Миграции `assistant_settings` (singleton), `assistant_user_config`
+- [x] Миграции `assistant_settings` (singleton), `assistant_user_config`
   (enabled=false по умолчанию, дневной/месячный лимит), `assistant_usage_ledger`
   (append-only, unique `operation_id`, день по Алматы)
-- [ ] RLS: config/ledger — владелец + privileged; settings — только privileged
-- [ ] SQL-репозитории `core/src/domains/assistant` + фейки в `core/testing`
-- [ ] `api_key_encrypted`: Vault, при отсутствии на self-hosted — AES-GCM
+- [x] RLS: config/ledger — владелец + privileged; settings — только privileged
+- [x] SQL-репозитории `core/src/domains/assistant` + фейки в `core/testing`
+- [x] `api_key_encrypted`: Vault, при отсутствии на self-hosted — AES-GCM
   (решение зафиксировать)
 - Зависимости: S0.1 (порядком).
 - Приёмка: миграции идемпотентны; `schema-drift` зелёный; повтор `operation_id`
@@ -42,12 +42,12 @@ PR на согласование, мерж — только после одоб�
 
 ### S0.3. PDP-действия и эндпоинты
 
-- [ ] PDP: `assistant.use`, `assistant.settings.read/edit` (chairman/tech_admin,
+- [x] PDP: `assistant.use`, `assistant.settings.read/edit` (chairman/tech_admin,
   privileged, вне эмуляции), `assistant.usage.read`
-- [ ] GET/PUT `/v1/assistant/settings` (PUT — причина + Idempotency-Key)
-- [ ] GET `/v1/assistant/settings/me`; GET `/v1/assistant/usage`
-- [ ] POST `/v1/assistant/runtime-token` (assistant.use + enabled, аудит выдачи)
-- [ ] POST `/v1/assistant/usage` (`X_ASSISTANT_SECRET`, идемпотентно по operation_id)
+- [x] GET/PUT `/v1/assistant/settings` (PUT — причина + Idempotency-Key)
+- [x] GET `/v1/assistant/settings/me`; GET `/v1/assistant/usage`
+- [x] POST `/v1/assistant/runtime-token` (assistant.use + enabled, аудит выдачи)
+- [x] POST `/v1/assistant/usage` (`X_ASSISTANT_SECRET`, идемпотентно по operation_id)
 - Зависимости: S0.2.
 - Приёмка: 403/409 по общим правилам; ключ в ответах — только маска; повтор
   usage не удваивает расход.
@@ -57,13 +57,13 @@ PR на согласование, мерж — только после одоб�
 
 ### S0.4. Раздел «Настройки AI-ассистента»
 
-- [ ] Страница в группе «Настройки» (по образцу `/templates`), PageLayout,
+- [x] Страница в группе «Настройки» (по образцу `/templates`), PageLayout,
   доступ chairman/tech_admin
-- [ ] Блок единого токена: write-only ввод, маска `••••1234`, замена с причиной
+- [x] Блок единого токена: write-only ввод, маска `••••1234`, замена с причиной
   и Idempotency-Key
-- [ ] Таблица сотрудников (`ConfigurableTable`): тумблер «Включён» (выключен у
+- [x] Таблица сотрудников (`ConfigurableTable`): тумблер «Включён» (выключен у
   всех по умолчанию), дневной/месячный лимит
-- [ ] В эмуляции раздел скрыт
+- [x] В эмуляции раздел скрыт
 - Зависимости: S0.3.
 - Приёмка: 409 сохраняет ввод; токен не в сборке/логах (secret-scan зелёный).
 - Проверка: `npm test -w admin`; `npm run build -w admin`.
