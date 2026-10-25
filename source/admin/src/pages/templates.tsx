@@ -17,6 +17,7 @@ import {
 } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import { apiFetch } from "../lib/api";
+import { useMobile } from "../lib/use-mobile";
 import { formatDateTime } from "../lib/format-date";
 import { canSeeTemplates, useCabinetIdentity } from "../lib/identity";
 interface Version {
@@ -70,6 +71,7 @@ const sections: Record<string, string> = {
   common: "Общие реплики",
 };
 export function TemplatesPage() {
+  const mobile = useMobile();
   const { roles, identity } = useCabinetIdentity();
   const allowed = canSeeTemplates(roles);
   const editable = allowed && !identity?.me.emulation;
@@ -348,6 +350,7 @@ export function TemplatesPage() {
       {error && !selected && <Alert type="error" message={error} showIcon />}
 
       <Collapse
+        className="template-sections"
         defaultActiveKey={Object.keys(sections)}
         items={Object.entries(sections).filter(([id]) =>
           filtered.some((i) => i.section === id)
@@ -358,6 +361,8 @@ export function TemplatesPage() {
           })`,
           children: (
             <Collapse
+              className="template-scenarios"
+              ghost={mobile}
               defaultActiveKey={[
                 filtered.find((i) => i.section === id)?.scenario ?? "Сообщения",
               ]}
@@ -373,6 +378,21 @@ export function TemplatesPage() {
                 children: (
                   <ConfigurableTable storageKey={`columns.templates.${id}.${scenario}`} settingsPlacement="inline"
                     size="small"
+                    mobileRender={(row) => (
+                      <div className="template-mobile-row">
+                        <Button type="link" className="template-mobile-title" onClick={() => void open(row)}>
+                          {row.title}
+                        </Button>
+                        <div className="template-mobile-meta">
+                          <Tag color={row.overridden ? "blue" : undefined}>
+                            {row.overridden ? "Настроен" : "По умолчанию"}
+                          </Tag>
+                          {row.active && <Typography.Text type="secondary">
+                            Изменён {formatDateTime(row.active.created_at)}
+                          </Typography.Text>}
+                        </div>
+                      </div>
+                    )}
                     pagination={false}
                     rowKey="key"
                     dataSource={filtered.filter((i) =>
