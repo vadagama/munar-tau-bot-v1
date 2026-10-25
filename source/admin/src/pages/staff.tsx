@@ -238,7 +238,7 @@ export function StaffPage() {
       }
     >
       {error && <Alert type="error" message={error} showIcon />}
-      <ConfigurableTable storageKey="columns.staff" settingsPlacement="page"
+      <ConfigurableTable storageKey="columns.staff" onMobileRowClick={row => void open(row.id)} settingsPlacement="page"
         rowKey="id"
         dataSource={rows}
         mobileRender={row => <div className="mobile-summary">

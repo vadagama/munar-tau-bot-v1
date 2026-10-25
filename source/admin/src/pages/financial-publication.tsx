@@ -48,7 +48,7 @@ export function FinancialPublication(props: { manager: boolean }) {
     {error && <Alert type="error" showIcon message={error} />}
     {notice && <Alert type="success" showIcon message={notice} closable onClose={() => setNotice(null)} />}
     <Tabs items={[{ key: "duties", label: "Обязанности", children: <>
-      <ConfigurableTable storageKey="columns.financial-obligations" settingsPlacement="inline" rowKey="id" dataSource={rows} loading={busy && !card} pagination={false} locale={{ emptyText: "Финансовых обязанностей нет" }} scroll={{ x: 700 }} columns={[
+      <ConfigurableTable storageKey="columns.financial-obligations" onMobileRowClick={busy ? undefined : row => void open(row)} settingsPlacement="inline" rowKey="id" dataSource={rows} loading={busy && !card} pagination={false} locale={{ emptyText: "Финансовых обязанностей нет" }} scroll={{ x: 700 }} columns={[
         { title: "Период", render: (_, row) => `${day(row.period_from)} — ${day(row.period_to)}` }, { title: "Первоначальный срок", dataIndex: "due_at", render: moment },
         { title: "Подготовитель", dataIndex: "prepared_name" }, { title: "Состояние", render: (_, row) => row.completed_at ? "Завершена" : "Не завершена" },
         { title: "Действия", key: "actions", render: (_, row) => <Button disabled={busy} onClick={() => void open(row)}>Открыть обязанность</Button> },

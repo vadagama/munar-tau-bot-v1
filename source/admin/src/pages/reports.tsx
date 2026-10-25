@@ -39,7 +39,7 @@ function ReportPanel({kinds,exportAllowed,configure}:{kinds:ReportKind[];exportA
  {data&&!busy&&(data.available?<>
  <ReportSummary report={data}/>
  <Typography.Paragraph>Объектов в выборке: {data.total}</Typography.Paragraph>
- {!data.items.length?<Empty description="Объектов за выбранный период нет"/>:<ConfigurableTable storageKey={`reports-${kind}`} rowKey="id" dataSource={data.items} pagination={false} scroll={{x:760}} columns={[
+ {!data.items.length?<Empty description="Объектов за выбранный период нет"/>:<ConfigurableTable storageKey={`reports-${kind}`} onMobileRowClick={row => { window.location.href = href(row); }} rowKey="id" dataSource={data.items} pagination={false} scroll={{x:760}} columns={[
  {key:"number",title:"Номер",render:(_v:unknown,r:ReportRow)=><a href={href(r)}>{String(r.number)}</a>},
  {key:"title",title:kind==="requests"?"Категория":"Название",render:(_v:unknown,r:ReportRow)=>String(r.title??r.category??"Нет данных")},
  {key:"state",title:"Состояние",render:(_v:unknown,r:ReportRow)=>reportStates[String(r.state)]??"Нет данных"},

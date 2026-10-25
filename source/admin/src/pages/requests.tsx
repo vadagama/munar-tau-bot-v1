@@ -521,7 +521,7 @@ export function RequestsPage() {
           )}
         />
       ) : (
-        <ConfigurableTable<Row> storageKey="columns.requests" settingsPlacement="page"
+        <ConfigurableTable<Row> storageKey="columns.requests" onMobileRowClick={saving || fileBusy ? undefined : row => void open(String(row.id))} settingsPlacement="page"
           mobileRender={row => <div className="mobile-summary">
             <div className="mobile-summary__top"><Button type="link" disabled={saving || fileBusy} onClick={() => void open(String(row.id))}>{String(row.number ?? "Черновик")}</Button><Tag>{REQUEST_STATES[String(row.state)]}</Tag></div>
             <p className="mobile-summary__title">{String(row.description ?? "")}</p>

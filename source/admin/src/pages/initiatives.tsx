@@ -40,7 +40,7 @@ export function InitiativesPage(){
 
  <Alert className="cabinet-page__intro" type="info" message="Поддержка инициативы не является согласием на расходы или решением о реализации"/>
  {error&&<Alert role="alert" type="error" message={error}/>}
- {!loading&&!error&&!rows.length?<Empty description="Инициатив пока нет"/>:<ConfigurableTable storageKey="initiatives" rowKey="id" loading={loading} dataSource={rows} pagination={false} scroll={{x:600}} columns={[
+ {!loading&&!error&&!rows.length?<Empty description="Инициатив пока нет"/>:<ConfigurableTable storageKey="initiatives" onMobileRowClick={row => void open(row.id)} rowKey="id" loading={loading} dataSource={rows} pagination={false} scroll={{x:600}} columns={[
   {key:"title",title:"Инициатива",render:(_v:unknown,row:InitiativeView)=><Button type="link" onClick={()=>void open(row.id)}>{row.title}</Button>},
   {key:"state",title:"Этап",render:(_v:unknown,row:InitiativeView)=><Tag>{initiativeStates[row.stage??row.publication_state]}</Tag>},
   {key:"location",title:"Место",dataIndex:"location_text"},

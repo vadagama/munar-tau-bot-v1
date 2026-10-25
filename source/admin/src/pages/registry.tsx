@@ -551,7 +551,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
         />
       )}
 
-      <ConfigurableTable storageKey={`columns.registry.${users ?? "registry"}.${entity}`} settingsPlacement="page"
+      <ConfigurableTable storageKey={`columns.registry.${users ?? "registry"}.${entity}`} onMobileRowClick={row => open(row)} settingsPlacement="page"
         rowKey="id"
         loading={busy}
         dataSource={visibleRows}
