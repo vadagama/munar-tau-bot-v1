@@ -64,7 +64,10 @@ const values: Record<string, [string, string]> = {
     "Доступные роли",
     "1. Собственник\n2. Арендатор\n3. Проживающий\n4. Другое",
   ],
-  invite_command: ["Команда принятия приглашения", "/start invite_example"],
+  invite_link: [
+    "Ссылка приглашения",
+    '<a href="https://t.me/munar_tau_user_bot?start=invite_example">https://t.me/munar_tau_user_bot?start=invite_example</a>',
+  ],
   expires_at: ["Срок действия приглашения", "25.10.2026 12:00"],
   reason: ["Вопрос администратора", "Уточните имя"],
   full_name: ["Имя и фамилия", "Алия Омарова"],
@@ -163,7 +166,7 @@ function def(
   if ("accesses" in sample) {
     sample.accesses = "1. <b>Алия Омарова</b>: Квартира 4";
   }
-  const blocks = ["registrations", "tasks", "accesses", "persons", "invites", "buildings", "numbers"].filter((name) =>
+  const blocks = ["registrations", "tasks", "accesses", "persons", "invites", "buildings", "numbers", "invite_link"].filter((name) =>
     name in sample
   );
   const sampleKk = { ...sample };
@@ -583,11 +586,12 @@ const defs: TemplateDef[] = [
     (l) =>
       l === "kk"
         ? old(R + "priglashenie", l) +
-          " жасалды. Сілтемені тұрғынға жіберіңіз — ол сілтеме бойынша тіркеледі:\n{invite_command}\n" +
+          " жасалды. Сілтемені тұрғынға жіберіңіз — ол сілтеме бойынша тіркеледі:\n{invite_link}\n" +
           old(R + "deystvuet_do", l) + ": {expires_at}"
         : old(R + "priglashenie", l) +
-          " создано. Перешлите ссылку жильцу — он зарегистрируется по ней:\n{invite_command}\n" +
+          " создано. Перешлите ссылку жильцу — он зарегистрируется по ней:\n{invite_link}\n" +
           old(R + "deystvuet_do", l) + ": {expires_at}",
+    [{ id: "copy", ru: "Копировать", kk: "Көшіру" }],
   ),
   def(
     "message.registration.add_select",

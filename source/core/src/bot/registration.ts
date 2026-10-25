@@ -33,7 +33,7 @@ import {
 import { manageRegistration, withdrawUnconfirmedRegistration } from "../domains/registrations/management.ts";
 import { ScenarioRegistry } from "./registry.ts";
 import { menuCommand, registrationHelp, welcomeText } from "./help.ts";
-import { type BotReply, btn, type InlineButton } from "./keyboard.ts";
+import { type BotReply, btn, copyBtn, type InlineButton } from "./keyboard.ts";
 import {
   buildingCodeMatches,
   esc,
@@ -41,6 +41,7 @@ import {
   type Lang,
   langOf,
   numbered,
+  residentDeepLink,
   resolveRef,
 } from "./text.ts";
 
@@ -528,12 +529,20 @@ export async function registrationStep(
       }
       try {
         const invite = await createInvite(d, actor);
-        return save(
-          message(deps.templates, L, "message.registration.invite", {
-            invite_command: `/start invite_${invite.token}`,
+        const link = residentDeepLink(
+          `invite_${invite.token}`,
+          deps.residentBotUsername,
+        );
+        return save({
+          text: message(deps.templates, L, "message.registration.invite", {
+            invite_link: safeBlock(`<a href="${esc(link)}">${esc(link)}</a>`),
             expires_at: fmtDate(invite.expires_at),
           }),
-        );
+          buttons: [[copyBtn(
+            messageButton(deps.templates, L, "message.registration.invite", "copy"),
+            link,
+          )]],
+        });
       } catch (error) {
         if (error instanceof ApiError && error.code === "FORBIDDEN") {
           return save(

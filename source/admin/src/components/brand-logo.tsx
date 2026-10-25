@@ -1,5 +1,5 @@
 // Логотип из лендинга (source/landing/index.html): знак горы + «МУНАР ТАУ».
-// Используется в сайдбаре кабинета и на странице входа.
+// Используется в сайдбаре кабинета (inline) и на странице входа (stacked).
 const MARK_PATHS = (
   <>
     <path d="M5 36 18 13l8 14 5-9 12 18H5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
@@ -16,17 +16,26 @@ export function BrandMark({ size = 26, color = "#244c43" }: { size?: number; col
 }
 
 /** Полный знак: гора + название + (опционально) подпись ОСИ. */
-export function BrandLogo({ size = 26, caption, color = "#244c43", textColor }: {
+export function BrandLogo({ size = 26, caption, color = "#244c43", textColor, layout = "inline" }: {
   size?: number;
   caption?: boolean | string;
   color?: string;
   textColor?: string;
+  /** inline — знак слева от текста (сайдбар); stacked — знак над текстом по центру (страница входа). */
+  layout?: "inline" | "stacked";
 }) {
+  const stacked = layout === "stacked";
   const captionText = caption === true ? "Объединение собственников имущества" : caption;
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+    <span style={{
+      display: "inline-flex", flexDirection: stacked ? "column" : "row",
+      alignItems: "center", gap: stacked ? 8 : 10, minWidth: 0,
+    }}>
       <BrandMark size={size} color={color} />
-      <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.2, minWidth: 0 }}>
+      <span style={{
+        display: "flex", flexDirection: "column", lineHeight: 1.2, minWidth: 0,
+        alignItems: stacked ? "center" : "stretch",
+      }}>
         <span style={{
           fontWeight: 700, fontSize: size * 0.52, letterSpacing: "0.08em",
           color: textColor, whiteSpace: "nowrap",

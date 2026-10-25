@@ -1,7 +1,7 @@
 import { message, safeBlock } from "../templates/message.ts";
 import type { TemplateStore } from "../templates/store.ts";
 import type { Row } from "../domains/registry/validation.ts";
-import { esc, type Lang } from "./text.ts";
+import { esc, residentUsername, type Lang } from "./text.ts";
 
 export function houseChoice(input: string) {
   const match =
@@ -40,9 +40,7 @@ export function buildingHints(
   if (!rows.length) {
     return message(store, lang, "message.registration.buildings_empty");
   }
-  const username = /^[a-zA-Z0-9_]{5,32}$/.test(botUsername)
-    ? botUsername
-    : "munar_tau_user_bot";
+  const username = residentUsername(botUsername);
   const groups = new Map<number, Row[]>();
   for (const row of rows) {
     const phase = typeof row.construction_phase === "number"
@@ -81,9 +79,7 @@ export function premiseHints(
   store?: TemplateStore,
   botUsername = "munar_tau_user_bot",
 ): string {
-  const username = /^[a-zA-Z0-9_]{5,32}$/.test(botUsername)
-    ? botUsername
-    : "munar_tau_user_bot";
+  const username = residentUsername(botUsername);
   const collator = new Intl.Collator("ru", { numeric: true });
   const links = rows.sort((a, b) =>
     collator.compare(String(a.number), String(b.number))

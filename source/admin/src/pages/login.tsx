@@ -1,4 +1,5 @@
 import { Alert, Button, Card, Spin, Typography, theme } from "antd";
+import { SendOutlined } from "@ant-design/icons";
 import { useEffect, useState } from "react";
 import { useLogin } from "@refinedev/core";
 import { useNavigate } from "react-router-dom";
@@ -86,13 +87,15 @@ export function LoginPage() {
       }}
     >
       <Card style={{ width: 400, borderRadius: 14, boxShadow: token.boxShadowSecondary }}>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
-          <BrandLogo size={30} caption />
+        {/* Локап стеком — знак и название на одной центральной оси с заголовком;
+            горизонтальный вариант конкурировал с заголовком по ширине и центру. */}
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <BrandLogo size={32} caption layout="stacked" />
         </div>
-        <Typography.Title level={3} style={{ textAlign: "center", fontSize: 20 }}>
+        <Typography.Title level={3} style={{ textAlign: "center", fontSize: 20, marginBottom: 8 }}>
           Вход в кабинет ОСИ
         </Typography.Title>
-        <Paragraph type="secondary">
+        <Paragraph type="secondary" style={{ textAlign: "center", marginBottom: 24 }}>
           Кабинет предназначен для исполнителей и администраторов ОСИ. Вход
           выполняется через Telegram.
         </Paragraph>
@@ -130,6 +133,7 @@ export function LoginPage() {
               type="primary"
               size="large"
               block
+              icon={<SendOutlined />}
               loading={isLoading}
               onClick={handleLogin}
             >
@@ -137,7 +141,7 @@ export function LoginPage() {
             </Button>
           ) : (
             <>
-              <Button type="primary" size="large" block disabled>
+              <Button type="primary" size="large" block icon={<SendOutlined />} disabled>
                 Войти через Telegram
               </Button>
               <Paragraph type="secondary" style={{ marginTop: 12, fontSize: 12 }}>

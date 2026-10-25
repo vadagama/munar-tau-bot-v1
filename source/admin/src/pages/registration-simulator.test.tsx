@@ -43,6 +43,21 @@ it("показывает кнопки сценария и отправляет �
   }));
   expect(await screen.findByText("Укажите имя")).toBeInTheDocument();
 });
+it("копирующая кнопка пишет ссылку в буфер обмена и не отправляет шаг", async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  const link = "https://t.me/munar_tau_user_bot?start=invite_abc123";
+  vi.mocked(apiFetch).mockResolvedValueOnce({
+    reply: "Приглашение создано",
+    buttons: [[{ text: "Копировать", data: link, copy: true }]],
+  });
+  render(<RegistrationSimulator active />);
+  fireEvent.click(screen.getByRole("button", { name: "Зарегистрироваться" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Копировать" }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith(link));
+  expect(await screen.findByText(`Скопировано в буфер обмена: ${link}`)).toBeInTheDocument();
+  expect(apiFetch).toHaveBeenCalledTimes(1);
+});
 it("не показывает главное меню под ответами, сохраняя кнопки выбора сообщения", async () => {
   vi.mocked(apiFetch).mockResolvedValueOnce({ reply: "Выберите язык", buttons: [[{text: "Русский", data: "ru"}]], menu: [[
     { text: "🆕 Новое обращение", data: "/newrequest", scenario: "requests" },
