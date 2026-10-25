@@ -2,7 +2,7 @@ import { expect, it, vi } from "vitest";
 import { sendNotifications } from "./jobs.ts";
 import type { DbClient, DbExecutor } from "../../db/client.ts";
 import type { AuditRepo } from "../audit/port.ts";
-function harness(channel = "telegram") {
+function harness(channel = "telegram", extra: Record<string, unknown> = {}) {
   let delivered = false;
   const updates: unknown[][] = [];
   const exec: DbExecutor = {
@@ -17,6 +17,7 @@ function harness(channel = "telegram") {
             channel,
             attempts: 0,
             text: "Тест",
+            ...extra,
           },
         ] as T[]);
       }
@@ -69,4 +70,41 @@ it("блокировка бота немедленно видна как failed"
   expect(
     h.updates.some((p) => p[1] === "failed" && p[2] === "BLOCKED_BY_USER"),
   ).toBe(true);
+});
+
+it("после доставки жителю синхронизирует меню чата (REG-01/02)", async () => {
+  const h = harness("telegram", { bot: "resident" });
+  const sync = vi.fn(() => Promise.resolve());
+  expect(
+    await sendNotifications(h.deps, () => Promise.resolve(), undefined, sync),
+  ).toBe(1);
+  expect(sync).toHaveBeenCalledWith("123", false);
+});
+
+it("меню чата не трогается для simulator и worker-уведомлений", async () => {
+  const sim = harness("simulator", { bot: "resident" });
+  const syncSim = vi.fn(() => Promise.resolve());
+  await sendNotifications(sim.deps, () => Promise.resolve(), undefined, syncSim);
+  expect(syncSim).not.toHaveBeenCalled();
+
+  const worker = harness("telegram", { bot: "worker" });
+  const syncWorker = vi.fn(() => Promise.resolve());
+  await sendNotifications(
+    worker.deps,
+    () => Promise.resolve(),
+    undefined,
+    syncWorker,
+  );
+  expect(syncWorker).not.toHaveBeenCalled();
+});
+
+it("сбой синхронизации меню не ломает доставку", async () => {
+  const h = harness("telegram", { bot: "resident" });
+  const sync = vi.fn(() => Promise.reject(new Error("TELEGRAM_500")));
+  expect(
+    await sendNotifications(h.deps, () => Promise.resolve(), undefined, sync),
+  ).toBe(1);
+  expect(h.updates.some((p) => p[1] === "failed" || p[1] === "queued")).toBe(
+    false,
+  );
 });

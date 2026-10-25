@@ -4,7 +4,7 @@
 
 import { assertRejects, assertEquals } from "@std/assert";
 
-import { handle, JOBS_SECRET_ENV, telegramSendMessage } from "./index.ts";
+import { handle, JOBS_SECRET_ENV, residentMenuSync, telegramSendMessage } from "./index.ts";
 
 const envWithSecret = (name: string) =>
   name === JOBS_SECRET_ENV ? "stub-secret" : undefined;
@@ -119,8 +119,10 @@ Deno.test("занятый advisory lock завершает jobs без обра�
 
 function stubFetch(responses: { status: number; body: unknown }[]) {
   const calls: Record<string, unknown>[] = [];
+  const urls: string[] = [];
   const original = globalThis.fetch;
   globalThis.fetch = (_input, init) => {
+    urls.push(String(_input));
     calls.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
     const next = responses[Math.min(calls.length - 1, responses.length - 1)]!;
     return Promise.resolve(
@@ -129,6 +131,7 @@ function stubFetch(responses: { status: number; body: unknown }[]) {
   };
   return {
     calls,
+    urls,
     restore: () => {
       globalThis.fetch = original;
     },
@@ -207,6 +210,46 @@ Deno.test("ошибка не-400 после fallback — выбрасывает�
       Error,
       "TELEGRAM_429",
     );
+  } finally {
+    stub.restore();
+  }
+});
+
+Deno.test("residentMenuSync: действующий профиль — chat-области без «Регистрации»", async () => {
+  const stub = stubFetch([{ status: 200, body: { ok: true } }]);
+  try {
+    await residentMenuSync("token")("123", true);
+    assertEquals(stub.calls.length, 3);
+    for (const [index, lang] of [[0, undefined], [1, "ru"], [2, "kk"]] as const) {
+      assertEquals(
+        stub.urls[index]!.includes("setMyCommands"),
+        true,
+      );
+      assertEquals(stub.calls[index]!.scope, { type: "chat", chat_id: 123 });
+      assertEquals(stub.calls[index]!.language_code, lang);
+      const commands = stub.calls[index]!.commands as { command: string }[];
+      assertEquals(commands.length, 13);
+      assertEquals(
+        commands.some((command) => command.command === "register"),
+        false,
+      );
+      assertEquals(commands[0]!.command, "start");
+    }
+  } finally {
+    stub.restore();
+  }
+});
+
+Deno.test("residentMenuSync: потеря профиля — chat-области сбрасываются", async () => {
+  const stub = stubFetch([{ status: 200, body: { ok: true } }]);
+  try {
+    await residentMenuSync("token")("123", false);
+    assertEquals(stub.calls.length, 3);
+    for (const url of stub.urls) {
+      assertEquals(url.includes("deleteMyCommands"), true);
+    }
+    assertEquals(stub.calls[0]!.scope, { type: "chat", chat_id: 123 });
+    assertEquals(stub.calls[0]!.commands, undefined);
   } finally {
     stub.restore();
   }

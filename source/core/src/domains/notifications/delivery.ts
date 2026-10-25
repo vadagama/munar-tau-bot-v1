@@ -8,6 +8,10 @@ import { informManagers } from "../requests/service.ts";
 import type { RequestRow } from "../requests/access.ts";
 import { type DigestItem, digestText } from "./digest.ts";
 import type { RegistryDeps } from "../registry/service.ts";
+import {
+  syncResidentChatMenu,
+  type ChatMenuSync,
+} from "../../bot/chat-menu.ts";
 import { jsonValue, type Row } from "../registry/validation.ts";
 import type { BotKind } from "../../bot/bots.ts";
 import { isPlaceholderTelegramId } from "../../bot/bots.ts";
@@ -33,6 +37,7 @@ export async function sendNotifications(
   deps: RegistryDeps,
   send: TelegramSender,
   deadline = Date.now() + 45000,
+  syncCommands?: ChatMenuSync,
 ): Promise<number> {
   // После падения воркера: ограничить попытки, не создавать бесконечный lease-цикл.
   await deps.db.query(
@@ -140,10 +145,10 @@ export async function sendNotifications(
         );
         continue;
       }
-      if (
+      const directDelivery =
         row.channel !== "simulator" && !row.is_test && !profile?.is_test &&
-        Number(row.telegram_user_id) > 0
-      ) {
+        Number(row.telegram_user_id) > 0;
+      if (directDelivery) {
         // Сообщение без своей разметки уносит REMOVE_KEYBOARD: у клиентов со
         // старых версий оставалось постоянное reply-меню. Когда клавиатуры нет,
         // это no-op, поэтому безопасно для каждого сообщения.
@@ -160,6 +165,24 @@ export async function sendNotifications(
         "update notification set state='sent',sent_at=now(),last_error=null,lease_token=null where id=$1 and lease_token=$2",
         [row.id, token],
       );
+      if (directDelivery && row.bot === "resident" && syncCommands) {
+        // Нативное меню команд чата подводим к состоянию регистрации после
+        // успешной доставки (REG-01/02). Синк вне транзакции и после записи
+        // sent: сбой не ретраит уведомление и не теряет его статус, флаг
+        // остаётся прежним до следующей доставки.
+        try {
+          await syncResidentChatMenu(
+            deps.db,
+            String(row.telegram_user_id),
+            syncCommands,
+          );
+        } catch (error) {
+          console.error(
+            "Не удалось синхронизировать меню чата:",
+            error instanceof Error ? error.message : error,
+          );
+        }
+      }
       sent++;
     } catch (error) {
       const policy = retryPolicy(
