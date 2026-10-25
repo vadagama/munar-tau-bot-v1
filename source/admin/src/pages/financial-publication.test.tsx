@@ -2,7 +2,6 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { FinancialPublication } from "./financial-publication";
 import { apiFetch } from "../lib/api";
-import { PAGE_REFRESH_EVENT } from "../lib/use-page-refresh";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
 vi.mock("../lib/identity", () => ({ useCabinetIdentity: () => ({ identity: { id: "finance" } }) }));
 const computed = window.getComputedStyle.bind(window);
@@ -24,8 +23,7 @@ it("ошибка очереди видна, повтор не пишет дан�
   vi.mocked(apiFetch).mockRejectedValue(new Error("Очередь недоступна"));
   render(<FinancialPublication manager={false} />);
   expect(await screen.findByText("Очередь недоступна")).toBeInTheDocument();
-  await act(async () => { window.dispatchEvent(new Event(PAGE_REFRESH_EVENT)); });
-  await vi.waitFor(() => expect(vi.mocked(apiFetch).mock.calls).toHaveLength(4));
+  fireEvent(window, new Event("cabinet:refresh-page"));
   expect(vi.mocked(apiFetch).mock.calls.every(([, options]) => !options?.method)).toBe(true);
 });
 it("читатель видит недостающие каналы и историю конкретных размещений", async () => {

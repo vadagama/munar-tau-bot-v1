@@ -40,3 +40,22 @@ it("ненастроенный регламент не показывает фи
  expect(screen.getByText("Не настроен")).toBeInTheDocument();
  expect(screen.queryByText(/Invalid Date|Начальная настройка/)).not.toBeInTheDocument();
 });
+
+it("TIM: переход к общему графику сохраняет черновик правила", async () => {
+ vi.mocked(apiFetch).mockResolvedValue({items:[
+  {id:"rule",key:"dispute_total",version:1,params:{hours:36,clock:"working"}},
+  {id:"schedule",key:"work_schedule",version:1,params:{hours:0,clock:"calendar",start:8,end:20,timezone:"Asia/Almaty",days:[1,2,3,4,5]}},
+ ]});
+ render(<TimeRulesPage/>);
+ await screen.findByText("Общий срок спора");
+ fireEvent.click(screen.getAllByRole("button",{name:"Новая версия"})[0]!);
+ fireEvent.change(screen.getByLabelText("Причина изменения"),{target:{value:"Черновик причины"}});
+ fireEvent.click(screen.getByRole("button",{name:"Открыть общий график"}));
+ await waitFor(() => expect(screen.getByRole("dialog",{name:"Рабочий график"})).toBeVisible());
+ expect(screen.getByLabelText("Открытие, час")).toBeEnabled();
+ expect(screen.getByLabelText("Часовой пояс")).toBeEnabled();
+ fireEvent.click(screen.getByRole("button",{name:"Отмена"}));
+ await waitFor(() => expect(screen.getByRole("dialog",{name:"Общий срок спора"})).toBeVisible());
+ expect(screen.getByLabelText("Причина изменения")).toHaveValue("Черновик причины");
+ expect(vi.mocked(apiFetch).mock.calls.some(([,o]) => o?.method === "POST")).toBe(false);
+},15000);

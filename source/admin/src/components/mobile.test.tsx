@@ -1,3 +1,4 @@
+import { PageLayout } from "./page-layout";
 import { Button } from "antd";
 import { CardDrawer } from "../pages/card-drawer";
 import { ProcessActions } from "./process-card";
@@ -35,6 +36,7 @@ it("мобильная сортировка применяется ко всем
   vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
   render(<ConfigurableTable storageKey="columns.mobile-sort" rowKey="id" columns={[{title:"Номер",dataIndex:"name"}]}
     pagination={{pageSize:1}} dataSource={[{id:"a",name:"ЗД-10"},{id:"b",name:"ЗД-2"}]} />);
+  fireEvent.click(screen.getByText("Фильтры и сортировка"));
   fireEvent.mouseDown(screen.getByRole("combobox",{name:"Сортировка списка"}));
   fireEvent.click(screen.getByText("Номер ↑"));
   expect(screen.getByText("ЗД-2")).toBeInTheDocument();
@@ -54,4 +56,29 @@ it("основное действие карточки доступно в ни�
   fireEvent.click(action);
   expect(act).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole("button",{name:"Развернуть карточку"})).not.toBeInTheDocument();
+});
+
+it("сортировка мобильного реестра возвращает первую управляемую страницу", () => {
+  mobile();
+  const computed = window.getComputedStyle.bind(window);
+  vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
+  const onPage = vi.fn();
+  render(<ConfigurableTable storageKey="columns.mobile-controlled" rowKey="id" columns={[{title:"Номер",dataIndex:"name"}]}
+    pagination={{current:2,pageSize:1,onChange:onPage}} dataSource={[{id:"a",name:"ЗД-10"},{id:"b",name:"ЗД-2"}]} />);
+  fireEvent.click(screen.getByText("Фильтры и сортировка"));
+  fireEvent.mouseDown(screen.getByRole("combobox",{name:"Сортировка списка"}));
+  fireEvent.click(screen.getByText("Номер ↑"));
+  expect(onPage).toHaveBeenCalledWith(1,1);
+});
+
+it("две таблицы страницы используют один мобильный выбор сортировки", () => {
+ mobile();
+ const computed = window.getComputedStyle.bind(window);
+ vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
+ render(<PageLayout title="Документы">
+  <ConfigurableTable storageKey="sort-documents" rowKey="id" columns={[{title:"Документ",dataIndex:"name"}]} dataSource={[]} />
+  <ConfigurableTable storageKey="sort-obligations" rowKey="id" columns={[{title:"Обязанность",dataIndex:"name"}]} dataSource={[]} />
+ </PageLayout>);
+ fireEvent.click(screen.getByText("Фильтры и сортировка"));
+ expect(screen.getAllByRole("combobox",{name:"Сортировка списка"})).toHaveLength(1);
 });

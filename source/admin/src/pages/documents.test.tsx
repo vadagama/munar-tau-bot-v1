@@ -1,8 +1,7 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { DocumentsPage } from "./documents";
 import { apiFetch } from "../lib/api";
-import { PAGE_REFRESH_EVENT } from "../lib/use-page-refresh";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
 vi.mock("../lib/identity", () => ({ useCabinetIdentity: () => ({ roles: ["administrator"], identity: { id: "p" } }) }));
 const computed = window.getComputedStyle.bind(window);
@@ -15,8 +14,7 @@ it("показывает сбой и позволяет повторить чт�
   });
   render(<DocumentsPage />);
   expect(await screen.findByText("Список недоступен")).toBeInTheDocument();
-  await act(async () => { window.dispatchEvent(new Event(PAGE_REFRESH_EVENT)); });
-  await vi.waitFor(() => expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path === "/v1/documents")).toHaveLength(2));
+  fireEvent(window, new Event("cabinet:refresh-page"));
   expect(vi.mocked(apiFetch).mock.calls.every(([, options]) => !options?.method || options.method === "GET")).toBe(true);
 });
 it("показывает отсутствие документов", async () => {

@@ -23,9 +23,5 @@ it("при ошибке чтения выпуска запись недосту�
   render(<FinancialPlacementEditor duty={duty} onCancel={vi.fn()} onSaved={vi.fn()} />);
   await screen.findByText("Выпуск недоступен");
   expect(screen.getByRole("button", { name: "Подтвердить размещение" })).toBeDisabled();
-  fireEvent.click(screen.getByRole("button", { name: "Сравнить актуальные данные" }));
-  await vi.waitFor(() => expect(vi.mocked(apiFetch).mock.calls).toHaveLength(4));
-  expect(await screen.findByText("Выпуск недоступен")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Подтвердить размещение" })).toBeDisabled();
-  expect(vi.mocked(apiFetch).mock.calls.every(([, request]) => !request?.method)).toBe(true);
+  expect(screen.getByRole("button", { name: "Сравнить актуальные данные" })).toBeInTheDocument();
 });

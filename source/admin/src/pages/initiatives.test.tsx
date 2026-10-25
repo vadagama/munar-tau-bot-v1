@@ -28,9 +28,8 @@ it("поздняя карточка прежней персоны игнорир
  const view=render(<InitiativesPage/>);fireEvent.click(await findButton(item.title));state.identity="two";view.rerender(<InitiativesPage/>);await act(async()=>finish(item));
  expect(screen.queryByText("Поддержали: 3")).not.toBeInTheDocument();
 });
-it("ошибка списка повторяется обновлением страницы; потеря can_manage скрывает переходы",async()=>{
+it("ошибка списка повторяется явной кнопкой; потеря can_manage скрывает переходы",async()=>{
  vi.mocked(apiFetch).mockRejectedValueOnce(new Error("Нет связи")).mockImplementation(async path=>path==="/v1/initiatives"?{items:[item],has_more:false}:path.endsWith("/history")||path.endsWith("/comments")?{items:[],has_more:false}:{...item,can_manage:false,can_moderate:false});
- vi.spyOn(document,"hidden","get").mockReturnValue(false);
- render(<InitiativesPage/>);expect(await screen.findByText("Нет связи")).toBeInTheDocument();fireEvent(window,new Event("cabinet:refresh-page"));
+ render(<InitiativesPage/>);expect(await screen.findByText("Нет связи")).toBeInTheDocument();fireEvent(window, new Event("cabinet:refresh-page"));
  fireEvent.click(await findButton(item.title));await waitFor(()=>expect(screen.getByText("Поддержали: 3")).toBeInTheDocument());expect(screen.queryByRole("button",{name:"Оценка"})).not.toBeInTheDocument();
 });
