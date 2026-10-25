@@ -11,6 +11,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { IncidentsPage } from "./incidents";
 import { PublicationsPage } from "./publications";
 import { apiFetch } from "../lib/api";
+import { findButton } from "../test/buttons";
 vi.mock("../lib/api", () => ({ apiFetch: vi.fn() }));
 vi.mock(
   "../lib/identity",
@@ -151,11 +152,11 @@ it("редактирование публикации использует ту 
       ? { items: path === "/v1/publications" ? [row] : [] } : row
   );
   render(<PublicationsPage />);
-  fireEvent.click(await screen.findByRole("button", {name:"Промывка"}));
+  fireEvent.click(await findButton("Промывка"));
   await screen.findByText("Сообщение жителям");
   const drawer = screen.getByRole("dialog");
   fireEvent.click(within(drawer).getByRole("button", { name: "Редактировать" }));
-  await screen.findByLabelText("Текст для жителей");
+  await within(drawer).findByLabelText("Текст для жителей");
   expect(screen.getAllByRole("dialog")).toHaveLength(1);
   expect(within(drawer).getByLabelText("Текст для жителей")).toHaveValue("Сообщение жителям");
   fireEvent.click(within(drawer).getByRole("button", { name: "Отмена" }));
@@ -167,7 +168,7 @@ it("согласованный финансовый отчёт предлага�
  const card={id:"p",title:"Отчёт за месяц",body:"Доходы и расходы",kind:"financial_report",state:"draft",approved_by:"chairman",files:[],history:[],can_manage:true,can_approve:false,financial_versions:[]};
  vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/publications" ? {items:[card]} : card);
  render(<PublicationsPage/>);
- fireEvent.click(await screen.findByRole("button", {name:"Отчёт за месяц"}));
+ fireEvent.click(await findButton("Отчёт за месяц"));
  const process=await screen.findByRole("region",{name:"Сейчас по процессу"});
  expect(within(process).getByRole("button",{name:"Опубликовать"})).toHaveClass("ant-btn-primary");
  expect(within(process).queryByRole("button",{name:"На согласование председателю"})).toBeNull();
