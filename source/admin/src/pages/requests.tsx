@@ -1,3 +1,4 @@
+import { PageSearch } from "../components/page-controls";
 import { ListFilters } from "../components/list-filters";
 import { DeadlineInput } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions } from "../components/process-card";
@@ -459,7 +460,7 @@ export function RequestsPage() {
     },
   ];
   return (
-    <PageLayout mobileFilters title="Обращения"
+    <PageLayout title="Обращения"
       extra={<ViewToggle kind={view} onChange={setView} />}
       actions={<Space wrap>
         <Button type="primary" onClick={() => { form.resetFields(); createKey.current = crypto.randomUUID(); setCreate(true); }}>
@@ -467,7 +468,7 @@ export function RequestsPage() {
         </Button>
       </Space>}
       filters={<ListFilters
-        search={<Input.Search aria-label="Поиск обращений" placeholder="Номер, описание или инициатор" value={search}
+        search={<PageSearch aria-label="Поиск обращений" placeholder="Номер, описание или инициатор" value={search}
           onChange={e => setSearch(e.target.value)} onSearch={() => setAppliedSearch(search)} style={{ width: 280 }} />}
         values={{ state, related: buildingFilter, from, to }}
         onChange={next => { setState(next.state); setBuildingFilter(next.related); setFrom(next.from); setTo(next.to); }}

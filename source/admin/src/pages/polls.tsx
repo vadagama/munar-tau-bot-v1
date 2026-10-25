@@ -1,3 +1,4 @@
+import { FilterOutlined } from "@ant-design/icons";
 import { useEffect,useRef,useState } from "react";
 import { Alert,Button,Empty,Select,Space,Spin,Tag,Typography } from "antd";
 import { PageLayout } from "../components/page-layout";
@@ -41,9 +42,9 @@ export function PollsPage(){
   return <PageLayout title="Опросы" actions={<Space wrap>
     {manager&&<Button type="primary" onClick={create}>Новый опрос</Button>}
     <Button loading={loading} onClick={()=>void load()}>Обновить список опросов</Button>
-  </Space>} filters={<Select aria-label="Состояние опроса" allowClear placeholder="Все состояния" value={state}
+  </Space>} filters={<Select prefix={<FilterOutlined aria-hidden />} aria-label="Состояние опроса" allowClear placeholder="Все состояния" value={state}
     options={Object.entries(pollStates).map(([value,label])=>({value,label}))} onChange={value=>{setOffset(0);setState(value);}}/>}>
-    <Alert type="info" showIcon message="Информационные опросы не являются решениями собрания"/>
+    <Alert className="cabinet-page__intro" type="info" showIcon message="Информационные опросы не являются решениями собрания"/>
     {error&&<Alert role="alert" type="error" showIcon message={error}/>}
     {!loading&&!error&&!rows.length?<Empty description="Опросов пока нет"/>:<ConfigurableTable storageKey="polls" rowKey="id" loading={loading} dataSource={rows} pagination={false} scroll={{x:640}} columns={[
       {key:"question",title:"Вопрос",dataIndex:"question",render:(_value:string,row:PollView)=><Button type="link" onClick={()=>void open(row.id)}>{row.question}</Button>},

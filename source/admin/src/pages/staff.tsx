@@ -1,3 +1,5 @@
+import { FilterOutlined } from "@ant-design/icons";
+import { PageSearch } from "../components/page-controls";
 import { PROCESS_MANAGER_ROLES } from "../components/process-guidance";
 import { ProcessOverview, ProcessActions } from "../components/process-card";
 import { ConfigurableTable } from "../components/configurable-table";
@@ -9,7 +11,6 @@ import {
   Alert,
   Button,
   Form,
-  Input,
   Select,
   Space,
   Tag,
@@ -203,14 +204,14 @@ export function StaffPage() {
       )}
       filters={
         <Space wrap>
-          <Input.Search
+          <PageSearch
             aria-label="Поиск сотрудников"
             placeholder="ФИО, телефон или Telegram"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             allowClear
           />
-          <Select
+          <Select prefix={<FilterOutlined aria-hidden />}
             aria-label="Состояние сотрудника"
             value={status}
             onChange={setStatus}
@@ -221,7 +222,7 @@ export function StaffPage() {
               { value: "all", label: "Все" },
             ]}
           />
-          <Select
+          <Select prefix={<FilterOutlined aria-hidden />}
             aria-label="Фильтр по роли"
             allowClear
             placeholder="Все роли"

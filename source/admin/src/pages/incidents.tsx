@@ -259,7 +259,7 @@ function IncidentPanel() {
           message={error}
         />
       )}
-      <Alert
+      <Alert className="cabinet-page__intro"
         type="info"
         showIcon
         message="Сигнал не означает подтверждения выезда. Частичное восстановление не завершает общую аварию."
@@ -302,7 +302,7 @@ function IncidentPanel() {
                     )}
                   />
                 ) : (
-                  <ConfigurableTable storageKey="columns.incidents" settingsPlacement={activeTab === "incidents" ? "page" : "inline"}
+                  <ConfigurableTable storageKey="columns.incidents" settingsPlacement={activeTab === "incidents" ? "page" : "inline"} mobileSortPlacement={activeTab === "incidents" ? "page" : "none"}
                     rowKey="id"
                     dataSource={rows}
                     loading={busy}
@@ -332,7 +332,7 @@ function IncidentPanel() {
             key: "signals",
             label: "Срочные сигналы",
             children: (
-              <ConfigurableTable storageKey="columns.emergency-signals" settingsPlacement={activeTab === "signals" ? "page" : "inline"}
+              <ConfigurableTable storageKey="columns.emergency-signals" settingsPlacement={activeTab === "signals" ? "page" : "inline"} mobileSortPlacement={activeTab === "signals" ? "page" : "none"}
                 rowKey="id"
                 dataSource={signals}
                 scroll={{ x: 650 }}
@@ -384,7 +384,7 @@ function IncidentPanel() {
               children: (
                 <>
 
-                  <ConfigurableTable storageKey="columns.duty-shifts" settingsPlacement={activeTab === "duty" ? "page" : "inline"}
+                  <ConfigurableTable storageKey="columns.duty-shifts" settingsPlacement={activeTab === "duty" ? "page" : "inline"} mobileSortPlacement={activeTab === "duty" ? "page" : "none"}
                     rowKey="id"
                     dataSource={shifts}
                     scroll={{ x: 650 }}

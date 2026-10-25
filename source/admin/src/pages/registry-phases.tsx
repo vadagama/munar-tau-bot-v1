@@ -1,5 +1,7 @@
+import { FilterOutlined } from "@ant-design/icons";
+import { PageSearch } from "../components/page-controls";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Input, Select, Space, Typography } from "antd";
+import { Alert, Select, Space, Typography } from "antd";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -56,15 +58,15 @@ export function RegistryPhasesPage() {
       && (!occupancy || (occupancy === "filled" ? row.building_count > 0 : row.building_count === 0)),
   );
   return <PageLayout title="Очереди" filters={<Space wrap>
-    <Input.Search aria-label="Поиск очередей" allowClear placeholder="Очередь, здание или адрес" value={search}
+    <PageSearch aria-label="Поиск очередей" allowClear placeholder="Очередь, здание или адрес" value={search}
       onChange={event => { setSearch(event.target.value); setPage(1); }} style={{ width: 300, maxWidth: "100%" }} />
-    <Select aria-label="Фильтр по очереди строительства" value={phase} options={PHASE_OPTIONS}
+    <Select prefix={<FilterOutlined aria-hidden />} aria-label="Фильтр по очереди строительства" value={phase} options={PHASE_OPTIONS}
       onChange={value => { setPhase(value); setPage(1); }} style={{ width: 180 }} />
-    <Select aria-label="Наличие зданий" allowClear placeholder="Все очереди по составу" value={occupancy}
+    <Select prefix={<FilterOutlined aria-hidden />} aria-label="Наличие зданий" allowClear placeholder="Все очереди по составу" value={occupancy}
       onChange={value => { setOccupancy(value); setPage(1); }} style={{ width: 230 }}
       options={[{ value: "filled", label: "Есть здания" }, { value: "empty", label: "Без зданий" }]} />
   </Space>}>
-    <Typography.Paragraph type="secondary">Очереди строительства и их состав в доступной области. Очередь меняется в карточке здания; «Не указана» объединяет здания без очереди.</Typography.Paragraph>
+    <Typography.Paragraph className="cabinet-page__intro" type="secondary">Очереди строительства и их состав в доступной области. Очередь меняется в карточке здания; «Не указана» объединяет здания без очереди.</Typography.Paragraph>
     {error && <Alert type="error" showIcon message={error} />}
     <ConfigurableTable storageKey="columns.registry.phases" settingsPlacement="page" rowKey="id" loading={busy}
       dataSource={error && !buildings.length ? [] : rows} scroll={{ x: 800 }} pagination={{ current: page, onChange: setPage, pageSize: 20 }}

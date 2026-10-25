@@ -1,13 +1,16 @@
+import { SortAscendingOutlined } from "@ant-design/icons";
 import { useContext, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Select, Table, type TableProps } from "antd";
 import { useMobile } from "../lib/use-mobile";
+import { FilterSortSummary, PageControlsContext } from "./page-controls";
 import { TableSettingsContext } from "./table-settings-context";
 import { withColumnSorting } from "./table-sorting";
 import { useTableColumns, type ConfigurableColumn } from "./table-columns";
 
 type Props<T extends object> = Omit<TableProps<T>, "columns"> & {
   storageKey: string;
+  mobileSortPlacement?: "page" | "inline" | "none";
   mobileRender?: (record: T) => ReactNode;
   settingsPlacement?: "page" | "inline";
   columns?: ConfigurableColumn<T>[];
@@ -18,10 +21,12 @@ export function ConfigurableTable<T extends object>(props: Props<T>) {
   return <ConfiguredTable key={props.storageKey} {...props} />;
 }
 
-function ConfiguredTable<T extends object>({ storageKey, settingsPlacement = "inline", columns = [], mobileRender, ...props }: Props<T>) {
+function ConfiguredTable<T extends object>({ storageKey, settingsPlacement = "inline", columns = [], mobileRender, mobileSortPlacement = "page", ...props }: Props<T>) {
   const mobile = useMobile();
   const [sort, setSort] = useState<string>();
   const host = useContext(TableSettingsContext);
+  const controls = useContext(PageControlsContext);
+  const registerSort = controls?.registerSort;
   const register = host?.register;
   const pageSettings = settingsPlacement === "page" && !!host && !mobile;
   useEffect(() => {
@@ -42,12 +47,18 @@ function ConfiguredTable<T extends object>({ storageKey, settingsPlacement = "in
   const sorter = selectedSort && "sorter" in selectedSort ? selectedSort.sorter : undefined;
   const sortOptions = keyedColumns.flatMap((column, index) => "sorter" in column && column.sorter && typeof column.title === "string"
     ? [{value:`${index}:ascend`,label:`${column.title} ↑`}, {value:`${index}:descend`,label:`${column.title} ↓`}] : []);
+  const pageSort = mobile && mobileSortPlacement === "page" && !!controls && sortOptions.length > 0;
+  useEffect(() => {
+    if (pageSort && registerSort) return registerSort();
+  }, [pageSort, registerSort]);
+  const sorting = mobileSortPlacement !== "none" && !!sortOptions.length && <Select prefix={<SortAscendingOutlined aria-hidden />} className="mobile-sort" aria-label="Сортировка списка" placeholder="Сортировка" allowClear
+    value={sort} onChange={next => {
+      setSort(next);
+      if (props.pagination) props.pagination.onChange?.(1, props.pagination.pageSize ?? props.pagination.defaultPageSize ?? 10);
+    }} options={sortOptions} />;
   if (mobile) return <>
-    {!!sortOptions.length && <Select className="mobile-sort" aria-label="Сортировка списка" placeholder="Сортировка" allowClear
-      value={sort} onChange={next => {
-        setSort(next);
-        if (props.pagination) props.pagination.onChange?.(1, props.pagination.pageSize ?? props.pagination.defaultPageSize ?? 10);
-      }} options={sortOptions} />}
+    {pageSort ? controls.sortTarget && createPortal(sorting, controls.sortTarget)
+      : sorting && <details className="cabinet-page__compact-filters"><FilterSortSummary />{sorting}</details>}
     <Table<T> key={sort ?? "default"} {...props} className={`mobile-records ${props.className ?? ""}`}
     scroll={undefined} showHeader={false} tableLayout="auto"
     columns={[{ key: selectedSort?.key ?? "record", sorter, sortOrder: sort ? (direction === "descend" ? "descend" : "ascend") : null, render: (_, record, index) => mobileRender ? mobileRender(record) :

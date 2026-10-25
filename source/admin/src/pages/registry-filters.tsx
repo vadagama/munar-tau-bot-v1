@@ -1,4 +1,6 @@
-import { Input, Select, Space } from "antd";
+import { FilterOutlined } from "@ant-design/icons";
+import { PageSearch } from "../components/page-controls";
+import { Select, Space } from "antd";
 
 export type RegistrySection = "buildings" | "premises" | "connections";
 export type RegistryRow = Record<string, unknown>;
@@ -48,22 +50,22 @@ export function RegistryFilters({ section, values, onChange, buildings, kinds, r
 }) {
   const update = (patch: Partial<RegistryFilterValues>) => onChange({ ...values, ...patch });
   return <Space wrap>
-    <Input.Search aria-label="Поиск объектов" allowClear value={values.search}
+    <PageSearch aria-label="Поиск объектов" allowClear value={values.search}
       placeholder={section === "buildings" ? "Название здания" : section === "premises" ? "Здание, номер, подъезд или этаж" : "ФИО, телефон, здание или помещение"}
       onChange={event => update({ search: event.target.value })} style={{ width: 300, maxWidth: "100%" }} />
-    <Select aria-label="Фильтр по очереди строительства" value={values.phase}
+    <Select prefix={<FilterOutlined aria-hidden />} aria-label="Фильтр по очереди строительства" value={values.phase}
       onChange={phase => update({ phase })} options={PHASE_OPTIONS} style={{ width: 180 }} />
     {section !== "buildings" && <>
-      <Select aria-label="Фильтр по зданию" placeholder="Все здания" allowClear showSearch optionFilterProp="label"
+      <Select prefix={<FilterOutlined aria-hidden />} aria-label="Фильтр по зданию" placeholder="Все здания" allowClear showSearch optionFilterProp="label"
         value={values.building} onChange={building => update({ building })} style={{ width: 220 }}
         options={buildings.map(b => ({ value: String(b.id), label: String(b.name || b.code) }))} />
-      <Select aria-label="Фильтр по типу помещения" placeholder="Все типы" allowClear value={values.kind}
+      <Select prefix={<FilterOutlined aria-hidden />} aria-label="Фильтр по типу помещения" placeholder="Все типы" allowClear value={values.kind}
         onChange={kind => update({ kind })} options={kinds} style={{ width: 220 }} />
-      <Select aria-label="Фильтр по статусу" placeholder="Все статусы" allowClear value={values.status}
+      <Select prefix={<FilterOutlined aria-hidden />} aria-label="Фильтр по статусу" placeholder="Все статусы" allowClear value={values.status}
         onChange={status => update({ status })} style={{ width: 190 }}
         options={Object.entries(statuses).map(([value, label]) => ({ value, label }))} />
     </>}
-    {section === "connections" && <Select aria-label="Фильтр по отношению к помещению" placeholder="Все отношения" allowClear
+    {section === "connections" && <Select prefix={<FilterOutlined aria-hidden />} aria-label="Фильтр по отношению к помещению" placeholder="Все отношения" allowClear
       value={values.role} onChange={role => update({ role })} options={roles} style={{ width: 250 }} />}
   </Space>;
 }

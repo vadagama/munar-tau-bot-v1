@@ -1,7 +1,9 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, expect, it } from "vitest";
+import { PageSearch } from "./page-controls";
+import { ConfigurableTable } from "./configurable-table";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
 import { PageLayout } from "./page-layout";
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it("располагает действия перед фильтрами и рабочей областью", () => {
   render(<PageLayout title="Обращения" extra="Доска" actions={<button>Создать</button>} filters={<input aria-label="Дом" />}><p>Рабочая область</p></PageLayout>);
   const title = screen.getByRole("heading", { name: "Обращения" });
@@ -16,4 +18,27 @@ it("не создаёт пустые строки действий и фильт
   render(<PageLayout title="Главная">Содержимое</PageLayout>);
   expect(screen.queryByRole("group")).toBeNull();
   expect(screen.queryByRole("search")).toBeNull();
+});
+
+it("на телефоне поиск доступен вне свёрнутых фильтров, сортировка находится внутри них", () => {
+  vi.spyOn(window, "matchMedia").mockImplementation(query => ({matches: query === "(max-width: 767px)", media: query, onchange:null,
+    addListener:vi.fn(),removeListener:vi.fn(),addEventListener:vi.fn(),removeEventListener:vi.fn(),dispatchEvent:()=>false}));
+  const computed = window.getComputedStyle.bind(window);
+  vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
+  render(<PageLayout title="Жители" actions={<button>Создать</button>}
+    filters={<><PageSearch aria-label="Поиск жителей" /><input aria-label="Дом" /></>}>
+    <ConfigurableTable storageKey="layout-mobile" rowKey="id" columns={[{title:"Имя",dataIndex:"name"}]}
+      dataSource={[{id:"a",name:"Анна"}]} pagination={false} />
+  </PageLayout>);
+  const search = screen.getByRole("searchbox", { name: "Поиск жителей" });
+  expect(search.closest("details")).toBeNull();
+  expect(screen.getByText("Анна")).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "Сортировка списка" }).closest("details")).not.toHaveAttribute("open");
+  const summary = screen.getByText("Фильтры и сортировка");
+  expect(search.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  fireEvent.click(summary);
+  expect(screen.getByRole("textbox", { name: "Дом" })).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "Сортировка списка" }).closest("details")).toBe(summary.closest("details"));
+  fireEvent.click(summary);
+  expect(search).toBeVisible();
 });

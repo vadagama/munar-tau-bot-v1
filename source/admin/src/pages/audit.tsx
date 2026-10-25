@@ -1,3 +1,5 @@
+import { FilterOutlined } from "@ant-design/icons";
+import { PageSearch } from "../components/page-controls";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -5,7 +7,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Button,
   DatePicker,
-  Input,
   Select,
   Space,
   Tag,
@@ -142,7 +143,7 @@ export function AuditPage() {
 
   return (
     <PageLayout title="Журнал действий" filters={<Space wrap>
-        <Select
+        <Select prefix={<FilterOutlined aria-hidden />}
           allowClear
           placeholder="Тип сущности"
           style={{ width: 200 }}
@@ -150,7 +151,7 @@ export function AuditPage() {
           value={filter.entityType}
           onChange={(value) => changeFilter({ entityType: value })}
         />
-        <Input.Search
+        <PageSearch
           allowClear
           placeholder="Актор (person id)"
           style={{ width: 280 }}

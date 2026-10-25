@@ -1,3 +1,4 @@
+import { PageSearch } from "../components/page-controls";
 import { ListFilters } from "../components/list-filters";
 import { DeadlineInput } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
@@ -515,11 +516,11 @@ export function TasksPage() {
           </DetailSection>
   );
   return (
-    <PageLayout mobileFilters title="Все задания"
+    <PageLayout title="Все задания"
       extra={<ViewToggle kind={view} onChange={setView} />}
       actions={manager ? <Button type="primary" onClick={() => void newTask()}>Создать задание</Button> : null}
       filters={<ListFilters dateLabels={["Дата создания с", "Дата создания по"]}
-        search={<Input.Search aria-label="Поиск заданий" placeholder="Номер или описание" value={search}
+        search={<PageSearch aria-label="Поиск заданий" placeholder="Номер или описание" value={search}
           onChange={event => setSearch(event.target.value)} style={{ width: 280, maxWidth: "100%" }} />}
         values={{ state: stateFilter, related: assigneeFilter, from, to }}
         onChange={next => { setStateFilter(next.state); setAssigneeFilter(next.related); setFrom(next.from); setTo(next.to); }}

@@ -1,3 +1,4 @@
+import { PageControlsContext } from "../components/page-controls";
 import { createContext, useEffect, useState, type ReactNode } from "react";
 import { Alert, Button, ConfigProvider, Drawer, Space } from "antd";
 
@@ -45,6 +46,7 @@ export function CardDrawer(props: {
         {mobile && <div className="mobile-card-action" ref={setActionHost} />}
         {typeof props.footer === "function" ? props.footer(close) : props.footer}
       </> : typeof props.footer === "function" ? props.footer(close) : props.footer}>
+      <PageControlsContext.Provider value={null}>
       <MobileActionContext.Provider value={mobile && !editor ? actionHost : null}>
       <DrawerActionContext.Provider value={{ host, editor, setEditor }}>
         {discard && <Alert type="warning" showIcon message="Остались несохранённые изменения"
@@ -61,6 +63,7 @@ export function CardDrawer(props: {
         </div>
       </DrawerActionContext.Provider>
       </MobileActionContext.Provider>
+      </PageControlsContext.Provider>
     </Drawer>
   );
 }

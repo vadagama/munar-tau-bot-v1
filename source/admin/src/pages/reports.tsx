@@ -1,3 +1,4 @@
+import { FilterOutlined } from "@ant-design/icons";
 import { useEffect,useRef,useState } from "react";
 import { Alert,Button,Empty,Input,Select,Space,Tabs,Typography } from "antd";
 import { PageLayout } from "../components/page-layout";
@@ -29,9 +30,9 @@ function ReportPanel({kinds,exportAllowed,configure}:{kinds:ReportKind[];exportA
  return <PageLayout title="Отчётность" actions={<Button loading={busy} disabled={!kinds.length} onClick={()=>void load()}>Обновить отчёт</Button>} filters={!!kinds.length&&<Space wrap>
  <label>От (включительно)<Input aria-label="Начало периода" type="date" value={dates.from} onChange={e=>{setOffset(0);setDates({...dates,from:e.target.value});}}/></label>
  <label>До (исключительно)<Input aria-label="Конец периода" type="date" value={dates.to} onChange={e=>{setOffset(0);setDates({...dates,to:e.target.value});}}/></label>
- <Select aria-label="Дома отчёта" mode="multiple" allowClear placeholder="Все доступные дома" style={{minWidth:200}} value={buildings} options={labels.map(b=>({value:b.id,label:b.label}))} onChange={v=>{setOffset(0);setBuildings(v);}}/>
- <Select aria-label="Исполнитель отчёта" allowClear placeholder="Все доступные исполнители" style={{minWidth:210}} value={assignee} options={data?.filter_options?.assignees.map(a=>({value:a.id,label:a.name}))??[]} onChange={v=>{setOffset(0);setAssignee(v);}}/>
- {kind!=="payments"&&<Select aria-label="Состояние отчёта" allowClear placeholder="Все состояния" style={{minWidth:190}} value={state} options={states.map(value=>({value,label:reportStates[value]}))} onChange={v=>{setOffset(0);setState(v);}}/>}</Space>}>
+ <Select prefix={<FilterOutlined aria-hidden />} aria-label="Дома отчёта" mode="multiple" allowClear placeholder="Все доступные дома" style={{minWidth:200}} value={buildings} options={labels.map(b=>({value:b.id,label:b.label}))} onChange={v=>{setOffset(0);setBuildings(v);}}/>
+ <Select prefix={<FilterOutlined aria-hidden />} aria-label="Исполнитель отчёта" allowClear placeholder="Все доступные исполнители" style={{minWidth:210}} value={assignee} options={data?.filter_options?.assignees.map(a=>({value:a.id,label:a.name}))??[]} onChange={v=>{setOffset(0);setAssignee(v);}}/>
+ {kind!=="payments"&&<Select prefix={<FilterOutlined aria-hidden />} aria-label="Состояние отчёта" allowClear placeholder="Все состояния" style={{minWidth:190}} value={state} options={states.map(value=>({value,label:reportStates[value]}))} onChange={v=>{setOffset(0);setState(v);}}/>}</Space>}>
  {!kinds.length?<Alert type="info" message="Отчёты доступны сотрудникам ОСИ"/>:<>
  <Tabs activeKey={kind} onChange={switchKind} items={kinds.map(key=>({key,label:reportTitles[key]}))}/>
  {error&&<Alert role="alert" type="error" message={error}/>}

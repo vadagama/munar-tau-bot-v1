@@ -1,3 +1,5 @@
+import { FilterOutlined } from "@ant-design/icons";
+import { PageSearch } from "../components/page-controls";
 import { RegistryFilters, EMPTY_REGISTRY_FILTERS, filterRegistryRows, type RegistryFilterValues, type RegistrySection } from "./registry-filters";
 import { ProcessOverview } from "../components/process-card";
 import { REGISTRATION_REVIEWER_ROLES } from "../components/process-guidance";
@@ -512,15 +514,15 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
     <PageLayout title={users === "staff" ? "Сотрудники" : users ? "Жители" : LABELS[entity]}
       actions={users !== "staff" ? <Button type="primary" onClick={() => open(null)}>Добавить запись</Button> : null}
       filters={users === "residents" ? <Space wrap>
-        <Input.Search aria-label="Поиск жителей" placeholder="ФИО, телефон, Telegram или адрес" value={residentSearch}
+        <PageSearch aria-label="Поиск жителей" placeholder="ФИО, телефон, Telegram или адрес" value={residentSearch}
           onChange={e => setResidentSearch(e.target.value)} style={{ width: 280 }} />
-        <Select aria-label="Статус регистрации" placeholder="Все статусы" allowClear value={registrationState}
+        <Select prefix={<FilterOutlined aria-hidden />} aria-label="Статус регистрации" placeholder="Все статусы" allowClear value={registrationState}
           onChange={setRegistrationState} style={{ width: 230 }}
           options={Object.entries(REGISTRATION_STATES).map(([value, label]) => ({ value, label }))} />
-        <Select aria-label="Фильтр по зданию" placeholder="Все здания" allowClear showSearch optionFilterProp="label"
+        <Select prefix={<FilterOutlined aria-hidden />} aria-label="Фильтр по зданию" placeholder="Все здания" allowClear showSearch optionFilterProp="label"
           value={residentBuilding} onChange={setResidentBuilding} style={{ width: 210 }}
           options={options(buildings, b => String(b.name || b.code))} />
-        <Select aria-label="Наличие помещений" placeholder="Все привязки" allowClear value={hasPremises}
+        <Select prefix={<FilterOutlined aria-hidden />} aria-label="Наличие помещений" placeholder="Все привязки" allowClear value={hasPremises}
           onChange={setHasPremises} style={{ width: 220 }} options={[
             { value: "yes", label: "Есть помещения" }, { value: "no", label: "Без помещений" },
           ]} />
@@ -529,10 +531,10 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
         <Input aria-label="Период регистрации по" type="date" value={registeredTo}
           onChange={e => setRegisteredTo(e.target.value)} style={{ width: 155 }} />
       </Space> : users === "staff" ? <Space wrap>
-        <Input.Search aria-label="Поиск сотрудников" placeholder="ФИО, телефон, Telegram или роль" value={staffSearch}
+        <PageSearch aria-label="Поиск сотрудников" placeholder="ФИО, телефон, Telegram или роль" value={staffSearch}
           onChange={e => setStaffSearch(e.target.value)} style={{ width: 320 }} />
       </Space> : !users && <RegistryFilters section={section} values={filters}
-        onChange={values => { setFilters(values); setPage(1); }} buildings={buildings} kinds={KINDS} roles={ROLES} statuses={STATUS} />}> <Typography.Paragraph type="secondary">
+        onChange={values => { setFilters(values); setPage(1); }} buildings={buildings} kinds={KINDS} roles={ROLES} statuses={STATUS} />}> <Typography.Paragraph className="cabinet-page__intro" type="secondary">
           {users === "staff" ? "Пользователи с действующими служебными полномочиями в доступной области." : users
             ? "Жители без действующих служебных назначений. Совпадение телефона не объединяет карточки."
             : "Здания, помещения и привязки помещений к пользователям. Изменения сохраняются в журнале."}

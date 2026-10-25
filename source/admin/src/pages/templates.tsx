@@ -1,3 +1,6 @@
+import { FilterOutlined } from "@ant-design/icons";
+import { SortAscendingOutlined } from "@ant-design/icons";
+import { PageSearch } from "../components/page-controls";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -72,6 +75,7 @@ const sections: Record<string, string> = {
 };
 export function TemplatesPage() {
   const mobile = useMobile();
+  const [mobileSort, setMobileSort] = useState<string>();
   const { roles, identity } = useCabinetIdentity();
   const allowed = canSeeTemplates(roles);
   const editable = allowed && !identity?.me.emulation;
@@ -319,16 +323,25 @@ export function TemplatesPage() {
       search.toLowerCase(),
     )
   );
+  if (mobile && mobileSort) {
+    const [field, direction] = mobileSort.split(":");
+    filtered.sort((a, b) => {
+      const value = (row: Template) => field === "title" ? row.title : field === "status"
+        ? (row.overridden ? "Настроен" : "По умолчанию") : row.active?.created_at ?? "";
+      return value(a).localeCompare(value(b), "ru", { numeric: true }) * (direction === "desc" ? -1 : 1);
+    });
+  }
+
   return (
     <PageLayout title="Шаблоны сообщений"
       filters={<Space wrap>
-        <Input.Search
+        <PageSearch
           aria-label="Поиск шаблонов"
           placeholder="Сценарий, команда или сообщение"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Select
+        <Select prefix={<FilterOutlined aria-hidden />}
           aria-label="Секция"
           allowClear
           placeholder="Все секции"
@@ -340,9 +353,15 @@ export function TemplatesPage() {
             label,
           }))}
         />
+        {mobile && <Select prefix={<SortAscendingOutlined aria-hidden />} aria-label="Сортировка шаблонов" placeholder="Сортировка" allowClear
+          value={mobileSort} onChange={setMobileSort} options={[
+            {value:"title:asc",label:"Название ↑"},{value:"title:desc",label:"Название ↓"},
+            {value:"status:asc",label:"Статус ↑"},{value:"status:desc",label:"Статус ↓"},
+            {value:"date:desc",label:"Сначала недавно изменённые"},{value:"date:asc",label:"Сначала давно изменённые"},
+          ]} />}
       </Space>}>
 
-      <Typography.Paragraph>
+      <Typography.Paragraph className="cabinet-page__intro">
         Выберите сценарий и шаг: редактируется целое сообщение с кнопками.
         Справа показан ответ жителю на вымышленных данных. История изменений
         сохраняется.
@@ -376,7 +395,7 @@ export function TemplatesPage() {
                 key: scenario,
                 label: scenario,
                 children: (
-                  <ConfigurableTable storageKey={`columns.templates.${id}.${scenario}`} settingsPlacement="inline"
+                  <ConfigurableTable storageKey={`columns.templates.${id}.${scenario}`} settingsPlacement="inline" mobileSortPlacement="none"
                     size="small"
                     mobileRender={(row) => (
                       <div className="template-mobile-row">
@@ -544,7 +563,7 @@ export function TemplatesPage() {
                 />
                 {selected.variables.length > 0
                   ? (
-                    <ConfigurableTable storageKey="columns.template-variables" settingsPlacement="inline"
+                    <ConfigurableTable storageKey="columns.template-variables" settingsPlacement="inline" mobileSortPlacement="inline"
                       size="small"
                       pagination={false}
                       rowKey="name"

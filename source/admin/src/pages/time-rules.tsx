@@ -113,7 +113,7 @@ export function TimeRulesPage() {
   };
   return (
     <PageLayout title="Регламенты">
-      <Alert
+      <Alert className="cabinet-page__intro"
         type="info"
         showIcon
         message="Новая версия действует для новых сроков. Уже запущенные таймеры сохраняют прежнюю версию. Изменения требуют права управления регламентами и записываются в журнал."

@@ -35,6 +35,7 @@ it("мобильная сортировка применяется ко всем
   vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
   render(<ConfigurableTable storageKey="columns.mobile-sort" rowKey="id" columns={[{title:"Номер",dataIndex:"name"}]}
     pagination={{pageSize:1}} dataSource={[{id:"a",name:"ЗД-10"},{id:"b",name:"ЗД-2"}]} />);
+  fireEvent.click(screen.getByText("Фильтры и сортировка"));
   fireEvent.mouseDown(screen.getByRole("combobox",{name:"Сортировка списка"}));
   fireEvent.click(screen.getByText("Номер ↑"));
   expect(screen.getByText("ЗД-2")).toBeInTheDocument();
@@ -63,6 +64,7 @@ it("сортировка мобильного реестра возвращае�
   const onPage = vi.fn();
   render(<ConfigurableTable storageKey="columns.mobile-controlled" rowKey="id" columns={[{title:"Номер",dataIndex:"name"}]}
     pagination={{current:2,pageSize:1,onChange:onPage}} dataSource={[{id:"a",name:"ЗД-10"},{id:"b",name:"ЗД-2"}]} />);
+  fireEvent.click(screen.getByText("Фильтры и сортировка"));
   fireEvent.mouseDown(screen.getByRole("combobox",{name:"Сортировка списка"}));
   fireEvent.click(screen.getByText("Номер ↑"));
   expect(onPage).toHaveBeenCalledWith(1,1);
