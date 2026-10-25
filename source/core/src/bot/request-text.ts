@@ -243,7 +243,8 @@ export function requestCardText(
     if(row.state==='rejected')buttons.push([control('appeal')]);
     if(['closed','canceled','rejected'].includes(String(row.state)))buttons.push([control('reopen')]);
   }
-  if(row.can_share)buttons.push([control('share'),control('unshare')]);
+  // Совместный доступ убран из кнопок карточки (25.10.2026); действие
+  // остаётся доступным командами /share и /unshare.
   // Возврат к списку — явная кнопка вместо тупика; data без номера,
   // иначе номер превратил бы команду в поисковый запрос.
   buttons.push([btn(messageButton(store, lang, 'bot.controls', 'requests'), '/requests')]);
