@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import {
   act,
   cleanup,
@@ -82,7 +83,7 @@ it(
   "автор видит только канал Жителю и подтверждает конкретную версию",
   async () => {
     setup();
-    render(<RequestsPage />);
+    render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
     fireEvent.click(await findButton("З-26-00001"));
     expect(await screen.findByText("Публичный ответ")).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Внутреннее" })).not
@@ -113,7 +114,7 @@ it(
 );
 it("служебный канал явно помечен перед отправкой", async () => {
   setup(true);
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   fireEvent.click(await screen.findByRole("tab", { name: "Внутреннее" }));
   expect(screen.getByText("Внутреннее сообщение: житель его не увидит"))
@@ -124,7 +125,7 @@ it("служебный канал явно помечен перед отпра�
 }, 15000);
 it("черновик внутреннего сообщения не переносится в канал жителя", async () => {
   setup(true);
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   fireEvent.click(await screen.findByRole("tab", { name: "Внутреннее" }));
   fireEvent.change(screen.getByLabelText("Текст сообщения"), {
@@ -144,7 +145,7 @@ it("бывший автор сохраняет чтение истории бе�
     can_act_as_author: false,
     can_comment: false,
  });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   expect(await findButton("Закрыть карточку"))
     .toBeInTheDocument();
@@ -155,7 +156,7 @@ it("бывший автор сохраняет чтение истории бе�
 it("ошибка доступа не показывает старую карточку", async () => {
   setup();
   vi.mocked(apiFetch).mockRejectedValue(new Error("Объект не найден"));
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   expect(await screen.findByText("Объект не найден")).toBeInTheDocument();
   expect(screen.queryByText("Вопрос жителя")).not.toBeInTheDocument();
 });
@@ -166,7 +167,7 @@ it("доска обращений: статусы в колонках, карт�
     open_at: "2026-10-18T07:30:00Z",
     first_response_due_at: "2026-10-19T07:30:00Z",
  });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("radio", { name: "Доска" }));
   // Колонка по статусу строки и карточка с номером на доске.
   expect(await screen.findByText("Ожидает подтверждения")).toBeInTheDocument();
@@ -179,7 +180,7 @@ it("доска обращений: статусы в колонках, карт�
 
 it("подтверждение результата раскрывается в исходной карточке и отменяется без запроса", async () => {
   setup();
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   await screen.findByText("Публичный ответ");
   const drawer = screen.getByRole("dialog");
@@ -197,7 +198,7 @@ it("подтверждение результата раскрывается в 
 
 it("форма действия блокирует параллельную отправку сообщения и сохраняет его черновик", async () => {
   setup();
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   const text = await screen.findByLabelText("Текст сообщения");
   fireEvent.change(text, { target: { value: "Сохранить черновик сообщения" } });
@@ -218,7 +219,7 @@ it("в списке видна дата регистрации, срок скр�
     open_at: "2026-10-18T07:30:00Z",
     first_response_due_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
  });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   expect(await screen.findByRole("columnheader", { name: "Дата регистрации" })).toBeInTheDocument();
   expect(screen.getByRole("cell", { name: "18.10.2026, 12:30" })).toBeInTheDocument();
   // Срок скрыт по умолчанию (defaultHidden); включение панелью колонок — общее поведение ConfigurableTable.
@@ -234,7 +235,7 @@ it("на телефоне в записи показывается дата ре
     open_at: "2026-10-18T07:30:00Z",
     first_response_due_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
  });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   expect(await screen.findByText("Дата регистрации: 18.10.2026, 12:30")).toBeInTheDocument();
   expect(screen.queryByText(/Первый ответ до/)).not.toBeInTheDocument();
   expect(screen.queryByText(/Срок/)).not.toBeInTheDocument();
@@ -248,7 +249,7 @@ it("фильтр здания отправляет выбранное здани
  }
     return { items: [] };
  });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   const filter = screen.getByRole("combobox", { name: "Фильтр по зданию" });
   fireEvent.mouseDown(filter);
   fireEvent.click(await screen.findByText("Дом 1", { selector: ".ant-select-item-option-content" }));
@@ -273,7 +274,7 @@ it("карточка группирует информацию и показыв
       { id: "f2", last_error: "DELIVERY_FAILED" },
     ],
  });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   await screen.findByText("Публичный ответ");
   const dialog = screen.getByRole("dialog");
@@ -303,7 +304,7 @@ it("показывает инициатора, подпись сообщения
   Object.assign(row, { author_name: "Петров Пётр Петрович" });
   Object.assign(row.messages[0]!, { author_name: "Иванов Иван Андреевич" });
   Object.assign(row.messages[1]!, { author_name: "Сидоров Сергей Сергеевич" });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   await screen.findByText("Публичный ответ");
   const dialog = screen.getByRole("dialog");
@@ -326,7 +327,7 @@ it("прошлая задержка ответа не показывает пр�
     first_response_due_at: "2020-01-01T00:00:00Z",
     first_response_at: "2020-01-01T00:26:00Z",
  });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   await screen.findByText("Публичный ответ");
   expect(within(screen.getByRole("dialog")).queryByRole("alert", { name: "Просрочка обращения" })).toBeNull();
@@ -335,7 +336,7 @@ it("прошлая задержка ответа не показывает пр�
 it("запрос уточнения требует только вопрос и сохраняет его как пояснение перехода", async () => {
   const row = setup(true);
   row.state = "reviewing";
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   fireEvent.click(await findButton("Запросить уточнение", true));
   expect(screen.queryByLabelText("Причина / пояснение")).not.toBeInTheDocument();
@@ -354,7 +355,7 @@ it("запрос уточнения требует только вопрос и 
 
 it("исправление места показывает дом перед помещением", async () => {
   setup(true);
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   fireEvent.click(await findButton("Исправить место", true));
   const building = await screen.findByLabelText("Дом");
@@ -368,7 +369,7 @@ it.each([
 ])("%s не требует отдельного пояснения", async (label, action, field, key) => {
   const row = setup(true);
   row.state = "reviewing";
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   fireEvent.click(await findButton(label, true));
   expect(screen.queryByLabelText("Причина / пояснение")).not.toBeInTheDocument();
@@ -385,7 +386,7 @@ it("итоговый ответ доступен и для заявки с ра�
   const row = setup(true);
   Object.assign(row, { kind: "request", work_execution_required: true });
   row.state = "in_work";
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   fireEvent.click(await findButton("Итоговый ответ", true));
   fireEvent.change(screen.getByLabelText("Итоговый ответ жителю"), {
@@ -406,7 +407,7 @@ it("Отклонить сохраняет причину и маршрут бе�
   const row = setup(true);
   row.state = "reviewing";
   Object.assign(row, { work_started_at: "2026-10-17T00:00:00Z" });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   fireEvent.click(await findButton("Отклонить", true));
   expect(screen.queryByLabelText("Остановка работ и обязательства")).not.toBeInTheDocument();
@@ -431,7 +432,7 @@ it("начало работы выбирает исполнителя и отп�
     if (path === "/v1/requests/r/task-assignees") return { items: [{ id: "worker", full_name: "Исполнитель дома" }] };
     return original(path, options);
  });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   fireEvent.click(await findButton("Начать работу", true));
   expect(screen.queryByLabelText("Причина / пояснение")).not.toBeInTheDocument();
@@ -455,7 +456,7 @@ it("начало работы выбирает исполнителя и отп�
 it("связанные задания показывают ссылку, исполнителя и состояние", async () => {
   const row = setup(true);
   Object.assign(row, { tasks: [{ id: "task-id", number: "ЗД-42", assignee_name: "Исполнитель дома", state: "awaiting_acceptance", due_at: "2099-01-01T10:00:00Z" }] });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   expect(await screen.findByRole("link", { name: "ЗД-42" })).toHaveAttribute("href", "/tasks?task=task-id");
   expect(screen.getByText(/Исполнитель дома · Ожидает принятия/)).toBeInTheDocument();
@@ -464,7 +465,7 @@ it("связанные задания показывают ссылку, исп�
 it("выбор колонок обращений скрывает описание и сохраняется отдельно от заданий", async () => {
   setup();
   localStorage.setItem("columns.tasks", JSON.stringify(["assignee_name"]));
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   await findButton("З-26-00001");
   fireEvent.click(screen.getByRole("button", { name: "Колонки" }));
   const settings = await screen.findByRole("group", { name: "Видимые колонки" });
@@ -478,7 +479,7 @@ it("выбор колонок обращений скрывает описани
 
 it("поиск, состояние и период применяются автоматически без кнопки Применить", async () => {
   setup();
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   await findButton("З-26-00001");
   expect(screen.queryByRole("button", { name: "Применить" })).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Поиск обращений"), { target: { value: "кран" } });
@@ -503,7 +504,7 @@ it("запоздавший ответ предыдущего фильтра не
  }
     return original(path, options);
  });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   await findButton("З-26-00001");
   const stateFilter = screen.getByRole("combobox", { name: "Статус обращения" });
   fireEvent.mouseDown(stateFilter);
@@ -524,7 +525,7 @@ it("показывает инициатора, сортирует по имен�
       { id: "r-a", number: "З-26-00001", description: "Первое", kind: "question", state: "new", author_name: "Анна Соколова" },
       { id: "r-n", number: "З-26-00003", description: "Третье", kind: "question", state: "new", author_name: null },
     ] } : original(path, options));
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   await screen.findByText("Яков Петров");
   const header = screen.getByRole("columnheader", { name: /Инициатор/ });
   const names = () => screen.getAllByRole("row").slice(1).map(row => row.textContent);
@@ -554,7 +555,7 @@ it("принятие на рассмотрение выполняется одн
  }
     return original(path, options);
  });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   const button = await findButton("Принять на рассмотрение");
   fireEvent.click(button);
@@ -579,7 +580,7 @@ it("ошибка прямого принятия остаётся в карто�
     if (path === "/v1/requests/r/transitions") throw new Error("Не удалось принять обращение");
     return original(path, options);
  });
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   fireEvent.click(await findButton("Принять на рассмотрение"));
   expect(await screen.findByText("Не удалось принять обращение")).toBeInTheDocument();
@@ -592,7 +593,7 @@ it.each(["request", "question"])("на рассмотрении %s: пять д�
   row.state = "reviewing";
   row.kind = kind;
   row.author_person_id = "resident";
-  render(<RequestsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RequestsPage /></MemoryRouter>);
   fireEvent.click(await findButton("З-26-00001"));
   await findButton("Начать работу");
   const actions = within(screen.getByRole("region", { name: "Действия по процессу" }));
@@ -603,4 +604,16 @@ it.each(["request", "question"])("на рассмотрении %s: пять д�
   expect(buttons[0]).toHaveClass("ant-btn-primary");
   expect(buttons.slice(1).every(button => !button.classList.contains("ant-btn-primary"))).toBe(true);
   expect(actions.queryByRole("button", { name: "Другие действия" })).not.toBeInTheDocument();
+});
+
+it("переход из графика переносит показатель и точный полуоткрытый интервал в API", async () => {
+  setup();
+  const original = vi.mocked(apiFetch).getMockImplementation()!;
+  vi.mocked(apiFetch).mockImplementation(async (path, options) => path === "/v1/dashboard/requests" ? { items: [] } : original(path, options));
+  const query = new URLSearchParams({ dashboard: "1", period: "year", measure: "closed", from: "2026-10-01T00:00:00+05:00", until: "2026-11-01T00:00:00+05:00", kind: "question" });
+  render(<MemoryRouter initialEntries={[`/requests?${query}`]}><RequestsPage /></MemoryRouter>);
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/dashboard/requests", expect.objectContaining({ body: expect.objectContaining({ measure: "closed", kind: "question", from: "2026-10-01T00:00:00+05:00", to: "2026-11-01T00:00:00+05:00" }) })));
+  expect(screen.getByText("Закрыто · год")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Сбросить фильтр графика" }));
+  await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/requests/search", expect.anything()));
 });

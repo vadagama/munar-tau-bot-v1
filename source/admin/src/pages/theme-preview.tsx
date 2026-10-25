@@ -9,7 +9,7 @@ import { BrandLogo } from "../components/brand-logo";
 import { PageLayout } from "../components/page-layout";
 import { ProcessOverview } from "../components/process-card";
 import { MenuLabel } from "../layouts/app-layout";
-import { QueueBlock } from "./home";
+import { QueueBlock } from "./queue-block";
 import { BoardView } from "./board";
 import { cabinetTheme, type CabinetVariant } from "../lib/cabinet-theme";
 import type { QueueRow } from "../lib/day-queue";

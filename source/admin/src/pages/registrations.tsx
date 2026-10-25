@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { FilterOutlined } from "@ant-design/icons";
 import { PageSearch } from "../components/page-controls";
 import { REGISTRATION_REVIEWER_ROLES } from "../components/process-guidance";
@@ -10,6 +11,8 @@ import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Card,
+  Descriptions,
   Button,
   Form,
   Input,
@@ -69,6 +72,9 @@ const JOURNAL_ACTIONS: Record<string, string> = {
   "registration.delete": "Удаление анкеты",
 };
 export function RegistrationsPage() {
+  const [routeQuery, setRouteQuery] = useSearchParams();
+  const selectedRegistration = routeQuery.get("registration");
+  const registrationKind = routeQuery.get("kind");
   const [view, setView] = useBoardView("view.registrations");
   const [rows, setRows] = useState<Row[]>([]),
     [busy, setBusy] = useState(false),
@@ -205,6 +211,8 @@ export function RegistrationsPage() {
     ] : []),
   ];
   const visible = rows.filter((r) => {
+    if (registrationKind === "primary" && r.premises_id) return false;
+    if (registrationKind === "binding" && !r.premises_id) return false;
     if (state && r.state !== state) return false;
     const searchTrim = search.trim().toLocaleLowerCase("ru-RU");
     if (!searchTrim) return true;
@@ -220,6 +228,9 @@ export function RegistrationsPage() {
       filters={<Space wrap>
         <PageSearch aria-label="Поиск анкет" placeholder="ФИО, телефон или Telegram" value={search}
           onChange={e => setSearch(e.target.value)} style={{ width: 320 }} />
+        <Select aria-label="Тип анкеты" value={registrationKind ?? undefined} allowClear placeholder="Все анкеты"
+          options={[{ value: "primary", label: "Регистрации" }, { value: "binding", label: "Привязки помещений" }]}
+          onChange={value => { const next = new URLSearchParams(routeQuery); if (value) next.set("kind", value); else next.delete("kind"); setRouteQuery(next); }} />
         <Select prefix={<FilterOutlined aria-hidden />}
           aria-label="Состояние анкеты"
           allowClear
@@ -236,6 +247,19 @@ export function RegistrationsPage() {
             Проверьте анкету по реестру. Спор остаётся открытым до явного решения.
           </Typography.Paragraph>
 
+      {selectedRegistration && !busy && (() => {
+        const row = rows.find(r => r.id === selectedRegistration);
+        const draft = row?.draft as Row | undefined;
+        return <Card className="cabinet-entity-page" title={row ? `Анкета · ${draft?.full_name ?? "Заявитель"}` : "Анкета недоступна"}
+          extra={<Button onClick={() => { const next = new URLSearchParams(routeQuery); next.delete("registration"); setRouteQuery(next); }}>К списку</Button>}>
+          {row ? <><Descriptions column={1} items={[
+            { key: "type", label: "Тип", children: row.premises_id ? "Привязка помещения" : "Основная регистрация" },
+            { key: "state", label: "Состояние", children: STATES[String(row.state)] },
+            { key: "phone", label: "Телефон", children: String(draft?.phone_e164 ?? "—") },
+            { key: "place", label: "Помещение", children: row.premises_id ? `${row.building_code ?? "Дом"} · ${row.number ?? "Помещение"}` : "Без помещения" },
+          ]} /><Space wrap>{decisionButtons(row)}{row.person_id ? <Button onClick={() => void openJournal(row)}>Журнал регистрации</Button> : null}</Space></> : <Typography.Text>Запись удалена или недоступна для ваших полномочий.</Typography.Text>}
+        </Card>;
+      })()}
       {error && (
         <Alert
           type="error"

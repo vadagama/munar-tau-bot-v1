@@ -1,7 +1,7 @@
 import { DiscardChangesDialog } from "../components/discard-changes-dialog";
 import { PageControlsContext } from "../components/page-controls";
 import { createContext, useEffect, useState, type ReactNode } from "react";
-import { Button, ConfigProvider, Drawer, Space } from "antd";
+import { Button, Card, ConfigProvider, Drawer, Space } from "antd";
 
 import { useMobile } from "../lib/use-mobile";
 import { MobileActionContext } from "../components/mobile-action-context";
@@ -18,6 +18,7 @@ export const DrawerActionContext = createContext<{
 /** Одна поверхность: карточка и её формы используют один Drawer. */
 export function CardDrawer(props: {
   open: boolean;
+  presentation?: "drawer" | "page";
   title: ReactNode;
   onClose: () => void;
   closeDisabled?: boolean;
@@ -39,14 +40,7 @@ export function CardDrawer(props: {
     if (props.hasUnsavedChanges?.()) setDiscard(true);
     else props.onClose();
   };
-  return (
-    <Drawer rootClassName="cabinet-card-drawer" closeIcon={mobile ? <ArrowLeftOutlined aria-label="Назад" /> : undefined} open={props.open} title={props.title} width={mobile || expanded ? "100vw" : CARD_DRAWER_WIDTH}
-      onClose={close} keyboard={!props.closeDisabled} maskClosable={!props.closeDisabled}
-      afterOpenChange={(open) => { if (!open) setDiscard(false); }}
-      extra={editor || mobile ? null : <Space><Button aria-label={expanded ? "Свернуть карточку" : "Развернуть карточку"} onClick={() => setExpanded(!expanded)}>{expanded ? "Свернуть" : "Развернуть"}</Button><Button disabled={props.closeDisabled} onClick={close}>Закрыть карточку</Button></Space>} footer={mobile ? <>
-        {mobile && <div className="mobile-card-action" ref={setActionHost} />}
-        {typeof props.footer === "function" ? props.footer(close) : props.footer}
-      </> : typeof props.footer === "function" ? props.footer(close) : props.footer}>
+  const content = (<>
       <PageControlsContext.Provider value={null}>
       <MobileActionContext.Provider value={mobile && !editor ? actionHost : null}>
       <DrawerActionContext.Provider value={{ host, editor, setEditor }}>
@@ -61,6 +55,22 @@ export function CardDrawer(props: {
       </DrawerActionContext.Provider>
       </MobileActionContext.Provider>
       </PageControlsContext.Provider>
+  </>);
+  if (props.presentation === "page") return props.open ? <Card className="cabinet-entity-page" title={props.title}
+    extra={<Button disabled={props.closeDisabled} onClick={close}>К списку</Button>}>
+    {content}
+    {mobile && <div className="mobile-card-action" ref={setActionHost} />}
+    {typeof props.footer === "function" ? props.footer(close) : props.footer}
+  </Card> : null;
+  return (
+    <Drawer rootClassName="cabinet-card-drawer" closeIcon={mobile ? <ArrowLeftOutlined aria-label="Назад" /> : undefined} open={props.open} title={props.title} width={mobile || expanded ? "100vw" : CARD_DRAWER_WIDTH}
+      onClose={close} keyboard={!props.closeDisabled} maskClosable={!props.closeDisabled}
+      afterOpenChange={(open) => { if (!open) setDiscard(false); }}
+      extra={editor || mobile ? null : <Space><Button aria-label={expanded ? "Свернуть карточку" : "Развернуть карточку"} onClick={() => setExpanded(!expanded)}>{expanded ? "Свернуть" : "Развернуть"}</Button><Button disabled={props.closeDisabled} onClick={close}>Закрыть карточку</Button></Space>} footer={mobile ? <>
+        {mobile && <div className="mobile-card-action" ref={setActionHost} />}
+        {typeof props.footer === "function" ? props.footer(close) : props.footer}
+      </> : typeof props.footer === "function" ? props.footer(close) : props.footer}>
+      {content}
     </Drawer>
   );
 }

@@ -1,3 +1,4 @@
+import { DASHBOARD_ROUTES } from "./dashboard-handlers.ts";
 import { REPORT_ROUTES } from "./report-handlers.ts";
 import { INITIATIVE_ROUTES } from "./initiative-handlers.ts";
 import { POLL_ROUTES } from "./poll-handlers.ts";
@@ -534,6 +535,7 @@ async function handleEmulationSimulate(ctx: RouteContext): Promise<RouteResult> 
 // ── Таблица маршрутов VS-1 ─────────────────────────────────────────────────
 
 export const ROUTES: readonly Route[] = [
+  ...DASHBOARD_ROUTES,
   ...DOCUMENT_ROUTES,
   ...POLL_ROUTES,
   ...INITIATIVE_ROUTES,

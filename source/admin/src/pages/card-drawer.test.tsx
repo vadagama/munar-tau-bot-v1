@@ -77,3 +77,14 @@ it("разворачивает карточку и сохраняет запол
  fireEvent.click(screen.getByRole("button",{name:"Свернуть карточку"}));
  expect(screen.getByLabelText("Черновик")).toHaveValue("Изменённый отчёт");
 });
+
+it("ссылка сущности открывает карточку как страницу, сохраняя защиту несохранённого ввода", () => {
+  const close = vi.fn();
+  render(<CardDrawer presentation="page" open title="Обращение З-1" onClose={close}>
+    <input aria-label="Ответ" defaultValue="Сохранённый черновик" />
+  </CardDrawer>);
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Ответ")).toHaveValue("Сохранённый черновик");
+  fireEvent.click(screen.getByRole("button", { name: "К списку" }));
+  expect(close).toHaveBeenCalledOnce();
+});

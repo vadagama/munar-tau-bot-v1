@@ -1,3 +1,4 @@
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { act } from "@testing-library/react";
 import { PAGE_REFRESH_EVENT } from "../lib/use-page-refresh";
 import {cleanup,fireEvent,render,screen,waitFor,within} from "@testing-library/react";
@@ -27,7 +28,7 @@ it.each(["executor", "duty", "finance", "doc_reviewer", "tech_admin"])("назн
     if(path==="/v1/tasks/t")return task;
     throw new Error(`Unexpected ${path} ${opts?.method}`);
  });
-  render(<TasksPage/>);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage/></MemoryRouter>);
   fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
   fireEvent.click(await screen.findByText("Принять",{selector:"button > span"}));
   expect(screen.getAllByRole("dialog")).toHaveLength(1);
@@ -44,7 +45,7 @@ it("при отзыве доступа очищает старую карточ�
     if(deny)throw new Error("Задание недоступно");
     return task;
  });
-  render(<TasksPage/>);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage/></MemoryRouter>);
   fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
   await screen.findByText("Проверить герметичность");deny=true;
   fireEvent.click(screen.getByText("ЗД-1",{selector:"button > span"}));
@@ -58,7 +59,7 @@ it("приёмка требует явного решения по отсутс�
   if(opts?.method==="POST")return {...reviewed,state:"accepted_admin"};
   return reviewed;
  });
- render(<TasksPage/>);
+ render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage/></MemoryRouter>);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  fireEvent.click(await screen.findByText("Принять результат",{selector:"button > span"}));
  expect(screen.getAllByRole("dialog")).toHaveLength(1);
@@ -76,7 +77,7 @@ it("приёмка требует явного решения по отсутс�
 it("сотрудник с совмещёнными ролями не видит приёмку собственного отчёта",async()=>{
  const own={...task,state:"on_review",can_manage:true,can_approve:false,reports:[]};
  vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/tasks"?{items:[own]}:own);
- render(<TasksPage/>);
+ render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage/></MemoryRouter>);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  await screen.findByText("Проверить герметичность");
  expect(screen.queryByRole("button",{name:"Принять результат"})).toBeNull();
@@ -85,7 +86,7 @@ it("сотрудник с совмещёнными ролями не видит 
 
 it("доска заданий: состояния в колонках, карточка открывает задание",async()=>{
   vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/tasks"?{items:[task]}:task);
-  render(<TasksPage/>);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage/></MemoryRouter>);
   fireEvent.click(await screen.findByRole("radio",{name:"Доска"}));
   expect(await screen.findByText("Ожидает принятия")).toBeInTheDocument();
   expect(screen.getByText("Замена крана")).toBeInTheDocument();
@@ -95,7 +96,7 @@ it("доска заданий: состояния в колонках, карт�
 
 it("короткое действие задания остаётся в карточке и отмена возвращает к инструкции",async()=>{
  vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/tasks"?{items:[task]}:task);
- render(<TasksPage/>);
+ render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage/></MemoryRouter>);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  await screen.findByText("Проверить герметичность");
  const drawer=screen.getByRole("dialog");
@@ -110,7 +111,7 @@ it("короткое действие задания остаётся в кар�
 it("длинный отчёт открывается в той же шторке и отмена возвращает к заданию",async()=>{
  const inProgress={...task,state:"in_progress"};
  vi.mocked(apiFetch).mockImplementation(async path=>path==="/v1/tasks"?{items:[inProgress]}:inProgress);
- render(<TasksPage/>);
+ render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage/></MemoryRouter>);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  await screen.findByText("Проверить герметичность");
  const drawer=screen.getByRole("dialog");
@@ -128,7 +129,7 @@ it("возврат из шаблона по query открывает задан�
   window.history.replaceState(null, "", "/tasks?task=t");
   try {
     vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? {items:[task]} : task);
-    render(<TasksPage />);
+    render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
     await screen.findByText("Проверить герметичность");
     expect(await screen.findByRole("button", {name:"ЗД-1"})).toBeInTheDocument();
     expect(window.location.search).toBe("");
@@ -149,7 +150,7 @@ it("409 обновляет версию задания, сохраняет вв�
  }
    throw new Error(`Unexpected ${path}`);
  });
- render(<TasksPage />);
+ render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  fireEvent.click(await screen.findByText("Не могу выполнить",{selector:"button > span"}));
  fireEvent.change(screen.getByLabelText("Причина / основание"),{target:{value:"Нет нужного оборудования"}});
@@ -171,7 +172,7 @@ it("вложенная форма связи найденной проблемы
  // Drawer кадровый цикл может задержаться; даём ему детерминированный таймер.
  vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => window.setTimeout(() => callback(performance.now()), 0));
  vi.spyOn(window, "cancelAnimationFrame").mockImplementation(handle => window.clearTimeout(handle));
- render(<TasksPage />);
+ render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  fireEvent.click(await screen.findByText("Связать с заданием",{selector:"button > span"}));
  const field=await screen.findByLabelText("Решение администратора");
@@ -196,7 +197,7 @@ it("загрузка вариантов найденной проблемы бл
    if(path==="/v1/tasks") return ++listReads===1?{items:[row]}:delayed;
    return row;
  });
- render(<TasksPage />);
+ render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  fireEvent.click(await screen.findByText("Связать с заданием",{selector:"button > span"}));
  try {
@@ -218,7 +219,7 @@ it("отзыв доступа при обновлении после дейст�
  }
    throw new Error(`Unexpected ${path}`);
  });
- render(<TasksPage />);
+ render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  fireEvent.click(await screen.findByText("Принять",{selector:"button > span"}));
  fireEvent.click(enabledButton(screen.getByRole("dialog"),"Принять"));
@@ -230,7 +231,7 @@ it("отзыв доступа при обновлении после дейст�
 
 it("обновление перечитывает список без закрытия карточки", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? { items: [task] } : task);
-  render(<TasksPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
   fireEvent.click(await screen.findByText("ЗД-1", { selector: "button > span" }));
   await screen.findByText("Проверить герметичность");
   const before = vi.mocked(apiFetch).mock.calls.filter(([path]) => path === "/v1/tasks").length;
@@ -247,7 +248,7 @@ it("создание задания доступно до завершения �
     if (path === "/v1/tasks") return new Promise(resolve => { resolveList = resolve; });
     return { items: [] };
  });
-  render(<TasksPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
   const create = screen.getByRole("button", { name: "Создать задание" });
   expect(create).toBeEnabled();
   fireEvent.click(create);
@@ -261,7 +262,7 @@ it("карточка задания содержит обратную ссылк
     if (path === "/v1/tasks") return { items: [task] };
     return { ...task, linked_request: { id: "r", number: "З-42" } };
  });
-  render(<TasksPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
   fireEvent.click(await screen.findByText("ЗД-1", { selector: "button > span" }));
   expect(await screen.findByRole("link", { name: "З-42" })).toHaveAttribute("href", "/requests?request=r");
 });
@@ -270,7 +271,7 @@ it("исполнитель виден в таблице и подписан на
   const assigned = { ...task, assignee_person_id: "worker", assignee_name: "Мастер ОСИ" };
   const unassigned = { ...task, id: "t2", number: "ЗД-2", assignee_person_id: null, assignee_name: null };
   vi.mocked(apiFetch).mockResolvedValue({ items: [assigned, unassigned] });
-  render(<TasksPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
   expect(await screen.findByRole("columnheader", { name: "Исполнитель" })).toBeInTheDocument();
   expect(await screen.findByRole("cell", { name: "Мастер ОСИ" })).toBeInTheDocument();
   expect(screen.getByRole("cell", { name: "Не назначен" })).toBeInTheDocument();
@@ -285,7 +286,7 @@ it("фильтр исполнителя работает в таблице и н
     { ...task, id: "t2", number: "ЗД-2", assignee_person_id: "other", assignee_name: "Другой мастер" },
     { ...task, id: "t3", number: "ЗД-3", assignee_person_id: null, assignee_name: null },
   ] });
-  render(<TasksPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
   await screen.findByText("ЗД-3", { selector: "button > span" });
   const filter = screen.getByRole("combobox", { name: "Фильтр по исполнителю" });
   fireEvent.mouseDown(filter);
@@ -312,7 +313,7 @@ it("поиск, состояние и даты создания совместн
     { ...task, id: "b", number: "ЗД-101", title: "Кран", instruction: "Устранить течь", created_at: "2026-10-21T18:59:59.999Z", state: "accepted" },
     { ...task, id: "c", number: "ЗД-102", title: "Кран", instruction: "Устранить течь", created_at: "2026-10-21T19:00:00Z" },
   ] });
-  render(<TasksPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
   await screen.findByText("ЗД-100", { selector: "button > span" });
   fireEvent.change(screen.getByLabelText("Поиск заданий"), { target: { value: "течь" } });
   fireEvent.change(screen.getByLabelText("Дата создания с"), { target: { value: "2026-10-21" } });
@@ -335,7 +336,7 @@ it("колонка обращения показывает только разр
     { ...task, linked_request: { id: "r", number: "З-26-42" } },
     { ...task, id: "t2", number: "ЗД-2", request_id: "hidden", linked_request: null },
   ] });
-  render(<TasksPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
   expect(await screen.findByText("З-26-42", {selector:"a"})).toHaveAttribute("href", "/requests?request=r");
   fireEvent.click(screen.getByLabelText("Колонки", {selector:"button"}));
   const settings = await screen.findByLabelText("Видимые колонки", {selector:'[role="group"]'});
@@ -351,7 +352,7 @@ it("показывает только последнюю ошибку доста
   {id:"oldest",last_error:"UNKNOWN",followup_state:"pending"},
  ]};
  vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? {items:[card]} : card);
- render(<TasksPage/>);
+ render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage/></MemoryRouter>);
  fireEvent.click(await screen.findByText("ЗД-1", {selector:"button > span"}));
  const instruction = await screen.findByText("Проверить герметичность");
  const notice = screen.getByRole("alert", {name:"Ошибка доставки уведомления"});
@@ -366,7 +367,7 @@ it("показывает только последнюю ошибку доста
 it("не показывает ошибку доставки при пустом списке уведомлений", async () => {
  const card = {...task,delivery_failures:[]};
  vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? {items:[card]} : card);
- render(<TasksPage/>);
+ render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage/></MemoryRouter>);
  fireEvent.click(await screen.findByText("ЗД-1", {selector:"button > span"}));
  await screen.findByText("Проверить герметичность");
  expect(screen.queryByRole("alert", {name:"Ошибка доставки уведомления"})).toBeNull();
@@ -375,7 +376,7 @@ it("не показывает ошибку доставки при пустом 
 it("при проверке сначала показывает отчёт и решение, затем инструкцию", async () => {
  const card = {...task,state:"on_review",can_execute:false,can_manage:true,can_approve:true,reports:[{version:1,performed_work:"Первый отчёт",result:"Требовал исправлений",evidence:[]},{version:2,performed_work:"Проверено",result:"Течь устранена",evidence:[]}]};
  vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? {items:[card]} : card);
- render(<TasksPage/>);
+ render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage/></MemoryRouter>);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  const report=await screen.findByRole("region",{name:"Отчёты"});
  const information=screen.getByRole("region",{name:"Информация о задании"});
@@ -390,11 +391,22 @@ it("при проверке сначала показывает отчёт и р
 it("управляющему показывает ожидание принятия без действия вместо исполнителя", async () => {
  const card={...task,can_execute:false,can_manage:true,assignee_name:"Мастер"};
  vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks" ? {items:[card]} : card);
- render(<TasksPage/>);
+ render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage/></MemoryRouter>);
  fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
  const process=await screen.findByRole("region",{name:"Сейчас по процессу"});
  expect(process).toHaveTextContent("Ожидаем принятия задания");
  expect(within(process).queryByRole("button",{name:"Принять"})).toBeNull();
  expect(within(process).queryByRole("button",{name:"Другие действия"})).toBeNull();
  expect(within(process).getByRole("button",{name:"Отменить"})).toBeVisible();
+});
+
+function HistoryBack() { const navigate = useNavigate(); return <button onClick={() => navigate(-1)}>Назад в истории</button>; }
+it("карточка-страница задания восстанавливается кнопкой браузера Назад", async () => {
+  vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/tasks/t" ? task : { items: path === "/v1/tasks" ? [task] : [] });
+  render(<MemoryRouter initialEntries={["/tasks?task=t&entity_page=1"]}><HistoryBack /><TasksPage /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", { name: "К списку" }));
+  await waitFor(() => expect(screen.queryByRole("button", { name: "К списку" })).not.toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: "Назад в истории" }));
+  expect(await screen.findByRole("button", { name: "К списку" })).toBeInTheDocument();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });

@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { PageSearch } from "../components/page-controls";
 import { ListFilters } from "../components/list-filters";
 import { DeadlineInput } from "../components/deadline-input";
@@ -70,6 +71,7 @@ const overdue = (t: Task) =>
   new Date(t.due_at).getTime() < Date.now() &&
   !TASK_DONE_STATES.includes(t.state);
 export function TasksPage() {
+  const [entityQuery, setEntityQuery] = useSearchParams();
   const { identity, roles } = useCabinetIdentity();
   const { token } = theme.useToken();
   const [view, setView] = useBoardView("view.tasks");
@@ -134,24 +136,24 @@ export function TasksPage() {
     setReporting(false);
     setRequests([]);
     setPeople([]);
+  }, [identity?.me.person.id]);
+  useEffect(() => {
     let active = true;
     void refresh().then(() => {
       if (!active || !identity?.me.person.id) return;
-      const query = new URLSearchParams(window.location.search);
-      const taskId = query.get("task"), workId = query.get("common_work");
+      const taskId = entityQuery.get("task"), workId = entityQuery.get("common_work");
       if (!taskId && !workId) return;
       if (workId && !manager) return;
-      const url = new URL(window.location.href);
-      url.searchParams.delete("task"); url.searchParams.delete("common_work");
-      window.history.replaceState(null, "", url);
+      if (entityQuery.get("entity_page") !== "1") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("task"); url.searchParams.delete("common_work");
+        window.history.replaceState(null, "", url);
+      }
       if (taskId) void open(taskId);
       else if (workId) void newTask(workId);
     });
-    return () => {
-      active = false;
-      generation.current++;
-    };
-  }, [identity?.me.person.id]);
+    return () => { active = false; generation.current++; };
+  }, [identity?.me.person.id, entityQuery.get("task"), entityQuery.get("common_work")]);
   useEffect(() => {
     let active = true;
     setPeople([]);
@@ -578,6 +580,7 @@ export function TasksPage() {
         />
       )}
       <CardDrawer
+        presentation={entityQuery.get("entity_page") === "1" ? "page" : "drawer"}
         open={!!card || creating || !!action || reporting}
         title={card ? `${card.number} — ${card.title}` : "Новое задание"}
         closeDisabled={saving || reportBusy || actionLoading}
@@ -586,6 +589,7 @@ export function TasksPage() {
           generation.current++;
           setCard(null);
           setCreating(false);
+          if (entityQuery.get("entity_page") === "1") setEntityQuery({});
         }}
       >
         {error && card && !action && !creating && !reporting && <Alert role="alert" type="error" showIcon message={error} />}

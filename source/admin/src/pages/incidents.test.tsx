@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import {
   cleanup,
   fireEvent,
@@ -55,7 +56,7 @@ it("инцидент показывает незавершённое восст�
         history: [{ at: "Сегодня", reason: "Второй стояк ещё проверяется" }],
  }
   );
-  render(<IncidentsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><IncidentsPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("button", {name:"Вода"}));
   expect(await screen.findByText(/восстановление не подтверждено/))
     .toBeInTheDocument();
@@ -71,7 +72,7 @@ it("инцидент показывает незавершённое восст�
 }, 15000);
 it("сбой списка виден пользователю; повтор не выполняет бизнес-действий", async () => {
   vi.mocked(apiFetch).mockRejectedValue(new Error("Нет связи"));
-  render(<IncidentsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><IncidentsPage /></MemoryRouter>);
   expect(await screen.findByText("Нет связи")).toBeInTheDocument();
   expect(
     vi.mocked(apiFetch).mock.calls.every(([, options]) =>
@@ -133,7 +134,7 @@ it("доска инцидентов: состояния в колонках, к�
         history: [],
  }
   );
-  render(<IncidentsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><IncidentsPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("radio", { name: "Доска" }));
   expect(await screen.findByText("Проверка восстановления")).toBeInTheDocument();
   expect(screen.getByText("Вода")).toBeInTheDocument();

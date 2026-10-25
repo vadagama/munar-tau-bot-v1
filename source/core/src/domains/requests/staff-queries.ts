@@ -12,6 +12,17 @@ export function requireRequestManager(actor: Actor): void {
     )
   ) throw new ApiError("FORBIDDEN");
 }
+/** Same manager visibility for the operational queue, dashboard and analytics. */
+export const MANAGER_REQUEST_SCOPE = `r.is_test=$1 and r.state<>'draft'
+ and r.complaint_subject_person_id is distinct from $2::uuid
+ and ($3 or (r.complaint_route<>'chairman' and ($4 or r.building_id is null or r.building_id=any($5::uuid[]))))`;
+export function managerRequestParams(actor: Actor): unknown[] {
+  requireRequestManager(actor);
+  return [actor.person.isTest, actor.person.id,
+    actor.assignments.some(a => a.role === "chairman"), false,
+    [...new Set(actor.assignments.filter(a => ["administrator", "deputy"].includes(a.role))
+      .flatMap(a => a.scopeBuildingIds ?? []))]];
+}
 export const CURRENT_OVERDUE =
   `(r.state not in ('draft','closed','canceled','rejected') and
  ((r.first_response_at is null and r.first_response_due_at<now()) or
@@ -105,9 +116,7 @@ export async function listStaffRequests(
      ${NEEDS_REVIEW} as report_pending,${DECLINED} as assignment_declined,
      (select full_name from person where id=r.assigned_admin_person_id) as manager_name,
      coalesce((select name from building where id=r.building_id),r.location_text) as place_label
-     from request r where r.is_test=$1 and r.state<>'draft'
-     and r.complaint_subject_person_id is distinct from $2::uuid
-     and ($3 or (r.complaint_route<>'chairman' and ($4 or r.building_id is null or r.building_id=any($5::uuid[]))))
+     from request r where ${MANAGER_REQUEST_SCOPE}
      and (${selection[queue]}) and ($6::text is null or r.state=$6)
      and ($7::text is null or ($7='none' and r.building_id is null) or r.building_id::text=$7)
      and ($8::timestamptz is null or r.created_at >= $8) and ($9::timestamptz is null or r.created_at <= $9)

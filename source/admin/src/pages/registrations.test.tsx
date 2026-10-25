@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { RegistrationsPage } from "./registrations";
@@ -34,7 +35,7 @@ afterEach(() => {
 });
 
 it("доска регистраций: заявитель на карточке, решения доступны", async () => {
-  render(<RegistrationsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistrationsPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("radio", { name: "Доска" }));
   expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
   expect(screen.getByText("Ожидает проверки")).toBeInTheDocument();
@@ -49,7 +50,7 @@ it("доска регистраций: заявитель на карточке,
 });
 
 it("поиск анкет находит по Telegram-имени и фильтрует таблицу", async () => {
-  render(<RegistrationsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistrationsPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("radio", { name: "Таблица" }));
   expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
   const tableLink = screen.getByRole("link", { name: "@w84gr8" });
@@ -63,7 +64,7 @@ it("поиск анкет находит по Telegram-имени и фильт�
 });
 
 it("переключение на таблицу сохраняет прежний вид с фильтром состояний", async () => {
-  render(<RegistrationsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistrationsPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("radio", { name: "Доска" }));
   fireEvent.click(screen.getByRole("radio", { name: "Таблица" }));
   expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
@@ -71,7 +72,7 @@ it("переключение на таблицу сохраняет прежни
 });
 
 it("таблица: дата регистрации вместо срока, дата отзыва скрыта по умолчанию", async () => {
-  render(<RegistrationsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistrationsPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("radio", { name: "Таблица" }));
   expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
   expect(screen.getByRole("columnheader", { name: "Дата регистрации" })).toBeInTheDocument();
@@ -88,7 +89,7 @@ it("таблица: дата отзыва включается в настрой
     path === "/v1/registrations"
       ? { items: [{ ...registration, state: "withdrawn", can_manage: false, withdrawn_at: "2026-10-23T10:00:00Z" }] }
       : { items: [] });
-  render(<RegistrationsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistrationsPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("radio", { name: "Таблица" }));
   expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Колонки" }));
@@ -104,7 +105,7 @@ it("таблица: просрочка показывается в состоя�
     path === "/v1/registrations"
       ? { items: [{ ...registration, overdue_at: "2026-10-22T10:00:00Z" }] }
       : { items: [] });
-  render(<RegistrationsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistrationsPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("radio", { name: "Таблица" }));
   expect(await screen.findByText("Ожидает проверки")).toBeInTheDocument();
   expect(screen.getByText("Просрочено")).toBeInTheDocument();
@@ -129,7 +130,7 @@ it("анкета-минимум: без помещения в таблице и 
       ? { items: [liteRegistration] }
       : { items: [] },
   );
-  render(<RegistrationsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistrationsPage /></MemoryRouter>);
   expect(await screen.findByText("Пётр Петров")).toBeInTheDocument();
   // Раздел регистраций — только факты анкеты: помещение и отношение не выводятся
   // (решение владельца 24.10.2026), привязки — в /registry/connections.
@@ -150,7 +151,7 @@ it("анкета-минимум: подтверждение открывает �
       ? { items: [liteRegistration] }
       : { items: [] },
   );
-  render(<RegistrationsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistrationsPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("button", { name: "Подтвердить" }));
   const dialog = await screen.findByRole("dialog");
   expect(dialog).toHaveTextContent("Пётр Петров");
@@ -164,7 +165,7 @@ it("анкета-минимум: подтверждение открывает �
 it("подтверждённая анкета: уточнение, спор и исправление скрыты, удаление доступно", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/registrations"
     ? { items: [{ ...registration, state: "approved", version: 3, can_manage: true }] } : { items: [] });
-  render(<RegistrationsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistrationsPage /></MemoryRouter>);
   expect(await screen.findByText("Иван Иванов")).toBeInTheDocument();
   // Временно скрыты (решение владельца 24.10.2026): эндпоинты clarify/dispute
   // и manage(operation:"edit") сохранены — кнопки возвращаются в decisionButtons.
@@ -177,7 +178,7 @@ it("подтверждённая анкета: уточнение, спор и �
 it("удаление предупреждает о закрытии доступа и требует причину", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/registrations"
     ? { items: [{ ...liteRegistration, state: "approved", version: 3, can_manage: true }] } : { items: [] });
-  render(<RegistrationsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistrationsPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
   expect(await screen.findByText(/Доступ к боту и кабинету закроется/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Удалить анкету" }));
@@ -204,7 +205,7 @@ it("журнал: клик по имени заявителя открывает
  };
     return { items: [] };
  });
-  render(<RegistrationsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistrationsPage /></MemoryRouter>);
   fireEvent.click(await screen.findByRole("button", { name: "Пётр Петров" }));
   expect(await screen.findByText("История статусов")).toBeInTheDocument();
   // Обе анкеты видны: основная и привязка — привязка не отдельная регистрация в списке.
@@ -220,7 +221,7 @@ it("журнал: клик по имени заявителя открывает
 it("журнал: имя без карточки реестра не кликается", async () => {
   vi.mocked(apiFetch).mockImplementation(async path =>
     path === "/v1/registrations" ? { items: [liteRegistration] } : { items: [] });
-  render(<RegistrationsPage />);
+  render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><RegistrationsPage /></MemoryRouter>);
   expect(await screen.findByText("Пётр Петров")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Пётр Петров" })).toBeNull();
 });
