@@ -9,7 +9,6 @@ import {
   Form,
   Input,
   InputNumber,
-  Modal,
   Select,
   Space,
   Typography,
@@ -172,14 +171,15 @@ export function TimeRulesPage() {
       <CardDrawer open={!!selected} title={selected ? names[selected.key] ?? selected.key : "Регламент"} onClose={() => setSelected(null)}>
         {selected && renderDetails(selected)}
       </CardDrawer>
-      <Modal
+      <CardDrawer
         title={editing ? names[editing.key] ?? editing.key : "Регламент"}
         open={!!editing}
-        onCancel={() => { if (returnRule) { form.resetFields(); form.setFieldsValue(returnRule.values); setEditing(returnRule.rule); setReturnRule(null); } else setEditing(null); }}
-        onOk={() => void save()}
-        confirmLoading={busy}
-        okText="Сохранить версию"
-        cancelText="Отмена"
+        onClose={() => { if (returnRule) { form.resetFields(); form.setFieldsValue(returnRule.values); setEditing(returnRule.rule); setReturnRule(null); } else setEditing(null); }}
+        closeDisabled={busy}
+        footer={close => <Space wrap>
+          <Button disabled={busy} onClick={close}>Отмена</Button>
+          <Button type="primary" loading={busy} onClick={() => void save()}>Сохранить версию</Button>
+        </Space>}
       >
         <Form name="registration-time-rule" form={form} layout="vertical">
           {editing?.key !== "work_schedule" && <Alert type="info" showIcon
@@ -239,7 +239,7 @@ export function TimeRulesPage() {
             <Input.TextArea maxLength={300} />
           </Form.Item>
         </Form>
-      </Modal>
+      </CardDrawer>
     </PageLayout>
   );
 }
