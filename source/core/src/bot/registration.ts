@@ -416,7 +416,8 @@ export async function registrationStep(
             ),
           ),
         }));
-        // Прекратить и оспорить — кнопками; обе спросят причину.
+        // Прекратить доступ — кнопкой с именем жильца (спросит причину);
+        // спор остаётся командой /dispute по номеру в списке.
         buttons.push(...rows.map((r, i) => [
           btn(
             messageButton(
@@ -424,19 +425,9 @@ export async function registrationStep(
               L,
               "message.registration.accesses",
               "revoke",
-              { index: i + 1 },
+              { full_name: r.full_name },
             ),
             `/revoke ${i + 1}`,
-          ),
-          btn(
-            messageButton(
-              deps.templates,
-              L,
-              "message.registration.accesses",
-              "dispute",
-              { index: i + 1 },
-            ),
-            `/dispute ${i + 1}`,
           ),
         ]));
       }

@@ -207,7 +207,8 @@ function harness(
           return Promise.resolve([
             {
               id: "invite-1",
-              token: "t".repeat(64),
+              // Как реальный createInvite: один UUID без дефисов (32 hex).
+              token: "t".repeat(32),
               expires_at: "2026-10-27T10:00:00.000Z",
             },
           ] as T[]);
@@ -616,7 +617,7 @@ describe("бот: выданные доступы (/accesses)", () => {
     registration_id: REG_ID,
   };
 
-  it("список — заголовок и две кнопки на доступ, команд в тексте нет", async () => {
+  it("список — заголовок и кнопка с именем жильца, команд в тексте нет", async () => {
     const h = harness({ profile: true, accessRows: [accessRow] });
     const reply = await registrationStep(h.deps, "100", "/accesses");
     const text = replyText(reply);
@@ -624,8 +625,7 @@ describe("бот: выданные доступы (/accesses)", () => {
     expect(text).not.toContain("/revoke");
     expect(reply).toMatchObject({
       buttons: [[
-        { text: "Прекратить доступ — 1", data: "/revoke 1" },
-        { text: "Спор — 1", data: "/dispute 1" },
+        { text: "Прекратить доступ — Алия Омарова", data: "/revoke 1" },
       ]],
     });
   });
@@ -1392,6 +1392,10 @@ describe("бот: приглашение и привязка жильца (ADR-0
     if (typeof reply === "string") throw new Error("Ожидались кнопки");
     const copied = reply.buttons?.[0]?.[0];
     expect(copied?.data).toMatch(/^https:\/\/t\.me\/munar_tau_user_bot\?start=invite_[0-9a-z]+$/);
+    // Telegram ограничивает payload deep-link 64 символами; при превышении
+    // клиент открывает чат бота, не отправляя /start (ссылка «не работает»).
+    const payload = copied?.data?.split("?start=")[1] ?? "";
+    expect(payload.length).toBeLessThanOrEqual(64);
     expect(h.audit[0]).toMatchObject({ action: "registration.invite.create" });
     expect(h.audit[0]?.entityType).toBe("invite");
   });
@@ -1548,7 +1552,7 @@ describe("бот: отправленные приглашения в /accesses (
     const text = replyText(reply);
     expect(text).toContain("Отправленные приглашения:");
     expect(reply).toMatchObject({
-      buttons: [[{ text: "Отозвать — 1", data: "/revokeinvite 1" }]],
+      buttons: [[{ text: "Отозвать приглашение — 1", data: "/revokeinvite 1" }]],
     });
     expect(h.state.invite_options).toEqual(["inv-1"]);
   });
@@ -1572,7 +1576,6 @@ describe("бот: отправленные приглашения в /accesses (
     expect(text).toContain("Отправленные приглашения:");
     expect(typeof reply !== "string" && reply.buttons?.flat().map((b) => b.data)).toEqual([
       "/revoke 1",
-      "/dispute 1",
       "/revokeinvite 1",
     ]);
   });

@@ -364,14 +364,9 @@ const defs: TemplateDef[] = [
         : "Выданные доступы:\n{accesses}",
     [{
       id: "revoke",
-      ru: "Прекратить доступ — {index}",
-      kk: "Қолжетімділікті тоқтату — {index}",
-      variables: variables("{index}", ""),
-    }, {
-      id: "dispute",
-      ru: "Спор — {index}",
-      kk: "Өтінім бойынша дау — {index}",
-      variables: variables("{index}", ""),
+      ru: "Прекратить доступ — {full_name}",
+      kk: "Қолжетімділікті тоқтату — {full_name}",
+      variables: variables("{full_name}", ""),
     }],
   ),
   def(
@@ -385,8 +380,8 @@ const defs: TemplateDef[] = [
         : "Отправленные приглашения:\n{invites}",
     [{
       id: "revokeinvite",
-      ru: "Отозвать — {index}",
-      kk: "Қайтару — {index}",
+      ru: "Отозвать приглашение — {index}",
+      kk: "Шақыруды қайтару — {index}",
       variables: variables("{index}", ""),
     }],
   ),
