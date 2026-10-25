@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { useCabinetIdentity } from "../lib/identity";
 import { useDayQueue, type QueueRow } from "../lib/day-queue";
 import { formatDateTime } from "../lib/format-date";
+import { useMobile } from "../lib/use-mobile";
 
 // Главная (Operate): очередь дня — новые обращения, обращения «нужно ваше
 // действие», задания к принятию/проверке, просрочки и аварии; каждый блок
@@ -74,6 +75,7 @@ export function QueueBlock({ title, count, to, rows, label, secondary }: {
 export function HomePage() {
   const { identity, isLoading } = useCabinetIdentity();
   const queue = useDayQueue();
+  const mobile = useMobile();
   const { token } = theme.useToken();
 
   if (isLoading || !identity) {
@@ -141,7 +143,7 @@ export function HomePage() {
         </Card>
       )}
       <Card title="Сеанс" style={{ marginBlockStart: 16 }}>
-        <Descriptions column={2} size="small">
+        <Descriptions column={mobile ? 1 : 2} layout={mobile ? "vertical" : "horizontal"} size="small">
           <Descriptions.Item label="Начат">{formatDateTime(me.session.started_at)}</Descriptions.Item>
           <Descriptions.Item label="Последняя активность">
             {formatDateTime(me.session.last_activity_at)}

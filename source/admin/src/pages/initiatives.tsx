@@ -1,3 +1,4 @@
+import { FilterOutlined } from "@ant-design/icons";
 import { InitiativePhotos } from "./initiative-photos";
 import { useEffect,useRef,useState } from "react";
 import { Alert,Button,Descriptions,Empty,Select,Space,Spin,Tabs,Tag,Typography } from "antd";
@@ -33,11 +34,11 @@ export function InitiativesPage(){
  async function support(){if(!card||supportBusy)return;const id=card.id,withdraw=card.own_support.supported,fingerprint=`${id}:${card.own_support.version}:${withdraw}`;if(supportIntent.current!==fingerprint)supportKey.current=crypto.randomUUID();supportIntent.current=fingerprint;const token=++supportGeneration.current,g=cardGeneration.current;setSupportBusy(true);setCardError(null);
  try{await apiFetch(`/v1/initiatives/${id}/support`,{method:withdraw?"DELETE":"POST",idempotencyKey:supportKey.current,...(withdraw?{query:{expected_version:String(card.own_support.version)}}:{body:{expected_version:card.own_support.version}})});if(g===cardGeneration.current)await open(id,true);}catch(e){if(g===cardGeneration.current)setCardError(failure(e));}finally{if(token===supportGeneration.current)setSupportBusy(false);}}
  const scope=(ids:string[])=>ids.map(id=>card?.buildings?.find(b=>b.id===id)?.label??"Дом недоступен").join(", ");
- return <PageLayout title="Инициативы" actions={<Button loading={loading} onClick={()=>void load()}>Обновить инициативы</Button>}>
+ return <PageLayout title="Инициативы" filters={tab === "initiatives" && <Select prefix={<FilterOutlined aria-hidden />} aria-label="Состояние инициативы" allowClear placeholder="Все состояния" value={state} options={Object.entries(initiativeStates).map(([value,label])=>({value,label}))} onChange={value=>{setOffset(0);setState(value);}}/>}>
  <Tabs activeKey={tab} onChange={value=>{close();setTab(value);}} items={[{key:"initiatives",label:"Инициативы"},{key:"actions",label:"Модерация"},{key:"appeals",label:"Оспаривания"}]}/>
  {tab!=="initiatives"?<InitiativeModerationQueue key={`${identityKey}:${tab}`} mode={tab as "actions"|"appeals"}/>:<>
- <Select aria-label="Состояние инициативы" allowClear placeholder="Все состояния" value={state} options={Object.entries(initiativeStates).map(([value,label])=>({value,label}))} onChange={value=>{setOffset(0);setState(value);}}/>
- <Alert type="info" message="Поддержка инициативы не является согласием на расходы или решением о реализации"/>
+
+ <Alert className="cabinet-page__intro" type="info" message="Поддержка инициативы не является согласием на расходы или решением о реализации"/>
  {error&&<Alert role="alert" type="error" message={error}/>}
  {!loading&&!error&&!rows.length?<Empty description="Инициатив пока нет"/>:<ConfigurableTable storageKey="initiatives" rowKey="id" loading={loading} dataSource={rows} pagination={false} scroll={{x:600}} columns={[
   {key:"title",title:"Инициатива",render:(_v:unknown,row:InitiativeView)=><Button type="link" onClick={()=>void open(row.id)}>{row.title}</Button>},
@@ -47,7 +48,7 @@ export function InitiativesPage(){
  <Space><Button disabled={loading||!offset} onClick={()=>setOffset(Math.max(0,offset-20))}>Назад</Button><Typography.Text>Страница {offset/20+1}</Typography.Text><Button disabled={loading||!more} onClick={()=>setOffset(offset+20)}>Дальше</Button></Space>
  </>}
  <CardDrawer open={drawer} title="Инициатива" onClose={close}>
-  {cardLoading&&!card&&<Spin aria-label="Загрузка инициативы"/>}{cardError&&<Alert role="alert" type="error" message={cardError} action={selected?<Button onClick={()=>void open(selected,true)}>Обновить карточку инициативы</Button>:undefined}/>}
+  {cardLoading&&!card&&<Spin aria-label="Загрузка инициативы"/>}{cardError&&<Alert role="alert" type="error" message={cardError} action={selected?<Button onClick={()=>void open(selected,true)}>Повторить загрузку</Button>:undefined}/>}
   {card&&<>
    <DetailSection title="Карточка инициативы"><Typography.Title level={4}>{card.title}</Typography.Title><Typography.Paragraph>{card.body}</Typography.Paragraph>
     <Descriptions column={1} size="small" items={[{key:"stage",label:"Этап",children:initiativeStates[card.stage??card.publication_state]},{key:"location",label:"Место",children:card.location_text},{key:"scope",label:"Утверждённая аудитория",children:scope(card.approved_building_ids) || "Не утверждена"},{key:"requested",label:"Запрошенная аудитория",children:scope(card.requested_building_ids)},{key:"reason",label:"Основание этапа",children:card.stage_reason??card.review_reason??"—"}]}/>

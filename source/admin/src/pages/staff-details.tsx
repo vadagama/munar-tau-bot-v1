@@ -1,3 +1,4 @@
+import { useMobile } from "../lib/use-mobile";
 import { ProcessHistory } from "../components/process-card";
 import { Descriptions, List, Space, Typography } from "antd";
 import { DetailSection } from "../components/detail-section";
@@ -6,12 +7,14 @@ import { ROLE_LABELS } from "../../../core/src/pdp/roles";
 import { fmtDate } from "../../../core/src/bot/text";
 import { type StaffCard, staffRoleLabels } from "./staff-types";
 export function StaffDetails({ card }: { card: StaffCard }) {
+  const mobile = useMobile();
   return (
     <>
       <DetailSection title="Профиль">
         <Descriptions
           size="small"
           column={1}
+          layout={mobile ? "vertical" : "horizontal"}
           items={[{ key: "name", label: "ФИО", children: card.full_name }, {
             key: "phone",
             label: "Телефон",

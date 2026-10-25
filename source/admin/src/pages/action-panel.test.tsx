@@ -43,8 +43,8 @@ it("Escape при изменённой форме просит подтверд�
   fireEvent.click(screen.getByRole("button", { name: "Начать действие" }));
   fireEvent.change(screen.getByRole("textbox", { name: "Комментарий действия" }), { target: { value: "Не потерять текст" } });
   fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape", keyCode: 27 });
-  expect(screen.getByText("Выйти без сохранения введённых данных?")).toBeVisible();
-  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  await waitFor(() => expect(screen.getByText("Выйти без сохранения?")).toBeVisible());
+  expect(screen.getAllByRole("dialog")).toHaveLength(2);
   fireEvent.click(screen.getByRole("button", { name: "Продолжить редактирование" }));
   expect(screen.getByRole("textbox", { name: "Комментарий действия" })).toHaveValue("Не потерять текст");
   fireEvent.click(screen.getByRole("button", { name: "Отмена" }));

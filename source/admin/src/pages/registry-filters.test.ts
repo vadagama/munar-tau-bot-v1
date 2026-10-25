@@ -29,3 +29,9 @@ it("очереди учитывают только загруженные зда
   expect(summary.find(row => row.phase === null)).toMatchObject({ building_count: 1, premises_count: 1 });
   expect(summary.find(row => row.phase === 5)).toMatchObject({ building_count: 0, premises_count: 0 });
 });
+
+it("скрывает архивные привязки по умолчанию, сохраняя остальные реестры", () => {
+ expect(filterRegistryRows(rows, EMPTY_REGISTRY_FILTERS, kinds, roles, statuses, bases, "connections")).toEqual([rows[0]]);
+ expect(filterRegistryRows(rows, {...EMPTY_REGISTRY_FILTERS, hideArchived:false}, kinds, roles, statuses, bases, "connections")).toEqual(rows);
+ expect(filterRegistryRows(rows, EMPTY_REGISTRY_FILTERS, kinds, roles, statuses, bases, "premises")).toEqual(rows);
+});

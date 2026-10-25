@@ -14,7 +14,7 @@ it("показывает сбой и позволяет повторить чт�
   });
   render(<DocumentsPage />);
   expect(await screen.findByText("Список недоступен")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Обновить" }));
+  fireEvent(window, new Event("cabinet:refresh-page"));
   expect(vi.mocked(apiFetch).mock.calls.every(([, options]) => !options?.method || options.method === "GET")).toBe(true);
 });
 it("показывает отсутствие документов", async () => {

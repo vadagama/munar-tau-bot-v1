@@ -1,3 +1,5 @@
+import { FilterOutlined } from "@ant-design/icons";
+import { PageSearch } from "../components/page-controls";
 import { RegistryFilters, EMPTY_REGISTRY_FILTERS, filterRegistryRows, type RegistryFilterValues, type RegistrySection } from "./registry-filters";
 import { ProcessOverview } from "../components/process-card";
 import { REGISTRATION_REVIEWER_ROLES } from "../components/process-guidance";
@@ -395,43 +397,7 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
   const deleteHint = entity === "buildings"
     ? "Удалится дом вместе со всеми помещениями, связями, приглашениями и анкетами. Обращения сохранятся без привязки. Удаление недоступно при активных аварийных сигналах."
     : "Удалятся связи, приглашения и анкеты помещения. Обращения сохранятся без привязки.";
-  const columns = [
-    ...(users === "staff" ? [{ title: "Роли", dataIndex: "staff_roles", render: (roles: string[]) => roles.map(role => ROLE_LABELS[role] ?? role).join(", ") }] : []),
-    ...keys.map((key) => ({
-      title: LABELS[key],
-      dataIndex: key,
-      key,
-      render: (v: unknown, row: Row) =>
-        key === "construction_phase" ? (
-          v == null ? "Не указана" : `${v}-я очередь`
-        ) : key === "building_code" ? (
-          String(row.building_name ?? v ?? "—")
-        ) : key === "kind" ? (
-          displayKind(v)
-        ) : key === "role" ? (
-          displayRole(v)
-        ) : key === "basis" ? (
-          displayBasis(v)
-        ) : key === "created_at" ? (
-          formatDateTime(v)
-        ) : key === "telegram_username" ? (
-          <TelegramHandle username={v} />
-        ) : key === "status" ? (
-          <Tag>{STATUS[String(v)] ?? String(v)}</Tag>
-        ) : (
-          String(v ?? "—")
-        ),
-    })),
-    ...(users === "residents" ? [
-      { title: "Адрес", key: "address", render: (_: unknown, row: Row) => residentAddress(row) },
-      { title: "Статус регистрации", key: "registration_state", dataIndex: "registration_state",
-        render: (value: unknown) => <Tag>{REGISTRATION_STATES[String(value ?? "none")] ?? String(value)}</Tag> },
-      { title: "Привязанные помещения", key: "linked_premises", render: (_: unknown, row: Row) => residentPremises(row) },
-    ] : []),
-    {
-      title: "Действия",
-      key: "actions",
-      render: (_: unknown, row: Row) => (
+  const renderActions = (row: Row) => (
         <Space wrap>
           <Button onClick={() => open(row)}>Изменить</Button>
           {entity === "connections" && ["active", "pending"].includes(String(row.status)) && (
@@ -467,7 +433,44 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
             </Popconfirm>
           )}
         </Space>
-      ),
+      );
+  const columns = [
+    ...(users === "staff" ? [{ title: "Роли", dataIndex: "staff_roles", render: (roles: string[]) => roles.map(role => ROLE_LABELS[role] ?? role).join(", ") }] : []),
+    ...keys.filter(key => entity !== "premises" || !["entrance", "floor"].includes(key)).map((key) => ({
+      title: LABELS[key],
+      dataIndex: key,
+      key,
+      render: (v: unknown, row: Row) =>
+        key === "construction_phase" ? (
+          v == null ? "Не указана" : `${v}-я очередь`
+        ) : key === "building_code" ? (
+          String(row.building_name ?? v ?? "—")
+        ) : key === "kind" ? (
+          displayKind(v)
+        ) : key === "role" ? (
+          displayRole(v)
+        ) : key === "basis" ? (
+          displayBasis(v)
+        ) : key === "created_at" ? (
+          formatDateTime(v)
+        ) : key === "telegram_username" ? (
+          <TelegramHandle username={v} />
+        ) : key === "status" ? (
+          <Tag>{STATUS[String(v)] ?? String(v)}</Tag>
+        ) : (
+          String(v ?? "—")
+        ),
+    })),
+    ...(users === "residents" ? [
+      { title: "Адрес", key: "address", render: (_: unknown, row: Row) => residentAddress(row) },
+      { title: "Статус регистрации", key: "registration_state", dataIndex: "registration_state",
+        render: (value: unknown) => <Tag>{REGISTRATION_STATES[String(value ?? "none")] ?? String(value)}</Tag> },
+      { title: "Привязанные помещения", key: "linked_premises", render: (_: unknown, row: Row) => residentPremises(row) },
+    ] : []),
+    {
+      title: "Действия",
+      key: "actions",
+      render: (_: unknown, row: Row) => renderActions(row),
     },
   ];
   const field = (key: string, required = true) => (
@@ -507,20 +510,20 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
     const searchable = [row.full_name, row.phone_e164, row.telegram_username ? `@${row.telegram_username}` : "", row.comment,
       ...roles.map(role => ROLE_LABELS[role] ?? role)].join(" ").toLocaleLowerCase("ru-RU");
     return searchable.includes(search);
-  }) : users ? rows : filterRegistryRows(directoryRows, filters, KINDS, ROLES, STATUS, BASES);
+  }) : users ? rows : filterRegistryRows(directoryRows, filters, KINDS, ROLES, STATUS, BASES, section);
   return (
     <PageLayout title={users === "staff" ? "Сотрудники" : users ? "Жители" : LABELS[entity]}
       actions={users !== "staff" ? <Button type="primary" onClick={() => open(null)}>Добавить запись</Button> : null}
       filters={users === "residents" ? <Space wrap>
-        <Input.Search aria-label="Поиск жителей" placeholder="ФИО, телефон, Telegram или адрес" value={residentSearch}
+        <PageSearch aria-label="Поиск жителей" placeholder="ФИО, телефон, Telegram или адрес" value={residentSearch}
           onChange={e => setResidentSearch(e.target.value)} style={{ width: 280 }} />
-        <Select aria-label="Статус регистрации" placeholder="Все статусы" allowClear value={registrationState}
+        <Select prefix={<FilterOutlined aria-hidden />} aria-label="Статус регистрации" placeholder="Все статусы" allowClear value={registrationState}
           onChange={setRegistrationState} style={{ width: 230 }}
           options={Object.entries(REGISTRATION_STATES).map(([value, label]) => ({ value, label }))} />
-        <Select aria-label="Фильтр по зданию" placeholder="Все здания" allowClear showSearch optionFilterProp="label"
+        <Select prefix={<FilterOutlined aria-hidden />} aria-label="Фильтр по зданию" placeholder="Все здания" allowClear showSearch optionFilterProp="label"
           value={residentBuilding} onChange={setResidentBuilding} style={{ width: 210 }}
           options={options(buildings, b => String(b.name || b.code))} />
-        <Select aria-label="Наличие помещений" placeholder="Все привязки" allowClear value={hasPremises}
+        <Select prefix={<FilterOutlined aria-hidden />} aria-label="Наличие помещений" placeholder="Все привязки" allowClear value={hasPremises}
           onChange={setHasPremises} style={{ width: 220 }} options={[
             { value: "yes", label: "Есть помещения" }, { value: "no", label: "Без помещений" },
           ]} />
@@ -529,10 +532,10 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
         <Input aria-label="Период регистрации по" type="date" value={registeredTo}
           onChange={e => setRegisteredTo(e.target.value)} style={{ width: 155 }} />
       </Space> : users === "staff" ? <Space wrap>
-        <Input.Search aria-label="Поиск сотрудников" placeholder="ФИО, телефон, Telegram или роль" value={staffSearch}
+        <PageSearch aria-label="Поиск сотрудников" placeholder="ФИО, телефон, Telegram или роль" value={staffSearch}
           onChange={e => setStaffSearch(e.target.value)} style={{ width: 320 }} />
       </Space> : !users && <RegistryFilters section={section} values={filters}
-        onChange={values => { setFilters(values); setPage(1); }} buildings={buildings} kinds={KINDS} roles={ROLES} statuses={STATUS} />}> <Typography.Paragraph type="secondary">
+        onChange={values => { setFilters(values); setPage(1); }} buildings={buildings} kinds={KINDS} roles={ROLES} statuses={STATUS} />}> <Typography.Paragraph className="cabinet-page__intro" type="secondary">
           {users === "staff" ? "Пользователи с действующими служебными полномочиями в доступной области." : users
             ? "Жители без действующих служебных назначений. Совпадение телефона не объединяет карточки."
             : "Здания, помещения и привязки помещений к пользователям. Изменения сохраняются в журнале."}
@@ -553,6 +556,18 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
         loading={busy}
         dataSource={visibleRows}
         columns={columns}
+        mobileRender={row => <div className="mobile-summary">
+          <Typography.Text strong>{String(row.full_name ?? row.name ?? `${row.building_name ?? row.building_code ?? ""} · ${displayKind(row.kind)} ${row.number ?? ""}`)}</Typography.Text>
+          {users === "residents" && <Tag>{REGISTRATION_STATES[String(row.registration_state ?? "none")] ?? String(row.registration_state)}</Tag>}
+          {row.phone_e164 != null && <div>{String(row.phone_e164)}</div>}
+          {row.telegram_username != null && <TelegramHandle username={row.telegram_username} />}
+          {users === "residents" && <div>{linkedPremises(row).length ? linkedPremises(row).map((p, i) => <div key={String(p.id ?? i)}>{String(p.building_name ?? p.building_code ?? "—")} · {displayKind(p.kind)} {String(p.number)} · {displayRole(p.role)}</div>) : "Помещения не привязаны"}</div>}
+          {row.comment ? <Typography.Paragraph>{String(row.comment)}</Typography.Paragraph> : null}
+          {entity === "buildings" && <Typography.Text type="secondary">{row.construction_phase == null ? "Очередь не указана" : `${row.construction_phase}-я очередь`}</Typography.Text>}
+          {entity === "connections" && <><div>{String(row.building_name ?? row.building_code ?? "")} · {displayKind(row.kind)} {String(row.number ?? "")}</div><div>{displayRole(row.role)} · {displayBasis(row.basis)}</div><Typography.Text type="secondary">{formatDateTime(row.created_at)}</Typography.Text></>}
+          {users !== "residents" && row.status != null && <div><Tag>{STATUS[String(row.status)] ?? String(row.status)}</Tag></div>}
+          <div className="mobile-summary__actions">{renderActions(row)}</div>
+        </div>}
         scroll={{ x: users === "residents" ? 1500 : 900 }}
         pagination={{ pageSize: 20, showSizeChanger: true, ...(!users ? { current: page, onChange: setPage } : {}) }}
         locale={{ emptyText: rows.length ? "По выбранным условиям ничего не найдено" : "Записей пока нет" }}

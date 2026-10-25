@@ -23,7 +23,7 @@ it("ошибка очереди видна, повтор не пишет дан�
   vi.mocked(apiFetch).mockRejectedValue(new Error("Очередь недоступна"));
   render(<FinancialPublication manager={false} />);
   expect(await screen.findByText("Очередь недоступна")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Обновить финансовые обязанности" }));
+  fireEvent(window, new Event("cabinet:refresh-page"));
   expect(vi.mocked(apiFetch).mock.calls.every(([, options]) => !options?.method)).toBe(true);
 });
 it("читатель видит недостающие каналы и историю конкретных размещений", async () => {

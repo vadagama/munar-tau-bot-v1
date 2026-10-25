@@ -23,5 +23,5 @@ it("при ошибке чтения выпуска запись недосту�
   render(<FinancialPlacementEditor duty={duty} onCancel={vi.fn()} onSaved={vi.fn()} />);
   await screen.findByText("Выпуск недоступен");
   expect(screen.getByRole("button", { name: "Подтвердить размещение" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Обновить данные размещения" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Сравнить актуальные данные" })).toBeInTheDocument();
 });

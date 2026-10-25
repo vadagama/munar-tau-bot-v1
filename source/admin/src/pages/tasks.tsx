@@ -1,3 +1,5 @@
+import { PageSearch } from "../components/page-controls";
+import { ListFilters } from "../components/list-filters";
 import { DeadlineInput } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions, ProcessHistory } from "../components/process-card";
 import { taskGuidance, processActionHint } from "../components/process-guidance";
@@ -517,30 +519,14 @@ export function TasksPage() {
     <PageLayout title="Все задания"
       extra={<ViewToggle kind={view} onChange={setView} />}
       actions={manager ? <Button type="primary" onClick={() => void newTask()}>Создать задание</Button> : null}
-      filters={<Space wrap>
-        <Input.Search aria-label="Поиск заданий" placeholder="Номер или описание"
-          value={search} onChange={event => setSearch(event.target.value)} style={{ width: 280, maxWidth: "100%" }} />
-        <Select
-          aria-label="Фильтр по исполнителю"
-          placeholder="Все исполнители"
-          allowClear
-          showSearch
-          optionFilterProp="label"
-          value={assigneeFilter}
-          onChange={setAssigneeFilter}
-          options={[{ value: "unassigned", label: "Без исполнителя" }, ...assigneeOptions]}
-          style={{ width: 280, maxWidth: "100%" }}
-        />
-        <Select aria-label="Состояние задания" placeholder="Все состояния" allowClear
-          value={stateFilter} onChange={setStateFilter} options={BOARD_COLUMNS} style={{ width: 230 }} />
-        <Space wrap>
-        <Typography.Text type="secondary">Дата создания:</Typography.Text>
-        <Input aria-label="Дата создания с" title="Дата создания с (Алматы)" type="date"
-          value={from} onChange={event => setFrom(event.target.value)} style={{ width: 155 }} />
-        <Input aria-label="Дата создания по" title="Дата создания по (Алматы)" type="date"
-          value={to} onChange={event => setTo(event.target.value)} style={{ width: 155 }} />
-        </Space>
-      </Space>}>
+      filters={<ListFilters dateLabels={["Дата создания с", "Дата создания по"]}
+        search={<PageSearch aria-label="Поиск заданий" placeholder="Номер или описание" value={search}
+          onChange={event => setSearch(event.target.value)} style={{ width: 280, maxWidth: "100%" }} />}
+        values={{ state: stateFilter, related: assigneeFilter, from, to }}
+        onChange={next => { setStateFilter(next.state); setAssigneeFilter(next.related); setFrom(next.from); setTo(next.to); }}
+        stateLabel="Состояние задания" stateOptions={BOARD_COLUMNS}
+        relatedLabel="Фильтр по исполнителю" relatedOptions={[{ value: "unassigned", label: "Без исполнителя" }, ...assigneeOptions]}
+      />} >
 
       {invalidPeriod && <Alert type="warning" showIcon message="Дата начала периода позже даты окончания" />}
       {error && !card && !creating && <Alert type="error" showIcon message={error} />}
@@ -577,6 +563,12 @@ export function TasksPage() {
         />
       ) : (
         <ConfigurableTable<Task> storageKey="columns.tasks" settingsPlacement="page"
+          mobileRender={task => <div className="mobile-summary">
+            <div className="mobile-summary__top"><Button type="link" onClick={() => void open(task.id)}>{task.number}</Button><Tag>{TASK_STATE_TEXT[task.state]?.ru ?? task.state}</Tag></div>
+            <p className="mobile-summary__title">{task.title}</p>
+            <span className="mobile-summary__meta">{task.assignee_name ?? "Исполнитель не назначен"}</span>
+            <Typography.Text type={overdue(task) ? "danger" : "secondary"}>{overdue(task) ? "Просрочено · " : "Срок · "}{new Date(task.due_at).toLocaleString("ru-RU", { timeZone: "Asia/Almaty", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</Typography.Text>
+          </div>}
           loading={loading}
           rowKey="id"
           dataSource={visibleRows}

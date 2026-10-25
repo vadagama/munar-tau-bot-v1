@@ -41,7 +41,7 @@ export function FinancialPublication(props: { manager: boolean }) {
   }
   const definition = (rule?.definition ?? (card?.rule_snapshot as Row | undefined)?.definition) as Row | undefined;
   return <DetailSection title="Финансовые обязанности и регламенты">
-    <Space wrap><Button disabled={busy} onClick={() => void load()}>Обновить финансовые обязанности</Button>
+    <Space wrap>
       {props.manager && <Button disabled={busy} onClick={() => { cardGeneration.current++; setCard(null); setRule(null); setEditingRule(true); }}>Новый финансовый регламент</Button>}
       {props.manager && <Button disabled={busy} onClick={() => { cardGeneration.current++; setCard(null); setRule(null); setDutyAction("create"); }}>Новая финансовая обязанность</Button>}
     </Space>
