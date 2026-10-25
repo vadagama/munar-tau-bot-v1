@@ -63,7 +63,7 @@ jobs:
           cache: npm
           cache-dependency-path: source/package-lock.json
       - run: npm ci
-      - run: npm run test -w admin -- --shard=${{ matrix.shard }}/3
+      - run: npm run test -w admin -- --shard=${{ matrix.shard }}/3 --maxWorkers=4
 
   deno:
     name: "Deno: check / lint / test (функции)"
