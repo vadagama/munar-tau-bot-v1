@@ -175,7 +175,7 @@ it("вложенная форма связи найденной проблемы
  expect(screen.getAllByRole("dialog")).toHaveLength(1);
  fireEvent.change(field,{target:{value:"Поручить сантехнику"}});
  fireEvent.click(screen.getByText("Отмена",{selector:"button > span"}));
- expect(screen.getByText("Выйти без сохранения введённых данных?")).toBeVisible();
+ expect(screen.getByText("Выйти без сохранения?")).toBeInTheDocument();
  fireEvent.click(screen.getByText("Продолжить редактирование",{selector:"button > span"}));
  expect(field).toHaveValue("Поручить сантехнику");
  fireEvent.click(screen.getByText("Отмена",{selector:"button > span"}));

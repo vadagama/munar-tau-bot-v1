@@ -45,8 +45,9 @@ it("поздняя карточка прежней персоны не появ�
 });
 it("ошибка списка видна; повторная загрузка не записывает данные",async()=>{
   vi.mocked(apiFetch).mockRejectedValueOnce(new Error("Список недоступен")).mockResolvedValue({items:[],has_more:false});
+  vi.spyOn(document,"hidden","get").mockReturnValue(false);
   render(<PollsPage/>);expect(await screen.findByText("Список недоступен")).toBeInTheDocument();
-  fireEvent.click(getButton("Обновить список опросов"));
+  fireEvent(window,new Event("cabinet:refresh-page"));
   expect(await screen.findByText("Опросов пока нет")).toBeInTheDocument();
   expect(vi.mocked(apiFetch).mock.calls.every(([,options])=>!options?.method)).toBe(true);
 });

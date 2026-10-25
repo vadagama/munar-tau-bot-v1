@@ -51,7 +51,7 @@ export function FinancialPlacementEditor(props: { duty: Row; onCancel: () => voi
   return <ActionPanel open title="Подтвердить размещение" form={form} busy={busy || loading} error={error} onCancel={props.onCancel}>
     <Typography.Paragraph>Укажите фактическое размещение в обязательном канале. Отправка уведомления ботом не является доказательством размещения.</Typography.Paragraph>
     {loading && <Spin aria-label="Загрузка выпуска" />}
-    {!loading && (!ready || conflict) && <Button onClick={() => void load()}>Обновить данные размещения</Button>}
+    {!loading && (!ready || conflict) && <Button onClick={() => void load()}>Сравнить актуальные данные</Button>}
     {ready && !released.length && <Alert type="info" message="У обязанности ещё нет выпущенного финансового комплекта" />}
     {selected && (selected !== publication?.financial_version_id || selected !== current.active_version_id) && <Alert type="warning" showIcon message="Размещение исторической версии сохраняется в истории и не закрывает текущую обязанность." />}
     <Form form={form} layout="vertical" disabled={!ready || busy || conflict}>

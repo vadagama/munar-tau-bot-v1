@@ -13,7 +13,7 @@ export function InitiativeDiscussion({item,onChanged,onModerate}:{item:Initiativ
  async function send(){if(busy||conflict||!text.trim())return;const body={body:text,expected_version:item.version},fingerprint=JSON.stringify(body);if(intent.current&&intent.current!==fingerprint)key.current=crypto.randomUUID();intent.current=fingerprint;
  const g=generation.current;setBusy(true);setError(null);try{await apiFetch(`/v1/initiatives/${item.id}/comments`,{method:"POST",body,idempotencyKey:key.current});if(g===generation.current){setText("");key.current=crypto.randomUUID();void load();onChanged();}}catch(e){if(g===generation.current){setConflict(isVersionConflict(e));setError(e instanceof Error?e.message:"Комментарий не сохранён");}}finally{if(g===generation.current)setBusy(false);}}
  return <DetailSection title="Обсуждение">
- {error&&<Alert role="alert" type="error" message={error} action={<Button onClick={()=>void load()}>Обновить обсуждение</Button>}/>}
+ {error&&<Alert role="alert" type="error" message={error} action={<Button onClick={()=>void load()}>Повторить загрузку</Button>}/>}
  {!busy&&!comments.length&&<Empty description="Комментариев пока нет"/>}
  <List loading={busy} dataSource={comments} renderItem={comment=><List.Item><Space direction="vertical">
   <Typography.Text strong>{comment.author_name}</Typography.Text><Typography.Text type="secondary">{pollDate(comment.created_at)}</Typography.Text>

@@ -57,7 +57,8 @@ it("подтверждение выхода не закрывает карточ
     </CardDrawer>,
   );
   fireEvent.click(screen.getByRole("button", { name: "Закрыть карточку" }));
-  expect(screen.getByRole("button", { name: "Выйти без сохранения" })).toBeVisible();
+  expect(screen.getByText("Выйти без сохранения?")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Выйти без сохранения" })).toBeInTheDocument();
   rerender(
     <CardDrawer open title="Объект" onClose={onClose} hasUnsavedChanges={() => true} closeDisabled>
       <span>Изменённые данные</span>

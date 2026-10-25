@@ -49,7 +49,7 @@ export function FinancialDutyEditor(props: { duty: Row | null; onCancel: () => v
     <Typography.Paragraph>{props.duty ? "Передача меняет ответственных и сохраняет первоначальный срок и исходный регламент." : "Срок рассчитывается по действующему регламенту времени от конца отчётного периода. Условия фиксируются в обязанности."}</Typography.Paragraph>
     {!props.duty && <Typography.Link href="/time-rules" target="_blank" rel="noreferrer">Регламенты времени</Typography.Link>}
     {loading && <Spin aria-label="Загрузка условий" />}
-    {!loading && (!ready || conflict) && <Button onClick={() => void load()}>Обновить исходную версию</Button>}
+    {!loading && (!ready || conflict) && <Button onClick={() => void load()}>Сравнить актуальную версию</Button>}
     {!props.duty && ready && !rules.length && <Alert type="info" message="Нет действующих финансовых регламентов с правом управления" />}
     {rule && <FinancialRuleDetails rule={rule} />}
     {props.duty && current !== props.duty && <Alert type="info" message={`Актуальная версия обязанности: ${current?.version}`} description={`Подготовитель: ${current?.prepared_name ?? "—"}. Проверяющий: ${current?.reviewer_name ?? "—"}. Публикатор: ${current?.publisher_name ?? "—"}.`} />}

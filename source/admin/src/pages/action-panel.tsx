@@ -1,3 +1,4 @@
+import { DiscardChangesDialog } from "../components/discard-changes-dialog";
 import { useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Alert, Button, Card, ConfigProvider, Space, Typography, theme, type FormInstance } from "antd";
@@ -69,14 +70,8 @@ export function ActionPanel(props: {
         extra={<Button disabled={props.busy} onClick={cancel}>Отмена</Button>}>
         {props.description && <Typography.Paragraph role="note">{props.description}</Typography.Paragraph>}
         {props.error && <Alert role="alert" type="error" showIcon message={props.error} style={{ marginBottom: 16 }} />}
-        {discard && <Alert type="warning" showIcon message="Выйти без сохранения введённых данных?"
-          action={<Space wrap>
-            <Button onClick={() => setDiscard(false)}>Продолжить редактирование</Button>
-            <Button danger disabled={props.busy} onClick={() => {
-              if (latest.current.busy) return;
-              setDiscard(false); props.onCancel();
-            }}>Выйти без сохранения</Button>
-          </Space>} />}
+        <DiscardChangesDialog open={discard} busy={props.busy} onContinue={() => setDiscard(false)}
+          onDiscard={() => { if (!latest.current.busy) { setDiscard(false); props.onCancel(); } }} />
         {props.children}
         {props.onOk && <Space style={{ position: "sticky", bottom: 0, paddingBlock: token.paddingSM, background: token.colorBgContainer, width: "100%" }}>
           <Button type="primary" icon={props.okIcon} loading={props.busy} onClick={props.onOk}>{props.okText ?? "Сохранить"}</Button>

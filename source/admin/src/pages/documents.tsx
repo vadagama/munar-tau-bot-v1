@@ -99,7 +99,7 @@ export function DocumentsPage() {
     catch (e) { fail(e); } finally { setBusy(false); }
   }
   const close = () => { setCard(null); setAction(null); void load(); };
-  return <PageLayout title="Документы" actions={<Space wrap><Button onClick={() => void load()} disabled={busy}>Обновить</Button>{manager && <Button type="primary" onClick={() => void begin("create")} disabled={busy}>Новый документ</Button>}</Space>}>
+  return <PageLayout title="Документы" actions={<Space wrap>{manager && <Button type="primary" onClick={() => void begin("create")} disabled={busy}>Новый документ</Button>}</Space>}>
     {error && !card && !action && <Alert type="error" showIcon message={error} />}
     <ConfigurableTable storageKey="columns.documents" settingsPlacement="page" rowKey="id" dataSource={rows} pagination={{ current: page, pageSize: 50, total, showSizeChanger: false, onChange: setPage }} loading={busy && !card && !action} locale={{ emptyText: "Документов нет" }} scroll={{ x: 650 }} columns={[
       { title: "Название", dataIndex: "title" }, { title: "Тип", dataIndex: "kind", render: (v: string) => kinds[v] ?? v },

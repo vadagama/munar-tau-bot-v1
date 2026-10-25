@@ -1,8 +1,10 @@
 import { EmulationRoleSelect } from "./emulation-role-select";
 import { PAGE_REFRESH_EVENT, usePageRefresh } from "../lib/use-page-refresh";
 import { DayQueueProvider, useDayQueue } from "../lib/day-queue";
+import { MenuOutlined, UserOutlined } from "@ant-design/icons";
+import { useMobile } from "../lib/use-mobile";
 import { useState } from "react";
-import { Alert, Badge, Button, Layout, Menu, Space, Typography, theme } from "antd";
+import { Alert, Badge, Button, Drawer, Dropdown, Layout, Menu, Space, Typography, theme } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useLogout } from "@refinedev/core";
 
@@ -63,8 +65,8 @@ export function MenuLabel({ label, count }: { label: string; count: number }) {
 
 // Layout кабинета (VS-1): меню по ролям, баннер эмуляции, выход.
 export function AppLayout() {
-  const [narrow, setNarrow] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const narrow = useMobile();
+  const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { identity, roles, refreshIdentity } = useCabinetIdentity();
@@ -123,35 +125,33 @@ export function AppLayout() {
   const selectedPath = location.pathname;
   const activeGroup = items.find(item => item.children?.some(child => child.key === selectedPath))?.key;
 
+  const navigation = <>
+    <div style={{ padding: "16px 16px 12px" }}><BrandLogo size={24} caption="Кабинет ОСИ" /></div>
+    <Menu theme="light" mode="inline" selectedKeys={[selectedPath]} key={activeGroup}
+      defaultOpenKeys={activeGroup ? [activeGroup] : []} items={items}
+      onClick={({ key }) => {
+        if (key === location.pathname) window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
+        else navigate(key);
+        setMenuOpen(false);
+      }} />
+  </>;
   return (
     <DayQueueProvider>
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider theme="light" width={240} breakpoint="lg" collapsedWidth={0}
-        collapsed={collapsed} onCollapse={setCollapsed} onBreakpoint={setNarrow}
-        style={{ borderInlineEnd: "1px solid #eceef0",
-          ...(narrow ? { position: "fixed", zIndex: 1000, height: "100dvh" } : null) }}>
-        <div style={{ padding: "16px 16px 12px" }}>
-          <BrandLogo size={24} caption="Кабинет ОСИ" />
-        </div>
-        <div style={narrow ? { maxHeight: "calc(100dvh - 56px)", overflowY: "auto" } : undefined}>
-        <Menu
-          theme="light"
-          mode="inline"
-          selectedKeys={[selectedPath]}
-          key={activeGroup}
-          defaultOpenKeys={activeGroup ? [activeGroup] : []}
-          items={items}
-          onClick={({ key }) => { if (key === location.pathname) window.dispatchEvent(new Event(PAGE_REFRESH_EVENT));
-            else navigate(key); if (narrow) setCollapsed(true); }}
-        />
-        </div>
-      </Sider>
+      {narrow ? <Drawer title="Меню кабинета" placement="left" width="min(320px, 100vw)"
+        open={menuOpen} onClose={() => setMenuOpen(false)} styles={{ body: { padding: 0 } }}>
+        {navigation}
+      </Drawer> : <Sider theme="light" width={240} style={{ borderInlineEnd: "1px solid #eceef0" }}>{navigation}</Sider>}
       <Layout style={{ minWidth: 0 }}>
-        <Header style={{ background: "#fff", borderBottom: "1px solid #eceef0", paddingInline: 24, minHeight: 56, height: "auto", gap: 12, flexWrap: "wrap", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Header className="cabinet-header" style={{ background: "#fff", borderBottom: "1px solid #eceef0", paddingInline: 24, minHeight: 56, height: "auto", gap: 12, flexWrap: "wrap", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          {narrow && <Button type="text" icon={<MenuOutlined />} aria-label="Открыть меню" onClick={() => setMenuOpen(true)} />}
           <Typography.Title level={4} style={{ margin: 0, lineHeight: "32px", fontSize: 18 }}>
-            Кабинет администратора
+            {narrow ? "Кабинет ОСИ" : "Кабинет администратора"}
           </Typography.Title>
-          <Space wrap style={{ maxWidth: "100%" }}>
+          {narrow ? <Dropdown trigger={["click"]} menu={{ items: [
+            { key: "name", label: identity?.fullName ?? "Профиль", disabled: true },
+            { key: "logout", label: "Выйти", onClick: () => logout() },
+          ] }}><Button type="text" icon={<UserOutlined />} aria-label="Профиль" /></Dropdown> : <Space wrap style={{ maxWidth: "100%" }}>
             <Typography.Text type="secondary">
               {identity?.fullName ?? "…"}
             </Typography.Text>
@@ -161,9 +161,10 @@ export function AppLayout() {
             <Button size="small" onClick={() => logout()}>
               Выйти
             </Button>
-          </Space>
+          </Space>}
         </Header>
-        <Content style={{ width: "100%", padding: "24px 24px 48px" }}>
+        {narrow && identity?.me.emulation && <div className="mobile-emulation-switch"><EmulationRoleSelect key={identity.me.profile.id} profileId={identity.me.profile.id} onSwitched={refreshIdentity} /></div>}
+        <Content className="cabinet-content" style={{ width: "100%", padding: "24px 24px 48px" }}>
           <EmulationBanner />
           <Outlet key={location.pathname === "/emulation" ? "emulation" : identity?.me.profile.id} />
         </Content>

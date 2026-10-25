@@ -44,7 +44,7 @@ it("фоновое обновление списка не отменяет от�
   vi.spyOn(document, "hidden", "get").mockReturnValue(false);
   vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/publications" ? { items: [card] } : new Promise(resolve => { finish = resolve; }));
   render(<PublicationsPage />);
-  fireEvent.click(await findButton("Открыть"));
+  fireEvent.click(await findButton("Сентябрь"));
   await act(async () => window.dispatchEvent(new Event(PAGE_REFRESH_EVENT)));
   await vi.waitFor(() => expect(vi.mocked(apiFetch).mock.calls.filter(([path]) => path === "/v1/publications")).toHaveLength(2));
   await act(async () => finish(card));
@@ -53,7 +53,7 @@ it("фоновое обновление списка не отменяет от�
 it("серверные разрешения финансовой карточки ограничивают служебные действия", async () => {
   vi.mocked(apiFetch).mockImplementation(async path => path === "/v1/publications" ? { items: [card] } : { ...card, can_manage: false, can_approve: false });
   render(<PublicationsPage />);
-  fireEvent.click(await findButton("Открыть"));
+  fireEvent.click(await findButton("Сентябрь"));
   expect(await screen.findByText("Комплект ещё не подготовлен.")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Разрешить/ })).not.toBeInTheDocument();
 });
@@ -64,7 +64,7 @@ it("конфликт разрешения сохраняет служебную 
     return path === "/v1/publications" ? { items: [card] } : { ...card, version };
   });
   render(<PublicationsPage />);
-  fireEvent.click(await findButton("Открыть"));
+  fireEvent.click(await findButton("Сентябрь"));
   fireEvent.click(await findButton("Разрешить финансовый выпуск"));
   fireEvent.change(screen.getByLabelText("Основание внешних согласований"), { target: { value: "Решение совета проверено" } });
   fireEvent.change(screen.getByLabelText("Служебная причина"), { target: { value: "Выпуск за сентябрь" } });
@@ -84,7 +84,7 @@ it("редактирование обычной публикации восст�
     return { items: [], has_more: false };
   });
   render(<PublicationsPage />);
-  fireEvent.click(await findButton("Открыть"));
+  fireEvent.click(await findButton("Правила"));
   fireEvent.click(await findButton("Редактировать"));
   const editor = within(await screen.findByRole("region", { name: "Редактирование публикации" }));
   expect(await editor.findByText("Утверждённые правила · версия 2")).toBeInTheDocument();
@@ -110,7 +110,7 @@ it("недействительное закреплённое основание
     return { items: [], has_more: false };
   });
   render(<PublicationsPage />);
-  fireEvent.click(await findButton("Открыть"));
+  fireEvent.click(await findButton("Правила"));
   fireEvent.click(await findButton("Редактировать"));
   const editor = within(await screen.findByRole("region", { name: "Редактирование публикации" }));
   fireEvent.click(await findButton("Убрать недействительное основание: Старое основание · версия 1",editor));

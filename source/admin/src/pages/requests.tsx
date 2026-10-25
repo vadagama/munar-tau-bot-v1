@@ -1,9 +1,11 @@
+import { PageSearch } from "../components/page-controls";
+import { ListFilters } from "../components/list-filters";
 import { DeadlineInput } from "../components/deadline-input";
 import { ProcessOverview, ProcessActions } from "../components/process-card";
 import { requestGuidance, processActionHint } from "../components/process-guidance";
 import { ConfigurableTable } from "../components/configurable-table";
+import type { ConfigurableColumn } from "../components/table-columns";
 import { App as AntApp } from "antd";
-import type { TableColumnsType } from "antd";
 import { taskAssigneeOptions } from "./task-assignees";
 import { REQUEST_ACTION_ICONS } from "./request-action-icons";
 import { TASK_STATE_TEXT } from "../../../core/src/locales/tasks";
@@ -428,7 +430,7 @@ export function RequestsPage() {
       ? ["approve_cancel", "reject_cancel"]
       : []),
   ];
-  const tableColumns: TableColumnsType<Row> = [
+  const tableColumns: ConfigurableColumn<Row>[] = [
     {
       title: "Номер",
       key: "number", dataIndex: "number",
@@ -451,8 +453,14 @@ export function RequestsPage() {
       render: (v) => <Tag>{REQUEST_STATES[String(v)]}</Tag>,
     },
     {
-      title: "Первый ответ до",
+      title: "Дата регистрации",
+      key: "open_at", dataIndex: "open_at",
+      render: (v, r) => formatDateTime(v ?? r.created_at),
+    },
+    {
+      title: "Срок",
       key: "first_response_due_at", dataIndex: "first_response_due_at",
+      defaultHidden: true,
       render: (v) =>
         v ? formatDateTime(v) : "—",
     },
@@ -465,54 +473,14 @@ export function RequestsPage() {
           Новое обращение
         </Button>
       </Space>}
-      filters={<Space wrap>
-        <Input.Search
-          aria-label="Поиск обращений"
-          placeholder="Номер, описание или инициатор"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onSearch={() => setAppliedSearch(search)}
-          style={{ width: 280 }}
-        />
-        <Select
-          aria-label="Статус обращения"
-          placeholder="Все статусы"
-          allowClear
-          value={state}
-          onChange={setState}
-          options={Object.entries(REQUEST_STATES).map(([value, label]) => ({
-            value,
-            label,
-          }))}
-          style={{ width: 230 }}
-        />
-        <Select
-          aria-label="Фильтр по зданию"
-          allowClear
-          placeholder="Все здания"
-          value={buildingFilter}
-          onChange={setBuildingFilter}
-          style={{ width: 210 }}
-          options={context.buildings.map((b) => ({
-            value: String(b.id),
-            label: String(b.name),
-          }))}
-        />
-        <Input
-          aria-label="Период с"
-          type="date"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-          style={{ width: 155 }}
-        />
-        <Input
-          aria-label="Период по"
-          type="date"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          style={{ width: 155 }}
-        />
-      </Space>}>
+      filters={<ListFilters
+        search={<PageSearch aria-label="Поиск обращений" placeholder="Номер, описание или инициатор" value={search}
+          onChange={e => setSearch(e.target.value)} onSearch={() => setAppliedSearch(search)} style={{ width: 280 }} />}
+        values={{ state, related: buildingFilter, from, to }}
+        onChange={next => { setState(next.state); setBuildingFilter(next.related); setFrom(next.from); setTo(next.to); }}
+        stateLabel="Статус обращения" stateOptions={Object.entries(REQUEST_STATES).map(([value, label]) => ({ value, label }))}
+        relatedLabel="Фильтр по зданию" relatedOptions={context.buildings.map(b => ({ value: String(b.id), label: String(b.name) }))}
+      />} >
 
       {error && !card && !create && (
         <Alert
@@ -560,6 +528,13 @@ export function RequestsPage() {
         />
       ) : (
         <ConfigurableTable<Row> storageKey="columns.requests" settingsPlacement="page"
+          mobileRender={row => <div className="mobile-summary">
+            <div className="mobile-summary__top"><Button type="link" disabled={saving || fileBusy} onClick={() => void open(String(row.id))}>{String(row.number ?? "Черновик")}</Button><Tag>{REQUEST_STATES[String(row.state)]}</Tag></div>
+            <p className="mobile-summary__title">{String(row.description ?? "")}</p>
+            <span className="mobile-summary__meta">{String(row.author_name ?? "Инициатор не указан")} · {KINDS[String(row.kind)]}</span>
+            <Typography.Text type="secondary">Дата регистрации: {formatDateTime(row.open_at ?? row.created_at)}</Typography.Text>
+            {requestOverdueDetails(row).map(detail => <Typography.Text type="danger" key={detail}>{detail}</Typography.Text>)}
+          </div>}
           rowKey="id"
           loading={busy}
           dataSource={rows}

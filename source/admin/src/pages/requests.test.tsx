@@ -220,6 +220,39 @@ it("форма действия блокирует параллельную от
   expect(text).toHaveValue("Сохранить черновик сообщения");
 });
 
+it("в списке видна дата регистрации, срок скрыт по умолчанию и включается в колонках", async () => {
+  const row = setup();
+  Object.assign(row, {
+    created_at: "2026-10-17T08:00:00Z",
+    open_at: "2026-10-18T07:30:00Z",
+    first_response_due_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+  });
+  render(<RequestsPage />);
+  expect(await screen.findByRole("columnheader", { name: "Дата регистрации" })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "18.10.2026, 12:30" })).toBeInTheDocument();
+  // Срок скрыт по умолчанию: включается настройкой колонок.
+  expect(screen.queryByRole("columnheader", { name: "Срок" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Колонки" }));
+  const settings = await screen.findByRole("group", { name: "Видимые колонки" });
+  fireEvent.click(within(settings).getByRole("checkbox", { name: "Срок" }));
+  expect(screen.getByRole("columnheader", { name: "Срок" })).toBeInTheDocument();
+});
+
+it("на телефоне в записи показывается дата регистрации без срока", async () => {
+  vi.spyOn(window, "matchMedia").mockImplementation(query => ({ matches: query === "(max-width: 767px)", media: query,
+    onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: () => false }));
+  const row = setup();
+  Object.assign(row, {
+    created_at: "2026-10-17T08:00:00Z",
+    open_at: "2026-10-18T07:30:00Z",
+    first_response_due_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+  });
+  render(<RequestsPage />);
+  expect(await screen.findByText("Дата регистрации: 18.10.2026, 12:30")).toBeInTheDocument();
+  expect(screen.queryByText(/Первый ответ до/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Срок/)).not.toBeInTheDocument();
+}, 15000);
+
 it("фильтр здания отправляет выбранное здание и сбрасывается на все здания", async () => {
   setup();
   vi.mocked(apiFetch).mockImplementation(async (path) => {
@@ -453,7 +486,8 @@ it("выбор колонок обращений скрывает описани
   const settings = await screen.findByRole("group", { name: "Видимые колонки" });
   fireEvent.click(within(settings).getByRole("checkbox", { name: "Описание" }));
   expect(screen.queryByRole("columnheader", { name: "Описание" })).not.toBeInTheDocument();
-  expect(JSON.parse(localStorage.getItem("columns.requests")!)).toEqual({ v: 2, hidden: ["description"] });
+  // Срок скрыт по умолчанию и попадает в сохранение как явно скрытая колонка.
+  expect(JSON.parse(localStorage.getItem("columns.requests")!)).toEqual({ v: 2, hidden: ["first_response_due_at", "description"] });
   // Задания не настраивались — старое сохранение не переписывается без изменений.
   expect(JSON.parse(localStorage.getItem("columns.tasks")!)).toEqual(["assignee_name"]);
 });
