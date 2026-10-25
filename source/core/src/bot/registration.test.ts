@@ -207,7 +207,8 @@ function harness(
           return Promise.resolve([
             {
               id: "invite-1",
-              token: "t".repeat(64),
+              // Как реальный createInvite: один UUID без дефисов (32 hex).
+              token: "t".repeat(32),
               expires_at: "2026-10-27T10:00:00.000Z",
             },
           ] as T[]);
@@ -1392,6 +1393,10 @@ describe("бот: приглашение и привязка жильца (ADR-0
     if (typeof reply === "string") throw new Error("Ожидались кнопки");
     const copied = reply.buttons?.[0]?.[0];
     expect(copied?.data).toMatch(/^https:\/\/t\.me\/munar_tau_user_bot\?start=invite_[0-9a-z]+$/);
+    // Telegram ограничивает payload deep-link 64 символами; при превышении
+    // клиент открывает чат бота, не отправляя /start (ссылка «не работает»).
+    const payload = copied?.data?.split("?start=")[1] ?? "";
+    expect(payload.length).toBeLessThanOrEqual(64);
     expect(h.audit[0]).toMatchObject({ action: "registration.invite.create" });
     expect(h.audit[0]?.entityType).toBe("invite");
   });

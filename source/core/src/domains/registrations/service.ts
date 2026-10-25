@@ -692,9 +692,10 @@ export async function createInvite(
         "Приглашения доступны собственникам помещений",
       );
     const deadline = await ruleDeadline(exec, "invite_expiry");
-    const token =
-      crypto.randomUUID().replaceAll("-", "") +
-      crypto.randomUUID().replaceAll("-", "");
+    // Токен уходит в Deep Link «?start=invite_<токен>»: Telegram ограничивает
+    // payload 64 символами — при превышении клиент молча открывает чат без
+    // /start. Один UUID (32 hex) плюс префикс дают 39 символов.
+    const token = crypto.randomUUID().replaceAll("-", "");
     const [row] = await exec.query<Row>(
       "insert into invite(created_by,token,expires_at) values ($1,$2,$3) returning *",
       [
