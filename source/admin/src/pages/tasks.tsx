@@ -562,7 +562,7 @@ export function TasksPage() {
           )}
         />
       ) : (
-        <ConfigurableTable<Task> storageKey="columns.tasks" settingsPlacement="page"
+        <ConfigurableTable<Task> storageKey="columns.tasks" onMobileRowClick={task => void open(task.id)} settingsPlacement="page"
           mobileRender={task => <div className="mobile-summary">
             <div className="mobile-summary__top"><Button type="link" onClick={() => void open(task.id)}>{task.number}</Button><Tag>{TASK_STATE_TEXT[task.state]?.ru ?? task.state}</Tag></div>
             <p className="mobile-summary__title">{task.title}</p>

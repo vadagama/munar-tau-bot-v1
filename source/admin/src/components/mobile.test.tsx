@@ -82,3 +82,32 @@ it("две таблицы страницы используют один моб�
  fireEvent.click(screen.getByText("Фильтры и сортировка"));
  expect(screen.getAllByRole("combobox",{name:"Сортировка списка"})).toHaveLength(1);
 });
+
+for (const isMobile of [true, false]) {
+  it(`открывает строку только на телефоне (${isMobile}), сохраняя вложенные действия`, () => {
+    if (isMobile) mobile();
+    const computed = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation(element => computed(element));
+    const open = vi.fn(); const action = vi.fn();
+    const record = { id: "1", name: "Запись" };
+    render(<ConfigurableTable storageKey="row-tap" rowKey="id" onMobileRowClick={open}
+      columns={[{ title: "Название", dataIndex: "name" }, { title: "Действия", key: "actions", render: () => <>
+        <button onClick={action}>Изменить</button><button disabled>Удалить</button>
+        <a href="#details" onClick={e => e.preventDefault()}>Ссылка</a>
+        <label>Выбор<input type="checkbox" /></label>
+      </> }]} dataSource={[record]} />);
+    fireEvent.click(screen.getByText("Запись"));
+    expect(open).toHaveBeenCalledTimes(isMobile ? 1 : 0);
+    if (isMobile) expect(open).toHaveBeenCalledWith(record);
+    open.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Изменить" }));
+    fireEvent.click(screen.getByRole("button", { name: "Удалить" }));
+    fireEvent.click(screen.getByText("Ссылка"));
+    fireEvent.click(screen.getByText("Выбор"));
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(open).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Запись").closest("tr")!);
+    expect(open).toHaveBeenCalledTimes(isMobile ? 1 : 0);
+  });
+}

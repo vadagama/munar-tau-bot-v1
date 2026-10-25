@@ -307,7 +307,7 @@ export function RegistrationsPage() {
           }}
         />
       ) : (
-        <ConfigurableTable storageKey="columns.registrations" settingsPlacement="page"
+        <ConfigurableTable storageKey="columns.registrations" onMobileRowClick={row => { if (row.person_id) void openJournal(row); }} settingsPlacement="page"
           rowKey="id"
           loading={busy}
           dataSource={visible}

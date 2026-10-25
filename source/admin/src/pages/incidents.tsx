@@ -302,7 +302,7 @@ function IncidentPanel() {
                     )}
                   />
                 ) : (
-                  <ConfigurableTable storageKey="columns.incidents" settingsPlacement={activeTab === "incidents" ? "page" : "inline"} mobileSortPlacement={activeTab === "incidents" ? "page" : "none"}
+                  <ConfigurableTable storageKey="columns.incidents" onMobileRowClick={r => void open(String(r.id))} settingsPlacement={activeTab === "incidents" ? "page" : "inline"} mobileSortPlacement={activeTab === "incidents" ? "page" : "none"}
                     rowKey="id"
                     dataSource={rows}
                     mobileRender={r => <div className="mobile-summary"><Typography.Text type="secondary">{String(r.number)} · {names[String(r.state)] ?? String(r.state)}</Typography.Text><div><Button type="link" onClick={() => void open(String(r.id))}>{String(r.title)}</Button></div></div>}

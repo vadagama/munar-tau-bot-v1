@@ -188,7 +188,7 @@ export function JobTemplates(
       {invalidPeriod && <Alert type="warning" showIcon message="Дата начала периода позже даты окончания" />}
       {error && !action && <Alert type="error" message={error} />}
 
-      <ConfigurableTable storageKey="columns.job-templates" settingsPlacement="page"
+      <ConfigurableTable storageKey="columns.job-templates" onMobileRowClick={r => { setScheduleDirty(false); setSchedule(r); }} settingsPlacement="page"
         rowKey="id"
         loading={busy}
         dataSource={filteredRows}

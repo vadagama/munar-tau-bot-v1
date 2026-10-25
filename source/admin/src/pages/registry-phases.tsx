@@ -70,7 +70,7 @@ export function RegistryPhasesPage() {
   </Space>}>
     <Typography.Paragraph className="cabinet-page__intro" type="secondary">Очереди строительства и их состав в доступной области. Очередь меняется в карточке здания; «Не указана» объединяет здания без очереди.</Typography.Paragraph>
     {error && <Alert type="error" showIcon message={error} />}
-    <ConfigurableTable storageKey="columns.registry.phases" settingsPlacement="page" rowKey="id" loading={busy}
+    <ConfigurableTable storageKey="columns.registry.phases" onMobileRowClick={row => setSelected(row)} settingsPlacement="page" rowKey="id" loading={busy}
       dataSource={error && !buildings.length ? [] : rows} scroll={{ x: 800 }} pagination={{ current: page, onChange: setPage, pageSize: 20 }}
       locale={{ emptyText: error ? "Данные не загружены" : "По выбранным условиям ничего не найдено" }} columns={[
         { title: "Очередь", dataIndex: "name", render: (name, row) => <Button type="link" onClick={() => setSelected(row)}>{name}</Button> },

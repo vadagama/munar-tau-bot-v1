@@ -30,7 +30,7 @@ export function InitiativeModerationQueue({mode}:{mode:"actions"|"appeals"}){
  return <>
 
  {error&&!drawer&&<Alert role="alert" type="error" message={error}/>}
- {!loading&&!rows.length?<Empty description={mode==="appeals"?"Оспариваний пока нет":"Решений модерации пока нет"}/>:<ConfigurableTable storageKey={`initiatives-${mode}`} rowKey="id" dataSource={rows} loading={loading} pagination={false} columns={[
+ {!loading&&!rows.length?<Empty description={mode==="appeals"?"Оспариваний пока нет":"Решений модерации пока нет"}/>:<ConfigurableTable storageKey={`initiatives-${mode}`} onMobileRowClick={row => void open(row.id)} rowKey="id" dataSource={rows} loading={loading} pagination={false} columns={[
   {key:"reason",title:mode==="appeals"?"Обоснование оспаривания":"Причина модерации",render:(_v:unknown,row:ModerationView|AppealView)=><Button type="link" onClick={()=>void open(row.id)}>{row.reason}</Button>},
   {key:"state",title:"Состояние",render:(_v:unknown,row:ModerationView|AppealView)=>"status" in row?(row.status==="open"?"Открыто":"Рассмотрено"):row.revoked_at?"Снято":row.kind==="hide_comment"?"Комментарий скрыт":`Ограничение до ${pollDate(row.until_at)}`},
  ]}/>}

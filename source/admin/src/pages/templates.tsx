@@ -395,7 +395,7 @@ export function TemplatesPage() {
                 key: scenario,
                 label: scenario,
                 children: (
-                  <ConfigurableTable storageKey={`columns.templates.${id}.${scenario}`} settingsPlacement="inline" mobileSortPlacement="none"
+                  <ConfigurableTable storageKey={`columns.templates.${id}.${scenario}`} onMobileRowClick={row => void open(row)} settingsPlacement="inline" mobileSortPlacement="none"
                     size="small"
                     mobileRender={(row) => (
                       <div className="template-mobile-row">

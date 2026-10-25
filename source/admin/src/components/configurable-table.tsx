@@ -11,6 +11,7 @@ import { useTableColumns, type ConfigurableColumn } from "./table-columns";
 type Props<T extends object> = Omit<TableProps<T>, "columns"> & {
   storageKey: string;
   mobileSortPlacement?: "page" | "inline" | "none";
+  onMobileRowClick?: (record: T) => void;
   mobileRender?: (record: T) => ReactNode;
   settingsPlacement?: "page" | "inline";
   columns?: ConfigurableColumn<T>[];
@@ -21,7 +22,7 @@ export function ConfigurableTable<T extends object>(props: Props<T>) {
   return <ConfiguredTable key={props.storageKey} {...props} />;
 }
 
-function ConfiguredTable<T extends object>({ storageKey, settingsPlacement = "inline", columns = [], mobileRender, mobileSortPlacement = "page", ...props }: Props<T>) {
+function ConfiguredTable<T extends object>({ storageKey, settingsPlacement = "inline", columns = [], mobileRender, onMobileRowClick, mobileSortPlacement = "page", ...props }: Props<T>) {
   const mobile = useMobile();
   const [sort, setSort] = useState<string>();
   const host = useContext(TableSettingsContext);
@@ -61,6 +62,17 @@ function ConfiguredTable<T extends object>({ storageKey, settingsPlacement = "in
     {pageSort ? controls.sortOwner === sortId && controls.sortTarget && createPortal(sorting, controls.sortTarget)
       : sorting && <details className="cabinet-page__compact-filters"><FilterSortSummary />{sorting}</details>}
     <Table<T> key={sort ?? "default"} {...props} className={`mobile-records ${props.className ?? ""}`}
+    onRow={(record, index) => {
+      const rowProps = props.onRow?.(record, index) ?? {};
+      if (!onMobileRowClick) return rowProps;
+      return { ...rowProps, style: { ...rowProps.style, cursor: "pointer" }, onClick: event => {
+        rowProps.onClick?.(event);
+        if (event.defaultPrevented || !(event.target instanceof Element)) return;
+        if (event.target.closest('button, a, input, select, textarea, label, [role="button"], [role="link"], [role="checkbox"], [role="combobox"], [contenteditable="true"]')) return;
+        if (event.currentTarget.ownerDocument.defaultView?.getSelection()?.toString()) return;
+        onMobileRowClick(record);
+      }};
+    }}
     scroll={undefined} showHeader={false} tableLayout="auto"
     columns={[{ key: selectedSort?.key ?? "record", sorter, sortOrder: sort ? (direction === "descend" ? "descend" : "ascend") : null, render: (_, record, index) => mobileRender ? mobileRender(record) :
       <dl className="mobile-record-fields">{columns.map((column, i) => {

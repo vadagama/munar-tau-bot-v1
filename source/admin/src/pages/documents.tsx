@@ -101,7 +101,7 @@ export function DocumentsPage() {
   const close = () => { setCard(null); setAction(null); void load(); };
   return <PageLayout title="Документы" actions={<Space wrap>{manager && <Button type="primary" onClick={() => void begin("create")} disabled={busy}>Новый документ</Button>}</Space>}>
     {error && !card && !action && <Alert type="error" showIcon message={error} />}
-    <ConfigurableTable storageKey="columns.documents" settingsPlacement="page" rowKey="id" dataSource={rows} pagination={{ current: page, pageSize: 50, total, showSizeChanger: false, onChange: setPage }} loading={busy && !card && !action} locale={{ emptyText: "Документов нет" }} scroll={{ x: 650 }} columns={[
+    <ConfigurableTable storageKey="columns.documents" onMobileRowClick={busy ? undefined : r => void open(String(r.id))} settingsPlacement="page" rowKey="id" dataSource={rows} pagination={{ current: page, pageSize: 50, total, showSizeChanger: false, onChange: setPage }} loading={busy && !card && !action} locale={{ emptyText: "Документов нет" }} scroll={{ x: 650 }} columns={[
       { title: "Название", dataIndex: "title" }, { title: "Тип", dataIndex: "kind", render: (v: string) => kinds[v] ?? v },
       { title: "Дата", dataIndex: "document_date", render: (v: string) => v ? new Intl.DateTimeFormat("ru-RU", { timeZone: "Asia/Almaty" }).format(new Date(v)) : "—" },
       { title: "Действия", key: "actions", render: (_, r) => <Button onClick={() => void open(String(r.id))} disabled={busy}>Открыть</Button> },

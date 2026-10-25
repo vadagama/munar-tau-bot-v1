@@ -187,7 +187,7 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
       {invalidPeriod && <Alert type="warning" showIcon message="Дата начала периода позже даты окончания" />}
       {error && !card && !action && <Alert type="error" message={error} />}
 
-      <ConfigurableTable storageKey="columns.common-works" settingsPlacement="page"
+      <ConfigurableTable storageKey="columns.common-works" onMobileRowClick={r => void open(r.id)} settingsPlacement="page"
         rowKey="id"
         dataSource={filteredRows}
         loading={busy}

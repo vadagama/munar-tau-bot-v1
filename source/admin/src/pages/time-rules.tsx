@@ -133,7 +133,7 @@ export function TimeRulesPage() {
         message="Новая версия действует для новых сроков. Уже запущенные таймеры сохраняют прежнюю версию. Изменения требуют права управления регламентами и записываются в журнал."
       />
       {error && <Alert type="error" message={error} showIcon />}
-      <ConfigurableTable storageKey="columns.time-rules" settingsPlacement="page"
+      <ConfigurableTable storageKey="columns.time-rules" onMobileRowClick={r => setSelected(r)} settingsPlacement="page"
         rowKey="key"
         dataSource={rules}
         mobileRender={r => <div className="mobile-summary">
