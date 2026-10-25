@@ -15,7 +15,7 @@ export function corsHeaders(request: Request, cabinetOrigin: string | undefined)
   if (!allowed) return {};
   return {
     "access-control-allow-origin": origin,
-    "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    "access-control-allow-methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
     "access-control-allow-headers": "authorization, content-type, idempotency-key",
     "access-control-max-age": "86400",
     vary: "origin",

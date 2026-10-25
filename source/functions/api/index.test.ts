@@ -7,12 +7,8 @@ import { assertEquals, assertExists } from "@std/assert";
 
 import { buildJwtKeys } from "../../core/src/auth/jwt.ts";
 import { createTestJwtKeyPair } from "../../core/src/testing/sign-jwt.ts";
-import {
-  MemoryAdminRepo,
-  MemoryAuditRepo,
-  MemoryDb,
-  MemoryEmulationRepo,
-} from "../../core/src/testing/memory.ts";
+import { MemoryAdminRepo, MemoryAuditRepo, MemoryDb, MemoryEmulationRepo } from "../../core/src/testing/memory.ts";
+import { MemoryAssistantRepo } from "../../core/src/testing/assistant.ts";
 import { B1, B2, assignmentRow, makeTestActor } from "../../core/src/testing/actors.ts";
 import { buildActor } from "../../core/src/pdp/actor.ts";
 import type { Actor } from "../../core/src/pdp/types.ts";
@@ -33,20 +29,58 @@ const JWT_KEYS = await buildJwtKeys(PRIMARY.jwksJson());
 /** Свежая активность: сеансы фикстур живы относительно реального времени. */
 const NOW_ISO = () => new Date().toISOString();
 
-function makeDeps(): { deps: ApiDeps; admin: MemoryAdminRepo; audit: MemoryAuditRepo; emulation: MemoryEmulationRepo } {
+/**
+ * MemoryDb с SQL идемпотентности: privileged-сервисы assistant пишут в
+ * idempotency_key (образец admin/staff.test.ts).
+ */
+class AssistantApiTestDb extends MemoryDb {
+  keys = new Map<string, { request_hash: string; response: unknown }>();
+  override async query<T>(
+    sql: string,
+    params: readonly unknown[] = [],
+  ): Promise<T[]> {
+    if (sql.startsWith("insert into outbox(")) {
+      return await super.query(sql, params);
+    }
+    if (sql.startsWith("select request_hash,response")) {
+      return (this.keys.has(String(params[0]))
+        ? [this.keys.get(String(params[0]))]
+        : []) as T[];
+    }
+    if (sql.startsWith("insert into idempotency_key")) {
+      this.keys.set(String(params[0]), {
+        request_hash: String(params[2]),
+        response: params[3],
+      });
+    }
+    return [];
+  }
+}
+
+function makeDeps(): {
+  deps: ApiDeps;
+  admin: MemoryAdminRepo;
+  audit: MemoryAuditRepo;
+  emulation: MemoryEmulationRepo;
+  assistant: MemoryAssistantRepo;
+} {
   const admin = new MemoryAdminRepo();
   const audit = new MemoryAuditRepo();
   const emulation = new MemoryEmulationRepo();
+  const assistant = new MemoryAssistantRepo();
   const deps: ApiDeps = {
     jwtKeys: JWT_KEYS,
     cabinetOrigin: undefined,
-    db: new MemoryDb(),
+    db: new AssistantApiTestDb(),
     admin,
     audit,
     emulation,
+    assistant,
+    assistantSecret: "test-assistant-secret",
+    keySecret: undefined,
     scenarios: new ScenarioRegistry(),
   };
-  return { deps, admin, audit, emulation };
+  return { deps, admin, audit, emulation, assistant };
 }
 
 function seedIdentity(
@@ -125,6 +159,8 @@ interface CallOptions {
   body?: Record<string, unknown>;
   origin?: string;
   method?: string;
+  /** Дополнительные заголовки (idempotency-key, x-assistant-secret). */
+  headers?: Record<string, string>;
 }
 
 function call(
@@ -136,6 +172,7 @@ function call(
   const headers: Record<string, string> = {};
   if (options.token !== undefined) headers["authorization"] = `Bearer ${options.token}`;
   if (options.origin !== undefined) headers["origin"] = options.origin;
+  Object.assign(headers, options.headers ?? {});
   const request = new Request(`https://example.functions${path}`, {
     method,
     headers,
@@ -819,6 +856,166 @@ Deno.test("журнал регистраций — отдельный GET-мар
   assertEquals(route?.route.action, "registration.review");
   assertEquals(route?.route.evaluateAs, "effective");
   assertEquals(route?.params, {});
+});
+
+// ── ADR-021: эндпоинты assistant (план S0.3) ─────────────────────────────
+
+const ASSISTANT_KEY_SECRET_BASE64 = (() => {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+})();
+
+Deno.test("assistant: председатель задаёт токен — PUT 200, маска, без значения токена", async () => {
+  const { deps, admin } = makeDeps();
+  const chair = makeTestActor("chairman", [], { personId: "p-chair" });
+  seedIdentity(admin, { sub: "sub-chair", sessionId: "s-chair", personId: chair.person.id, profileId: chair.profile.id, actor: chair });
+  deps.keySecret = ASSISTANT_KEY_SECRET_BASE64;
+  const jwt = await token({ sub: "sub-chair", sessionId: "s-chair" });
+
+  const put = await call(deps, "/v1/assistant/settings", {
+    token: jwt,
+    method: "PUT",
+    body: { api_key: "sk-secret-provider-value-4321", expected_version: 1, reason: "первичный токен" },
+    headers: { "idempotency-key": "put-1" },
+  });
+  assertEquals(put.status, 200);
+  const body = await put.json();
+  assertEquals(body.settings.api_key_mask, "••••4321");
+  assertEquals(JSON.stringify(body).includes("sk-secret-provider-value-4321"), false);
+
+  // Чтение: ключ представлен маской, не значением.
+  const get = await call(deps, "/v1/assistant/settings", { token: jwt });
+  assertEquals(get.status, 200);
+  const view = await get.json();
+  assertEquals(view.settings.api_key_mask, "••••4321");
+  assertEquals(JSON.stringify(view).includes("sk-secret-provider-value-4321"), false);
+});
+
+Deno.test("assistant: PUT без Idempotency-Key или без причины — 400", async () => {
+  const { deps, admin } = makeDeps();
+  const chair = makeTestActor("chairman", [], { personId: "p-chair" });
+  seedIdentity(admin, { sub: "sub-chair", sessionId: "s-chair", personId: chair.person.id, profileId: chair.profile.id, actor: chair });
+  const jwt = await token({ sub: "sub-chair", sessionId: "s-chair" });
+
+  const noKey = await call(deps, "/v1/assistant/settings", {
+    token: jwt,
+    method: "PUT",
+    body: { model_id: "m", expected_version: 1, reason: "r" },
+  });
+  assertEquals(noKey.status, 400);
+  const noReason = await call(deps, "/v1/assistant/settings", {
+    token: jwt,
+    method: "PUT",
+    body: { model_id: "m", expected_version: 1 },
+    headers: { "idempotency-key": "k" },
+  });
+  assertEquals(noReason.status, 400);
+});
+
+Deno.test("assistant: администратор не правит настройки — 403", async () => {
+  const { deps, admin } = makeDeps();
+  const administrator = makeTestActor("administrator", [], { personId: "p-admin" });
+  seedIdentity(admin, { sub: "sub-admin", sessionId: "s-admin", personId: administrator.person.id, profileId: administrator.profile.id, actor: administrator });
+  const jwt = await token({ sub: "sub-admin", sessionId: "s-admin" });
+  const response = await call(deps, "/v1/assistant/settings", {
+    token: jwt,
+    method: "PUT",
+    body: { model_id: "m", expected_version: 1, reason: "r" },
+    headers: { "idempotency-key": "k" },
+  });
+  assertEquals(response.status, 403);
+});
+
+Deno.test("assistant: сквозной сценарий — включённому доступ и токен, выключенному отказ", async () => {
+  const { deps, admin } = makeDeps();
+  const chair = makeTestActor("chairman", [], { personId: "p-chair" });
+  seedIdentity(admin, { sub: "sub-chair", sessionId: "s-chair", personId: chair.person.id, profileId: chair.profile.id, actor: chair });
+  deps.keySecret = ASSISTANT_KEY_SECRET_BASE64;
+  const jwt = await token({ sub: "sub-chair", sessionId: "s-chair" });
+
+  // Токен и включение себя одним PUT.
+  const put = await call(deps, "/v1/assistant/settings", {
+    token: jwt,
+    method: "PUT",
+    body: {
+      api_key: "sk-e2e-token-1111",
+      expected_version: 1,
+      users: [{ profile_id: chair.profile.id, enabled: true, daily_token_limit: 1000, monthly_token_limit: 10000, expected_version: null }],
+      reason: "включение пилота",
+    },
+    headers: { "idempotency-key": "e2e-1" },
+  });
+  assertEquals(put.status, 200);
+
+  // settings/me: enabled + лимиты.
+  const me = await call(deps, "/v1/assistant/settings/me", { token: jwt });
+  assertEquals(me.status, 200);
+  assertEquals((await me.json()).enabled, true);
+
+  // runtime-token: расшифрованный ключ только здесь.
+  const runtime = await call(deps, "/v1/assistant/runtime-token", { token: jwt, method: "POST" });
+  assertEquals(runtime.status, 200);
+  const runtimeBody = await runtime.json();
+  assertEquals(runtimeBody.api_key, "sk-e2e-token-1111");
+  assertEquals(runtimeBody.model_id, "deepseek-chat");
+
+  // Выключение — runtime-token на следующем сообщении отклоняется.
+  const off = await call(deps, "/v1/assistant/settings", {
+    token: jwt,
+    method: "PUT",
+    body: {
+      users: [{ profile_id: chair.profile.id, enabled: false, daily_token_limit: 1000, monthly_token_limit: 10000, expected_version: 1 }],
+      reason: "отключение",
+    },
+    headers: { "idempotency-key": "e2e-2" },
+  });
+  assertEquals(off.status, 200);
+  const denied = await call(deps, "/v1/assistant/runtime-token", { token: jwt, method: "POST" });
+  assertEquals(denied.status, 403);
+  assertEquals((await denied.json()).error.code, "FORBIDDEN");
+});
+
+Deno.test("assistant: POST /v1/assistant/usage — секрет, идемпотентность, 401/403", async () => {
+  const { deps, admin } = makeDeps();
+  const actor = makeTestActor("administrator", [], { personId: "p-usage" });
+  seedIdentity(admin, { sub: "sub-usage", sessionId: "s-usage", personId: actor.person.id, profileId: actor.profile.id, actor });
+
+  const payload = { profile_id: actor.profile.id, operation_id: "op-1", prompt_tokens: 10, completion_tokens: 20 };
+  // Без секрета — 401.
+  const noSecret = await call(deps, "/v1/assistant/usage", { method: "POST", body: payload });
+  assertEquals(noSecret.status, 401);
+  // С секретом — accepted, 30 токенов; повтор с тем же operation_id не удваивает.
+  const first = await call(deps, "/v1/assistant/usage", {
+    method: "POST",
+    body: payload,
+    headers: { "x-assistant-secret": "test-assistant-secret" },
+  });
+  assertEquals(first.status, 200);
+  assertEquals((await first.json()).day_tokens, 30);
+  const repeat = await call(deps, "/v1/assistant/usage", {
+    method: "POST",
+    body: payload,
+    headers: { "x-assistant-secret": "test-assistant-secret" },
+  });
+  assertEquals(repeat.status, 200);
+  const repeatBody = await repeat.json();
+  assertEquals(repeatBody.accepted, false);
+  assertEquals(repeatBody.day_tokens, 30);
+  // Чужой секрет — 401.
+  const wrong = await call(deps, "/v1/assistant/usage", {
+    method: "POST",
+    body: payload,
+    headers: { "x-assistant-secret": "wrong" },
+  });
+  assertEquals(wrong.status, 401);
+  // Включённому сотруднику остаток виден через settings/me.
+  const jwt = await token({ sub: "sub-usage", sessionId: "s-usage" });
+  const me = await call(deps, "/v1/assistant/settings/me", { token: jwt });
+  assertEquals(me.status, 200);
+  assertEquals((await me.json()).day_used, 30);
 });
 
 Deno.test("исполнитель не управляет чужой анкетой через прямой API", async () => {
