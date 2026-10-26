@@ -8,7 +8,8 @@
   "workspaces": [
     "core",
     "admin",
-    "landing"
+    "landing",
+    "assistant"
   ],
   "scripts": {
     "lint": "eslint .",

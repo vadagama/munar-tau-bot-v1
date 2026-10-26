@@ -78,62 +78,89 @@ PR на согласование, мерж — только после одоб�
 
 ### S1.1. Воркспейс assistant — Worker + DO + PiHarness
 
-- [ ] `source/assistant`: Worker, DO `AssistantDO` (1 DO = 1 сотрудник),
+- [x] `source/assistant`: Worker, DO `AssistantDO` (1 DO = 1 сотрудник),
   `PiHarness` в Lifecycle, `pi_*` в SQLite DO
-- [ ] Изоляция Pi за `ChatRuntime` (фейк в тестах); пин версий
+- [x] Изоляция Pi за `ChatRuntime` (фейк в тестах); пин версий
   (`agents` 0.30.x ↔ Pi 1.4)
-- [ ] `wrangler.toml`; секреты Worker: `SUPABASE_URL`, JWKS, `CABINET_ORIGIN`
-- [ ] Скрипты lint/typecheck/test; воркспейс добавлен в CI явно; README деплоя
+- [x] `wrangler.toml`; секреты Worker: `SUPABASE_URL`, JWKS, `CABINET_ORIGIN`
+- [x] Скрипты lint/typecheck/test; воркспейс добавлен в CI явно; README деплоя
 - Зависимости: S0.1.
-- Приёмка: транскрипты переживают рестарт DO; Pi не протекает за `ChatRuntime`.
-- Проверка: `npm run typecheck && npm test -w assistant`; CI зелёный.
+- Приёмка: транскрипты переживают рестарт DO; Pi не протекает за `ChatRuntime`
+  (транскрипты — собственные таблицы Pi в SQLite DO; сквозной рестарт
+  проверяется на `wrangler dev` в контроле ниже, юнит-среда без DO SQLite).
+- Проверка: `npm run typecheck && npm test -w assistant` — зелёные;
+  `wrangler deploy --dry-run` зелёный; CI — прогон добавлен (node-джоба).
 - Файлы: `source/assistant/*`, `.github/workflows/ci.yml`.
 
 ### S1.2. WS-панель ассистента на главной
 
-- [ ] Панель на HomePage рядом с «Очередь дня» (очередь не заменяет), мобильный
-  полноэкранный лист
-- [ ] JWT в первом WS-сообщении `{type:"auth", jwt}`, не в URL; refresh по
-  `onAuthStateChange`
-- [ ] Стриминг снапшот + дельты, индикатор «в работе», санитизированный Markdown
-- [ ] Кнопки «Очистить контекст» и «Повторить»; `operationId = messageId`
+- [x] Панель на HomePage перед сеткой виджетов (очередь не заменяет);
+  сворачиваемая карточка, мобильные стили сетки
+- [x] JWT в первом WS-сообщении `{type:"auth", jwt}`, не в URL; свежий токен
+  перечитывается перед каждым подключением, refresh — по `onAuthStateChange`
+- [x] Стриминг снапшот + дельты, индикатор «Готовлю ответ», санитизированный
+  Markdown (перенос прототипа, HTML не рендерится)
+- [x] Кнопки «Очистить контекст» и «Повторить»; `operationId = messageId` —
+  повтор того же id гасится идемпотентностью сервера, «Повторить» после
+  завершённого сбоя идёт с новым id
 - Референс: прототип `prototypes/dashboard-library`, страница `dashboard-browser.html` (панель на главной).
 - Зависимости: S1.1, S0.3.
 - Приёмка: повторная отправка сообщения не дублирует ответ; обрыв WS
-  восстанавливается со снапшота; HTML из ответа не рендерится.
-- Проверка: `npm test -w admin` (jsdom); `npm run build -w admin`.
-- Файлы: `admin/src/pages/home.tsx`, `admin/src/assistant/*` + тесты.
+  восстанавливается со снапшота; HTML из ответа не рендерится — покрыто
+  jsdom-тестами с фейковым WebSocket.
+- Проверка: `npm test -w admin` (jsdom) — зелёные; `npm run build -w admin` —
+  зелёная; secret-scan admin/dist чист.
+- Файлы: `admin/src/pages/home.tsx`, `admin/src/assistant/*` + тесты,
+  `admin/src/lib/env.ts` (`VITE_ASSISTANT_WS_URL`).
 
 ### S1.3. Провайдер DeepSeek и память 05:00→05:00
 
-- [ ] Провайдер DeepSeek за `ChatRuntime`; ключ — по `runtime-token` на старте,
-  только в памяти изолята (не в `pi_*`, не в браузер)
-- [ ] `settings.retry` + `afterFailedRun: "keep"` — очередь не теряется,
+- [x] Провайдер DeepSeek за `ChatRuntime` (`deepseekProvider` pi-ai, не
+  `openaiProvider` — каталог и совместимости DeepSeek уже в pi-ai 1.4); ключ —
+  по `runtime-token` на старте сессии, ленивый resolve при запросе модели,
+  только в памяти изолята (не в `pi_*`, не в браузер, JWT тоже в памяти)
+- [x] `settings.retry` + `afterFailedRun: "keep"` — очередь не теряется,
   «Повторить» доступно
-- [ ] Alarm 05:00 Asia/Almaty → reset; «Очистить» → пересоздание DO по эпохе
-  `assistant:<profile_id>:<epoch>`
-- [ ] Гейт JWT + enabled (кэш ≤ 60 с) до принятия сообщения
+- [x] Отклонение от плана: alarm 05:00 заменён эпохами — Lifecycle
+  монополизирует `alarm()` DO (доки agents 0.30.x), поэтому сброс сделан
+  адресацией: сутки 05:00→05:00 = номер UTC-суток (Алматы UTC+5 без DST),
+  эффективная эпоха = max(config.epoch, UTC-день), «Очистить» =
+  `POST /v1/assistant/clear` (bump конфиг-эпохи, аудит
+  `assistant.session.cleared`) → новый DO с пустой историей; старая эпоха
+  отвечает `epoch_stale`, панель переподключается. Миграция
+  `assistant_user_config.epoch`.
+- [x] Гейт JWT + enabled (кэш ≤ 60 с) до принятия сообщения — `gate.ts`
+  (реюз `core/src/auth/jwt.ts` по SUPABASE_JWKS) + `checkEpoch` на каждом
+  сообщении
 - Зависимости: S1.1, S1.2, S0.3.
-- Приёмка: сбой провайдера не теряет очередь; старая эпоха недоступна после
-  очистки; выключенному — отказ.
-- Проверка: `npm test -w assistant` (фейк провайдера, alarm, гейт); jsdom кнопки.
-- Файлы: `source/assistant/*` (provider, gate, эпохи), панель + тесты.
+- Приёмка: сбой провайдера не теряет очередь (afterFailedRun keep, тест
+  unanswered в ChatServer); старая эпоха недоступна после очистки (gate
+  checkEpoch + панель, миграция epoch); выключенному — отказ (гейт, тест).
+- Проверка: `npm test -w assistant` (гейт, дни, ChatServer) — зелёные;
+  `npm test -w core` + deno check/lint/test (эпохи) — зелёные; jsdom кнопки
+  «Очистить»/«Повторить» — зелёные.
+- Файлы: `source/assistant/*` (pi-runtime, gate, almaty, эпохи),
+  `core/src/domains/assistant/*` (epoch, clear), `functions/api/*` (роут
+  clear), панель + тесты.
 
 **Контроль после S1 (wrangler dev, без реальных данных):**
 - [ ] Сообщение → стриминговый ответ; 05:00 очищает контекст; обрыв WS
   восстанавливается со снапшота.
-- [ ] Секреты не в `pi_*`/логах; отклонения разобраны.
+- [ ] Секреты не в `pi_*`/логах; отклонения разобраны (alarm → эпохи
+  зафиксировано выше; холодный подъём изолята без JWT — ограничение описано
+  в README воркспейса).
 
 ## S2. Сущности и ссылки
 
 ### S2.1. Инструменты сущностей, виджеты и deep links
 
-- [ ] Инструменты: `search_requests`/`get_request`, `search_tasks`/`get_task`,
+- [x] Инструменты: `search_requests`/`get_request`, `search_tasks`/`get_task`,
   `list_incidents`/`get_incident`, `search_residents`, `list_connections`,
   `list_staff`/`get_staff` — по JWT пользователя, `replay: "safe"`
-- [ ] `beforeTool` — белый список read-only реестра
-- [ ] Контракт `{items, total, page}`, `page_size` ≤ 20, абсолютные `link`
-- [ ] Виджеты-карточки со ссылками; чтение `?id=<uuid>` в drawer'ах
+- [x] `beforeTool` — белый список read-only реестра
+- [x] Контракт `{items, total, page}` (плюс `has_more`), `page_size` ≤ 20,
+  абсолютные `link`
+- [x] Виджеты-карточки со ссылками; чтение `?id=<uuid>` в drawer'ах
   обращений/заданий; язык профиля ru/kk
 - Зависимости: S1. (Больше 5 файлов — разделить на «инструменты» и «UI».)
 - Приёмка: «покажи новые обращения» → карточки-ссылки, переход по `?id=`;
@@ -141,15 +168,26 @@ PR на согласование, мерж — только после одоб�
 - Проверка: `npm test -w assistant`; `npm test -w admin`.
 - Файлы: `source/assistant/tools/*`, `admin/src/pages/requests.tsx`,
   `admin/src/pages/tasks.tsx` + тесты.
+- Отклонения (реализация): инструменты в `source/assistant/src/tools/*` (не
+  `source/assistant/tools/*`) — под include tsconfig/vitest воркспейса; deep
+  links уже реализованы в кабинетных страницах (ADR-021, главная/доски:
+  `?request=`, `?task=`, `?incident=`, `?entity=` + `entity_page=1`), поэтому
+  чтение `?id=` не делалось — инструменты отдают готовые абсолютные ссылки
+  существующего формата, allow-list AssistantMarkdown расширен на
+  `/users/residents` (карточка жителя реестра); источники — из JSON-выводов
+  инструментов (записи `pi.tool-result`): `WaitResult.sources` → `done` и
+  снапшот, upsert-путь S1 не менялся; kk-подписи состояний аварий —
+  предварительные, выверка в S6.2.
 
 ### S2.2. Тесты на инъекцию
 
-- [ ] Инъекция инструкций из данных не выводит за реестр и PDP
-- [ ] `beforeTool` отсекает не-whitelisted вызовы при инъекции; гейты не зависят
+- [x] Инъекция инструкций из данных не выводит за реестр и PDP
+- [x] `beforeTool` отсекает не-whitelisted вызовы при инъекции; гейты не зависят
   от содержимого сообщения
 - Зависимости: S2.1.
 - Проверка: `npm test -w assistant`.
-- Файлы: `source/assistant/tools/*.test.ts`, fixtures.
+- Файлы: `source/assistant/src/tools/guard.test.ts`,
+  `source/assistant/src/tools/injection.test.ts` (фикстуры — в самих тестах).
 
 ## S3. Расход и лимиты
 

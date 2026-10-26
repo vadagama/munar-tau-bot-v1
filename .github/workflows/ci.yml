@@ -35,6 +35,8 @@ jobs:
       - run: npm run typecheck
       # Тесты кабинета вынесены в параллельные шарды (job admin-tests).
       - run: npm run test -w core
+      # Воркспейс assistant — новый прогон добавляется в CI явно (AGENTS.md).
+      - run: npm run test -w assistant
       - run: npm run build -w admin
       - run: npm run build -w landing
       - name: Секреты в статической сборке (landing/dist)

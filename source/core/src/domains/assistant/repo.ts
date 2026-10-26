@@ -42,6 +42,7 @@ interface ConfigSqlRow {
   enabled: boolean;
   daily_token_limit: number;
   monthly_token_limit: number;
+  epoch: number;
   version: number;
   updated_at: string;
 }
@@ -52,6 +53,7 @@ function configFromSql(row: ConfigSqlRow): AssistantUserConfigRecord {
     enabled: row.enabled,
     dailyTokenLimit: row.daily_token_limit,
     monthlyTokenLimit: row.monthly_token_limit,
+    epoch: row.epoch,
     version: row.version,
     updatedAt: row.updated_at,
   };
@@ -142,7 +144,7 @@ export class SqlAssistantRepo implements AssistantRepo {
     profileId: string,
   ): Promise<AssistantUserConfigRecord | null> {
     const [row] = await exec.query<ConfigSqlRow>(
-      "select profile_id,enabled,daily_token_limit,monthly_token_limit,version,updated_at from assistant_user_config where profile_id=$1",
+      "select profile_id,enabled,daily_token_limit,monthly_token_limit,epoch,version,updated_at from assistant_user_config where profile_id=$1",
       [profileId],
     );
     return row ? configFromSql(row) : null;
@@ -158,7 +160,7 @@ export class SqlAssistantRepo implements AssistantRepo {
         `insert into assistant_user_config(profile_id,enabled,daily_token_limit,monthly_token_limit)
         values ($1,$2,$3,$4)
         on conflict (profile_id) do nothing
-        returning profile_id,enabled,daily_token_limit,monthly_token_limit,version,updated_at`,
+        returning profile_id,enabled,daily_token_limit,monthly_token_limit,epoch,version,updated_at`,
         [input.profileId, input.enabled, input.dailyTokenLimit, input.monthlyTokenLimit],
       );
       return row ? configFromSql(row) : null;
@@ -168,7 +170,7 @@ export class SqlAssistantRepo implements AssistantRepo {
         enabled = $2, daily_token_limit = $3, monthly_token_limit = $4,
         version = version + 1, updated_at = now()
       where profile_id = $1 and version = $5
-      returning profile_id,enabled,daily_token_limit,monthly_token_limit,version,updated_at`,
+      returning profile_id,enabled,daily_token_limit,monthly_token_limit,epoch,version,updated_at`,
       [
         input.profileId,
         input.enabled,
@@ -178,6 +180,20 @@ export class SqlAssistantRepo implements AssistantRepo {
       ],
     );
     return row ? configFromSql(row) : null;
+  }
+
+  public async bumpUserConfigEpoch(exec: DbExecutor, profileId: string): Promise<number | null> {
+    // Номер UTC-суток — та же граница 05:00 Алматы, что в almaty.ts ассистента:
+    // floor(секунды с эпохи / 86400).
+    const [row] = await exec.query<{ epoch: number }>(
+      `update assistant_user_config set
+        epoch = greatest(epoch, floor(extract(epoch from now()) / 86400)::int) + 1,
+        updated_at = now()
+      where profile_id = $1
+      returning epoch`,
+      [profileId],
+    );
+    return row ? row.epoch : null;
   }
 
   public async insertUsage(exec: DbExecutor, input: AssistantUsageInput): Promise<boolean> {

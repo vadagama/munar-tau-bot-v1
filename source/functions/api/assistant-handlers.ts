@@ -7,6 +7,7 @@ import type { Route } from "./handlers.ts";
 import {
   assistantSettingsView,
   assistantUsage,
+  clearAssistantSession,
   issueRuntimeToken,
   myAssistantAccess,
   saveAssistantSettings,
@@ -66,5 +67,15 @@ export const ASSISTANT_ROUTES: Route[] = [
     action: "assistant.use",
     evaluateAs: "effective",
     handler: async (c) => ({ body: await issueRuntimeToken(c.deps, c.actor) }),
+  },
+  {
+    method: "POST",
+    path: "/v1/assistant/clear",
+    action: "assistant.use",
+    evaluateAs: "effective",
+    resource: (c) => ({ profileId: c.actor.profile.id }),
+    handler: async (c) => ({
+      body: await clearAssistantSession(c.deps, c.actor, c.request.headers.get("idempotency-key")),
+    }),
   },
 ];
