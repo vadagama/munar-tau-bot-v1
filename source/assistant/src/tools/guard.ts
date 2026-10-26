@@ -5,7 +5,7 @@
 // в реестре изолята. Решение зависит только от имени вызова — содержимое
 // сообщения или аргументов (инъекция инструкций из данных) не влияет на гейт.
 
-import { defineExtension, hook, ToolTask } from "@earendil-works/pi-durable";
+import { defineExtension, hook, section, ToolTask, type PromptSection } from "@earendil-works/pi-durable";
 import { AGGREGATE_TOOL_NAMES, createAggregateTools } from "./aggregate-tools.ts";
 import { createEntityTools, READONLY_TOOL_NAMES, type EntityTool } from "./entity-tools.ts";
 import { EntityApiClient } from "./api-client.ts";
@@ -26,6 +26,26 @@ export function guardToolCall(call: { name: string }): { block: string } | undef
   };
 }
 
+// Язык профиля — системная инструкция (S6.2): модель держит язык всего ответа
+// и не переводит готовые подписи из данных инструментов.
+const RU_LANGUAGE_PROMPT =
+  "Язык ответов — русский. Отвечай всегда на русском и не переключай язык посреди ответа, " +
+  "даже если сотрудник пишет на другом языке. Подписи таблиц и статусы приходят из данных " +
+  "инструментов уже на языке профиля — не переводь и не изменяй их сам.";
+
+const KK_LANGUAGE_PROMPT =
+  "Жауап тілі — қазақ тілі. Әрқашан қазақ тілінде жауап беріңіз және жауап ортасында тілді " +
+  "ауыстырмаңыз. Кесте тақырыптары мен күй-атаулары құрал-деректерден келеді — " +
+  "оларды өзіңіз аудармаңыз немесе өзгертпеңіз.";
+
+/** Секция языка профиля: kk — казахская инструкция, иначе русская (S6.2). */
+export function languageSection(client: EntityApiClient): PromptSection<EntityTool> {
+  return section<EntityTool>("assistant-language", async () => {
+    const lang = await client.language();
+    return lang === "kk" ? KK_LANGUAGE_PROMPT : RU_LANGUAGE_PROMPT;
+  });
+}
+
 /**
  * Расширение read-only реестра: инструменты сущностей и агрегатов + guard-хук.
  * Устанавливается в реестр изолята один раз (PiChatRuntime).
@@ -40,6 +60,7 @@ export function createEntityExtension(client: EntityApiClient) {
   return defineExtension({
     name: "assistant-entities",
     tools,
+    sections: [languageSection(client)],
     hooks: [
       hook(ToolTask, {
         beforeTool(call) {

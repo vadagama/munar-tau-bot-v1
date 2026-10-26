@@ -69,3 +69,32 @@ describe("createEntityExtension", () => {
     expect(hooks.beforeTool(call("admin_write"))?.block).toBeTruthy();
   });
 });
+
+describe("languageSection (S6.2)", () => {
+  const makeClient = (language: string) =>
+    new EntityApiClient({
+      getAccessToken: () => "jwt-user",
+      fetchApi: async (path) =>
+        path.startsWith("/v1/meta/me")
+          ? new Response(JSON.stringify({ profile: { language } }), { status: 200 })
+          : new Response(null, { status: 404 }),
+    });
+
+  it("расширение несёт одну секцию языка", () => {
+    const extension = createEntityExtension(makeClient("ru"));
+    expect(extension.sections?.map((s) => s.key)).toEqual(["assistant-language"]);
+  });
+
+  it("ru-профиль — русская инструкция: язык всего ответа", async () => {
+    const sec = createEntityExtension(makeClient("ru")).sections?.[0];
+    const text = await sec?.render(undefined as never, undefined as never);
+    expect(text).toContain("Язык ответов — русский");
+  });
+
+  it("kk-профиль — казахская инструкция, русская не уходит", async () => {
+    const sec = createEntityExtension(makeClient("kk")).sections?.[0];
+    const text = await sec?.render(undefined as never, undefined as never);
+    expect(text).toContain("қазақ тілінде");
+    expect(text).not.toContain("на русском");
+  });
+});

@@ -183,6 +183,19 @@ describe("инструменты агрегатов — параметры и я
     expect(result.table.rows[0]?.name).toBe("Петров Пётр");
   });
 
+  it("kk-эталон: заголовок, пустое примечание и отказ — на казахском (S6.2)", async () => {
+    const api = makeApi([{ path: WORKLOAD_PATH, body: { rows: [], total: 0 } }], "kk");
+    const result = (await run(api.byName("workload_by_assignee"), {})) as unknown as AggregateResult;
+    expect(result.table.title).toBe("Орындаушылар бойынша жүктеме");
+    expect(result.note).toBe("Деректер жоқ: қолжетімді аумақта ашық тапсырма жоқ.");
+  });
+
+  it("kk-эталон: отказ инструмента — на казахском (S6.2)", async () => {
+    const api = makeApi([{ path: WORKLOAD_PATH, body: {}, status: 403 }], "kk");
+    const out = await run(api.byName("workload_by_assignee"), {});
+    expect(out).toEqual({ error: "Бұл деректерге рұқсат жоқ" });
+  });
+
   it("усечённый ответ честно помечен в примечании", async () => {
     const api = makeApi([{
       path: OVERDUE_PATH,

@@ -11,7 +11,7 @@ import { defineTool, type ToolRegistration } from "@earendil-works/pi-durable";
 import { requestStateText } from "../../../core/src/locales/requests.ts";
 import { taskStateText } from "../../../core/src/locales/tasks.ts";
 import { label, premiseLabels, roleLabels, stateLabels } from "../../../core/src/locales/registry.ts";
-import { ApiToolError, EntityApiClient } from "./api-client.ts";
+import { ApiToolError, EntityApiClient, type Lang } from "./api-client.ts";
 
 /** Имена инструментов read-only реестра — белый список для guard (guard.ts). */
 export const READONLY_TOOL_NAMES: readonly string[] = [
@@ -46,13 +46,13 @@ const premisesHref = (id: string) => `/registry/premises?entity=${encodeURICompo
 const residentHref = (id: string) => `/users/residents?entity=${encodeURIComponent(id)}&entity_page=1`;
 const STAFF_HREF = "/users/staff";
 
-/** Подписи состояний аварий (VS-7); kk — предварительные, выверка в S6.2. */
+/** Подписи состояний аварий (VS-7); kk сверены с эталоном locales в S6.2. */
 const INCIDENT_STATE_TEXT: Record<string, { ru: string; kk: string }> = {
   signal_check: { ru: "Проверка сигнала", kk: "Сигналды тексеру" },
   confirmed: { ru: "Подтверждена", kk: "Расталды" },
   not_confirmed: { ru: "Не подтверждена", kk: "Расталмады" },
   mitigation: { ru: "Устранение", kk: "Жойылуда" },
-  recovery_check: { ru: "Проверка восстановления", kk: "Қалпына келуін тексеру" },
+  recovery_check: { ru: "Проверка восстановления", kk: "Қалпына келтіруді тексеру" },
   completed: { ru: "Завершена", kk: "Аяқталды" },
 };
 
@@ -98,16 +98,22 @@ function pageOf<T>(rows: T[], page: number, size: number): Page<T> {
 
 // — Описание ошибок для модели: без стеков и кодов, дружелюбно и честно —
 
-export function failure(error: unknown, kind: "single" | "list") {
+/** Пара ru/kk: язык профиля выбирает строку (эталон терминологии — core/locales). */
+const t = (lang: Lang, ru: string, kk: string) => (lang === "kk" ? kk : ru);
+
+/** Отказ инструмента на языке профиля: без стеков и кодов, дружелюбно и честно. */
+export function failure(error: unknown, kind: "single" | "list", lang: Lang) {
   const status = error instanceof ApiToolError ? error.status : -1;
   const message =
     status === 403
-      ? kind === "single" ? "Нет доступа к этой записи" : "Нет доступа к этим данным"
+      ? kind === "single"
+        ? t(lang, "Нет доступа к этой записи", "Бұл жазбаға рұқсат жоқ")
+        : t(lang, "Нет доступа к этим данным", "Бұл деректерге рұқсат жоқ")
       : status === 404 || status === 400
-        ? "Запись не найдена"
+        ? t(lang, "Запись не найдена", "Жазба табылмады")
         : status === 0
-          ? "Сервис данных недоступен"
-          : "Не удалось получить данные";
+          ? t(lang, "Сервис данных недоступен", "Деректер қызметі қолжетімсіз")
+          : t(lang, "Не удалось получить данные", "Деректерді алу мүмкін болмады");
   return textOutput({ error: message });
 }
 
@@ -171,7 +177,7 @@ export function createEntityTools(client: EntityApiClient) {
         }));
         return textOutput({ items, total: items.length, page: page.page, has_more: hasMore });
       } catch (error) {
-        return failure(error, "list");
+        return failure(error, "list", await language());
       }
     },
   });
@@ -198,7 +204,7 @@ export function createEntityTools(client: EntityApiClient) {
             created_at: textOrNull(card.created_at),
           });
       } catch (error) {
-        return failure(error, "single");
+        return failure(error, "single", await language());
       }
     },
   });
@@ -237,7 +243,7 @@ export function createEntityTools(client: EntityApiClient) {
           const linked = row.linked_request as { id?: unknown; number?: unknown } | null;
           return {
             id: String(row.id),
-            label: `№${row.number} · ${cut(row.title ?? "Задание")}`,
+            label: `№${row.number} · ${cut(row.title ?? t(lang, "Задание", "Тапсырма"))}`,
             state: taskStateText(row.state, lang),
             href: taskHref(String(row.id)),
             assignee: textOrNull(row.assignee_name),
@@ -249,7 +255,7 @@ export function createEntityTools(client: EntityApiClient) {
         });
         return textOutput({ items, total: items.length, page: page.page, has_more: view.has_more });
       } catch (error) {
-        return failure(error, "list");
+        return failure(error, "list", await language());
       }
     },
   });
@@ -272,7 +278,7 @@ export function createEntityTools(client: EntityApiClient) {
         const linked = card.linked_request as { id?: unknown; number?: unknown } | null | undefined;
         return textOutput({
             id: String(card.id),
-            label: `№${card.number} · ${cut(card.title ?? "Задание")}`,
+            label: `№${card.number} · ${cut(card.title ?? t(lang, "Задание", "Тапсырма"))}`,
             state: taskStateText(card.state, lang),
             href: taskHref(String(card.id)),
             title: textOrNull(card.title),
@@ -291,7 +297,7 @@ export function createEntityTools(client: EntityApiClient) {
               : undefined,
           });
       } catch (error) {
-        return failure(error, "single");
+        return failure(error, "single", await language());
       }
     },
   });
@@ -325,7 +331,7 @@ export function createEntityTools(client: EntityApiClient) {
         }));
         return textOutput({ items, total: items.length, page: page.page, has_more: view.has_more });
       } catch (error) {
-        return failure(error, "list");
+        return failure(error, "list", await language());
       }
     },
   });
@@ -354,7 +360,7 @@ export function createEntityTools(client: EntityApiClient) {
             zones: scope.length,
           });
       } catch (error) {
-        return failure(error, "single");
+        return failure(error, "single", await language());
       }
     },
   });
@@ -401,7 +407,7 @@ export function createEntityTools(client: EntityApiClient) {
         });
         return textOutput({ items, total: items.length, page: page.page, has_more: view.has_more });
       } catch (error) {
-        return failure(error, "list");
+        return failure(error, "list", await language());
       }
     },
   });
@@ -435,7 +441,7 @@ export function createEntityTools(client: EntityApiClient) {
         }));
         return textOutput({ items, total: items.length, page: page.page, has_more: view.has_more });
       } catch (error) {
-        return failure(error, "list");
+        return failure(error, "list", await language());
       }
     },
   });
@@ -462,7 +468,7 @@ export function createEntityTools(client: EntityApiClient) {
         }));
         return textOutput({ items, total: items.length, page: page.page, has_more: view.has_more });
       } catch (error) {
-        return failure(error, "list");
+        return failure(error, "list", await language());
       }
     },
   });
@@ -488,7 +494,7 @@ export function createEntityTools(client: EntityApiClient) {
             workload: card.workload,
           });
       } catch (error) {
-        return failure(error, "single");
+        return failure(error, "single", await language());
       }
     },
   });
