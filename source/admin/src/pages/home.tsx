@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { PageLayout } from "../components/page-layout";
 import { useDashboardIdentity, useDashboardResource, parseDashboardPreferences, moveWidget, type DashboardPreferences, type DashboardResponse } from "../lib/dashboard";
 import { AssistantPanel } from "../assistant/assistant-panel";
-import { DashboardChart } from "./home-charts";
+import { DashboardChart, DashboardIncidentsChart, DashboardQualityChart, DashboardRegistrationsChart, DashboardTasksChart, DashboardTasksWorkload } from "./home-charts";
 import { formatDateTime } from "../lib/format-date";
 import "./home.css";
 
@@ -33,7 +33,14 @@ function Dashboard({ storageKey }: { storageKey: string }) {
     try { localStorage.setItem(storageKey, JSON.stringify(next)); setStorageError(false); } catch { setStorageError(true); }
   }
   const widgets = result.data?.widgets ?? [];
-  const available = [...widgets.map(w => ({ id: w.id, title: w.title })), ...(result.data?.analytics ? [{ id: "flow", title: "Динамика обращений" }, { id: "kinds", title: "Виды обращений" }] : [])];
+  const available = [...widgets.map(w => ({ id: w.id, title: w.title })),
+    ...(result.data?.analytics ? [
+      { id: "flow", title: "Динамика обращений" }, { id: "kinds", title: "Виды обращений" },
+      { id: "lead", title: "Длительность обращений" }, { id: "overdue", title: "Просрочки" }, { id: "rating", title: "Оценки жителей" },
+      { id: "task-flow", title: "Динамика заданий" }, { id: "task-states", title: "Состояния заданий" }, { id: "task-load", title: "Нагрузка исполнителей" },
+      { id: "incident-flow", title: "Динамика аварий" },
+      ...(result.data?.registration_analytics ? [{ id: "registrations-flow", title: "Регистрации жителей" }] : []),
+    ] : [])];
   const visible = preferences.order.filter(id => available.some(w => w.id === id) && !preferences.hidden.includes(id));
   function move(id: string, target: string) {
     save({ ...preferences, order: moveWidget(preferences.order, id, target) });
@@ -70,7 +77,12 @@ function Dashboard({ storageKey }: { storageKey: string }) {
                 </div>
               </List.Item>} />
               <Link to={widget.href}>Открыть список ({widget.total}) →</Link>
-            </> : <DashboardChart kind={id === "flow" ? "flow" : "kinds"} />}
+            </> : id === "flow" || id === "kinds" ? <DashboardChart kind={id === "flow" ? "flow" : "kinds"} />
+              : id === "task-flow" || id === "task-states" ? <DashboardTasksChart kind={id === "task-flow" ? "task-flow" : "task-states"} />
+              : id === "lead" || id === "overdue" || id === "rating" ? <DashboardQualityChart kind={id as "lead" | "overdue" | "rating"} />
+              : id === "task-load" ? <DashboardTasksWorkload />
+              : id === "incident-flow" ? <DashboardIncidentsChart />
+              : <DashboardRegistrationsChart />}
           </Card>
         </section>;
       })}

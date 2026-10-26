@@ -6,6 +6,10 @@ import { listRegistrations } from "../registrations/service.ts";
 import { dashboardTasks, dashboardIncidents } from "./queues.ts";
 import { dashboardRequests } from "./requests.ts";
 export { dashboardRequests, dashboardAnalytics } from "./requests.ts";
+export { dashboardTasksAnalytics, dashboardTasksWorkload } from "./tasks.ts";
+export { dashboardQualityAnalytics } from "./quality.ts";
+export { dashboardIncidentsAnalytics } from "./incidents.ts";
+export { dashboardRegistrationsAnalytics } from "./registrations.ts";
 
 export interface DashboardItem {
   id: string; label: string; state: string; href: string;
@@ -52,5 +56,6 @@ export async function getDashboard(deps: RegistryDeps, actor: Actor) {
     const incidents = await dashboardIncidents(deps, actor);
     add("incidents", "Аварии", incidents, "/incidents", r => ({ id: String(r.id), label: `№${r.number} · ${r.title}`, state: String(r.state), href: `/incidents?incident=${r.id}&entity_page=1` }));
   }
-  return { widgets, analytics: manager(actor), assistant: { state: "disabled" as const }, generated_at: new Date().toISOString() };
+  return { widgets, analytics: manager(actor), registration_analytics: can(actor, "registration.review").allow,
+    assistant: { state: "disabled" as const }, generated_at: new Date().toISOString() };
 }
