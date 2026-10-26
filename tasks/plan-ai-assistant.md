@@ -84,7 +84,7 @@ UX-референс для задач UI — интерактивный прот
   **Verification:** `npm run typecheck && npm test -w assistant`; CI зелёный. **Dependencies:** S0.1. **Files:** `source/assistant/*` (worker, do, runtime, wrangler.toml, README), `.github/workflows/ci.yml`. **Scope:** L (инфраструктурный каркас; при росте > 5 файлов — разбить на DO и ChatRuntime)
 
 - [ ] **Task S1.2: WS-панель ассистента на главной**
-  **Description:** Панель на HomePage рядом с «Очередь дня» (очередь не заменяет): сворачиваемая панель, на мобильном — полноэкранный лист. WS к Worker: JWT в первом сообщении `{type:"auth", jwt}`, не в URL; обновление токена по `onAuthStateChange`. Стриминг: снапшот + дельты; индикатор «в работе»; ответ — санитизированный Markdown (HTML из ответа не рендерится). Кнопки: «Очистить контекст», «Повторить» после сбоя. `operationId = messageId` — повторы клиента гасятся идемпотентностью. UX-референс — `dashboard-browser.html` из прототипа `prototypes/dashboard-library`.  
+  **Description:** Панель на HomePage рядом с «Очередь дня» (очередь не заменяет): сворачиваемая панель, на мобильном — полноэкранный лист. WS к Worker: JWT в первом сообщении `{type:"auth", jwt}`, не в URL; обновление токена по `onAuthStateChange`. Стриминг: снапшот + дельты; индикатор «в работе»; ответ — санитизированный Markdown (HTML из ответа не рендерится). Кнопка: «Повторить» после сбоя (кнопку «Очистить контекст» убрали — решение владельца 26.10.2026; POST /v1/assistant/clear сохранён). Макет по прототипу home-assistant: подсказка, чипы примеров запросов (заполняют поле ввода), форма «В DeepSeek отправятся…» + «Спросить», ответы под формой с временем и развёрнутым текстом сбоя. `operationId = messageId` — повторы клиента гасятся идемпотентностью. UX-референс — `dashboard-browser.html` из прототипа `prototypes/dashboard-library`.  
   **Acceptance criteria:**
   - [ ] Сообщение уходит по WS, ответ стримится; повторная отправка того же сообщения не дублирует ответ
   - [ ] JWT не в URL; истёкший токен → reconnect с новым по onAuthStateChange
@@ -129,7 +129,7 @@ UX-референс для задач UI — интерактивный прот
   **Verification:** `npm test -w assistant` + `npm test -w core` (суммы, окна). **Dependencies:** S0.2, S0.3, S1.3. **Files:** `source/assistant/*` (gate), `core/src/domains/assistant` + тесты. **Scope:** M
 
 - [ ] **Task S3.2: Панель расхода**
-  **Description:** GET `/v1/assistant/usage` в кабинете: свой расход и остаток — включённому сотруднику (`assistant.use`); все сотрудники — chairman/tech_admin (`assistant.usage.read`). Таблица по дням/месяцам, остаток лимита; блок в «Настройках AI-ассистента» и мини-индикатор в панели пользователя.
+  **Description:** GET `/v1/assistant/usage` в кабинете: свой расход и остаток — включённому сотруднику (`assistant.use`); все сотрудники — chairman/tech_admin (`assistant.usage.read`). Таблица по дням/месяцам, остаток лимита; блок в «Настройках AI-ассистента» и остаток дневного лимита в шапке панели пользователя («Осталось N из M» вместо мини-индикатора — решение владельца 26.10.2026).
   **Acceptance criteria:**
   - [ ] Пользователь видит свой расход и остаток; админ — всех; чужой расход не виден (тест PDP)
   **Verification:** `deno task test`; `npm test -w admin`. **Dependencies:** S3.1, S0.4. **Files:** `functions/api/*`, страница настроек + тесты. **Scope:** S

@@ -1,16 +1,19 @@
 // Панель AI-ассистента на главной (план S1.2): сворачиваемая карточка рядом с
 // «Очередью дня» (очередь не заменяет), на мобильном — во всю ширину сетки.
 // Тексты и состояния — по прототипу prototypes/dashboard-library
-// (dashboard-browser.html): «Вопрос ассистенту», «Спросить» → «Готовлю ответ»,
-// примечание об AI-подсказке. Ответ — AssistantMarkdown (HTML не рендерится).
+// (home-assistant.tsx): подсказка, чипы примеров (заполняют поле ввода),
+// форма («В DeepSeek отправятся…» + «Спросить»), ответы — под формой с временем,
+// при сбое — развёрнутый текст и «Повторить» (решение владельца 26.10.2026).
+// Ответ — AssistantMarkdown (HTML не рендерится).
 
 import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Card, Input, Progress, Space, Spin, Typography } from "antd";
-import { ClearOutlined, RedoOutlined, SendOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Input, Space, Spin, Typography } from "antd";
+import { RedoOutlined, SendOutlined } from "@ant-design/icons";
 
 import { AssistantMarkdown } from "./assistant-markdown";
 import { AssistantTable } from "./assistant-table";
 import { useAssistantSocket, type AssistantMessageView } from "./use-assistant-socket";
+import { formatDateTime } from "../lib/format-date";
 import "./assistant.css";
 
 const OPEN_STORAGE_KEY = "assistant.panel.open";
@@ -26,24 +29,29 @@ function readOpen(): boolean {
   }
 }
 
-function messageBody(message: AssistantMessageView): string {
-  if (message.role === "assistant") return message.text;
-  if (message.status === "unanswered" || message.status === "failed") {
-    return message.error ?? "Ответ не получен";
+/** Текст сбоя для блока ошибки: причина от сервера либо общий fallback. */
+function failureDescription(message: AssistantMessageView): string {
+  if (message.error !== undefined && message.error !== "") return message.error;
+  if (message.status === "parked") {
+    return "Обработка вопроса приостановлена из-за сбоя сервиса ассистента. Нажмите «Повторить» — попытка будет выполнена заново.";
   }
-  return message.text;
+  return "Ассистент не смог подготовить ответ. Нажмите «Повторить» — попытка будет выполнена заново.";
 }
 
+const QUESTION_PROMPTS = ["Что требует внимания?", "Как распределить работу по очередям?", "Составь краткую сводку"];
+
 export function AssistantPanel() {
-  const { status, messages, send, retry, clearSession, clearing, access } = useAssistantSocket();
+  const { status, messages, send, retry, access } = useAssistantSocket();
   const [open, setOpen] = useState(readOpen);
   const [question, setQuestion] = useState("");
   const threadRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Мини-индикатор дневного расхода (S3.2): только при заданном дневном лимите.
   const dailyLimit = access?.daily_token_limit ?? null;
   const dayUsed = access?.day_used ?? 0;
+  // Остаток дневного лимита в шапке (S3.2, решение владельца 26.10.2026):
+  // заменяет мини-индикатор-прогрессбар.
+  const remaining = dailyLimit !== null ? Math.max(0, dailyLimit - dayUsed) : null;
 
   useEffect(() => {
     try {
@@ -77,12 +85,25 @@ export function AssistantPanel() {
   );
 
   const busy = messages.some((m) => m.status === "queued" || m.status === "running");
+  const formEnabled = status.kind === "open";
 
   return (
     <section className="assistant-panel" aria-label="AI-ассистент">
       <Card
         title="AI-ассистент"
-        extra={<Space size={4}>{toggle}</Space>}
+        extra={
+          <Space size={8}>
+            {remaining !== null && (
+              <Typography.Text
+                type="secondary"
+                title="Остаток дневного лимита токенов (05:00→05:00 Алматы)"
+              >
+                {`Осталось ${remaining.toLocaleString("ru-RU")} из ${dailyLimit!.toLocaleString("ru-RU")}`}
+              </Typography.Text>
+            )}
+            {toggle}
+          </Space>
+        }
         // Свёрнутая панель без содержимого — только шапка: пустое тело карточки
         // выглядит как сломанный рендер (сообщения статусов остаются видимыми).
         styles={!open && status.kind === "open" ? { body: { display: "none" } } : undefined}
@@ -105,48 +126,21 @@ export function AssistantPanel() {
         )}
         {open && (status.kind === "open" || status.kind === "connecting") && (
           <>
-            {dailyLimit !== null && (
-              <div className="assistant-usage" title="Расход токенов за текущие сутки (05:00→05:00 Алматы)">
-                <Progress
-                  aria-label="Расход дневного лимита"
-                  percent={dailyLimit > 0 ? Math.min(100, Math.round((dayUsed / dailyLimit) * 100)) : 100}
+            <Typography.Paragraph className="assistant-hint">
+              Помогу оценить текущую нагрузку и выбрать, с чего начать.
+            </Typography.Paragraph>
+            <Space wrap className="assistant-prompts">
+              {QUESTION_PROMPTS.map((text) => (
+                <Button
+                  key={text}
                   size="small"
-                  showInfo={false}
-                />
-                <Typography.Text type="secondary">
-                  {dayUsed.toLocaleString("ru-RU")} / {dailyLimit.toLocaleString("ru-RU")} токенов сегодня
-                </Typography.Text>
-              </div>
-            )}
-            <div className="assistant-thread" ref={threadRef} aria-live="polite" aria-busy={busy}>
-              {messages.length === 0 && (
-                <Typography.Paragraph type="secondary" className="assistant-empty">
-                  Помогу оценить текущую нагрузку и подскажу, с чего начать. Спросите своими словами.
-                </Typography.Paragraph>
-              )}
-              {messages.map((message) => (
-                <div key={message.messageId} className={`assistant-msg assistant-msg--${message.role}`}>
-                  {message.role === "assistant" ? (
-                    <>
-                      <AssistantMarkdown text={messageBody(message)} sources={message.sources} />
-                      {(message.tables ?? []).map((table) => <AssistantTable key={table.id} table={table} />)}
-                    </>
-                  ) : (
-                    <div className="assistant-msg-text">{messageBody(message)}</div>
-                  )}
-                  {(message.status === "unanswered" || message.status === "failed" || message.status === "parked") && message.role === "user" && (
-                    <Button
-                      size="small"
-                      icon={<RedoOutlined aria-hidden="true" />}
-                      onClick={() => retry(message)}
-                    >
-                      Повторить
-                    </Button>
-                  )}
-                </div>
+                  disabled={busy || !formEnabled}
+                  onClick={() => setQuestion(text)}
+                >
+                  {text}
+                </Button>
               ))}
-              <div ref={messagesEndRef} />
-            </div>
+            </Space>
             <form
               className="assistant-form"
               onSubmit={event => {
@@ -162,31 +156,69 @@ export function AssistantPanel() {
                 onChange={e => setQuestion(e.target.value)}
                 maxLength={2000}
                 autoSize={{ minRows: 1, maxRows: 4 }}
-                disabled={busy || status.kind !== "open"}
+                disabled={busy || !formEnabled}
               />
               <div className="assistant-form-footer">
-                <Button
-                  icon={<ClearOutlined aria-hidden="true" />}
-                  onClick={() => void clearSession()}
-                  loading={clearing}
-                  title="Начать новый контекст: история текущего дня будет недоступна"
-                >
-                  Очистить контекст
-                </Button>
+                <Typography.Text type="secondary" className="assistant-privacy">
+                  В DeepSeek отправятся ваш вопрос, количества записей и номера доступных карточек.
+                </Typography.Text>
                 <Button
                   htmlType="submit"
                   type="primary"
                   icon={<SendOutlined aria-hidden="true" />}
                   loading={busy}
-                  disabled={!question.trim() || status.kind !== "open"}
+                  disabled={!question.trim() || !formEnabled}
                 >
                   {busy ? "Готовлю ответ" : "Спросить"}
                 </Button>
               </div>
-              <Typography.Paragraph type="secondary" className="assistant-note">
-                Выводы AI — подсказка. Проверяйте детали в исходных записях.
-              </Typography.Paragraph>
             </form>
+            {/* Ответы — под формой ввода (решение владельца 26.10.2026). */}
+            <div className="assistant-thread" ref={threadRef} aria-live="polite" aria-busy={busy}>
+              {messages.map((message) => (
+                message.role === "user" ? (
+                  <div key={message.messageId} className="assistant-question">
+                    <span className="assistant-question-label">Вопрос</span>
+                    <div className="assistant-question-text">{message.text}</div>
+                    {(message.status === "unanswered" || message.status === "failed" || message.status === "parked") && (
+                      <Alert
+                        className="assistant-failure"
+                        type="error"
+                        showIcon
+                        message="Не удалось получить ответ"
+                        description={
+                          <>
+                            <Typography.Paragraph className="assistant-failure-text">{failureDescription(message)}</Typography.Paragraph>
+                            <Button
+                              size="small"
+                              icon={<RedoOutlined aria-hidden="true" />}
+                              onClick={() => retry(message)}
+                            >
+                              Повторить
+                            </Button>
+                          </>
+                        }
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div key={message.messageId} className="assistant-answer">
+                    <div className="assistant-answer-heading">
+                      <h3>Ответ ассистента</h3>
+                      {message.at !== undefined && (
+                        <Typography.Text type="secondary">{formatDateTime(message.at)}</Typography.Text>
+                      )}
+                    </div>
+                    <AssistantMarkdown text={message.text} sources={message.sources} />
+                    {(message.tables ?? []).map((table) => <AssistantTable key={table.id} table={table} />)}
+                  </div>
+                )
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+            <Typography.Paragraph type="secondary" className="assistant-note">
+              Выводы AI — подсказка. Проверяйте детали в исходных записях.
+            </Typography.Paragraph>
           </>
         )}
       </Card>
