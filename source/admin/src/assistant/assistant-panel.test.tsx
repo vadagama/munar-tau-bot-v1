@@ -1,8 +1,9 @@
 // Сценарии панели AI-ассистента (S1.2/S1.3, jsdom с фейковым WebSocket):
 // гейт settings/me и эмуляции, auth первым сообщением, снапшот, стриминг дельт,
 // done с эталонным текстом, переподключение со снапшотом, epoch_stale → новая
-// эпоха, «Очистить контекст» через POST clear, «Повторить» после сбоя,
-// идемпотентный повтор того же messageId.
+// эпоха, «Повторить» после сбоя, идемпотентный повтор того же messageId;
+// макет по прототипу: чипы примеров, ответы под формой, остаток лимита в шапке
+// (решение владельца 26.10.2026 — кнопки «Очистить контекст» нет).
 
 import {
   cleanup,
@@ -127,10 +128,6 @@ function mockApi() {
       if (state.access === null) throw new Error("FORBIDDEN");
       return state.access;
     }
-    if (path === "/v1/assistant/clear") {
-      state.access = { ...accessEnabled, epoch: 50000 };
-      return { epoch: 50000 };
-    }
     throw new Error(`unexpected api call: ${path} ${options?.method ?? "GET"}`);
   });
 }
@@ -142,8 +139,8 @@ async function renderPanel(): Promise<void> {
   // auth уходит первым сообщением после открытия.
   await waitFor(() => expect(FakeWebSocket.last().sent.length).toBeGreaterThan(0));
   acceptAuth(FakeWebSocket.last());
-  // Панель по умолчанию свёрнута — раскрываем и ждём активную форму.
-  fireEvent.click(screen.getByRole("button", { name: "Развернуть" }));
+  // Панель развёрнута по умолчанию (первый вход без сохранённого выбора);
+  // после auth_ok форма активна без нажатия «Развернуть».
   await waitFor(() => expect(screen.getByLabelText("Вопрос ассистенту")).toBeEnabled(), { timeout: 3000 });
 }
 
@@ -187,6 +184,26 @@ it("скрыта, когда ассистент выключен, в эмуля�
   state.identity.isTest = true;
   render(<MemoryRouter><AssistantPanel /></MemoryRouter>);
   await waitFor(() => expect(screen.queryByText("AI-ассистент")).not.toBeInTheDocument());
+});
+
+it("при первом входе панель развёрнута: поле ввода видно сразу после подключения", async () => {
+  await renderPanel();
+  // Развёрнутое состояние сохраняется как выбор пользователя.
+  expect(localStorage.getItem("assistant.panel.open")).toBe("1");
+});
+
+it("свёрнутая панель (сохранённый выбор) без пустого тела: разворачивается кнопкой", async () => {
+  localStorage.setItem("assistant.panel.open", "0");
+  render(<MemoryRouter><AssistantPanel /></MemoryRouter>);
+  await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0));
+  FakeWebSocket.last().open();
+  await waitFor(() => expect(FakeWebSocket.last().sent.length).toBeGreaterThan(0));
+  acceptAuth(FakeWebSocket.last());
+  // Пустого тела нет — свёрнутая панель это только шапка с кнопкой.
+  await waitFor(() => expect(document.querySelector(".ant-card-body")).toHaveStyle({ display: "none" }));
+  fireEvent.click(screen.getByRole("button", { name: "Развернуть" }));
+  expect(screen.getByLabelText("Вопрос ассистенту")).toBeEnabled();
+  expect(localStorage.getItem("assistant.panel.open")).toBe("1");
 });
 
 it("подключается с профилем и эффективной эпохой, JWT — первым сообщением, не в URL", async () => {
@@ -348,19 +365,7 @@ it("epoch_stale: панель перечитывает эпоху и переп�
   await waitFor(() => expect(FakeWebSocket.last().url).toContain("epoch=50000"), { timeout: 5000 });
 });
 
-it("«Очистить контекст» вызывает POST clear с Idempotency-Key и переподключается", async () => {
-  await renderPanel();
-  fireEvent.click(screen.getByText("Очистить контекст"));
-  await waitFor(() => expect(
-    vi.mocked(apiFetch).mock.calls.some(([path, options]) =>
-      path === "/v1/assistant/clear" && options?.method === "POST" && typeof options.idempotencyKey === "string",
-    ),
-  ).toBe(true));
-  await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(1), { timeout: 5000 });
-  expect(FakeWebSocket.last().url).toContain("epoch=50000");
-});
-
-it("сбой провайдера → «Повторить» отправляет текст с новым operationId", async () => {
+it("сбой провайдера → развёрнутый блок ошибки и «Повторить» отправляет текст с новым operationId", async () => {
   await renderPanel();
   const socket = FakeWebSocket.last();
   fireEvent.change(screen.getByLabelText("Вопрос ассистенту"), { target: { value: "вопрос про лимиты" } });
@@ -368,6 +373,9 @@ it("сбой провайдера → «Повторить» отправляе�
   await waitFor(() => expect(screen.getByText("Готовлю ответ")).toBeInTheDocument());
   const sent = JSON.parse(socket.sent.at(-1)!) as { messageId: string };
   socket.receive({ type: "done", messageId: sent.messageId, status: "unanswered", error: "провайдер недоступен" });
+  // Развёрнутый блок ошибки: заголовок + причина + «Повторить».
+  expect(await screen.findByText("Не удалось получить ответ")).toBeInTheDocument();
+  expect(screen.getByText("провайдер недоступен")).toBeInTheDocument();
   const button = await screen.findByRole("button", { name: /Повторить/ });
   fireEvent.click(button);
   await waitFor(() => {
@@ -449,16 +457,74 @@ it("исчерпанный по settings/me лимит после отказа �
   expect(screen.queryByLabelText("Вопрос ассистенту")).not.toBeInTheDocument();
 });
 
-it("мини-индикатор показывает расход дневного лимита и скрыт без лимита", async () => {
+it("остаток дневного лимита — в шапке панели, без лимита — нет (S3.2)", async () => {
   state.access = { ...accessEnabled, day_used: 250 };
   await renderPanel();
-  expect(screen.getByLabelText("Расход дневного лимита")).toBeInTheDocument();
-  expect(screen.getByText(/250 \/ 1\s?000 токенов сегодня/)).toBeInTheDocument();
+  expect(screen.getByText(/Осталось 750 из 1\s?000/)).toBeInTheDocument();
+  expect(screen.getByTitle("Остаток дневного лимита токенов (05:00→05:00 Алматы)")).toBeInTheDocument();
 
   cleanup();
   FakeWebSocket.instances = [];
   state.access = { ...accessEnabled, daily_token_limit: null, day_used: 250 };
   render(<MemoryRouter><AssistantPanel /></MemoryRouter>);
   await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0));
-  expect(screen.queryByText(/токенов сегодня/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Осталось/)).not.toBeInTheDocument();
+});
+it("чипы примеров заполняют поле ввода, не отправляя вопрос", async () => {
+  await renderPanel();
+  const socket = FakeWebSocket.last();
+  fireEvent.click(screen.getByText("Что требует внимания?"));
+  expect(screen.getByLabelText("Вопрос ассистенту")).toHaveValue("Что требует внимания?");
+  // Чип не отправляет: WS-сообщений типа message нет.
+  expect(socket.sent.some((raw) => (JSON.parse(raw) as { type: string }).type === "message")).toBe(false);
+});
+
+it("ответы рендерятся под формой ввода", async () => {
+  await renderPanel();
+  const socket = FakeWebSocket.last();
+  fireEvent.change(screen.getByLabelText("Вопрос ассистенту"), { target: { value: "вопрос" } });
+  fireEvent.click(screen.getByText("Спросить"));
+  await waitFor(() => expect(screen.getByText("Готовлю ответ")).toBeInTheDocument());
+  const sent = JSON.parse(socket.sent.at(-1)!) as { messageId: string };
+  socket.receive({ type: "done", messageId: sent.messageId, status: "done", text: "Полный финальный ответ" });
+  await waitFor(() => expect(screen.getByText("Полный финальный ответ")).toBeInTheDocument());
+  const input = screen.getByLabelText("Вопрос ассистенту");
+  const answer = screen.getByText("Полный финальный ответ");
+  // Ответ идёт после поля ввода в DOM (решение владельца 26.10.2026).
+  expect((input.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
+});
+
+it("у блока «Ответ ассистента» после done есть время", async () => {
+  await renderPanel();
+  const socket = FakeWebSocket.last();
+  fireEvent.change(screen.getByLabelText("Вопрос ассистенту"), { target: { value: "вопрос" } });
+  fireEvent.click(screen.getByText("Спросить"));
+  await waitFor(() => expect(screen.getByText("Готовлю ответ")).toBeInTheDocument());
+  const sent = JSON.parse(socket.sent.at(-1)!) as { messageId: string };
+  socket.receive({ type: "done", messageId: sent.messageId, status: "done", text: "Ответ готов" });
+  await waitFor(() => expect(screen.getByText("Ответ готов")).toBeInTheDocument());
+  expect(screen.getByText("Ответ ассистента")).toBeInTheDocument();
+  // Клиентское время (Asia/Almaty, dd.mm.yyyy, hh:mm).
+  expect(screen.getByText(/\d{2}\.\d{2}\.\d{4}/)).toBeInTheDocument();
+});
+
+it("после обрыва снапшот не дублирует отправленный вопрос", async () => {
+  await renderPanel();
+  const first = FakeWebSocket.last();
+  fireEvent.change(screen.getByLabelText("Вопрос ассистенту"), { target: { value: "дубликат?" } });
+  fireEvent.click(screen.getByText("Спросить"));
+  await waitFor(() => expect(screen.getByText("Готовлю ответ")).toBeInTheDocument());
+  first.drop();
+  await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(1), { timeout: 5000 });
+  const second = FakeWebSocket.last();
+  second.open();
+  await waitFor(() => expect(second.sent.length).toBeGreaterThan(0));
+  acceptAuth(second);
+  second.receive({
+    type: "snapshot",
+    messages: [{ messageId: "t-1", role: "user", text: "дубликат?", status: "done" }],
+  });
+  await waitFor(() => expect(screen.getByText("дубликат?")).toBeInTheDocument());
+  // Оптимистичный вопрос и запись транскрипта — один блок, а не два.
+  expect(screen.getAllByText("дубликат?")).toHaveLength(1);
 });

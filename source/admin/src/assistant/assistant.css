@@ -1,44 +1,13 @@
-/* Панель AI-ассистента на главной (S1.2): стили потока сообщений и формы.
-   Таблицы/текст ответа — .assistant-rich-text из прототипа dashboard-library. */
+/* Панель AI-ассистента на главной (S1.2): стили формы и потока сообщений.
+   Таблицы/текст ответа — .assistant-rich-text из прототипа dashboard-library.
+   Макет по прототипу home-assistant.tsx (решение владельца 26.10.2026):
+   подсказка → чипы → форма ввода → ответы под формой → примечание об AI. */
 
 .assistant-panel { margin-bottom: 24px; }
 
-.assistant-usage {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-.assistant-usage .ant-progress {
-  flex: 0 0 120px;
-  margin: 0;
-}
+.assistant-hint { margin: 0 0 8px; }
 
-.assistant-thread {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 420px;
-  overflow-y: auto;
-  padding-right: 4px;
-  margin-bottom: 12px;
-}
-
-.assistant-empty { margin: 0; }
-
-.assistant-msg { max-width: 92%; }
-.assistant-msg--user {
-  align-self: flex-end;
-  background: color-mix(in srgb, currentColor 8%, transparent);
-  border-radius: 12px 12px 4px 12px;
-  padding: 8px 12px;
-  overflow-wrap: anywhere;
-}
-.assistant-msg--assistant {
-  align-self: flex-start;
-  overflow-wrap: anywhere;
-}
-.assistant-msg-text { white-space: pre-wrap; }
+.assistant-prompts { margin-bottom: 12px; }
 
 .assistant-form-footer {
   display: flex;
@@ -48,8 +17,41 @@
   margin-top: 8px;
   flex-wrap: wrap;
 }
+.assistant-privacy { font-size: 12px; }
 
-.assistant-note { margin: 8px 0 0 !important; font-size: 12px; }
+/* Ответы под формой: тихий блок вопроса + блок ответа с временем. */
+.assistant-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-top: 16px;
+}
+
+.assistant-question {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.assistant-question-label { font-size: 12px; opacity: 0.62; }
+.assistant-question-text { white-space: pre-wrap; }
+
+.assistant-answer { min-width: 0; overflow-wrap: anywhere; }
+.assistant-answer-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.assistant-answer-heading h3 { margin: 0; font-size: 14px; font-weight: 600; }
+
+.assistant-failure { margin-top: 8px; }
+.assistant-failure-text { margin: 0 0 8px !important; white-space: pre-wrap; }
+
+.assistant-note { margin: 12px 0 0 !important; font-size: 12px; }
 
 /* Ответ ассистента: тот же рендер, что в прототипе главной. */
 .assistant-rich-text { min-width: 0; line-height: 1.7; overflow-wrap: anywhere; }
@@ -75,7 +77,6 @@
 @media (max-width: 767px) {
   .assistant-panel { margin-bottom: 16px; }
   .assistant-panel .ant-card .ant-card-head-wrapper { align-items: flex-start; flex-direction: column; gap: 4px; }
-  .assistant-msg { max-width: 100%; }
   .assistant-form-footer { flex-direction: column-reverse; align-items: stretch; }
   .assistant-form-footer .ant-btn { width: 100%; }
 }

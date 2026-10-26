@@ -1,7 +1,8 @@
 // Хук WS-сессии ассистента (план S1.2/S1.3): гейт по settings/me (бесплатный),
 // JWT в первом сообщении {type:"auth"} — не в URL; снапшот + дельты; переподключение
-// с обновлением токена; epoch_stale → перечитать эпоху и переподключиться;
-// «Очистить контекст» — POST /v1/assistant/clear и новая эпоха (новый DO).
+// с обновлением токена; epoch_stale → перечитать эпоху и переподключиться.
+// Время сообщений — клиентское (at): транскрипт Pi времени не несёт, а для
+// «Ответ ассистента» оно нужно (решение владельца 26.10.2026).
 // В эмулированных сеансах и тестовым персонам ассистент недоступен (ADR-021).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -32,6 +33,8 @@ export interface AssistantMessageView {
   text: string;
   status: "queued" | "running" | "done" | "unanswered" | "parked" | "failed";
   error?: string;
+  /** Клиентское время (ISO): проставляется при отправке/дельте/done, у истории из снапшота нет. */
+  at?: string;
   /** Пул карточек-ссылок из read-only инструментов (S2.1) — для ответов ассистента. */
   sources?: Array<{ title: string; href: string }>;
   /** Таблицы агрегатов из инструментов (S4a.2) — для ответов ассистента. */
@@ -105,7 +108,6 @@ export function useAssistantSocket() {
   const [messages, setMessages] = useState<AssistantMessageView[]>([]);
   const [connected, setConnected] = useState(false);
   const [socketError, setSocketError] = useState<string | null>(null);
-  const [clearing, setClearing] = useState(false);
   const [generation, setGeneration] = useState(0);
 
   const generationRef = useRef(0);
@@ -160,10 +162,12 @@ export function useAssistantSocket() {
 
   const mergeMessage = useCallback((incoming: AssistantMessageView) => {
     setMessages((current) => {
-      const at = current.findIndex((m) => m.messageId === incoming.messageId);
-      if (at < 0) return [...current, incoming];
+      const index = current.findIndex((m) => m.messageId === incoming.messageId);
+      if (index < 0) {
+        return [...current, { ...incoming, at: incoming.at ?? new Date().toISOString() }];
+      }
       const next = [...current];
-      next[at] = { ...incoming };
+      next[index] = { ...incoming, at: incoming.at ?? current[index]!.at ?? new Date().toISOString() };
       return next;
     });
   }, []);
@@ -185,10 +189,17 @@ export function useAssistantSocket() {
         return;
       case "snapshot": {
         const incoming = Array.isArray(envelope.messages) ? envelope.messages as AssistantMessageView[] : [];
-        // Оптимистичные сообщения (queued/running) поверх снапшота не теряются:
-        // их финал придёт done/upsert; свёрнутый список не дублируем.
+        // Транскрипт авторитетен. Оптимистичные assistant-копии (дельты) —
+        // отбрасываем все: у транскрипта свои id, иначе дубли ответов.
+        // Оптимистичные user queued/running оставляем, только если их текста
+        // нет в транскрипте (апсеты несут другой id — сравниваем по тексту).
         setMessages((current) => {
-          const optimistic = current.filter((m) => m.status === "queued" || m.status === "running");
+          const incomingUserTexts = new Set(
+            incoming.filter((m) => m.role === "user").map((m) => m.text),
+          );
+          const optimistic = current.filter(
+            (m) => (m.status === "queued" || m.status === "running") && m.role === "user" && !incomingUserTexts.has(m.text),
+          );
           const byId = new Map<string, AssistantMessageView>();
           for (const message of [...incoming, ...optimistic]) byId.set(message.messageId, message);
           return [...byId.values()];
@@ -200,13 +211,13 @@ export function useAssistantSocket() {
         const messageId = envelope.messageId;
         const text = envelope.text;
         setMessages((current) => {
-          const at = current.findIndex((m) => m.messageId === messageId);
-          if (at < 0) {
-            return [...current, { messageId, role: "assistant", text, status: "running" }];
+          const index = current.findIndex((m) => m.messageId === messageId);
+          if (index < 0) {
+            return [...current, { messageId, role: "assistant", text, status: "running", at: new Date().toISOString() }];
           }
           const next = [...current];
-          const existing = next[at]!;
-          next[at] = { ...existing, text: existing.text + text, status: "running" };
+          const existing = next[index]!;
+          next[index] = { ...existing, text: existing.text + text, status: "running" };
           return next;
         });
         return;
@@ -246,6 +257,7 @@ export function useAssistantSocket() {
             role: "assistant",
             text: envelope.text,
             status: "done",
+            at: new Date().toISOString(),
             ...(sources !== undefined && sources.length > 0 ? { sources } : {}),
             ...(tables !== undefined && tables.length > 0 ? { tables } : {}),
           });
@@ -267,6 +279,8 @@ export function useAssistantSocket() {
         return;
       }
       case "upsert": {
+        // Ветка совместимости протокола: рантайм апсеты больше не шлёт (S1.3 —
+        // дубли). Оставлено для старых развёртываний Worker.
         const message = envelope.message as AssistantMessageView | undefined;
         if (message && typeof message.messageId === "string") mergeMessage(message);
         return;
@@ -378,7 +392,7 @@ export function useAssistantSocket() {
     const messageId = reuseMessageId ?? crypto.randomUUID();
     setMessages((current) => [
       ...current,
-      { messageId, role: "user", text, status: "queued" },
+      { messageId, role: "user", text, status: "queued", at: new Date().toISOString() },
     ]);
     socket.send(JSON.stringify({ type: "message", messageId, text }));
     return true;
@@ -403,25 +417,6 @@ export function useAssistantSocket() {
     return send(failed.text);
   }, [send]);
 
-  /** «Очистить контекст»: новая эпоха DO с пустой историей (S1.3). */
-  const clearSession = useCallback(async () => {
-    if (clearing) return;
-    setClearing(true);
-    try {
-      await apiFetch("/v1/assistant/clear", {
-        method: "POST",
-        idempotencyKey: crypto.randomUUID(),
-      });
-      setMessages([]);
-      setGeneration((value) => value + 1);
-      await reloadAccess();
-    } catch (error) {
-      setSocketError(error instanceof Error ? error.message : "Не удалось очистить контекст");
-    } finally {
-      setClearing(false);
-    }
-  }, [clearing, reloadAccess]);
-
   const status: AssistantPanelStatus = useMemo(() => {
     if (me === undefined && access === null && accessError === null) return { kind: "loading" };
     if (emulation || testPerson) return { kind: "disabled" };
@@ -436,5 +431,5 @@ export function useAssistantSocket() {
     return connected ? { kind: "open" } : { kind: "connecting" };
   }, [me, access, accessError, emulation, testPerson, wsUrl, socketError, connected]);
 
-  return { status, messages, send, retry, clearSession, clearing, reloadAccess, access };
+  return { status, messages, send, retry, reloadAccess, access };
 }

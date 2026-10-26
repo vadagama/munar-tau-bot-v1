@@ -17,6 +17,7 @@ import { createRegistry, Harness, type EntryRecord, type Registry, type ReportIn
 import { PiHarness, type PiPendingOperation } from "agents/harness/pi";
 import type { ChatRuntime, OperationUsage, RuntimeListener, RuntimeUpdate, SubmitResult, WaitResult } from "./chat-runtime.ts";
 import type { ChatMessageView } from "./protocol.ts";
+import { describeFailure } from "./failure-text.ts";
 import { contentText, collectSources, sourcesForEntry } from "./tools/sources.ts";
 import { collectTables, tablesForEntry } from "./tools/tables.ts";
 import { EntityApiClient } from "./tools/api-client.ts";
@@ -80,9 +81,8 @@ export class PiChatRuntime implements ChatRuntime {
   private readonly harness: PiHarness;
   private readonly registry: Registry;
   private models: ReturnType<typeof createModels> | null = null;
-  /** Ключ провайдера в памяти изолята; NaN — ещё не запрашивали. */
+  /** Ключ провайдера в памяти изолята; null — ещё не получен (отказ не кэшируется). */
   private apiKey: string | null = null;
-  private apiKeyRequested = false;
   private modelId: string | null = null;
   private baseUrl: string | null = null;
   private modelSet = false;
@@ -150,7 +150,13 @@ export class PiChatRuntime implements ChatRuntime {
   async wait(messageId: string): Promise<WaitResult> {
     const result = await this.harness.wait(messageId);
     if (result.status !== "done") {
-      return { status: result.status, text: result.text, reason: result.reason };
+      // Развёрнутый сбой вместо сырой причины Pi (no_model и т.п.): владелец
+      // видит, что случилось и что делать (решение 26.10.2026).
+      return {
+        status: result.status,
+        text: result.text,
+        reason: describeFailure({ apiKeyPresent: this.apiKey !== null, reason: result.reason }),
+      };
     }
     // Пул источников — из tool-result записей транскрипта (S2.1), таблицы
     // агрегатов — из тех же выводов (S4a.2). Пустые пулы не отправляем.
@@ -258,8 +264,11 @@ export class PiChatRuntime implements ChatRuntime {
   private async ensureModel(): Promise<void> {
     if (this.modelSet) return;
     const token = await this.ensureRuntimeToken();
+    // Ключа нет — модель не назначаем и modelSet не ставим: после починки
+    // конфига применится настроенный model_id, а не дефолт.
+    if (token === null) return;
     const candidates = getBuiltinModels(PROVIDER_ID);
-    const requested = token?.model_id ?? null;
+    const requested = token.model_id ?? null;
     const model: Model<"openai-completions"> | undefined = requested !== null
       ? candidates.find((candidate) => candidate.id === requested)
       : undefined;
@@ -302,13 +311,16 @@ export class PiChatRuntime implements ChatRuntime {
     return token?.api_key ?? null;
   }
 
+  /**
+   * Ключ провайдера: успешный ответ кэшируется в памяти изолята, отказ — нет
+   * (ретрай при следующем submit — после починки конфига повтор срабатывает).
+   * До auth гейта (холодный подъём изолята) ключа нет — модели уйдут
+   * unanswered, очередь сохранится (afterFailedRun: keep).
+   */
   private async ensureRuntimeToken(): Promise<RuntimeTokenResponse | null> {
-    if (this.apiKeyRequested) {
-      return this.apiKey === null
-        ? null
-        : { provider: PROVIDER_ID, base_url: this.baseUrl, model_id: this.modelId, api_key: this.apiKey };
+    if (this.apiKey !== null) {
+      return { provider: PROVIDER_ID, base_url: this.baseUrl, model_id: this.modelId, api_key: this.apiKey };
     }
-    this.apiKeyRequested = true;
     const jwt = this.deps.getAccessToken();
     if (jwt === undefined) return null;
     const token = await this.deps.fetchRuntimeToken(jwt);
@@ -334,7 +346,10 @@ export class PiChatRuntime implements ChatRuntime {
     }
   }
 
-  /** Поток событий Pi: дельты живого ответа и апсеты записей транскрипта. */
+  /** Поток событий Pi: только дельты живого ответа. Апсеты записей
+   *  (message_end/entry_appended) не транслируются: их id не совпадает с
+   *  operationId, панель дублировала вопрос и ответ; финальный текст приходит
+   *  через wait()→done. */
   private async startEventStream(): Promise<void> {
     if (this.eventStreamStarted) return;
     this.eventStreamStarted = true;
@@ -351,9 +366,6 @@ export class PiChatRuntime implements ChatRuntime {
                 emit({ kind: "delta", messageId: `${this.liveOperationId}:reply`, text: change.delta });
               }
             }
-          } else if (event.type === "message_end" || event.type === "entry_appended") {
-            const view = foldEntry(event.entry);
-            if (view !== null) emit({ kind: "upsert", message: view });
           }
         }
       });
