@@ -5,7 +5,7 @@
 // пустой период — честное «нет данных», без выдуманных строк.
 
 import { Type } from "@earendil-works/pi-ai";
-import { defineTool, type ToolRegistration } from "@earendil-works/pi-durable";
+import { defineTool } from "@earendil-works/pi-durable";
 import { EntityApiClient } from "./api-client.ts";
 import { failure, textOutput, type EntityTool } from "./entity-tools.ts";
 
