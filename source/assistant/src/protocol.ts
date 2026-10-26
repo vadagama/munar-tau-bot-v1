@@ -16,12 +16,29 @@ export interface ChatMessageView {
   error?: string;
   /** Пул карточек-ссылок из read-only инструментов (S2.1) — для ответов ассистента. */
   sources?: ChatSource[];
+  /** Таблицы агрегатов из выводов инструментов (S4a.2) — для ответов ассистента. */
+  tables?: ChatTable[];
 }
 
 /** Ссылка на сущность из вывода инструментов (заголовок + абсолютный путь). */
 export interface ChatSource {
   title: string;
   href: string;
+}
+
+/** Колонка таблицы агрегата: kind number рисуется числом по правому краю. */
+export interface ChatTableColumn {
+  key: string;
+  title: string;
+  kind: "text" | "number";
+}
+
+/** Таблица агрегата из вывода инструмента (S4a.2): значения — текст или числа. */
+export interface ChatTable {
+  id: string;
+  title: string;
+  columns: ChatTableColumn[];
+  rows: Array<Record<string, string | number>>;
 }
 
 /** Решение гейта (gate.ts): JWT + enabled + сверка профиля/эпохи. */
@@ -101,6 +118,7 @@ export interface DoneMessage {
   text?: string;
   error?: string;
   sources?: ChatSource[];
+  tables?: ChatTable[];
 }
 
 /** Полная запись транскрипта (после обрыва/пробуждения DO): заменить или добавить. */

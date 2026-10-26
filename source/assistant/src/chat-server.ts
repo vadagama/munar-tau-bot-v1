@@ -170,6 +170,8 @@ export class ChatServer {
       error: result.reason,
       // Пул карточек-ссылок из инструментов (S2.1); undefined уходит из JSON.
       sources: result.sources,
+      // Таблицы агрегатов из инструментов (S4a.2); undefined уходит из JSON.
+      tables: result.tables,
     });
     // Учёт расхода после ответа (S3.1): POST идемпотентен по operation_id.
     // done уже ушёл — сбой учёта клиенту не виден.

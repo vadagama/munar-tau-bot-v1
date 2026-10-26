@@ -6,10 +6,14 @@
 // сообщения или аргументов (инъекция инструкций из данных) не влияет на гейт.
 
 import { defineExtension, hook, ToolTask } from "@earendil-works/pi-durable";
+import { AGGREGATE_TOOL_NAMES, createAggregateTools } from "./aggregate-tools.ts";
 import { createEntityTools, READONLY_TOOL_NAMES, type EntityTool } from "./entity-tools.ts";
 import { EntityApiClient } from "./api-client.ts";
 
-const READONLY = new Set<string>(READONLY_TOOL_NAMES);
+/** Полный read-only белый список: инструменты сущностей + агрегаты (S4a.2). */
+export const READONLY_NAMES: readonly string[] = [...READONLY_TOOL_NAMES, ...AGGREGATE_TOOL_NAMES];
+
+const READONLY = new Set<string>(READONLY_NAMES);
 
 /** Решение guard'а: undefined — разрешить, { block } — отклонить вызов. */
 export function guardToolCall(call: { name: string }): { block: string } | undefined {
@@ -22,11 +26,11 @@ export function guardToolCall(call: { name: string }): { block: string } | undef
 }
 
 /**
- * Расширение read-only реестра: десять инструментов сущностей + guard-хук.
+ * Расширение read-only реестра: инструменты сущностей и агрегатов + guard-хук.
  * Устанавливается в реестр изолята один раз (PiChatRuntime).
  */
 export function createEntityExtension(client: EntityApiClient) {
-  const tools: EntityTool[] = createEntityTools(client);
+  const tools: EntityTool[] = [...createEntityTools(client), ...createAggregateTools(client)];
   return defineExtension({
     name: "assistant-entities",
     tools,

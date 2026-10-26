@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { ToolTask, type Extension, type ToolRegistration } from "@earendil-works/pi-durable";
 import { EntityApiClient } from "./api-client.ts";
 import { READONLY_TOOL_NAMES } from "./entity-tools.ts";
-import { createEntityExtension, guardToolCall } from "./guard.ts";
+import { createEntityExtension, READONLY_NAMES, guardToolCall } from "./guard.ts";
 
 const call = (name: string, args: Record<string, unknown> = {}) => ({
   name,
@@ -15,8 +15,11 @@ const call = (name: string, args: Record<string, unknown> = {}) => ({
 });
 
 describe("guardToolCall", () => {
-  it("каждый инструмент белого списка разрешён", () => {
-    for (const name of READONLY_TOOL_NAMES) {
+  it("каждый инструмент белого списка разрешён, включая агрегаты S4a.2", () => {
+    expect(READONLY_NAMES).toContain("workload_by_assignee");
+    expect(READONLY_NAMES).toContain("created_closed_by_day");
+    expect(READONLY_NAMES).toContain("overdue_by_building");
+    for (const name of READONLY_NAMES) {
       expect(guardToolCall(call(name))).toBeUndefined();
     }
   });
@@ -49,8 +52,8 @@ describe("createEntityExtension", () => {
     const client = new EntityApiClient({ getAccessToken: () => undefined, fetchApi: async () => new Response(null) });
     const extension: Extension<ToolRegistration> = createEntityExtension(client);
     expect(extension.name).toBe("assistant-entities");
-    expect(extension.tools?.map((t) => t.name).sort()).toEqual([...READONLY_TOOL_NAMES].sort());
-    expect(extension.hooks).toHaveLength(1);
+    expect(extension.tools?.map((t) => t.name).sort()).toEqual([...READONLY_NAMES].sort());
+    expect(extension.tools).toHaveLength(READONLY_TOOL_NAMES.length + 3);
     expect(extension.hooks).toHaveLength(1);
     expect(extension.hooks?.[0]?.task).toBe(ToolTask.definition.name);
   });

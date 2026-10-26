@@ -98,7 +98,7 @@ function pageOf<T>(rows: T[], page: number, size: number): Page<T> {
 
 // — Описание ошибок для модели: без стеков и кодов, дружелюбно и честно —
 
-function failure(error: unknown, kind: "single" | "list") {
+export function failure(error: unknown, kind: "single" | "list") {
   const status = error instanceof ApiToolError ? error.status : -1;
   const message =
     status === 403
@@ -508,7 +508,7 @@ export function createEntityTools(client: EntityApiClient) {
 }
 
 /** JSON-конверт как текстовый контент результата инструмента (канал output). */
-function textOutput(value: unknown): { output: [{ type: "text"; text: string }] } {
+export function textOutput(value: unknown): { output: [{ type: "text"; text: string }] } {
   return { output: [{ type: "text", text: JSON.stringify(value) }] };
 }
 
