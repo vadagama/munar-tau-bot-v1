@@ -14,232 +14,237 @@
   </head>
   <body>
     <a class="skip" href="#main">Перейти к содержимому</a>
-    <header class="header wrap">
-      <a class="brand" href="#" aria-label="Мунар Тау — главная">
-        <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
-          <path
-            d="M5 36 18 13l8 14 5-9 12 18H5Z"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linejoin="round"
-          />
-          <path
-            d="m13 36 9-15M26 27l5 9"
-            stroke="currentColor"
-            stroke-width="2"
-          />
-        </svg>
-        <span
-          ><strong>МУНАР ТАУ</strong
-          ><small>Объединение собственников имущества</small></span
+    <div class="page-sheet">
+      <header class="header wrap">
+        <a class="brand" href="#" aria-label="Мунар Тау — главная">
+          <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+            <path
+              d="M5 36 18 13l8 14 5-9 12 18H5Z"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linejoin="round"
+            />
+            <path
+              d="m13 36 9-15M26 27l5 9"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+          </svg>
+          <span
+            ><strong>МУНАР ТАУ</strong
+            ><small>Объединение собственников имущества</small></span
+          >
+        </a>
+        <nav aria-label="Основная навигация">
+          <a href="#how">Как работает бот</a><a href="#questions">Вопросы</a>
+        </nav>
+        <a class="header-link" href="{{BOT_URL}}"
+          >Открыть Telegram <span aria-hidden="true">↗</span></a
         >
-      </a>
-      <nav aria-label="Основная навигация">
-        <a href="#how">Как работает бот</a><a href="#questions">Вопросы</a>
-      </nav>
-      <a class="header-link" href="{{BOT_URL}}"
-        >Открыть Telegram <span aria-hidden="true">↗</span></a
-      >
-    </header>
-    <main id="main">
-      <section class="hero wrap" aria-labelledby="welcome">
-        <div class="intro">
-          <h1 id="welcome">
-            <span class="desktop-copy"
-              >Ваш дом.<br />Вопросы.<br /><span>Решения.</span></span
-            ><span class="mobile-copy"
-              >Ваш дом.<br />Вопросы.<br />Решения.</span
+      </header>
+      <main id="main">
+        <section class="hero wrap" aria-labelledby="welcome">
+          <div class="intro">
+            <h1 id="welcome">
+              <span class="desktop-copy"
+                >Ваш дом.<br />Вопросы.<br /><span>Решения.</span></span
+              ><span class="mobile-copy"
+                >Ваш дом.<br />Вопросы.<br />Решения.</span
+              >
+            </h1>
+            <p class="lead">
+              <span class="desktop-copy"
+                >Связь с ОСИ «Мунар Тау» — в Telegram.<br
+                  class="desktop-break"
+                />
+                Сообщите о проблеме, задайте вопрос<br class="desktop-break" />
+                и следите за своим обращением.</span
+              ><span class="mobile-copy"
+                >Сообщите о проблеме и получите ответ ОСИ «Мунар Тау» в
+                Telegram.</span
+              >
+            </p>
+            <a class="button" href="{{BOT_URL}}"
+              ><svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="m21 3-4 18-6-6-4 3v-6L3 9l18-6Z"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="m7 12 14-9-10 12"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linejoin="round"
+                /></svg
+              >Открыть бота в Telegram<span aria-hidden="true">↗</span></a
             >
-          </h1>
-          <p class="lead">
-            <span class="desktop-copy"
-              >Связь с ОСИ «Мунар Тау» — в Telegram.<br class="desktop-break" />
-              Сообщите о проблеме, задайте вопрос<br class="desktop-break" />
-              и следите за своим обращением.</span
-            ><span class="mobile-copy"
-              >Сообщите о проблеме и получите ответ ОСИ «Мунар Тау» в
-              Telegram.</span
+            <p class="button-note">
+              В привычном мессенджере. Без отдельного приложения.
+            </p>
+            <a class="text-link" href="#how"
+              >Посмотреть, как это работает <span aria-hidden="true">↓</span></a
             >
-          </p>
-          <a class="button" href="{{BOT_URL}}"
-            ><svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="m21 3-4 18-6-6-4 3v-6L3 9l18-6Z"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linejoin="round"
+          </div>
+          <div class="hero-visual">
+            <div class="scan">
+              <img
+                src="telegram-qr.svg"
+                width="120"
+                height="120"
+                alt="QR-код: открыть @munar_tau_user_bot в Telegram"
               />
-              <path
-                d="m7 12 14-9-10 12"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linejoin="round"
-              /></svg
-            >Открыть бота в Telegram<span aria-hidden="true">↗</span></a
+              <div>
+                <strong>Бот всегда под рукой</strong>
+                <p>
+                  Наведите камеру на QR-код,<br />
+                  чтобы открыть Telegram.
+                </p>
+                <a href="{{BOT_URL}}">@munar_tau_user_bot</a>
+              </div>
+            </div>
+          </div>
+          <a class="mobile-how mobile-copy" href="#how"
+            >Как работает бот <span aria-hidden="true">↓</span></a
           >
-          <p class="button-note">
-            В привычном мессенджере. Без отдельного приложения.
-          </p>
-          <a class="text-link" href="#how"
-            >Посмотреть, как это работает <span aria-hidden="true">↓</span></a
-          >
-        </div>
-        <div class="hero-visual">
-          <img
-            class="complex"
-            src="complex-bg.jpg"
-            alt="Вид жилого комплекса — иллюстрация с текущего сайта Мунар Тау"
-            fetchpriority="high"
-          />
-          <div class="scan">
-            <img
-              src="telegram-qr.svg"
-              width="120"
-              height="120"
-              alt="QR-код: открыть @munar_tau_user_bot в Telegram"
-            />
+        </section>
+        <section class="how wrap" id="how" aria-labelledby="how-title">
+          <div class="section-head">
+            <h2 id="how-title">От первого сообщения<br />до результата</h2>
+            <p>
+              Переписка, уточнения и состояние обращения —<br
+                class="desktop-break"
+              />
+              в одном диалоге с ботом.
+            </p>
+          </div>
+          <div class="walkthrough">
+            <div class="explanation">
+              <h3>Опишите, что случилось</h3>
+              <p>
+                Выберите «Новое обращение», расскажите о проблеме и укажите
+                место. Если нужно, приложите фото или видео.
+              </p>
+              <h3>Следите за решением</h3>
+              <p>
+                Обращение получит свой номер. Откройте «Мои обращения», чтобы
+                посмотреть состояние, ответить на уточнение или дополнить
+                сообщение.
+              </p>
+              <h3>Оставайтесь на связи</h3>
+              <p>
+                Сотрудник ОСИ сообщит об изменениях. Когда работа завершится, вы
+                сможете подтвердить результат и оценить его.
+              </p>
+            </div>
+            <figure class="demo">
+              <figcaption>
+                Пример обращения <span>Демонстрация</span>
+              </figcaption>
+              <div class="message resident">
+                В подъезде не горит свет. Дом 12, первый этаж.
+              </div>
+              <div class="message bot">
+                <strong>Обращение № 124 принято</strong>
+                <p>Не горит свет в подъезде</p>
+                <span class="status">Зарегистрировано</span>
+              </div>
+              <div class="flow" aria-label="Пример состояний обращения">
+                <span>Зарегистрировано</span><span aria-hidden="true">→</span
+                ><span>В работе</span><span aria-hidden="true">→</span
+                ><span>Выполнено</span>
+              </div>
+              <p class="demo-note">
+                Условный пример: сообщения и состояния зависят от вашего
+                обращения.
+              </p>
+            </figure>
+          </div>
+        </section>
+        <section class="start-band" aria-labelledby="start-title">
+          <div class="wrap start">
             <div>
-              <strong>Открыть по QR-коду</strong>
-              <p>Наведите камеру<br />другого устройства.</p>
-              <a href="{{BOT_URL}}">@munar_tau_user_bot</a>
+              <h2 id="start-title">Впервые здесь?</h2>
+              <p>
+                Начните с регистрации.<br />
+                Бот подскажет следующий шаг.
+              </p>
+              <a class="button light" href="{{BOT_URL}}"
+                >Открыть бота в Telegram <span aria-hidden="true">↗</span></a
+              >
             </div>
+            <ol class="steps">
+              <li>
+                <strong>Откройте Telegram</strong>
+                <p>Перейдите по кнопке или QR-коду и нажмите «Начать».</p>
+              </li>
+              <li>
+                <strong>Заполните анкету</strong>
+                <p>
+                  Следуйте подсказкам бота. Чтобы связать профиль с квартирой
+                  или другим помещением, выберите «Привязать помещение».
+                </p>
+              </li>
+              <li>
+                <strong>Дождитесь подтверждения</strong>
+                <p>
+                  ОСИ проверит данные. До подтверждения связи сведения о
+                  помещении остаются закрытыми.
+                </p>
+              </li>
+            </ol>
           </div>
-        </div>
-        <a class="mobile-how mobile-copy" href="#how"
-          >Как работает бот <span aria-hidden="true">↓</span></a
+        </section>
+        <section
+          class="questions wrap"
+          id="questions"
+          aria-labelledby="questions-title"
         >
-      </section>
-      <section class="how wrap" id="how" aria-labelledby="how-title">
-        <div class="section-head">
-          <h2 id="how-title">От первого сообщения<br />до результата</h2>
-          <p>
-            Переписка, уточнения и состояние обращения —<br
-              class="desktop-break"
-            />
-            в одном диалоге с ботом.
-          </p>
-        </div>
-        <div class="walkthrough">
-          <div class="explanation">
-            <h3>Опишите, что случилось</h3>
-            <p>
-              Выберите «Новое обращение», расскажите о проблеме и укажите место.
-              Если нужно, приложите фото или видео.
-            </p>
-            <h3>Следите за решением</h3>
-            <p>
-              Обращение получит свой номер. Откройте «Мои обращения», чтобы
-              посмотреть состояние, ответить на уточнение или дополнить
-              сообщение.
-            </p>
-            <h3>Оставайтесь на связи</h3>
-            <p>
-              Сотрудник ОСИ сообщит об изменениях. Когда работа завершится, вы
-              сможете подтвердить результат и оценить его.
-            </p>
-          </div>
-          <figure class="demo">
-            <figcaption>Пример обращения <span>Демонстрация</span></figcaption>
-            <div class="message resident">
-              В подъезде не горит свет. Дом 12, первый этаж.
-            </div>
-            <div class="message bot">
-              <strong>Обращение № 124 принято</strong>
-              <p>Не горит свет в подъезде</p>
-              <span class="status">Зарегистрировано</span>
-            </div>
-            <div class="flow" aria-label="Пример состояний обращения">
-              <span>Зарегистрировано</span><span aria-hidden="true">→</span
-              ><span>В работе</span><span aria-hidden="true">→</span
-              ><span>Выполнено</span>
-            </div>
-            <p class="demo-note">
-              Условный пример: сообщения и состояния зависят от вашего
-              обращения.
-            </p>
-          </figure>
-        </div>
-      </section>
-      <section class="start-band" aria-labelledby="start-title">
-        <div class="wrap start">
-          <div>
-            <h2 id="start-title">Впервые здесь?</h2>
-            <p>
-              Начните с регистрации.<br />
-              Бот подскажет следующий шаг.
-            </p>
-            <a class="button light" href="{{BOT_URL}}"
-              >Открыть бота в Telegram <span aria-hidden="true">↗</span></a
-            >
-          </div>
-          <ol class="steps">
-            <li>
-              <strong>Откройте Telegram</strong>
-              <p>Перейдите по кнопке или QR-коду и нажмите «Начать».</p>
-            </li>
-            <li>
-              <strong>Заполните анкету</strong>
+          <h2 id="questions-title">Перед первым обращением</h2>
+          <div class="faq">
+            <details>
+              <summary>Зачем нужна регистрация?</summary>
               <p>
-                Следуйте подсказкам бота. Чтобы связать профиль с квартирой или
-                другим помещением, выберите «Привязать помещение».
+                Она помогает ОСИ понимать, кто обращается. Подтверждённая связь
+                с помещением определяет доступ к сведениям о нём. Анкета и
+                привязка помещения — отдельные шаги.
               </p>
-            </li>
-            <li>
-              <strong>Дождитесь подтверждения</strong>
+            </details>
+            <details>
+              <summary>Я снимаю квартиру. Могу пользоваться ботом?</summary>
               <p>
-                ОСИ проверит данные. До подтверждения связи сведения о помещении
-                остаются закрытыми.
+                Да. Заполните анкету и укажите помещение через «Привязать
+                помещение». Связь с помещением может подтвердить собственник.
               </p>
-            </li>
-          </ol>
+            </details>
+            <details>
+              <summary>Можно задать вопрос, а не сообщать о проблеме?</summary>
+              <p>
+                Да. Нажмите «Новое обращение» и выберите «Вопрос». Ответ и
+                дальнейшая переписка сохранятся в вашем обращении.
+              </p>
+            </details>
+            <details>
+              <summary>Где найти ответ на моё обращение?</summary>
+              <p>
+                Откройте в боте «Мои обращения» и выберите нужное. Там можно
+                посмотреть состояние и переписку, ответить на уточнения и
+                дополнить сообщение.
+              </p>
+            </details>
+          </div>
+        </section>
+      </main>
+      <footer class="wrap">
+        <span>ОСИ ЖК «Мунар Тау»<small>Один дом. Общая забота.</small></span>
+        <div>
+          <a href="https://t.me/munar_tau_worker_bot">Бот для сотрудников ↗</a
+          ><a href="https://osi-admin.pages.dev/login"
+            >Кабинет сотрудников ↗</a
+          >
         </div>
-      </section>
-      <section
-        class="questions wrap"
-        id="questions"
-        aria-labelledby="questions-title"
-      >
-        <h2 id="questions-title">Перед первым обращением</h2>
-        <div class="faq">
-          <details>
-            <summary>Зачем нужна регистрация?</summary>
-            <p>
-              Она помогает ОСИ понимать, кто обращается. Подтверждённая связь с
-              помещением определяет доступ к сведениям о нём. Анкета и привязка
-              помещения — отдельные шаги.
-            </p>
-          </details>
-          <details>
-            <summary>Я снимаю квартиру. Могу пользоваться ботом?</summary>
-            <p>
-              Да. Заполните анкету и укажите помещение через «Привязать
-              помещение». Связь с помещением может подтвердить собственник.
-            </p>
-          </details>
-          <details>
-            <summary>Можно задать вопрос, а не сообщать о проблеме?</summary>
-            <p>
-              Да. Нажмите «Новое обращение» и выберите «Вопрос». Ответ и
-              дальнейшая переписка сохранятся в вашем обращении.
-            </p>
-          </details>
-          <details>
-            <summary>Где найти ответ на моё обращение?</summary>
-            <p>
-              Откройте в боте «Мои обращения» и выберите нужное. Там можно
-              посмотреть состояние и переписку, ответить на уточнения и
-              дополнить сообщение.
-            </p>
-          </details>
-        </div>
-      </section>
-    </main>
-    <footer class="wrap">
-      <span>ОСИ ЖК «Мунар Тау»<small>Один дом. Общая забота.</small></span>
-      <div>
-        <a href="https://t.me/munar_tau_worker_bot">Бот для сотрудников ↗</a
-        ><a href="https://osi-admin.pages.dev/login">Кабинет сотрудников ↗</a>
-      </div>
-    </footer>
+      </footer>
+    </div>
   </body>
 </html>

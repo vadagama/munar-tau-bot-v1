@@ -774,3 +774,233 @@ footer a {
     font-size: 14px;
   }
 }
+
+/* Background-photo proposal: opaque reading surface over the existing image. */
+:root {
+  background: #465b50;
+}
+body {
+  padding: 40px 32px;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(rgb(20 38 30 / 30%), rgb(20 38 30 / 30%)),
+    url("complex-bg.jpg") center / cover no-repeat;
+}
+.page-sheet {
+  max-width: 1120px;
+  margin: 0 auto;
+  background: var(--white);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 64px rgb(10 29 20 / 20%);
+}
+.wrap {
+  max-width: none;
+  padding-inline: 48px;
+}
+.header {
+  height: 112px;
+  gap: 24px;
+}
+.header nav {
+  gap: 20px;
+}
+.brand small {
+  font-size: 11px;
+}
+.hero {
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 64px;
+  padding-top: 32px;
+  padding-bottom: 56px;
+}
+.intro h1 {
+  font-size: 64px;
+}
+.lead {
+  font-size: 17px;
+}
+.desktop-break {
+  display: none;
+}
+.hero-visual {
+  background: var(--soft);
+  border-radius: 12px;
+  overflow: visible;
+}
+.scan {
+  display: flex;
+  flex-direction: column;
+  padding: 28px 24px;
+  gap: 20px;
+  text-align: center;
+  border: 0;
+}
+.scan > img {
+  width: 184px;
+  height: 184px;
+  background: var(--white);
+  border-radius: 8px;
+}
+.scan strong {
+  font-size: 17px;
+}
+.scan p {
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 8px 0 12px;
+}
+.scan a {
+  font-size: 13px;
+}
+.walkthrough,
+.questions,
+.start {
+  gap: 48px;
+}
+@media (max-width: 1050px) {
+  body {
+    padding: 24px;
+  }
+  .wrap {
+    padding-inline: 32px;
+  }
+  .header nav {
+    display: none;
+  }
+  .hero {
+    gap: 32px;
+    grid-template-columns: minmax(0, 1fr) 248px;
+  }
+  .scan {
+    padding: 24px 16px;
+  }
+  .intro h1 {
+    font-size: 56px;
+  }
+}
+@media (max-width: 760px) {
+  body {
+    padding: 20px 12px;
+  }
+  .page-sheet {
+    border-radius: 16px;
+  }
+  .wrap {
+    padding-inline: 24px;
+  }
+  .header {
+    height: 88px;
+  }
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding-top: 20px;
+    padding-bottom: 32px;
+  }
+  .intro h1 {
+    font-size: 44px;
+  }
+  .lead {
+    font-size: 16px;
+  }
+  .scan {
+    flex-direction: row;
+    gap: 16px;
+    padding: 16px;
+    text-align: left;
+  }
+  .scan > img {
+    width: 96px;
+    height: 96px;
+    flex-shrink: 0;
+  }
+  .scan strong {
+    font-size: 14px;
+  }
+  .scan p {
+    font-size: 12px;
+    margin: 6px 0;
+  }
+  .scan p br {
+    display: none;
+  }
+  .scan a {
+    font-size: 12px;
+  }
+  .walkthrough,
+  .questions,
+  .start {
+    gap: 28px;
+  }
+}
+@media (max-width: 360px) {
+  .wrap {
+    padding-inline: 20px;
+  }
+  .intro h1 {
+    font-size: 40px;
+  }
+  .scan {
+    gap: 12px;
+    padding: 12px;
+  }
+  .scan > img {
+    width: 88px;
+    height: 88px;
+  }
+  .brand small {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 760px) {
+  .button {
+    font-size: 14px;
+    padding-inline: 12px;
+    gap: 8px;
+  }
+  .button > span {
+    margin-left: 0;
+  }
+}
+@media (max-width: 360px) {
+  .button {
+    font-size: 13px;
+  }
+  .intro .button > span {
+    display: none;
+  }
+}
+@media (max-width: 360px) {
+  .scan {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 8px 12px;
+  }
+  .scan > div {
+    display: contents;
+  }
+  .scan > img {
+    grid-row: 1 / 3;
+  }
+  .scan strong {
+    grid-column: 2;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .scan p {
+    grid-column: 2;
+    margin: 0;
+  }
+  .scan a {
+    grid-column: 1 / -1;
+    text-align: center;
+    margin-top: 4px;
+  }
+}
