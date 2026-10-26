@@ -219,17 +219,26 @@ describe("ChatServer — сообщения", () => {
     expect(harness.runtime.retried).toEqual(["op-1"]);
   });
 
-  it("done передаёт пул источников из WaitResult, снапшот — из транскрипта", async () => {
+  it("done передаёт пул источников и таблицы агрегатов из WaitResult, снапшот — из транскрипта", async () => {
     const sources = [{ title: "№ОБ-12 · Лифт", href: "/requests?request=r1&entity_page=1" }];
+    const tables = [{
+      id: "workload_by_assignee",
+      title: "Нагрузка по исполнителям",
+      columns: [
+        { key: "name", title: "Исполнитель", kind: "text" as const },
+        { key: "open", title: "Открытые", kind: "number" as const },
+      ],
+      rows: [{ name: "Петров Пётр", open: 3 }],
+    }];
     const pending = harness.server.onMessage(
       socket,
-      encodeClientMessage({ type: "message", messageId: "op-s", text: "покажи новые обращения" }),
+      encodeClientMessage({ type: "message", messageId: "op-s", text: "кто как загружен?" }),
       { profileId: "profile-1", epoch: 100 },
     );
     await harness.runtime.untilAwaited("op-s");
-    harness.runtime.finishReply("op-s", "Вот обращения", { status: "done", text: "Вот обращения", sources });
+    harness.runtime.finishReply("op-s", "Вот нагрузка", { status: "done", text: "Вот нагрузка", sources, tables });
     await pending;
-    expect(socket.parsed().at(-1)).toMatchObject({ type: "done", messageId: "op-s", sources });
+    expect(socket.parsed().at(-1)).toMatchObject({ type: "done", messageId: "op-s", sources, tables });
 
     harness.runtime.messages.set("r-1", {
       messageId: "r-1",
@@ -237,6 +246,7 @@ describe("ChatServer — сообщения", () => {
       text: "снапшотный ответ",
       status: "done",
       sources,
+      tables,
     });
     await harness.server.onMessage(socket, encodeClientMessage({ type: "resync" }), {
       profileId: "profile-1",
@@ -244,10 +254,11 @@ describe("ChatServer — сообщения", () => {
     });
     const snapshot = socket.parsed().at(-1) as {
       type: string;
-      messages: Array<{ messageId: string; sources?: unknown }>;
+      messages: Array<{ messageId: string; sources?: unknown; tables?: unknown }>;
     };
     expect(snapshot.type).toBe("snapshot");
     expect(snapshot.messages.find((m) => m.messageId === "r-1")?.sources).toEqual(sources);
+    expect(snapshot.messages.find((m) => m.messageId === "r-1")?.tables).toEqual(tables);
   });
 
   it("resync отправляет свежий снапшот", async () => {

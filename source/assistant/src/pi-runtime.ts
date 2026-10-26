@@ -18,6 +18,7 @@ import { PiHarness, type PiPendingOperation } from "agents/harness/pi";
 import type { ChatRuntime, OperationUsage, RuntimeListener, RuntimeUpdate, SubmitResult, WaitResult } from "./chat-runtime.ts";
 import type { ChatMessageView } from "./protocol.ts";
 import { contentText, collectSources, sourcesForEntry } from "./tools/sources.ts";
+import { collectTables, tablesForEntry } from "./tools/tables.ts";
 import { EntityApiClient } from "./tools/api-client.ts";
 import { createEntityExtension } from "./tools/guard.ts";
 
@@ -98,8 +99,9 @@ export class PiChatRuntime implements ChatRuntime {
 
   constructor(private readonly deps: PiRuntimeDeps) {
     this.registry = createRegistry();
-    // Read-only реестр инструментов сущностей + guard beforeTool (S2.1):
-    // модель видит только десять инструментов, всё прочее блокируется хуком.
+    // Read-only реестр инструментов сущностей и агрегатов + guard beforeTool
+    // (S2.1/S4a.2): модель видит только инструменты белого списка, всё прочее
+    // блокируется хуком.
     this.registry.install(
       createEntityExtension(
         new EntityApiClient({
@@ -149,9 +151,11 @@ export class PiChatRuntime implements ChatRuntime {
     if (result.status !== "done") {
       return { status: result.status, text: result.text, reason: result.reason };
     }
-    // Пул источников — из tool-result записей транскрипта (S2.1): к финалу
-    // ответа все вызовы инструментов уже в истории. Пустой пул не отправляем.
-    const sources = collectSources(await this.harness.messages());
+    // Пул источников — из tool-result записей транскрипта (S2.1), таблицы
+    // агрегатов — из тех же выводов (S4a.2). Пустые пулы не отправляем.
+    const entries = await this.harness.messages();
+    const sources = collectSources(entries);
+    const tables = collectTables(entries);
     // Расход ответа (S3.1): undefined уходит из JSON — POST usage не вызывается.
     const usage = await this.operationUsage(messageId);
     return {
@@ -159,6 +163,7 @@ export class PiChatRuntime implements ChatRuntime {
       text: result.text,
       reason: result.reason,
       ...(sources.length > 0 ? { sources } : {}),
+      ...(tables.length > 0 ? { tables } : {}),
       ...(usage !== undefined ? { usage } : {}),
     };
   }
@@ -177,10 +182,12 @@ export class PiChatRuntime implements ChatRuntime {
       const view = foldEntry(entry);
       if (view === null) continue;
       if (isAssistantEntry(entry)) {
-        // Источники ответа — tool-result записи до него включительно: снапшот
-        // после переподключения несёт те же ссылки, что и живой ответ.
+        // Источники и таблицы ответа — tool-result записи до него включительно:
+        // снапшот после переподключения несёт то же, что и живой ответ.
         const sources = sourcesForEntry(entries, entry.id);
         if (sources.length > 0) view.sources = sources;
+        const tables = tablesForEntry(entries, entry.id);
+        if (tables.length > 0) view.tables = tables;
       }
       views.push(view);
     }

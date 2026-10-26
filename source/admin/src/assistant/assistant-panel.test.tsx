@@ -248,6 +248,38 @@ it("done с sources рендерит карточку-ссылку из пула
   expect(link).toHaveAttribute("href", "/requests?request=r1&entity_page=1");
 });
 
+it("done с tables рендерит таблицу агрегата, битый контракт отбрасывается", async () => {
+  await renderPanel();
+  const socket = FakeWebSocket.last();
+  fireEvent.change(screen.getByLabelText("Вопрос ассистенту"), { target: { value: "кто как загружен?" } });
+  fireEvent.click(screen.getByText("Спросить"));
+  await waitFor(() => expect(screen.getByText("Готовлю ответ")).toBeInTheDocument());
+  const sent = JSON.parse(socket.sent.at(-1)!) as { messageId: string };
+  socket.receive({
+    type: "done",
+    messageId: sent.messageId,
+    status: "done",
+    text: "Вот нагрузка по исполнителям.",
+    tables: [
+      {
+        id: "workload_by_assignee",
+        title: "Нагрузка по исполнителям",
+        columns: [
+          { key: "name", title: "Исполнитель", kind: "text" },
+          { key: "open", title: "Открытые", kind: "number" },
+        ],
+        rows: [{ name: "Петров Пётр", open: 3 }],
+      },
+      { id: "broken", columns: "не массив", rows: [] },
+    ],
+  });
+  const region = await screen.findByRole("region", { name: "Нагрузка по исполнителям" });
+  expect(region).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "Петров Пётр" })).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "broken" })).toBeNull();
+  expect(document.querySelector("script")).toBeNull();
+});
+
 it("HTML из ответа не рендерится", async () => {
   await renderPanel();
   const socket = FakeWebSocket.last();

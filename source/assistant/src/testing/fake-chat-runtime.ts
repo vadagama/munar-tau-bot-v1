@@ -97,6 +97,17 @@ export class FakeChatRuntime implements ChatRuntime {
     this.messages.set(replyId, { messageId: replyId, role: "assistant", text: "", status: "running" });
   }
 
+  /** Отдаёт полный ответ ассистента с таблицами — как финальная запись Pi. */
+  replyView(messageId: string, text: string, tables?: ChatMessageView["tables"]): ChatMessageView {
+    return {
+      messageId: `${messageId}:reply`,
+      role: "assistant",
+      text,
+      status: "done",
+      ...(tables !== undefined ? { tables } : {}),
+    };
+  }
+
   emitDelta(messageId: string, text: string) {
     const message = this.messages.get(messageId);
     if (message) {
@@ -120,6 +131,7 @@ export class FakeChatRuntime implements ChatRuntime {
       reply.text = text;
       reply.status = finalStatus;
       if (result.reason !== undefined) reply.error = result.reason;
+      if (result.tables !== undefined) reply.tables = result.tables;
     }
     // Статус операции живёт на пользовательском сообщении — его смотрит панель.
     this.setStatus(messageId, finalStatus, result.reason);

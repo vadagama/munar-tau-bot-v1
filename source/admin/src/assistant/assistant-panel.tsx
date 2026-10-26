@@ -9,6 +9,7 @@ import { Alert, Button, Card, Input, Progress, Space, Spin, Typography } from "a
 import { ClearOutlined, RedoOutlined, SendOutlined } from "@ant-design/icons";
 
 import { AssistantMarkdown } from "./assistant-markdown";
+import { AssistantTable } from "./assistant-table";
 import { useAssistantSocket, type AssistantMessageView } from "./use-assistant-socket";
 import "./assistant.css";
 
@@ -119,9 +120,14 @@ export function AssistantPanel() {
               )}
               {messages.map((message) => (
                 <div key={message.messageId} className={`assistant-msg assistant-msg--${message.role}`}>
-                  {message.role === "assistant"
-                    ? <AssistantMarkdown text={messageBody(message)} sources={message.sources} />
-                    : <div className="assistant-msg-text">{messageBody(message)}</div>}
+                  {message.role === "assistant" ? (
+                    <>
+                      <AssistantMarkdown text={messageBody(message)} sources={message.sources} />
+                      {(message.tables ?? []).map((table) => <AssistantTable key={table.id} table={table} />)}
+                    </>
+                  ) : (
+                    <div className="assistant-msg-text">{messageBody(message)}</div>
+                  )}
                   {(message.status === "unanswered" || message.status === "failed" || message.status === "parked") && message.role === "user" && (
                     <Button
                       size="small"

@@ -10,6 +10,7 @@ import { apiFetch } from "../lib/api";
 import { appEnv } from "../lib/env";
 import { useCabinetIdentity } from "../lib/identity";
 import { getSupabase } from "../lib/supabase";
+import type { AssistantTableData } from "./assistant-table";
 
 /** Ответ GET /v1/assistant/settings/me (S0 + поля эпохи из S1.3). */
 export interface AssistantAccess {
@@ -33,6 +34,8 @@ export interface AssistantMessageView {
   error?: string;
   /** Пул карточек-ссылок из read-only инструментов (S2.1) — для ответов ассистента. */
   sources?: Array<{ title: string; href: string }>;
+  /** Таблицы агрегатов из инструментов (S4a.2) — для ответов ассистента. */
+  tables?: AssistantTableData[];
 }
 
 export type AssistantPanelStatus =
@@ -60,6 +63,35 @@ export function utcDayNumber(at: Date): number {
 /** Эффективная эпоха DO — тот же контракт, что у гейта ассистента. */
 export function effectiveEpoch(configEpoch: number, at: Date): number {
   return Math.max(configEpoch, utcDayNumber(at));
+}
+
+/** Таблица агрегата из WS: проверенные id/title/колонки/строки; иначе null. */
+export function parseTable(value: unknown): AssistantTableData | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.id !== "string" || record.id === "" || typeof record.title !== "string" || record.title === "") return null;
+  if (!Array.isArray(record.columns) || !Array.isArray(record.rows)) return null;
+  const columns: AssistantTableData["columns"] = [];
+  for (const column of record.columns) {
+    if (typeof column !== "object" || column === null) continue;
+    const item = column as Record<string, unknown>;
+    if (typeof item.key !== "string" || item.key === "" || typeof item.title !== "string" || item.title === "") continue;
+    columns.push({ key: item.key, title: item.title, kind: item.kind === "number" ? "number" : "text" });
+  }
+  if (columns.length === 0) return null;
+  const keys = new Set(columns.map((c) => c.key));
+  const rows: AssistantTableData["rows"] = [];
+  for (const row of record.rows) {
+    if (typeof row !== "object" || row === null) continue;
+    const source = row as Record<string, unknown>;
+    const parsed: AssistantTableData["rows"][number] = {};
+    for (const key of keys) {
+      const cell = source[key];
+      parsed[key] = typeof cell === "number" && Number.isFinite(cell) ? cell : typeof cell === "string" ? cell : "";
+    }
+    rows.push(parsed);
+  }
+  return { id: record.id, title: record.title, columns, rows };
 }
 
 export function useAssistantSocket() {
@@ -205,12 +237,17 @@ export function useAssistantSocket() {
               .filter((s) => typeof s?.title === "string" && typeof s?.href === "string")
               .map((s) => ({ title: s.title as string, href: s.href as string }))
             : undefined;
+          // Таблицы агрегатов (S4a.2): только валидные контракты {id,title,columns,rows}.
+          const tables = Array.isArray(envelope.tables)
+            ? (envelope.tables as unknown[]).map(parseTable).filter((t): t is AssistantTableData => t !== null)
+            : undefined;
           mergeMessage({
             messageId: `${base}:reply`,
             role: "assistant",
             text: envelope.text,
             status: "done",
             ...(sources !== undefined && sources.length > 0 ? { sources } : {}),
+            ...(tables !== undefined && tables.length > 0 ? { tables } : {}),
           });
         }
         setMessages((current) => {
