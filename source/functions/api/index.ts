@@ -17,6 +17,7 @@ import type { Actor } from "../../core/src/pdp/types.ts";
 import { buildActorForProfile, findProfileForAuth } from "../../core/src/domains/admin/actor-service.ts";
 import { resolveEffectiveActor } from "../../core/src/domains/emulation/service.ts";
 import { buildAuditInput } from "../../core/src/domains/audit/entry.ts";
+import { recordAssistantUsage } from "../../core/src/domains/assistant/service.ts";
 import { defaultDeps, type ApiDeps } from "./deps.ts";
 
 export { defaultDeps, type ApiDeps };
@@ -76,6 +77,27 @@ async function processRequest(ctx: RequestContext): Promise<Response> {
 
     if (request.method === "GET" && path === "/v1/meta/health") {
       return health();
+    }
+
+    // ── Сервисный учёт расхода ассистента (ADR-021) ─────────────────────
+    // Вызывает Worker (X_ASSISTANT_SECRET по образцу X_JOBS_SECRET в jobs),
+    // не браузер: JWT-конвейер ниже — только для кабинета. Идемпотентность
+    // повтора — уникальный operation_id в assistant_usage_ledger.
+    if (request.method === "POST" && path === "/v1/assistant/usage") {
+      const deps = await ctx.getDeps();
+      const expected = deps.assistantSecret;
+      if (expected === undefined) {
+        throw new ApiError("INTERNAL", "ASSISTANT_SECRET не настроен в среде");
+      }
+      if (request.headers.get("x-assistant-secret") !== expected) {
+        throw new ApiError("UNAUTHENTICATED");
+      }
+      return jsonResponse(
+        request,
+        cabinetOrigin,
+        200,
+        await recordAssistantUsage(deps, await readJsonBody(request)),
+      );
     }
 
     // ── Аутентификация (ADR-001, LLD-03 §1) ────────────────────────────

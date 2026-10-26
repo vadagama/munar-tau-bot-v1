@@ -1,0 +1,77 @@
+import { renderNotice, type NoticeText } from "../../templates/notice.ts";
+import { loadTemplateStore, type TemplateStore } from "../../templates/store.ts";
+import { enqueueNotice, type NoticeOptions } from "../notifications/service.ts";
+import type { DbExecutor } from "../../db/client.ts";
+import type { BotKind } from "../../bot/bots.ts";
+import { langOf } from "../../bot/text.ts";
+import {
+  type BotReply,
+  type InlineButton,
+  inlineMarkup,
+  replyText,
+} from "../../bot/keyboard.ts";
+
+import { notificationParts } from "../notifications/text.ts";
+export { notificationParts } from "../notifications/text.ts";
+
+/** Клавиатуры ответа: inline-кнопки сценария. */
+export interface ReplyMarkup {
+  buttons?: InlineButton[][];
+}
+
+/**
+ * Разметка ответа для Telegram: inline-кнопки сценария либо undefined —
+ * обычное сообщение (транспорт доставки сам убирает устаревшую
+ * reply-клавиатуру, см. REMOVE_KEYBOARD).
+ */
+export function telegramReplyMarkup(reply: BotReply): unknown | undefined {
+  const buttons = typeof reply === "string" ? undefined : reply.buttons;
+  if (buttons?.length) return inlineMarkup(buttons);
+  return undefined;
+}
+
+export async function notifyPerson(exec: DbExecutor, personId: string, message: NoticeText, key: string, options: NoticeOptions = {}): Promise<void> {
+  await enqueueNotice(exec,{personId,text:message,key,...options});
+}
+/**
+ * Синхронный ответ в чат webhook'а. Текст — реплика сценария либо {ru, kk}:
+ * для локализованного уведомления язык берётся из профиля получателя.
+ */
+export async function notifyTelegram(
+  exec: DbExecutor,
+  telegramId: unknown,
+  message: BotReply | NoticeText,
+  key: string,
+  bot: BotKind = "resident",
+  templates?: TemplateStore,
+): Promise<void> {
+  if (!telegramId) return;
+  let reply: BotReply = message as BotReply;
+  if (
+    message && typeof message === "object" && (("ru" in message && "kk" in message) || "template" in message)
+  ) {
+    const loc = message as NoticeText;
+    const [p] = await exec.query<{ language: string }>(
+      "select language from profile where telegram_user_id=$1 and archived_at is null limit 1",
+      [telegramId],
+    );
+    reply = renderNotice(loc, langOf(p?.language), "template" in message ? templates ?? await loadTemplateStore(exec) : undefined);
+  }
+  const text = replyText(reply);
+  const markup = telegramReplyMarkup(reply);
+  const parts = notificationParts(text);
+  for (const [index, part] of parts.entries()) {
+    // Разметка уходит с последней частью: кнопки завершают сообщение.
+    const partMarkup = index === parts.length - 1 ? markup : undefined;
+    await exec.query(
+      "insert into notification(telegram_user_id,text,dedup_key,channel,bot,reply_markup) values ($1,$2,$3,case when exists(select 1 from profile where telegram_user_id=$1 and is_test=true and archived_at is null) then 'simulator' else 'telegram' end,$4,$5::text::jsonb) on conflict(dedup_key) do nothing",
+      [
+        telegramId,
+        part,
+        index === 0 ? key : `${key}:part:${index + 1}`,
+        bot,
+        partMarkup === undefined ? null : JSON.stringify(partMarkup),
+      ],
+    );
+  }
+}

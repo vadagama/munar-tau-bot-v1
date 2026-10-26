@@ -30,9 +30,9 @@ it("собирает финансовый выпуск из обязанност
   fireEvent.change(editor.getByLabelText("Служебная причина"), { target: { value: "Плановый отчёт" } });
   fireEvent.mouseDown(editor.getByLabelText("Обязанность по отчёту"));
   fireEvent.click(await screen.findByText("2026-09-01 — 2026-09-30"));
-  fireEvent.mouseDown(await screen.findByLabelText("Проверенная версия финансового отчёта"));
+  fireEvent.mouseDown(await editor.findByLabelText("Проверенная версия финансового отчёта"));
   fireEvent.click(await screen.findByText("Основной отчёт · версия 1 · подписан"));
-  fireEvent.mouseDown(screen.getByLabelText("Основание: Решение совета"));
+  fireEvent.mouseDown(editor.getByLabelText("Основание: Решение совета"));
   fireEvent.click(await screen.findByText("Решение совета · версия 1 · подписан"));
   fireEvent.click(within(screen.getByRole("region", { name: "Новая публикация" })).getByRole("button", { name: "Создать публикацию" }));
   await vi.waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/v1/publications", expect.objectContaining({ method: "POST", idempotencyKey: expect.any(String), body: expect.objectContaining({ kind: "financial_report", obligation_id: "duty", period_from: "2026-09-01", period_to: "2026-09-30", building_ids: ["house"], report_version_id: "report", basis_versions: [{ code: "council", document_version_id: "basis" }], disclosed_version_ids: ["report"], requires_document: true, reason: "Плановый отчёт" }) })));
@@ -88,7 +88,8 @@ it("редактирование обычной публикации восст�
   expect(await editor.findByText("Утверждённые правила · версия 2")).toBeInTheDocument();
   fireEvent.change(editor.getByLabelText("Служебная причина"), { target: { value: "Уточнение текста" } });
   fireEvent.click(getButton("Сохранить изменения",editor));
-  expect(await screen.findByText("Подтвердите замену недоступных оснований")).toBeInTheDocument();
+  // Валидатор асинхронный: на загруженном CI-раннере перерисовка формы занимает дольше дефолтной секунды.
+  expect(await editor.findByText("Подтвердите замену недоступных оснований", {}, { timeout: 4000 })).toBeInTheDocument();
   expect(vi.mocked(apiFetch).mock.calls.some(([, request]) => request?.method)).toBe(false);
   fireEvent.click(editor.getByLabelText("Заменить недоступные основания выбранным комплектом"));
   fireEvent.click(getButton("Сохранить изменения",editor));

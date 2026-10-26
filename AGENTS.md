@@ -57,6 +57,7 @@ VS-8: границы и порядок модулей согласованы 23.
 | Состояние и фон | Диалоги, очередь и задания — в PostgreSQL; обработчики по расписанию (отдельный постоянно работающий процесс не принят) | ADR-003 |
 | Данные и Auth | Supabase: PostgreSQL, Auth (Telegram OIDC; TOTP для привилегированных ролей после пилота), закрытое Storage | [ADR-001](docs/decisions/001-telegram-auth.md), ADR-003 |
 | Админка | React + Refine Core + Ant Design, Vite, статика на Cloudflare Pages без Pages Functions | [ADR-002](docs/decisions/002-admin-cloudflare-pages.md) |
+| AI-ассистент (рантайм агента) | Cloudflare Worker + Durable Objects (Pi Durable, beta), деплой wrangler вне Pages; пилот — read-only на вымышленных данных | [ADR-021](docs/decisions/021-ai-assistant-cloudflare-worker.md) |
 
 Отклонено: NestJS, самодельный обмен подтверждения от бота на сеанс, email/пароль как основной вход (см. «Альтернативы» в ADR).
 
@@ -282,7 +283,7 @@ VS-8: границы и порядок модулей согласованы 23.
 | Миграции БД | `npm run db:push` (в `source/`; обёртка над `supabase db push` с env из `.env.local`; повторное применение безопасно — `IF NOT EXISTS`) |
 | Деплой функций | `node tools/scripts/supabase-with-env.mjs functions deploy <api\|bot-webhook\|jobs> --use-api --import-map deno.json` (в `source/`; флаги обязательны: без `--use-api` CLI зависает на docker-бандлере, без `--import-map` API-бандлер не резолвит npm-импорты `postgres`/`exceljs` из core) |
 | Деплой кабинета | `npx wrangler@^4 pages deploy admin/dist --project-name "$CF_PAGES_PROJECT"` (нужен `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) |
-| Настройка секретов функций | `npx supabase@^2 secrets set TELEGRAM_BOT_TOKEN=... TELEGRAM_WORKER_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... TELEGRAM_WORKER_WEBHOOK_SECRET=... X_JOBS_SECRET=... CABINET_ORIGIN=...` (R3). Примечание: префикс `SUPABASE_` в секретах запрещён платформой; `SUPABASE_JWKS` и `SUPABASE_DB_URL` инжектируются в функции автоматически (проверка JWT — ES256 по JWKS; см. ADR-001) |
+| Настройка секретов функций | `npx supabase@^2 secrets set TELEGRAM_BOT_TOKEN=... TELEGRAM_WORKER_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... TELEGRAM_WORKER_WEBHOOK_SECRET=... X_JOBS_SECRET=... CABINET_ORIGIN=... X_ASSISTANT_SECRET=... ASSISTANT_API_KEY_SECRET=...` (R3; два последних — ADR-021: сервисный учёт расхода и base64-ключ AES-256-GCM для токена провайдера, 32 байта). Примечание: префикс `SUPABASE_` в секретах запрещён платформой; `SUPABASE_JWKS` и `SUPABASE_DB_URL` инжектируются в функции автоматически (проверка JWT — ES256 по JWKS; см. ADR-001) |
 
 CI (`.github/workflows/ci.yml`) на каждый PR (кроме правок только в `docs/`, `tasks/`, `.agents/` и `*.md`) и на каждый push в `main`: node-джоба (ci → lint → typecheck → test `core` → build → secret-scan), три параллельных шарда джобы `admin-tests` (jsdom-сценарии кабинета, `vitest --shard`) и deno-джоба (check → lint → test). Новый пуш в тот же PR или в `main` отменяет устаревший прогон (`concurrency`, `cancel-in-progress`). Интеграционная джоба удалена из CI по решению пользователя 23.10.2026 из-за затрат; локальный запуск только по явному запросу — `RUN_INTEGRATION_TESTS=1 npm run test:integration` из `source/` при настроенном `TEST_DATABASE_URL`. Деплой — отдельная джоба при push в `main` после всех проверок, шаги выполняются только при наличии соответствующих секретов репозитория: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, `SUPABASE_DB_PASSWORD`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT`; без них — джоба зелёная с предупреждением. До настройки секретов (R3) деплой фактически не выполняется. При добавлении нового npm-воркспейса с тестами добавьте его прогон в CI явно: node-джоба гоняет только `core`.
 
@@ -296,6 +297,7 @@ CI (`.github/workflows/ci.yml`) на каждый PR (кроме правок т
 - Проверка полномочий — всегда на сервере (PDP), для чтения и записи, при каждом защищённом запросе; отозванная роль блокирует следующий запрос даже при действующем токене. Редактируемые пользователем метаданные — не источник полномочий
 - Облачный прототип — на вымышленных данных; реальные персональные данные и рабочие секреты туда не переносятся, preview не подключается к рабочей среде
 - Рабочая среда — self-hosted Supabase в Казахстане; выбор провайдера отложен до развёртывания и не блокирует разработку
+- AI-ассистент (ADR-021): доступ к данным — только через API `/v1` с JWT самого пользователя под PDP и аудитом, доступ ассистента к БД не выдаётся; ключ провайдера модели — не в браузере и не в сборке (секретная маска в ответах), runtime-token — только включённым сотрудникам с `assistant.use`; в эмулированных сеансах ассистент выключен; реальные данные — только после ИБ-анализа и отдельного ADR
 - `.env*` не коммитится
 
 ## Конвенции

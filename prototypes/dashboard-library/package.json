@@ -1,0 +1,30 @@
+{
+  "name": "munar-ui-prototypes",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@ant-design/icons": "5.6.1",
+    "@refinedev/antd": "^5.0.0",
+    "@refinedev/core": "^4.0.0",
+    "@refinedev/react-router-v6": "^4.0.0",
+    "@supabase/supabase-js": "^2.47.0",
+    "antd": "^5.21.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "@blocknote/core": "^0.56.0",
+    "@blocknote/mantine": "^0.56.0",
+    "@blocknote/react": "^0.56.0",
+    "@mantine/core": "^8.3.18",
+    "@mantine/hooks": "^8.3.18"
+  },
+  "devDependencies": {
+    "vite": "^7.3.7",
+    "@vitejs/plugin-react": "^4.3.4"
+  }
+}

@@ -6,6 +6,7 @@ import { canManageStaff, canManageRole } from "../../core/src/pdp/roles.ts";
 import { STAFF_ROUTES } from "./staff-handlers.ts";
 import { DOCUMENT_ROUTES } from "./document-handlers.ts";
 import { TEMPLATE_ROUTES } from "./template-handlers.ts";
+import { ASSISTANT_ROUTES } from "./assistant-handlers.ts";
 import { PUBLICATION_ROUTES } from "./publication-handlers.ts";
 import { INCIDENT_ROUTES } from "./incident-handlers.ts";
 import { NOTIFICATION_ROUTES } from "./notification-handlers.ts";
@@ -73,7 +74,7 @@ export interface RouteContext {
 }
 
 export interface Route {
-  method: "GET" | "POST" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   /** Шаблон пути с параметрами :name (после нормализации к /v1/...). */
   path: string;
   action: ActionKey;
@@ -541,6 +542,7 @@ export const ROUTES: readonly Route[] = [
   ...INITIATIVE_ROUTES,
   ...REPORT_ROUTES,
   ...STAFF_ROUTES,
+  ...ASSISTANT_ROUTES,
   ...NOTIFICATION_ROUTES,
   ...TEMPLATE_ROUTES,
   ...REGISTRY_ROUTES,

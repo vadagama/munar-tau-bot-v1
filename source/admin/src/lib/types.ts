@@ -142,3 +142,42 @@ export interface EmulationSessionJson {
 export interface EmulationSessionResponse {
   session: EmulationSessionJson;
 }
+
+// ── AI-ассистент (ADR-021, план S0.4) ──────────────────────────────────────
+
+/** Singleton настроек ассистента: токен — только маской. */
+export interface AssistantSettingsJson {
+  settings: {
+    provider: string;
+    base_url: string;
+    model_id: string;
+    api_key_mask: string | null;
+    version: number;
+  } | null;
+  users: AssistantUserRowJson[];
+}
+
+/** Строка списка сотрудников с per-user конфигом. */
+export interface AssistantUserRowJson {
+  person_id: string;
+  profile_id: string | null;
+  full_name: string;
+  roles: string[];
+  telegram_username: string | null;
+  enabled: boolean;
+  daily_token_limit: number;
+  monthly_token_limit: number;
+  /** null — конфига нет: сохранение такой строки выполняет insert. */
+  version: number | null;
+}
+
+/** Свой доступ и остаток (GET /v1/assistant/settings/me). */
+export interface AssistantAccessJson {
+  enabled: boolean;
+  daily_token_limit: number | null;
+  monthly_token_limit: number | null;
+  day_used: number;
+  month_used: number;
+  day: string;
+  month: string;
+}

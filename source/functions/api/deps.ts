@@ -19,8 +19,10 @@ import { SqlAuditRepo } from "../../core/src/domains/audit/repo.ts";
 import type { AuditRepo } from "../../core/src/domains/audit/port.ts";
 import { SqlEmulationRepo } from "../../core/src/domains/emulation/repo.ts";
 import type { EmulationRepo } from "../../core/src/domains/emulation/port.ts";
+import { SqlAssistantRepo } from "../../core/src/domains/assistant/repo.ts";
+import type { AssistantDeps } from "../../core/src/domains/assistant/service.ts";
 
-export interface ApiDeps {
+export interface ApiDeps extends Omit<AssistantDeps, "db" | "audit" | "admin"> {
   rateLimit?: (profileId:string)=>Promise<void>;
   storage?: FileStorage;
   /** Ключи проверки подписи JWT из JWKS (Supabase Auth; SUPABASE_JWKS инжектируется платформой). */
@@ -32,6 +34,8 @@ export interface ApiDeps {
   admin: AdminRepo;
   audit: AuditRepo;
   emulation: EmulationRepo;
+  /** Сервисный секрет учёта расхода ассистента (X_ASSISTANT_SECRET). */
+  assistantSecret?: string;
   /** Сценарии симулятора; в VS-1 пуст (сценарии бота — с VS-2). */
   scenarios: ScenarioRegistry;
 }
@@ -67,6 +71,9 @@ export async function defaultDeps(env: EnvSource): Promise<ApiDeps> {
     admin: new SqlAdminRepo(),
     audit: new SqlAuditRepo(),
     emulation: new SqlEmulationRepo(),
+    assistant: new SqlAssistantRepo(),
+    assistantSecret: optionalEnv(env, "X_ASSISTANT_SECRET"),
+    keySecret: optionalEnv(env, "ASSISTANT_API_KEY_SECRET"),
     scenarios: botScenarios({db:sharedDbClient(requireEnv(env, "SUPABASE_DB_URL")),audit:new SqlAuditRepo()}),
   };
 }
