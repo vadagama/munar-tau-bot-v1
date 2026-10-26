@@ -1,7 +1,11 @@
 /* Панель AI-ассистента на главной (S1.2): стили формы и потока сообщений.
    Таблицы/текст ответа — .assistant-rich-text из прототипа dashboard-library.
    Макет по прототипу home-assistant.tsx (решение владельца 26.10.2026):
-   подсказка → чипы → форма ввода → ответы под формой → примечание об AI. */
+   подсказка → чипы → форма ввода → ответы под формой → примечание об AI.
+   Поток — в стиле чата (референс владельца 26.10.2026): вопрос — пузырь
+   справа, ответ — чистый текст с тихими действиями под ним. Цвета — токены
+   AntD при primary по умолчанию: #e6f4ff = colorPrimaryBg,
+   rgba(0,0,0,0.45) = colorTextSecondary, rgba(0,0,0,0.88) = colorText. */
 
 .assistant-panel { margin-bottom: 24px; }
 
@@ -19,7 +23,7 @@
 }
 .assistant-privacy { font-size: 12px; }
 
-/* Ответы под формой: тихий блок вопроса + блок ответа с временем. */
+/* Ответы под формой: пузырь вопроса справа + ответ ассистента слева. */
 .assistant-thread {
   display: flex;
   flex-direction: column;
@@ -33,22 +37,64 @@
 .assistant-question {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: flex-end;
+  gap: 8px;
+}
+.assistant-question-text {
+  max-width: 85%;
+  padding: 10px 16px;
+  border-radius: 18px;
+  background: #e6f4ff;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.assistant-question-label { font-size: 12px; opacity: 0.62; }
-.assistant-question-text { white-space: pre-wrap; }
 
 .assistant-answer { min-width: 0; overflow-wrap: anywhere; }
-.assistant-answer-heading {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.assistant-answer-heading h3 { margin: 0; font-size: 14px; font-weight: 600; }
 
-.assistant-failure { margin-top: 8px; }
+/* Действия под ответом: тихие иконки (копировать, переспросить) + время. */
+.assistant-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 6px;
+}
+.assistant-actions .ant-btn { color: rgba(0, 0, 0, 0.45); }
+.assistant-actions .ant-btn:not(:disabled):hover { color: rgba(0, 0, 0, 0.88); }
+.assistant-answer-time { margin-left: 8px; font-size: 12px; color: rgba(0, 0, 0, 0.45); }
+.assistant-copied {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #237804; /* antd green-8: контраст на белом ≥ 4.5:1 */
+}
+
+/* Индикатор набора: три точки, пока ответ не начал стримиться. */
+.assistant-typing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(0, 0, 0, 0.45);
+}
+.assistant-typing-dots { display: inline-flex; gap: 3px; }
+.assistant-typing-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: assistant-typing 1.2s ease-in-out infinite;
+}
+.assistant-typing-dots i:nth-child(2) { animation-delay: 0.15s; }
+.assistant-typing-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes assistant-typing {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .assistant-typing-dots i { animation: none; opacity: 0.55; }
+}
+
+.assistant-failure { align-self: stretch; }
 .assistant-failure-text { margin: 0 0 8px !important; white-space: pre-wrap; }
 
 .assistant-note { margin: 12px 0 0 !important; font-size: 12px; }

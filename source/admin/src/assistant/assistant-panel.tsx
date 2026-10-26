@@ -2,13 +2,16 @@
 // «Очередью дня» (очередь не заменяет), на мобильном — во всю ширину сетки.
 // Тексты и состояния — по прототипу prototypes/dashboard-library
 // (home-assistant.tsx): подсказка, чипы примеров (заполняют поле ввода),
-// форма («В DeepSeek отправятся…» + «Спросить»), ответы — под формой с временем,
+// форма («В DeepSeek отправятся…» + «Спросить»), ответы — под формой,
 // при сбое — развёрнутый текст и «Повторить» (решение владельца 26.10.2026).
-// Ответ — AssistantMarkdown (HTML не рендерится).
+// Поток — в стиле чата (референс владельца 26.10.2026): вопрос — пузырь
+// справа; ответ — чистый текст (AssistantMarkdown, HTML не рендерится)
+// с тихими действиями под ним — копировать, переспросить, время; пока дельт
+// нет — индикатор набора.
 
 import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Card, Input, Space, Spin, Typography } from "antd";
-import { RedoOutlined, SendOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Input, Space, Spin, Tooltip, Typography } from "antd";
+import { CheckOutlined, CopyOutlined, RedoOutlined, ReloadOutlined, SendOutlined } from "@ant-design/icons";
 
 import { AssistantMarkdown } from "./assistant-markdown";
 import { AssistantTable } from "./assistant-table";
@@ -36,6 +39,93 @@ function failureDescription(message: AssistantMessageView): string {
     return "Обработка вопроса приостановлена из-за сбоя сервиса ассистента. Нажмите «Повторить» — попытка будет выполнена заново.";
   }
   return "Ассистент не смог подготовить ответ. Нажмите «Повторить» — попытка будет выполнена заново.";
+}
+
+/** Копирование в буфер обмена: Clipboard API, при недоступности — скрытая textarea. */
+async function writeClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard !== undefined) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Окружение без Clipboard API или отказ доступа — пробуем fallback ниже.
+  }
+  try {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Действия под ответом (референс владельца 26.10.2026): копировать ответ,
+    переспросить исходный вопрос, время. Тихие иконки, вторичный цвет. */
+function AssistantAnswerActions({ message, question, busy, enabled, onReask }: {
+  message: AssistantMessageView;
+  question: string | null;
+  busy: boolean;
+  enabled: boolean;
+  onReask: (text: string) => boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+  }, []);
+
+  const copy = async () => {
+    if (!(await writeClipboard(message.text))) return;
+    setCopied(true);
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="assistant-actions">
+      {copied ? (
+        <span className="assistant-copied" role="status">
+          <CheckOutlined aria-hidden="true" /> Скопировано
+        </span>
+      ) : (
+        <Tooltip title="Скопировать ответ">
+          <Button
+            className="assistant-action"
+            type="text"
+            size="small"
+            aria-label="Скопировать ответ"
+            icon={<CopyOutlined aria-hidden="true" />}
+            onClick={() => void copy()}
+          />
+        </Tooltip>
+      )}
+      {question !== null && (
+        <Tooltip title="Задать этот вопрос заново">
+          <Button
+            className="assistant-action"
+            type="text"
+            size="small"
+            aria-label="Переспросить"
+            icon={<ReloadOutlined aria-hidden="true" />}
+            disabled={busy || !enabled}
+            onClick={() => onReask(question)}
+          />
+        </Tooltip>
+      )}
+      {message.at !== undefined && (
+        <span className="assistant-answer-time">{formatDateTime(message.at)}</span>
+      )}
+    </div>
+  );
 }
 
 const QUESTION_PROMPTS = ["Что требует внимания?", "Как распределить работу по очередям?", "Составь краткую сводку"];
@@ -86,6 +176,14 @@ export function AssistantPanel() {
 
   const busy = messages.some((m) => m.status === "queued" || m.status === "running");
   const formEnabled = status.kind === "open";
+  /** Исходный вопрос ответа: ближайшее предыдущее сообщение пользователя. */
+  const questionBefore = (index: number): string | null => {
+    for (let i = index - 1; i >= 0; i--) {
+      const previous = messages[i];
+      if (previous !== undefined && previous.role === "user") return previous.text;
+    }
+    return null;
+  };
 
   return (
     <section className="assistant-panel" aria-label="AI-ассистент">
@@ -175,10 +273,9 @@ export function AssistantPanel() {
             </form>
             {/* Ответы — под формой ввода (решение владельца 26.10.2026). */}
             <div className="assistant-thread" ref={threadRef} aria-live="polite" aria-busy={busy}>
-              {messages.map((message) => (
+              {messages.map((message, index) => (
                 message.role === "user" ? (
                   <div key={message.messageId} className="assistant-question">
-                    <span className="assistant-question-label">Вопрос</span>
                     <div className="assistant-question-text">{message.text}</div>
                     {(message.status === "unanswered" || message.status === "failed" || message.status === "parked") && (
                       <Alert
@@ -203,17 +300,27 @@ export function AssistantPanel() {
                   </div>
                 ) : (
                   <div key={message.messageId} className="assistant-answer">
-                    <div className="assistant-answer-heading">
-                      <h3>Ответ ассистента</h3>
-                      {message.at !== undefined && (
-                        <Typography.Text type="secondary">{formatDateTime(message.at)}</Typography.Text>
-                      )}
-                    </div>
                     <AssistantMarkdown text={message.text} sources={message.sources} />
                     {(message.tables ?? []).map((table) => <AssistantTable key={table.id} table={table} />)}
+                    {message.status === "done" && (
+                      <AssistantAnswerActions
+                        message={message}
+                        question={questionBefore(index)}
+                        busy={busy}
+                        enabled={formEnabled}
+                        onReask={send}
+                      />
+                    )}
                   </div>
                 )
               ))}
+              {/* Вопрос отправлен, дельт ещё нет — тихий индикатор набора. */}
+              {busy && !messages.some((m) => m.role === "assistant" && m.status === "running") && (
+                <div className="assistant-typing" role="status">
+                  <span className="assistant-typing-dots" aria-hidden="true"><i /><i /><i /></span>
+                  <span>Ассистент печатает…</span>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
             <Typography.Paragraph type="secondary" className="assistant-note">

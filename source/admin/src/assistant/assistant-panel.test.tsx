@@ -494,7 +494,7 @@ it("ответы рендерятся под формой ввода", async () 
   expect((input.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
 });
 
-it("у блока «Ответ ассистента» после done есть время", async () => {
+it("у ответа после done нет заголовка, но есть время и действия", async () => {
   await renderPanel();
   const socket = FakeWebSocket.last();
   fireEvent.change(screen.getByLabelText("Вопрос ассистенту"), { target: { value: "вопрос" } });
@@ -503,9 +503,65 @@ it("у блока «Ответ ассистента» после done есть �
   const sent = JSON.parse(socket.sent.at(-1)!) as { messageId: string };
   socket.receive({ type: "done", messageId: sent.messageId, status: "done", text: "Ответ готов" });
   await waitFor(() => expect(screen.getByText("Ответ готов")).toBeInTheDocument());
-  expect(screen.getByText("Ответ ассистента")).toBeInTheDocument();
-  // Клиентское время (Asia/Almaty, dd.mm.yyyy, hh:mm).
+  // Заголовка «Ответ ассистента» больше нет — тихие действия вместо него.
+  expect(screen.queryByText("Ответ ассистента")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Скопировать ответ")).toBeInTheDocument();
+  expect(screen.getByLabelText("Переспросить")).toBeInTheDocument();
+  // Клиентское время (Asia/Almaty, dd.mm.yyyy, hh:mm) — рядом с ответом.
   expect(screen.getByText(/\d{2}\.\d{2}\.\d{4}/)).toBeInTheDocument();
+});
+
+it("ответ можно скопировать: текст в буфере и подтверждение «Скопировано»", async () => {
+  await renderPanel();
+  const socket = FakeWebSocket.last();
+  fireEvent.change(screen.getByLabelText("Вопрос ассистенту"), { target: { value: "вопрос" } });
+  fireEvent.click(screen.getByText("Спросить"));
+  await waitFor(() => expect(screen.getByText("Готовлю ответ")).toBeInTheDocument());
+  const sent = JSON.parse(socket.sent.at(-1)!) as { messageId: string };
+  socket.receive({ type: "done", messageId: sent.messageId, status: "done", text: "Ответ целиком" });
+  await waitFor(() => expect(screen.getByText("Ответ целиком")).toBeInTheDocument());
+  const writeText = vi.fn(() => Promise.resolve());
+  Object.defineProperty(window.navigator, "clipboard", { value: { writeText }, configurable: true });
+  try {
+    fireEvent.click(screen.getByLabelText("Скопировать ответ"));
+    await waitFor(() => expect(screen.getByText("Скопировано")).toBeInTheDocument());
+    expect(writeText).toHaveBeenCalledWith("Ответ целиком");
+  } finally {
+    Object.defineProperty(window.navigator, "clipboard", { value: undefined, configurable: true });
+  }
+});
+
+it("«Переспросить» отправляет исходный вопрос как новый запрос с новым operationId", async () => {
+  await renderPanel();
+  const socket = FakeWebSocket.last();
+  fireEvent.change(screen.getByLabelText("Вопрос ассистенту"), { target: { value: "нагрузка?" } });
+  fireEvent.click(screen.getByText("Спросить"));
+  await waitFor(() => expect(screen.getByText("Готовлю ответ")).toBeInTheDocument());
+  const sent = JSON.parse(socket.sent.at(-1)!) as { messageId: string };
+  socket.receive({ type: "done", messageId: sent.messageId, status: "done", text: "Ответ" });
+  await waitFor(() => expect(screen.getByText("Ответ")).toBeInTheDocument());
+  fireEvent.click(screen.getByLabelText("Переспросить"));
+  await waitFor(() => {
+    const repeated = JSON.parse(socket.sent.at(-1)!) as { type: string; text: string; messageId: string };
+    expect(repeated.type).toBe("message");
+    expect(repeated.text).toBe("нагрузка?");
+    expect(repeated.messageId).not.toBe(sent.messageId);
+  });
+  // Вопрос задан заново: в потоке два пузыря с этим текстом.
+  expect(screen.getAllByText("нагрузка?")).toHaveLength(2);
+});
+
+it("пока ответ не начал печататься — индикатор набора, с первой дельтой — текст", async () => {
+  await renderPanel();
+  const socket = FakeWebSocket.last();
+  fireEvent.change(screen.getByLabelText("Вопрос ассистенту"), { target: { value: "просрочки?" } });
+  fireEvent.click(screen.getByText("Спросить"));
+  await waitFor(() => expect(screen.getByText("Готовлю ответ")).toBeInTheDocument());
+  expect(screen.getByText("Ассистент печатает…")).toBeInTheDocument();
+  const sent = JSON.parse(socket.sent.at(-1)!) as { messageId: string };
+  socket.receive({ type: "delta", messageId: `${sent.messageId}:reply`, text: "Част" });
+  await waitFor(() => expect(screen.getByText("Част")).toBeInTheDocument());
+  expect(screen.queryByText("Ассистент печатает…")).not.toBeInTheDocument();
 });
 
 it("после обрыва снапшот не дублирует отправленный вопрос", async () => {
