@@ -28,6 +28,7 @@ class FakeSocket implements ChatSocket {
 interface Harness {
   server: ChatServer;
   runtime: FakeChatRuntime;
+  acceptedJwts: string[];
   setEpoch(state: "ok" | "stale"): void;
   setLimits(state: "ok" | "day" | "month"): void;
   usageReports: Array<{ operationId: string; promptTokens: number; completionTokens: number }>;
@@ -41,9 +42,15 @@ function makeServer(
   let epochState: "ok" | "stale" = deps.epoch ?? "ok";
   let limitsState: "ok" | "day" | "month" = deps.limits ?? "ok";
   const usageReports: Array<{ operationId: string; promptTokens: number; completionTokens: number }> = [];
+  const acceptedJwts: string[] = [];
   const server = new ChatServer({
     runtime,
-    authenticate: async () => decision,
+    // Как обвязка DO (do.ts): JWT запоминается только после успешного гейта —
+    // это сеанс изолята для runtime-token и инструментов.
+    authenticate: async (jwt) => {
+      if (decision.ok) acceptedJwts.push(jwt);
+      return decision;
+    },
     checkEpoch: async () => epochState,
     checkLimits: async () => limitsState,
     onUsage: (operationId, usage) => {
@@ -54,6 +61,7 @@ function makeServer(
   return {
     server,
     runtime,
+    acceptedJwts,
     setEpoch(state: "ok" | "stale") {
       epochState = state;
     },
@@ -93,6 +101,14 @@ describe("ChatServer — аутентификация", () => {
     const socket = await connect(local.server, "jwt-bad");
     expect(socket.parsed()[0]).toMatchObject({ type: "auth_error", reason: "Ассистент выключен" });
     expect(socket.closed).not.toBeNull();
+  });
+
+  it("JWT запоминается для изолята только при успехе гейта (регрессия: accessToken не присваивался)", async () => {
+    await connect(harness.server, "jwt-good");
+    expect(harness.acceptedJwts).toEqual(["jwt-good"]);
+    const local = makeServer({ decision: { ok: false, reason: "нет" } });
+    await connect(local.server, "jwt-bad");
+    expect(local.acceptedJwts).toEqual([]);
   });
 
   it("первое сообщение не auth — сокет закрывается", async () => {

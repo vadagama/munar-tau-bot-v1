@@ -213,7 +213,13 @@ export class AssistantDO extends DurableObject<AssistantEnv> {
     }
     this.server = new ChatServer({
       runtime: this.runtime,
-      authenticate: (jwt) => this.gate.authenticate(jwt, this.profileId, this.epoch),
+      // JWT сеанса сохраняется в памяти изолята только после успешного гейта:
+      // runtime-token и инструменты сущностей берут его через getAccessToken.
+      authenticate: async (jwt) => {
+        const decision = await this.gate.authenticate(jwt, this.profileId, this.epoch);
+        if (decision.ok) this.accessToken = jwt;
+        return decision;
+      },
       checkEpoch: () => this.gate.checkEpoch(this.profileId, this.epoch),
       checkLimits: () => this.gate.checkLimits(),
       onUsage: (operationId, usage) => this.reportUsage(operationId, usage),
