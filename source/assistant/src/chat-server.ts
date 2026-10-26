@@ -1,9 +1,17 @@
 // ChatServer — логика WS-сессии поверх ChatRuntime: auth-хендшейк, снапшот +
 // дельты fan-out, submit с operationId (идемпотентность Pi), retry, resync.
+// Финал операции (done) доставляется фоновым вейтером в defer — переживает
+// потерю сокета и вытеснение изолята, переподписка — хендшейк/resync.
 // Не знает ни о Workers API, ни о Pi: сокеты — интерфейс ChatSocket, рантайм —
 // ChatRuntime. Тестируется на фейках (S1.1), DO (do.ts) только склеивает.
 
-import type { ChatRuntime, OperationUsage, RuntimeUpdate } from "./chat-runtime.ts";
+import type {
+  ChatRuntime,
+  OperationUsage,
+  PendingOperation,
+  RuntimeUpdate,
+  WaitResult,
+} from "./chat-runtime.ts";
 import {
   encodeServerMessage,
   parseClientMessage,
@@ -32,6 +40,11 @@ export interface ChatServerDeps {
    * по operation_id). Fire-and-forget: ошибка учёта не ломает done.
    */
   onUsage(operationId: string, usage: OperationUsage): void;
+  /**
+   * Фоновые задачи переживают обработчик WS-сообщения (в DO — ctx.waitUntil):
+   * вейтер done не должен умирать вместе с сокетом или обработчиком.
+   */
+  defer(promise: Promise<void>): void;
   now(): Date;
 }
 
@@ -39,6 +52,8 @@ const WS_CLOSE_POLICY = 1008;
 
 export class ChatServer {
   private readonly sockets = new Map<ChatSocket, SocketSession | null>();
+  /** Активные вейтеры done: один на операцию — защита от дублей при resync. */
+  private readonly waiters = new Map<string, Promise<void>>();
   private subscribed = false;
 
   constructor(private readonly deps: ChatServerDeps) {}
@@ -121,12 +136,7 @@ export class ChatServer {
     this.attachRuntimeListener();
     this.send(socket, { type: "auth_ok", profileId: session.profileId, epoch: session.epoch });
     await this.sendSnapshot(socket);
-    // Статусы незавершённых операций (S6.1): снапшот помечает пользовательские
-    // записи «done», без этого parked/queued после переподключения не видны и
-    // кнопка «Повторить» недоступна.
-    for (const operation of await this.deps.runtime.pending()) {
-      this.send(socket, { type: "status", messageId: operation.messageId, status: operation.status });
-    }
+    await this.sendPendingStatuses(socket);
     return session;
   }
 
@@ -145,9 +155,11 @@ export class ChatServer {
         return;
       case "retry":
         await this.deps.runtime.retry(message.messageId);
+        this.ensureWaiter(message.messageId);
         return;
       case "resync":
         await this.sendSnapshot(socket);
+        await this.sendPendingStatuses(socket);
         return;
     }
   }
@@ -179,18 +191,64 @@ export class ChatServer {
       return;
     }
     this.send(socket, { type: "status", messageId, status: "queued" });
-    const result = await this.deps.runtime.wait(messageId);
-    this.send(socket, {
-      type: "done",
-      messageId,
-      status: result.status,
-      text: result.text,
-      error: result.reason,
-      // Пул карточек-ссылок из инструментов (S2.1); undefined уходит из JSON.
-      sources: result.sources,
-      // Таблицы агрегатов из инструментов (S4a.2); undefined уходит из JSON.
-      tables: result.tables,
-    });
+    // Вейтер — в defer (DO: ctx.waitUntil): ответ доходит, даже если сокет или
+    // обработчик WS-сообщения умрут до завершения операции.
+    this.ensureWaiter(messageId);
+  }
+
+  /** Статусы незавершённых операций + переподписка на их завершение. */
+  private async sendPendingStatuses(socket: ChatSocket): Promise<void> {
+    // Статусы незавершённых операций (S6.1): снапшот помечает пользовательские
+    // записи «done», без этого parked/queued после переподключения не видны и
+    // кнопка «Повторить» недоступна.
+    for (const operation of await this.deps.runtime.pending()) {
+      this.send(socket, { type: "status", messageId: operation.messageId, status: operation.status });
+      this.ensureWaiter(operation.messageId, operation.status);
+    }
+  }
+
+  /**
+   * Гарантирует ровно один вейтер завершения операции (инцидент 26.10.2026:
+   * вейтер жил в обработчике WS-сообщения и умирал вместе с сокетом или
+   * вытесненным изолятом — панель оставалась в busy навсегда). Живёт в defer,
+   * done рассылается всем аутентифицированным сокетам; восстановление после
+   * потери — хендшейк нового изолята или resync через sendPendingStatuses.
+   * Parked не вейтерится: операция ждёт ручного «Повторить», вечный waitUntil
+   * не давал бы DO уснуть.
+   */
+  private ensureWaiter(messageId: string, status?: PendingOperation["status"]): void {
+    if (status === "parked" || this.waiters.has(messageId)) return;
+    const waiter = (async () => {
+      try {
+        const result = await this.deps.runtime.wait(messageId);
+        this.deliverDone(messageId, result);
+      } catch {
+        // Потерянная операция восстановится resync-ом или хендшейком нового
+        // изолята — глотать ошибку здесь безопаснее, чем ронять фоновую задачу.
+      } finally {
+        this.waiters.delete(messageId);
+      }
+    })();
+    this.waiters.set(messageId, waiter);
+    this.deps.defer(waiter);
+  }
+
+  /** Финал операции — всем аутентифицированным сокетам, затем учёт расхода. */
+  private deliverDone(messageId: string, result: WaitResult): void {
+    for (const [socket, session] of this.sockets) {
+      if (session === null) continue;
+      this.send(socket, {
+        type: "done",
+        messageId,
+        status: result.status,
+        text: result.text,
+        error: result.reason,
+        // Пул карточек-ссылок из инструментов (S2.1); undefined уходит из JSON.
+        sources: result.sources,
+        // Таблицы агрегатов из инструментов (S4a.2); undefined уходит из JSON.
+        tables: result.tables,
+      });
+    }
     // Учёт расхода после ответа (S3.1): POST идемпотентен по operation_id.
     // done уже ушёл — сбой учёта клиенту не виден.
     if (result.usage !== undefined) {

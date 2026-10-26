@@ -12,10 +12,12 @@ read-only на вымышленных данных; реальные данны�
   выполняет сам DO первым сообщением, JWT не в URL
 - `src/do.ts` — `AssistantDO`: hibernatable WebSocket (состояние в
   serializeAttachment), `Lifecycle` + `PiHarness`, ключ провайдера — в памяти
-  изолята
+  изолята; фоновые задачи ChatServer — в `ctx.waitUntil` (defer), исходящие
+  fetch — с таймаутом 15 с
 - `src/chat-server.ts` — логика WS-сессии: auth, снапшот + дельты fan-out,
   идемпотентный submit, retry, resync; гейт лимитов до submit, отчёт расхода
-  после ответа (`onUsage`, S3.1); тестируется на фейках
+  после ответа (`onUsage`, S3.1); финал операции — фоновым вейтером в defer:
+  переживает потерю сокета и рестарт изолята; тестируется на фейках
 - `src/chat-runtime.ts` — интерфейс `ChatRuntime`: Pi изолирован за ним
 - `src/pi-runtime.ts` — `PiChatRuntime`: PiHarness (корневая сессия), DeepSeek
   через `deepseekProvider` (pi-ai), ключ по `POST /v1/assistant/runtime-token`
@@ -42,9 +44,10 @@ read-only на вымышленных данных; реальные данны�
 - `src/tools/sources.ts` — пул карточек-ссылок `{title, href}` из JSON-выводов
   инструментов (`pi.tool-result`) для панели; не-абсолютные пути отбрасываются
 - `src/gate.ts` — JWT Supabase (ES256 по JWKS, реюз `core/src/auth/jwt.ts`) +
-  enabled через `GET /v1/assistant/settings/me` с кэшем ≤ 60 с; гейт лимитов
-  до submit (`checkLimits`: день 05:00→05:00 / месяц против лимитов, S3.1) и
-  обновление расхода в кэше из ответа POST usage (`updateUsage`)
+  enabled через `GET /v1/assistant/settings/me` с кэшем ≤ 60 с и таймаутом
+  похода 10 с; гейт лимитов до submit (`checkLimits`: день 05:00→05:00 /
+  месяц против лимитов, S3.1) и обновление расхода в кэше из ответа POST
+  usage (`updateUsage`)
 - `src/almaty.ts` — сутки «05:00 → 05:00» Asia/Almaty (UTC-полночь) и эпохи DO
 - `src/protocol.ts` — WS-протокол панели ↔ DO (включая `sources` у сообщений
   ассистента и отказ `limit_exceeded`)
@@ -78,6 +81,24 @@ Pi (`assistant_pi_report`: parked/faulted/failed — тип и kind задачи
 текстов ошибок и персональных данных). Парковка задачи (`task_parked`)
 доставляется панели живым статусом, после переподключения — статусами после
 снапшота; «Повторить» шлёт `{type:"retry"}` → `session.retry()`.
+
+## Доставка done и watchdog тишины (инцидент 26.10.2026)
+
+Финал операции (`done`) доставляет фоновый вейтер, живущий в `defer` (в DO —
+`ctx.waitUntil`), а не обработчик WS-сообщения: потеря сокета или вытеснение
+изолята больше не теряет ответ. Вейтер один на операцию (дедупликация при
+resync), `done` рассылается всем аутентифицированным сокетам; запаркованная
+операция вейтера не держит — ждёт «Повторить». После рестарта изолята
+переподписка идёт на хендшейке и при resync: статусы `pending()` дополняются
+вейтерами.
+
+Клиент страхует сервер watchdog-ом busy-тишины (admin/src/assistant):
+пока в панели есть queued/running, а от сервера нет трафика дольше 45 с,
+хук сам отправляет `resync` (самоограничение — один на окно тишины).
+
+Исходящие fetch DO ограничены по времени (15 с: runtime-token,
+/v1-инструменты, POST usage), поход гейта в settings/me — 10 с: зависший
+вызов не держит сессию и не живёт в waitUntil вечно.
 
 ## Секреты Worker (не в коде и не в сборке)
 

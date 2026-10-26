@@ -1,6 +1,8 @@
 // Хук WS-сессии ассистента (план S1.2/S1.3): гейт по settings/me (бесплатный),
 // JWT в первом сообщении {type:"auth"} — не в URL; снапшот + дельты; переподключение
-// с обновлением токена; epoch_stale → перечитать эпоху и переподключиться.
+// с обновлением токена; epoch_stale → перечитать эпоху и переподключиться;
+// watchdog busy-тишины: операция без трафика дольше 45 с → resync (страхование
+// потерянного done на случай, когда серверный вейтер не восстановился).
 // Время сообщений — клиентское (at): транскрипт Pi времени не несёт, а для
 // «Ответ ассистента» оно нужно (решение владельца 26.10.2026).
 // В эмулированных сеансах и тестовым персонам ассистент недоступен (ADR-021).
@@ -57,6 +59,10 @@ interface SocketEnvelope {
 
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 15_000;
+/** Watchdog busy-тишины: столько ждём трафика, прежде чем попросить resync. */
+const BUSY_RESYNC_AFTER_MS = 45_000;
+/** Шаг проверки тишины watchdog-ом (инцидент 26.10.2026: потерянный done держал панель в busy навсегда). */
+const BUSY_RESYNC_TICK_MS = 15_000;
 
 /** Номер UTC-суток: граница 05:00 Алматы = полночь UTC (см. assistant/almaty.ts). */
 export function utcDayNumber(at: Date): number {
@@ -117,6 +123,10 @@ export function useAssistantSocket() {
   const jwtRef = useRef<string | null>(null);
   /** messageId последнего отправленного вопроса — для дельт и done. */
   const aliveRef = useRef(true);
+  /** Есть ли незавершённая операция (queued/running) — критерий watchdog-а. */
+  const busyRef = useRef(false);
+  /** Момент последнего входящего сообщения сервера — окно тишины watchdog-а. */
+  const lastTrafficRef = useRef(Date.now());
 
   const reloadAccess = useCallback(async () => {
     try {
@@ -180,6 +190,7 @@ export function useAssistantSocket() {
       return;
     }
     setSocketError(null);
+    lastTrafficRef.current = Date.now();
     switch (envelope.type) {
       case "auth_ok":
         setConnected(true);
@@ -318,6 +329,11 @@ export function useAssistantSocket() {
     }
   }, [mergeMessage, reloadAccess]);
 
+  // busy — критерий watchdog-а: синхронизируем ref с состоянием сообщений.
+  useEffect(() => {
+    busyRef.current = messages.some((m) => m.status === "queued" || m.status === "running");
+  }, [messages]);
+
   // WS-жизненный цикл: подключение только при включённом ассистенте, кабинете
   // вне эмуляции, настроенном WS-адресе и наличии сеанса. Токен читается перед
   // каждым подключением (истёкший → обновлённый по onAuthStateChange).
@@ -384,6 +400,24 @@ export function useAssistantSocket() {
       socketRef.current = null;
     };
   }, [canConnect, generation, accessEpoch, profileId, wsUrl, handleMessage]);
+
+  // Watchdog busy-тишины (инцидент 26.10.2026: сервер шлёт done в потерянный
+  // сокет — панель вечно busy, спиннер без клиентского таймаута). Если операция
+  // идёт, а трафика нет дольше BUSY_RESYNC_AFTER_MS — просим resync: сервер
+  // вернёт снапшот со статусами и переподпишется на завершение операции.
+  useEffect(() => {
+    if (!canConnect) return;
+    const timer = window.setInterval(() => {
+      const socket = socketRef.current;
+      if (socket === null || socket.readyState !== WebSocket.OPEN) return;
+      if (!busyRef.current) return;
+      if (Date.now() - lastTrafficRef.current < BUSY_RESYNC_AFTER_MS) return;
+      // Самоограничение: один resync на окно тишины, даже если ответа всё нет.
+      lastTrafficRef.current = Date.now();
+      socket.send(JSON.stringify({ type: "resync" }));
+    }, BUSY_RESYNC_TICK_MS);
+    return () => window.clearInterval(timer);
+  }, [canConnect]);
 
   /** Отправка вопроса: messageId = operationId (идемпотентность повтора). */
   const send = useCallback((text: string, reuseMessageId?: string) => {

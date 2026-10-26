@@ -36,6 +36,8 @@ export interface AssistantEnv {
 const WS_CLOSE_UNAUTHORIZED = 1008;
 const WS_CLOSE_TEARDOWN = 1008;
 const DEFAULT_RETENTION_DAYS = 7;
+/** Таймаут исходящих fetch (Supabase): зависший вызов не должен жить в waitUntil вечно. */
+const OUTBOUND_TIMEOUT_MS = 15_000;
 
 /** Сокет DO поверх интерфейса ChatSocket (hibernatable send/close). */
 class DoSocket implements ChatSocket {
@@ -213,6 +215,10 @@ export class AssistantDO extends DurableObject<AssistantEnv> {
     }
     this.server = new ChatServer({
       runtime: this.runtime,
+      // Фоновые вейтеры done живут в waitUntil (инцидент 26.10.2026: вейтер в
+      // обработчике WS-сообщения умирал вместе с сокетом/изолятом — панель
+      // оставалась в busy навсегда).
+      defer: (promise) => this.ctx.waitUntil(promise),
       // JWT сеанса сохраняется в памяти изолята только после успешного гейта:
       // runtime-token и инструменты сущностей берут его через getAccessToken.
       authenticate: async (jwt) => {
@@ -248,6 +254,7 @@ export class AssistantDO extends DurableObject<AssistantEnv> {
         prompt_tokens: usage.promptTokens,
         completion_tokens: usage.completionTokens,
       }),
+      signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
     })
       .then(async (response) => {
         if (!response.ok) return;
@@ -276,7 +283,11 @@ export class AssistantDO extends DurableObject<AssistantEnv> {
     try {
       const response = await fetch(
         `${baseUrl.replace(/\/$/, "")}/functions/v1/api/v1/assistant/runtime-token`,
-        { method: "POST", headers: { authorization: `Bearer ${jwt}` } },
+        {
+          method: "POST",
+          headers: { authorization: `Bearer ${jwt}` },
+          signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
+        },
       );
       if (!response.ok) return null;
       return (await response.json()) as RuntimeTokenResponse;
@@ -295,6 +306,7 @@ export class AssistantDO extends DurableObject<AssistantEnv> {
     }
     return fetch(`${baseUrl.replace(/\/$/, "")}/functions/v1/api${path}`, {
       headers: { authorization: `Bearer ${jwt}` },
+      signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
     });
   }
 }

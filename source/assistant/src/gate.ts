@@ -30,6 +30,8 @@ export interface AssistantAccessResponse {
 }
 
 const ACCESS_CACHE_TTL_MS = 60_000;
+/** Таймаут похода в settings/me: зависший API не должен держать auth хендшейка. */
+const ACCESS_FETCH_TIMEOUT_MS = 10_000;
 
 export interface GateEnv {
   SUPABASE_JWKS?: string;
@@ -164,7 +166,11 @@ export class AssistantGate {
     const url = `${baseUrl.replace(/\/$/, "")}/functions/v1/api/v1/assistant/settings/me`;
     let response: Response;
     try {
-      response = await this.fetchFn(url, { headers: { authorization: `Bearer ${jwt}` } });
+      response = await this.fetchFn(url, {
+        headers: { authorization: `Bearer ${jwt}` },
+        // Зависший API не должен держать auth хендшейка дольше таймаута.
+        signal: AbortSignal.timeout(ACCESS_FETCH_TIMEOUT_MS),
+      });
     } catch {
       return null;
     }
