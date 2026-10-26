@@ -6,7 +6,7 @@ import { useCabinetIdentity } from "./identity";
 import { usePageRefresh } from "./use-page-refresh";
 export type { DashboardWidget, DashboardPeriod };
 export interface DashboardResponse {
-  widgets: DashboardWidget[]; analytics: boolean;
+  widgets: DashboardWidget[]; analytics: boolean; registration_analytics?: boolean;
   assistant: { state: "disabled" | "limit" | "unavailable" };
   generated_at: string;
 }
@@ -14,6 +14,29 @@ export interface DashboardAnalytics {
   period: DashboardPeriod; from: string; to: string;
   buckets: Array<PeriodBucket & { created: number; closed: number }>;
   kinds: Array<{ kind: string; count: number }>;
+}
+export interface DashboardTasksAnalytics {
+  period: DashboardPeriod; from: string; to: string;
+  buckets: Array<PeriodBucket & { created: number; accepted: number }>;
+  states: Array<{ state: string; count: number }>;
+}
+export interface DashboardQualityAnalytics {
+  period: DashboardPeriod; from: string; to: string;
+  buckets: Array<PeriodBucket & {
+    requests_late: number; accepted_late: number;
+    median_hours: number | null; avg_rating: number | null; rated: number;
+  }>;
+}
+export interface DashboardTasksWorkload {
+  workload: Array<{ person_id: string | null; name: string; open: number; overdue: number }>;
+}
+export interface DashboardIncidentsAnalytics {
+  period: DashboardPeriod; from: string; to: string;
+  buckets: Array<PeriodBucket & { created: number; completed: number }>;
+}
+export interface DashboardRegistrationsAnalytics {
+  period: DashboardPeriod; from: string; to: string;
+  buckets: Array<PeriodBucket & { primary: number; binding: number }>;
 }
 export function useDashboardIdentity() {
   const { identity, roles } = useCabinetIdentity();
@@ -42,7 +65,7 @@ export function useDashboardResource<T>(path: string | null) {
   return { data: current?.data, error: current?.error, loading: !!path && !!key && !current, reload: load };
 }
 export interface DashboardPreferences { order: string[]; hidden: string[]; limits: Record<string, number> }
-export const dashboardDefaults = (): DashboardPreferences => ({ order: ["new", "action", "registrations", "bindings", "tasks", "incidents", "flow", "kinds"], hidden: [], limits: {} });
+export const dashboardDefaults = (): DashboardPreferences => ({ order: ["new", "action", "registrations", "bindings", "tasks", "incidents", "flow", "kinds", "task-flow", "task-states", "lead", "overdue", "rating", "task-load", "incident-flow", "registrations-flow"], hidden: [], limits: {} });
 export function parseDashboardPreferences(raw: string | null): DashboardPreferences {
   const base = dashboardDefaults();
   try {

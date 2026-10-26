@@ -78,13 +78,16 @@ export function TasksPage() {
   const manager = roles.some((r) =>
     ["chairman", "administrator", "deputy"].includes(r)
   );
-  const [assigneeFilter, setAssigneeFilter] = useState<string>();
   const [search, setSearch] = useState("");
-  // Состояние можно задать ссылкой вида /tasks?state=on_review (очередь дня).
+  // Состояние, исполнитель и период создания можно задать ссылкой вида
+  // /tasks?state=on_review&assignee=<person_id|unassigned>&from=2026-10-20&to=2026-10-26
+  // (детализация графиков главной).
   const [stateFilter, setStateFilter] = useState<string | undefined>(
     () => new URLSearchParams(window.location.search).get("state") ?? undefined);
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [assigneeFilter, setAssigneeFilter] = useState<string | undefined>(
+    () => new URLSearchParams(window.location.search).get("assignee") ?? undefined);
+  const [from, setFrom] = useState(() => new URLSearchParams(window.location.search).get("from") ?? "");
+  const [to, setTo] = useState(() => new URLSearchParams(window.location.search).get("to") ?? "");
   const [rows, setRows] = useState<Task[]>([]),
     [card, setCard] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false),
@@ -125,7 +128,12 @@ export function TasksPage() {
     }
   }
   usePageRefresh(() => refresh(true), !loading && !saving && !actionLoading && !reportBusy);
+  // Сброс фильтров — только при смене действующего лица (эмуляция), не при монтировании:
+  // иначе значения из ссылки (/tasks?state=…&from=…) затираются сразу после первой отрисовки.
+  const previousPerson = useRef(identity?.me.person.id);
   useEffect(() => {
+    if (previousPerson.current === identity?.me.person.id) return;
+    previousPerson.current = identity?.me.person.id;
     setAssigneeFilter(undefined);
     setSearch("");
     setStateFilter(undefined);

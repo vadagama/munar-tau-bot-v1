@@ -331,6 +331,40 @@ it("поиск, состояние и даты создания совместн
   expect(screen.getByText("ЗД-101")).toBeInTheDocument();
 });
 
+it("состояние и период создания задаются ссылкой из графика главной", async () => {
+  window.history.replaceState(null, "", "/tasks?from=2026-10-21&to=2026-10-21&state=accepted");
+  try {
+    vi.mocked(apiFetch).mockResolvedValue({ items: [
+      { ...task, id: "a", number: "ЗД-100", created_at: "2026-10-20T19:00:00Z" },
+      { ...task, id: "b", number: "ЗД-101", created_at: "2026-10-21T18:59:59.999Z", state: "accepted" },
+      { ...task, id: "c", number: "ЗД-102", created_at: "2026-10-21T19:00:00Z" },
+    ] });
+    render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
+    expect(await screen.findByText("ЗД-101", { selector: "button > span" })).toBeInTheDocument();
+    expect(screen.queryByText("ЗД-100", { selector: "button > span" })).not.toBeInTheDocument();
+    expect(screen.queryByText("ЗД-102", { selector: "button > span" })).not.toBeInTheDocument();
+  } finally {
+    window.history.replaceState(null, "", "/");
+  }
+});
+
+it("исполнитель задаётся ссылкой из графика нагрузки исполнителей", async () => {
+  window.history.replaceState(null, "", "/tasks?assignee=worker");
+  try {
+    vi.mocked(apiFetch).mockResolvedValue({ items: [
+      { ...task, id: "a", number: "ЗД-100", assignee_person_id: "worker", assignee_name: "Работник" },
+      { ...task, id: "b", number: "ЗД-101", assignee_person_id: "other", assignee_name: "Другой" },
+      { ...task, id: "c", number: "ЗД-102", assignee_person_id: null, assignee_name: null },
+    ] });
+    render(<MemoryRouter initialEntries={[window.location.pathname + window.location.search]}><TasksPage /></MemoryRouter>);
+    expect(await screen.findByText("ЗД-100", { selector: "button > span" })).toBeInTheDocument();
+    expect(screen.queryByText("ЗД-101", { selector: "button > span" })).not.toBeInTheDocument();
+    expect(screen.queryByText("ЗД-102", { selector: "button > span" })).not.toBeInTheDocument();
+  } finally {
+    window.history.replaceState(null, "", "/");
+  }
+});
+
 it("колонка обращения показывает только разрешённую сервером ссылку", async () => {
   vi.mocked(apiFetch).mockResolvedValue({ items: [
     { ...task, linked_request: { id: "r", number: "З-26-42" } },
