@@ -376,6 +376,24 @@ it("сбой провайдера → «Повторить» отправляе�
   });
 });
 
+it("статус parked от сервера — «Повторить» отправляет {type:\"retry\"} с тем же messageId (S6.1)", async () => {
+  await renderPanel();
+  const socket = FakeWebSocket.last();
+  fireEvent.change(screen.getByLabelText("Вопрос ассистенту"), { target: { value: "зависший вопрос" } });
+  fireEvent.click(screen.getByText("Спросить"));
+  await waitFor(() => expect(screen.getByText("Готовлю ответ")).toBeInTheDocument());
+  const sent = JSON.parse(socket.sent.at(-1)!) as { messageId: string };
+  // S6.1: parked приходит и живым статусом, и после переподключения (после снапшота).
+  socket.receive({ type: "status", messageId: sent.messageId, status: "parked" });
+  expect(await screen.findByRole("button", { name: /Повторить/ })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /Повторить/ }));
+  await waitFor(() => {
+    const repeat = JSON.parse(socket.sent.at(-1)!) as { type: string; messageId: string };
+    expect(repeat.type).toBe("retry");
+    expect(repeat.messageId).toBe(sent.messageId);
+  });
+});
+
 it("повторная отправка того же messageId не создаёт второй прогон (идемпотентность)", async () => {
   await renderPanel();
   const socket = FakeWebSocket.last();

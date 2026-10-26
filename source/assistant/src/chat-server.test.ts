@@ -108,6 +108,37 @@ describe("ChatServer — аутентификация", () => {
     await harness.server.onMessage(socket, "не json", { profileId: "profile-1", epoch: 100 });
     expect(socket.closed).not.toBeNull();
   });
+
+  it("после снапшота уходят статусы незавершённых операций — parked виден после переподключения", async () => {
+    // foldEntry помечает пользовательские записи «done», поэтому единственный
+    // источник живого статуса — runtime.pending() (S6.1).
+    harness.runtime.messages.set("p1", { messageId: "p1", role: "user", text: "зависший вопрос", status: "parked" });
+    harness.runtime.messages.set("p2", { messageId: "p2", role: "user", text: "очередной вопрос", status: "queued" });
+    const socket = new FakeSocket();
+    harness.server.onOpen(socket);
+    await harness.server.onMessage(socket, encodeClientMessage({ type: "auth", jwt: "jwt-ok" }), null);
+    const parsed = socket.parsed();
+    const snapshotIndex = parsed.findIndex((m) => (m as { type: string }).type === "snapshot");
+    expect(snapshotIndex).toBeGreaterThan(-1);
+    expect(parsed.slice(snapshotIndex + 1)).toEqual([
+      { type: "status", messageId: "p1", status: "parked" },
+      { type: "status", messageId: "p2", status: "queued" },
+    ]);
+  });
+
+  it("устаревшая эпоха на хендшейке — auth_ok и старый снапшот не отправляются, сокет закрывается с epoch_stale", async () => {
+    // DO прошлой эпохи (после «Очистить» или границы суток 05:00) не имеет права
+    // отдавать историю даже с валидным JWT того же профиля (S6.1).
+    const local = makeServer({ epoch: "stale" });
+    local.runtime.messages.set("m1", { messageId: "m1", role: "user", text: "старый вопрос", status: "done" });
+    const socket = new FakeSocket();
+    local.server.onOpen(socket);
+    await local.server.onMessage(socket, encodeClientMessage({ type: "auth", jwt: "jwt-ok" }), null);
+    expect(socket.parsed()).not.toContainEqual(expect.objectContaining({ type: "auth_ok" }));
+    expect(socket.parsed()).not.toContainEqual(expect.objectContaining({ type: "snapshot" }));
+    expect(socket.parsed().at(-1)).toMatchObject({ type: "error", code: "epoch_stale" });
+    expect(socket.closed).not.toBeNull();
+  });
 });
 
 describe("ChatServer — сообщения", () => {
