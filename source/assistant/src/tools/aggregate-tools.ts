@@ -176,7 +176,7 @@ export function createAggregateTools(client: EntityApiClient): EntityTool[] {
         });
         return textOutput(workloadTable(data, lang));
       } catch (error) {
-        return failure(error, "list");
+        return failure(error, "list", await client.language());
       }
     },
   });
@@ -195,7 +195,7 @@ export function createAggregateTools(client: EntityApiClient): EntityTool[] {
         const data = await client.get<Record<string, unknown>>("/v1/reports/created-closed-by-day", periodParams(args));
         return textOutput(createdClosedTable(data, lang));
       } catch (error) {
-        return failure(error, "list");
+        return failure(error, "list", await client.language());
       }
     },
   });
@@ -214,7 +214,7 @@ export function createAggregateTools(client: EntityApiClient): EntityTool[] {
         const data = await client.get<Record<string, unknown>>("/v1/reports/overdue-by-building", periodParams(args));
         return textOutput(overdueTable(data, lang));
       } catch (error) {
-        return failure(error, "list");
+        return failure(error, "list", await client.language());
       }
     },
   });
