@@ -17,6 +17,20 @@
   min-width: 0;
 }
 
+/* Выравниваем сами поля; подпись даты остаётся над общей строкой. */
+.cabinet-page__filters,
+.cabinet-page__filter-fields > .ant-space {
+  align-items: flex-end;
+}
+
+.cabinet-page__filter-fields > .ant-space {
+  width: 100%;
+  gap: 12px 8px !important;
+}
+
+.cabinet-page__filter-fields .ant-select { width: 230px; }
+.cabinet-page__filter-fields .ant-space-item:empty { display: none; }
+
 .cabinet-page__header {
   justify-content: space-between;
 }
@@ -52,8 +66,8 @@
   display: flex;
   flex: 1 1 0;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 16px;
+  align-items: flex-end;
+  gap: 12px 8px;
   min-width: 0;
 }
 
@@ -70,7 +84,7 @@
   margin-bottom: 12px;
 }
 
-.list-filter-date { display: inline-flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.list-filter-date { display: inline-flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 20px; max-width: 100%; }
 .list-filter-date .ant-input { width: 155px; }
 .mobile-filters__fields { display: flex; flex-direction: column; gap: 16px; }
 .mobile-filters__fields .ant-select, .mobile-filters__fields .ant-input { width: 100% !important; }
@@ -102,13 +116,11 @@
   .cabinet-page__compact-filters .ant-space { display: flex; flex-direction: column; align-items: stretch; width: 100%; }
   .cabinet-page__compact-filters .ant-space-item:empty,
   .cabinet-page__sort:empty { display: none; }
+  .cabinet-page__compact-filters .list-filter-date { width: 100%; }
   .cabinet-page__compact-filters .ant-select,
   .cabinet-page__compact-filters .ant-input,
   .cabinet-page__compact-filters .ant-picker { width: 100% !important; }
   .cabinet-page__compact-filters .mobile-sort { align-self: stretch; width: 100%; }
-}
-@media (max-width: 767px) {
-  .cabinet-page__intro { display: none; }
 }
 
 /* Entity links from the dashboard open the existing card as the page workspace. */

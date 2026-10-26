@@ -1,3 +1,4 @@
+import { FilterDate } from "../components/filter-date";
 import { FilterOutlined } from "@ant-design/icons";
 import { PageSearch } from "../components/page-controls";
 import { PROCESS_MANAGER_ROLES } from "../components/process-guidance";
@@ -175,13 +176,10 @@ export function CommonWorks({ onTask }: { onTask: (id: string) => void }) {
         <Select prefix={<FilterOutlined aria-hidden />} aria-label="Состояние общей работы" placeholder="Все состояния" allowClear
           value={stateFilter} onChange={setStateFilter} style={{ width: 230 }}
           options={Object.entries(labels).map(([value, label]) => ({ value, label }))} />
-        <Space wrap>
-          <Typography.Text type="secondary">Дата создания:</Typography.Text>
-          <Input aria-label="Дата создания с" title="Дата создания с (Алматы)" type="date"
-            value={from} onChange={event => setFrom(event.target.value)} style={{ width: 155 }} />
-          <Input aria-label="Дата создания по" title="Дата создания по (Алматы)" type="date"
-            value={to} onChange={event => setTo(event.target.value)} style={{ width: 155 }} />
-        </Space>
+        <FilterDate label="Дата создания с" title="Дата создания с (Алматы)"
+          value={from} onChange={event => setFrom(event.target.value)} />
+        <FilterDate label="Дата создания по" title="Дата создания по (Алматы)"
+          value={to} onChange={event => setTo(event.target.value)} />
       </Space>}
       actions={<><Button type="primary" onClick={() => void begin("create")} disabled={busy}>Создать общую работу</Button></>}>
       {invalidPeriod && <Alert type="warning" showIcon message="Дата начала периода позже даты окончания" />}

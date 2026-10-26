@@ -140,11 +140,7 @@ export function NotificationsPage({ section = "preferences" }: { section?: "pref
           action={<Button onClick={() => void load()}>Повторить</Button>}
         />
       )}
-      <Alert className="cabinet-page__intro"
-        type="info"
-        showIcon
-        message="Запросы уточнений и согласований, результат работ, отказ, отмена и финансовые события обязательны. Аварии отправляются сразу. Доставка не означает прочтения или согласия."
-      />
+
       {section === "preferences" && <Card title="Мои настройки" loading={!settings && busy}>
         {settings && (
           <Space direction="vertical" size="middle" style={{ width: "100%" }}>
@@ -196,11 +192,7 @@ export function NotificationsPage({ section = "preferences" }: { section?: "pref
         <Card
           title="Ошибки доставки"
         >
-          <Typography.Paragraph className="cabinet-page__intro">
-            После окончательной ошибки важной доставки создаётся задача
-            связаться с получателем. Запишите фактический результат попытки;
-            закрытие задачи не подтверждает согласие жителя.
-          </Typography.Paragraph>
+
           <ConfigurableTable storageKey="columns.notification-failures" settingsPlacement="page"
             rowKey="id"
             loading={busy}

@@ -1,3 +1,4 @@
+import { FilterDate } from "../components/filter-date";
 import { useSearchParams } from "react-router-dom";
 import { FilterOutlined } from "@ant-design/icons";
 import { PageSearch } from "../components/page-controls";
@@ -537,19 +538,15 @@ export function RegistryPage({ users, section = "premises" }: { users?: "residen
           onChange={setHasPremises} style={{ width: 220 }} options={[
             { value: "yes", label: "Есть помещения" }, { value: "no", label: "Без помещений" },
           ]} />
-        <Input aria-label="Период регистрации с" type="date" value={registeredFrom}
+        <FilterDate label="Период регистрации с" value={registeredFrom}
           onChange={e => setRegisteredFrom(e.target.value)} style={{ width: 155 }} />
-        <Input aria-label="Период регистрации по" type="date" value={registeredTo}
+        <FilterDate label="Период регистрации по" value={registeredTo}
           onChange={e => setRegisteredTo(e.target.value)} style={{ width: 155 }} />
       </Space> : users === "staff" ? <Space wrap>
         <PageSearch aria-label="Поиск сотрудников" placeholder="ФИО, телефон, Telegram или роль" value={staffSearch}
           onChange={e => setStaffSearch(e.target.value)} style={{ width: 320 }} />
       </Space> : !users && <RegistryFilters section={section} values={filters}
-        onChange={values => { setFilters(values); setPage(1); }} buildings={buildings} kinds={KINDS} roles={ROLES} statuses={STATUS} />}> <Typography.Paragraph className="cabinet-page__intro" type="secondary">
-          {users === "staff" ? "Пользователи с действующими служебными полномочиями в доступной области." : users
-            ? "Жители без действующих служебных назначений. Совпадение телефона не объединяет карточки."
-            : "Здания, помещения и привязки помещений к пользователям. Изменения сохраняются в журнале."}
-        </Typography.Paragraph>
+        onChange={values => { setFilters(values); setPage(1); }} buildings={buildings} kinds={KINDS} roles={ROLES} statuses={STATUS} />}>
 
       {error && editing === undefined && !recovery && (
         <Alert

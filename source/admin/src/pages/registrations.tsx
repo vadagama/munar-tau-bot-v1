@@ -243,9 +243,7 @@ export function RegistrationsPage() {
             label,
           }))}
         />
-      </Space>}> <Typography.Paragraph className="cabinet-page__intro" type="secondary">
-            Проверьте анкету по реестру. Спор остаётся открытым до явного решения.
-          </Typography.Paragraph>
+      </Space>}>
 
       {selectedRegistration && !busy && (() => {
         const row = rows.find(r => r.id === selectedRegistration);

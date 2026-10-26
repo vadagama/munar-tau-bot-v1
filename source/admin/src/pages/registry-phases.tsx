@@ -2,7 +2,7 @@ import { FilterOutlined } from "@ant-design/icons";
 import { PageSearch } from "../components/page-controls";
 import { useEffect, useRef, useState } from "react";
 import { CardDrawer } from "./card-drawer";
-import { Alert, Button, Descriptions, Select, Space, Typography } from "antd";
+import { Alert, Button, Descriptions, Select, Space } from "antd";
 import { ConfigurableTable } from "../components/configurable-table";
 import { PageLayout } from "../components/page-layout";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -68,7 +68,7 @@ export function RegistryPhasesPage() {
       onChange={value => { setOccupancy(value); setPage(1); }} style={{ width: 230 }}
       options={[{ value: "filled", label: "Есть здания" }, { value: "empty", label: "Без зданий" }]} />
   </Space>}>
-    <Typography.Paragraph className="cabinet-page__intro" type="secondary">Очереди строительства и их состав в доступной области. Очередь меняется в карточке здания; «Не указана» объединяет здания без очереди.</Typography.Paragraph>
+
     {error && <Alert type="error" showIcon message={error} />}
     <ConfigurableTable storageKey="columns.registry.phases" onMobileRowClick={row => setSelected(row)} settingsPlacement="page" rowKey="id" loading={busy}
       dataSource={error && !buildings.length ? [] : rows} scroll={{ x: 800 }} pagination={{ current: page, onChange: setPage, pageSize: 20 }}
