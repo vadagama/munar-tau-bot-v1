@@ -9,6 +9,7 @@ import { defineExtension, hook, ToolTask } from "@earendil-works/pi-durable";
 import { AGGREGATE_TOOL_NAMES, createAggregateTools } from "./aggregate-tools.ts";
 import { createEntityTools, READONLY_TOOL_NAMES, type EntityTool } from "./entity-tools.ts";
 import { EntityApiClient } from "./api-client.ts";
+import { withToolMetrics } from "./tool-metrics.ts";
 
 /** Полный read-only белый список: инструменты сущностей + агрегаты (S4a.2). */
 export const READONLY_NAMES: readonly string[] = [...READONLY_TOOL_NAMES, ...AGGREGATE_TOOL_NAMES];
@@ -30,7 +31,12 @@ export function guardToolCall(call: { name: string }): { block: string } | undef
  * Устанавливается в реестр изолята один раз (PiChatRuntime).
  */
 export function createEntityExtension(client: EntityApiClient) {
-  const tools: EntityTool[] = [...createEntityTools(client), ...createAggregateTools(client)];
+  // Метрики каждого вызова (S6.1): имя/длительность/исход — в лог наблюдаемости,
+  // без персональных данных.
+  const tools: EntityTool[] = withToolMetrics([
+    ...createEntityTools(client),
+    ...createAggregateTools(client),
+  ]);
   return defineExtension({
     name: "assistant-entities",
     tools,

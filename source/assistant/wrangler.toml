@@ -5,6 +5,11 @@ main = "src/index.ts"
 compatibility_date = "2026-10-26"
 compatibility_flags = ["nodejs_compat"]
 
+# Наблюдаемость Worker'а (S6.1): structured-логи изолята — имена инструментов,
+# длительности, события teardown — без персональных данных.
+[observability]
+enabled = true
+
 # Один Durable Object на сотрудника и эпоху (имя `assistant:<profile_id>:<epoch>`).
 [[durable_objects.bindings]]
 name = "ASSISTANT"
