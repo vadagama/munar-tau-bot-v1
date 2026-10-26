@@ -103,7 +103,7 @@ export function AssistantPanel() {
               {messages.map((message) => (
                 <div key={message.messageId} className={`assistant-msg assistant-msg--${message.role}`}>
                   {message.role === "assistant"
-                    ? <AssistantMarkdown text={messageBody(message)} />
+                    ? <AssistantMarkdown text={messageBody(message)} sources={message.sources} />
                     : <div className="assistant-msg-text">{messageBody(message)}</div>}
                   {(message.status === "unanswered" || message.status === "failed" || message.status === "parked") && message.role === "user" && (
                     <Button

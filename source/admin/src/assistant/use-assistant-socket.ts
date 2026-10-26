@@ -31,6 +31,8 @@ export interface AssistantMessageView {
   text: string;
   status: "queued" | "running" | "done" | "unanswered" | "parked" | "failed";
   error?: string;
+  /** Пул карточек-ссылок из read-only инструментов (S2.1) — для ответов ассистента. */
+  sources?: Array<{ title: string; href: string }>;
 }
 
 export type AssistantPanelStatus =
@@ -197,7 +199,19 @@ export function useAssistantSocket() {
         if (typeof envelope.messageId !== "string") return;
         const base = envelope.messageId;
         if (typeof envelope.text === "string" && envelope.text !== "") {
-          mergeMessage({ messageId: `${base}:reply`, role: "assistant", text: envelope.text, status: "done" });
+          // Пул источников (S2.1): ссылки только валидные пары title/href.
+          const sources = Array.isArray(envelope.sources)
+            ? (envelope.sources as Array<{ title?: unknown; href?: unknown }>)
+              .filter((s) => typeof s?.title === "string" && typeof s?.href === "string")
+              .map((s) => ({ title: s.title as string, href: s.href as string }))
+            : undefined;
+          mergeMessage({
+            messageId: `${base}:reply`,
+            role: "assistant",
+            text: envelope.text,
+            status: "done",
+            ...(sources !== undefined && sources.length > 0 ? { sources } : {}),
+          });
         }
         setMessages((current) => {
           const at = current.findIndex((m) => m.messageId === base);

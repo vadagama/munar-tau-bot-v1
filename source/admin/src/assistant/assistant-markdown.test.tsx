@@ -51,6 +51,22 @@ describe("AssistantMarkdown", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
+  it("карточка жителя из tools рендерится по прямому href (users/residents в allow-list)", () => {
+    renderText("Житель: [Смагулов Ерлан](/users/residents?entity=p1&entity_page=1)", [
+      { title: "Смагулов Ерлан", href: "/users/residents?entity=p1&entity_page=1" },
+    ]);
+    const link = screen.getByRole("link", { name: "Смагулов Ерлан" });
+    expect(link).toHaveAttribute("href", "/users/residents?entity=p1&entity_page=1");
+  });
+
+  it("путь страницы сотрудников вне allow-list — текст, не ссылка", () => {
+    renderText("Сотрудник: [Ахметова](/users/staff)", [
+      { title: "Ахметова", href: "/users/staff" },
+    ]);
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText(/Ахметова/)).toBeInTheDocument();
+  });
+
   it("таблица рендерится с заголовками, превышение размеров — текстом", () => {
     renderText("| Задание | Срок |\n| --- | --- |\n| Ремонт | 01.11 |\n");
     expect(screen.getByRole("region", { name: "Таблица ответа" })).toBeInTheDocument();

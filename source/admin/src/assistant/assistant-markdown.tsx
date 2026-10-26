@@ -14,7 +14,7 @@ function inline(text: string, sources: AssistantSource[]): ReactNode[] {
     const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(part);
     if (link) {
       const source = sources.find(s => s.ref === link[2] || s.href === link[2]);
-      if (source && /^\/(requests|tasks|incidents|registrations|registry\/(buildings|premises))(\?|$)/.test(source.href) && !/[\\\x00-\x20]/.test(source.href)) return <Link key={i} to={source.href}>{source.title}</Link>;
+      if (source && /^\/(requests|tasks|incidents|registrations|registry\/(buildings|premises)|users\/residents)(\?|$)/.test(source.href) && !/[\\\x00-\x20]/.test(source.href)) return <Link key={i} to={source.href}>{source.title}</Link>;
       return link[1];
     }
     if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{inline(part.slice(2, -2), sources)}</strong>;

@@ -230,6 +230,24 @@ it("снапшот восстанавливает историю, дельты �
   expect(screen.getByText("Спросить")).toBeInTheDocument();
 });
 
+it("done с sources рендерит карточку-ссылку из пула инструментов", async () => {
+  await renderPanel();
+  const socket = FakeWebSocket.last();
+  fireEvent.change(screen.getByLabelText("Вопрос ассистенту"), { target: { value: "покажи новые обращения" } });
+  fireEvent.click(screen.getByText("Спросить"));
+  await waitFor(() => expect(screen.getByText("Готовлю ответ")).toBeInTheDocument());
+  const sent = JSON.parse(socket.sent.at(-1)!) as { messageId: string };
+  socket.receive({
+    type: "done",
+    messageId: sent.messageId,
+    status: "done",
+    text: "Нашёл обращение [№ОБ-12 · Лифт](/requests?request=r1&entity_page=1)",
+    sources: [{ title: "№ОБ-12 · Лифт", href: "/requests?request=r1&entity_page=1" }],
+  });
+  const link = await screen.findByRole("link", { name: "№ОБ-12 · Лифт" });
+  expect(link).toHaveAttribute("href", "/requests?request=r1&entity_page=1");
+});
+
 it("HTML из ответа не рендерится", async () => {
   await renderPanel();
   const socket = FakeWebSocket.last();
