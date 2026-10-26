@@ -1,0 +1,15 @@
+# AI-ассистент кабинета — Cloudflare Worker (ADR-021, ADR-005/002: деплой вне Pages)
+
+name = "munar-assistant"
+main = "src/index.ts"
+compatibility_date = "2026-10-26"
+compatibility_flags = ["nodejs_compat"]
+
+# Один Durable Object на сотрудника и эпоху (имя `assistant:<profile_id>:<epoch>`).
+[[durable_objects.bindings]]
+name = "ASSISTANT"
+class_name = "AssistantDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AssistantDO"]

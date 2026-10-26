@@ -290,6 +290,10 @@ export interface AssistantAccessView {
   month_used: number;
   day: string;
   month: string;
+  /** Владелец доступа — сверка панели и гейта DO (S1.3). */
+  profile_id: string;
+  /** Конфиг-эпоха DO: панель вычисляет max(epoch, UTC-сутки) для имени DO. */
+  epoch: number;
 }
 
 /** Доступ и остаток одного профиля — общая часть settings/me и usage. */
@@ -308,6 +312,8 @@ async function accessView(
     month_used: summary.monthTokens,
     day: summary.day,
     month: summary.month,
+    profile_id: profileId,
+    epoch: config?.epoch ?? 1,
   };
 }
 
@@ -333,7 +339,8 @@ export async function assistantUsage(
   if (!can(actor, "assistant.usage.read", { profileId: target }).allow) {
     throw new ApiError("FORBIDDEN");
   }
-  return { profile_id: target, ...(await accessView(deps, deps.db, target)) };
+  // profile_id уже в accessView (S1.3) — не дублируем.
+  return accessView(deps, deps.db, target);
 }
 
 /**
@@ -383,6 +390,42 @@ export async function issueRuntimeToken(deps: AssistantDeps, actor: Actor) {
       model_id: settings.modelId,
       api_key: apiKey,
     };
+  });
+}
+
+/**
+ * POST /v1/assistant/clear (S1.3): «Очистить контекст» — поднимает эпоху DO,
+ * панель переподключается к новому изоляту с пустой историей (сессии Pi
+ * удалить нельзя, поэтому очистка = пересоздание DO по эпохе). Право
+ * assistant.use, свой профиль, Idempotency-Key (двойной клик — один сброс),
+ * аудит assistant.session.cleared. Расход не обнуляется (ledger append-only).
+ */
+export async function clearAssistantSession(deps: AssistantDeps, actor: Actor, key: unknown) {
+  requirePermission(actor, "assistant.use");
+  return deps.db.transaction(async (exec) => {
+    const profile = await deps.admin.getProfile(exec, actor.profile.id);
+    if (!profile || profile.archivedAt) throw new ApiError("FORBIDDEN");
+    const fresh = await buildActorForProfile(deps.admin, exec, profile, new Date());
+    if (!can(fresh, "assistant.use").allow) throw new ApiError("FORBIDDEN");
+    return idempotent(exec, fresh, "assistant:clear", key, null, async () => {
+      const config = await deps.assistant.getUserConfig(exec, fresh.profile.id);
+      const epoch = await deps.assistant.bumpUserConfigEpoch(exec, fresh.profile.id);
+      if (epoch === null) {
+        throw new ApiError("FORBIDDEN", "Ассистент не включён для этого профиля");
+      }
+      await recordAudit(
+        deps,
+        exec,
+        fresh,
+        "assistant.session.cleared",
+        "assistant_user_config",
+        fresh.profile.id,
+        [],
+        { epoch: config?.epoch ?? null },
+        { epoch },
+      );
+      return { epoch };
+    });
   });
 }
 

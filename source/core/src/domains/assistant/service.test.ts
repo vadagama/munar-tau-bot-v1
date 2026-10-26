@@ -9,6 +9,7 @@ import { buildActorForProfile } from "../admin/actor-service.ts";
 import type { ProfileRecord } from "../admin/port.ts";
 import {
   assistantUsage,
+  clearAssistantSession,
   issueRuntimeToken,
   myAssistantAccess,
   recordAssistantUsage,
@@ -283,6 +284,7 @@ describe("сервис assistant: per-user конфиги", () => {
       enabled: false,
       dailyTokenLimit: 0,
       monthlyTokenLimit: 0,
+      epoch: 1,
       version: 3,
       updatedAt: new Date().toISOString(),
     });
@@ -426,6 +428,8 @@ describe("сервис assistant: runtime-token и расход", () => {
       monthly_token_limit: 10000,
       day_used: 300,
       month_used: 300,
+      profile_id: "profile-chair",
+      epoch: 1,
     });
     expect(view.day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(view.month).toMatch(/^\d{4}-\d{2}$/);
@@ -440,5 +444,61 @@ describe("сервис assistant: runtime-token и расход", () => {
     await expect(assistantUsage(deps, admin, "profile-staff")).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
+  });
+});
+
+describe("сервис assistant: очистка сеанса (эпохи DO)", () => {
+  it("очистка поднимает эпоху выше сегодняшнего UTC-дня и пишет аудит", async () => {
+    const { deps, audit, chair, assistant } = await enabledChair();
+    const before = (await assistant.getUserConfig(deps.db, "profile-chair"))?.epoch ?? null;
+    const result = await clearAssistantSession(deps, chair, "clear-1");
+    const utcDay = Math.floor(new Date().getTime() / 86_400_000);
+    expect(result.epoch).toBe(Math.max(before ?? 1, utcDay) + 1);
+    expect(result.epoch).toBeGreaterThan(utcDay);
+    expect(
+      audit.entries.some((e) =>
+        e.action === "assistant.session.cleared" &&
+        (e.after as { epoch?: number } | null)?.epoch === result.epoch,
+      ),
+    ).toBe(true);
+  });
+
+  it("повтор очистки с тем же Idempotency-Key возвращает ту же эпоху", async () => {
+    const { deps, chair } = await enabledChair();
+    const first = await clearAssistantSession(deps, chair, "clear-key");
+    const second = await clearAssistantSession(deps, chair, "clear-key");
+    expect(second.epoch).toBe(first.epoch);
+  });
+
+  it("повторная очистка продолжает рост эпохи", async () => {
+    const { deps, chair } = await enabledChair();
+    const first = await clearAssistantSession(deps, chair, "clear-1");
+    const second = await clearAssistantSession(deps, chair, "clear-2");
+    expect(second.epoch).toBe(first.epoch + 1);
+  });
+
+  it("выключенному сотруднику очистка недоступна (PDP)", async () => {
+    const { deps, staffProfile } = await setup();
+    const staff = await actorWithRole(deps, staffProfile, "administrator");
+    await expect(clearAssistantSession(deps, staff, "clear-staff")).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+
+  it("очистка не меняет version конфига и расход не обнуляется", async () => {
+    const { deps, chair, assistant } = await enabledChair();
+    await recordAssistantUsage(deps, {
+      profile_id: "profile-chair",
+      operation_id: "op-clear-1",
+      prompt_tokens: 100,
+      completion_tokens: 50,
+    });
+    const configBefore = await assistant.getUserConfig(deps.db, "profile-chair");
+    await clearAssistantSession(deps, chair, "clear-1");
+    const configAfter = await assistant.getUserConfig(deps.db, "profile-chair");
+    expect(configAfter?.version).toBe(configBefore?.version);
+    const view = await myAssistantAccess(deps, chair);
+    expect(view.month_used).toBe(150);
+    expect(view.epoch).toBeGreaterThan(configBefore?.epoch ?? 0);
   });
 });
