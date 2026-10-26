@@ -94,6 +94,7 @@ export class MemoryAssistantRepo implements AssistantRepo {
       if (existing) return null;
       const created: AssistantUserConfigRecord = {
         ...input,
+        epoch: 1,
         version: 1,
         updatedAt: new Date().toISOString(),
       };
@@ -104,11 +105,26 @@ export class MemoryAssistantRepo implements AssistantRepo {
     const updated: AssistantUserConfigRecord = {
       ...existing,
       ...input,
+      // Эпоху PUT конфига не меняет — только bumpUserConfigEpoch.
+      epoch: existing.epoch,
       version: existing.version + 1,
       updatedAt: new Date().toISOString(),
     };
     this.configs.set(input.profileId, updated);
     return { ...updated };
+  }
+
+  public async bumpUserConfigEpoch(_exec: DbExecutor, profileId: string): Promise<number | null> {
+    const config = this.configs.get(profileId);
+    if (!config) return null;
+    const utcDay = Math.floor(new Date().getTime() / 86_400_000);
+    const next: AssistantUserConfigRecord = {
+      ...config,
+      epoch: Math.max(config.epoch, utcDay) + 1,
+      updatedAt: new Date().toISOString(),
+    };
+    this.configs.set(profileId, next);
+    return next.epoch;
   }
 
   public async insertUsage(_exec: DbExecutor, input: AssistantUsageInput): Promise<boolean> {

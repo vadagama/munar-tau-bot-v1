@@ -31,6 +31,8 @@ export interface AssistantUserConfigRecord {
   enabled: boolean;
   dailyTokenLimit: number;
   monthlyTokenLimit: number;
+  /** Эпоха DO: растёт при «Очистить»; PUT конфига её не меняет. */
+  epoch: number;
   version: number;
   updatedAt: string;
 }
@@ -96,12 +98,18 @@ export interface AssistantRepo {
   /**
    * Insert (expectedVersion null) или update по точной версии; version+1.
    * null в ответе — конфликт версий или строка появилась при insert.
+   * Эпоху не меняет — её поднимает только clearAssistantSession.
    */
   upsertUserConfig(
     exec: DbExecutor,
     input: AssistantUserConfigInput,
     expectedVersion: number | null,
   ): Promise<AssistantUserConfigRecord | null>;
+  /**
+   * «Очистить контекст»: epoch = max(epoch, номер UTC-суток) + 1.
+   * null — конфига нет (сотрудник не включался). Версию не меняет.
+   */
+  bumpUserConfigEpoch(exec: DbExecutor, profileId: string): Promise<number | null>;
   /** Append-only запись расхода; false — operation_id уже записан (повтор). */
   insertUsage(exec: DbExecutor, input: AssistantUsageInput): Promise<boolean>;
   /** Суммарный расход за текущие день/месяц по Asia/Almaty. */
