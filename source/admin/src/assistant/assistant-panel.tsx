@@ -17,9 +17,12 @@ const OPEN_STORAGE_KEY = "assistant.panel.open";
 
 function readOpen(): boolean {
   try {
-    return localStorage.getItem(OPEN_STORAGE_KEY) === "1";
+    const saved = localStorage.getItem(OPEN_STORAGE_KEY);
+    // Первый вход (нет сохранённого выбора) — панель развёрнута: поле ввода
+    // должно быть видно сразу, пустая карточка выглядит сломанной.
+    return saved === null ? true : saved === "1";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -80,6 +83,9 @@ export function AssistantPanel() {
       <Card
         title="AI-ассистент"
         extra={<Space size={4}>{toggle}</Space>}
+        // Свёрнутая панель без содержимого — только шапка: пустое тело карточки
+        // выглядит как сломанный рендер (сообщения статусов остаются видимыми).
+        styles={!open && status.kind === "open" ? { body: { display: "none" } } : undefined}
       >
         {status.kind === "unconfigured" && (
           <Typography.Paragraph type="secondary">

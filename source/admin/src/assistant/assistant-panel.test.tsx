@@ -142,8 +142,8 @@ async function renderPanel(): Promise<void> {
   // auth уходит первым сообщением после открытия.
   await waitFor(() => expect(FakeWebSocket.last().sent.length).toBeGreaterThan(0));
   acceptAuth(FakeWebSocket.last());
-  // Панель по умолчанию свёрнута — раскрываем и ждём активную форму.
-  fireEvent.click(screen.getByRole("button", { name: "Развернуть" }));
+  // Панель развёрнута по умолчанию (первый вход без сохранённого выбора);
+  // после auth_ok форма активна без нажатия «Развернуть».
   await waitFor(() => expect(screen.getByLabelText("Вопрос ассистенту")).toBeEnabled(), { timeout: 3000 });
 }
 
@@ -187,6 +187,26 @@ it("скрыта, когда ассистент выключен, в эмуля�
   state.identity.isTest = true;
   render(<MemoryRouter><AssistantPanel /></MemoryRouter>);
   await waitFor(() => expect(screen.queryByText("AI-ассистент")).not.toBeInTheDocument());
+});
+
+it("при первом входе панель развёрнута: поле ввода видно сразу после подключения", async () => {
+  await renderPanel();
+  // Развёрнутое состояние сохраняется как выбор пользователя.
+  expect(localStorage.getItem("assistant.panel.open")).toBe("1");
+});
+
+it("свёрнутая панель (сохранённый выбор) без пустого тела: разворачивается кнопкой", async () => {
+  localStorage.setItem("assistant.panel.open", "0");
+  render(<MemoryRouter><AssistantPanel /></MemoryRouter>);
+  await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0));
+  FakeWebSocket.last().open();
+  await waitFor(() => expect(FakeWebSocket.last().sent.length).toBeGreaterThan(0));
+  acceptAuth(FakeWebSocket.last());
+  // Пустого тела нет — свёрнутая панель это только шапка с кнопкой.
+  await waitFor(() => expect(document.querySelector(".ant-card-body")).toHaveStyle({ display: "none" }));
+  fireEvent.click(screen.getByRole("button", { name: "Развернуть" }));
+  expect(screen.getByLabelText("Вопрос ассистенту")).toBeEnabled();
+  expect(localStorage.getItem("assistant.panel.open")).toBe("1");
 });
 
 it("подключается с профилем и эффективной эпохой, JWT — первым сообщением, не в URL", async () => {
