@@ -332,7 +332,9 @@ export function useAssistantSocket() {
       if (!aliveRef.current || generationRef.current !== currentGeneration) return;
       if (jwt === null) return;
       const epoch = effectiveEpoch(accessEpoch, new Date());
-      const url = `${wsUrl}?profile_id=${encodeURIComponent(profileId)}&epoch=${epoch}`;
+      // VITE_ASSISTANT_WS_URL — базовый адрес Worker; эндпоинт апгрейда — /ws
+      // (см. assistant/src/index.ts и комментарий в lib/env.ts).
+      const url = `${wsUrl}/ws?profile_id=${encodeURIComponent(profileId)}&epoch=${epoch}`;
       const socket = new WebSocket(url);
       socketRef.current = socket;
       setConnected(false);

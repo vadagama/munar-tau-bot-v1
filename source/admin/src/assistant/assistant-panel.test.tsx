@@ -193,6 +193,8 @@ it("подключается с профилем и эффективной эп�
   await renderPanel();
   const socket = FakeWebSocket.last();
   expect(socket.url).toContain("profile_id=profile-1");
+  // Эндпоинт апгрейда Worker — /ws: базовый адрес из сборки без пути (S1.2).
+  expect(socket.url.startsWith("wss://assistant.example/ws?")).toBe(true);
   // epoch=1 → эффективная эпоха = номер UTC-суток (сегодняшний день).
   expect(socket.url).toMatch(/epoch=\d{5,}/);
   expect(socket.url).not.toContain("jwt");
