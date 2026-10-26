@@ -205,6 +205,37 @@ describe("ChatServer — сообщения", () => {
     expect(harness.runtime.retried).toEqual(["op-1"]);
   });
 
+  it("done передаёт пул источников из WaitResult, снапшот — из транскрипта", async () => {
+    const sources = [{ title: "№ОБ-12 · Лифт", href: "/requests?request=r1&entity_page=1" }];
+    const pending = harness.server.onMessage(
+      socket,
+      encodeClientMessage({ type: "message", messageId: "op-s", text: "покажи новые обращения" }),
+      { profileId: "profile-1", epoch: 100 },
+    );
+    await harness.runtime.untilAwaited("op-s");
+    harness.runtime.finishReply("op-s", "Вот обращения", { status: "done", text: "Вот обращения", sources });
+    await pending;
+    expect(socket.parsed().at(-1)).toMatchObject({ type: "done", messageId: "op-s", sources });
+
+    harness.runtime.messages.set("r-1", {
+      messageId: "r-1",
+      role: "assistant",
+      text: "снапшотный ответ",
+      status: "done",
+      sources,
+    });
+    await harness.server.onMessage(socket, encodeClientMessage({ type: "resync" }), {
+      profileId: "profile-1",
+      epoch: 100,
+    });
+    const snapshot = socket.parsed().at(-1) as {
+      type: string;
+      messages: Array<{ messageId: string; sources?: unknown }>;
+    };
+    expect(snapshot.type).toBe("snapshot");
+    expect(snapshot.messages.find((m) => m.messageId === "r-1")?.sources).toEqual(sources);
+  });
+
   it("resync отправляет свежий снапшот", async () => {
     harness.runtime.messages.set("m1", { messageId: "m1", role: "user", text: "вопрос", status: "done" });
     await harness.server.onMessage(socket, encodeClientMessage({ type: "resync" }), {

@@ -2,7 +2,7 @@
 // за ChatRuntime; тесты идут на фейке»). Реализация на PiHarness — pi-runtime.ts
 // (S1.3, только typecheck); вся логика чата тестируется на фейках этого файла.
 
-import type { ChatMessageStatus, ChatMessageView } from "./protocol.ts";
+import type { ChatMessageStatus, ChatMessageView, ChatSource } from "./protocol.ts";
 
 /** Обновление транскрипта, которое рантайм доставляет подписчикам. */
 export type RuntimeUpdate =
@@ -23,6 +23,8 @@ export interface WaitResult {
   /** Полный текст ответа при done — эталон для панели вместо накопленных дельт. */
   text?: string;
   reason?: string;
+  /** Пул карточек-ссылок из вызовов инструментов этого ответа (S2.1). */
+  sources?: ChatSource[];
 }
 
 export interface PendingOperation {

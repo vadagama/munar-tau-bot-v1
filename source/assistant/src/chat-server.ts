@@ -147,6 +147,8 @@ export class ChatServer {
       status: result.status,
       text: result.text,
       error: result.reason,
+      // Пул карточек-ссылок из инструментов (S2.1); undefined уходит из JSON.
+      sources: result.sources,
     });
   }
 

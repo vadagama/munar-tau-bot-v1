@@ -17,6 +17,7 @@ import { createRegistry, Harness, type EntryRecord, type Registry } from "@earen
 import { PiHarness, type PiPendingOperation } from "agents/harness/pi";
 import type { ChatRuntime, RuntimeListener, RuntimeUpdate, SubmitResult, WaitResult } from "./chat-runtime.ts";
 import type { ChatMessageView } from "./protocol.ts";
+import { contentText, collectSources, sourcesForEntry } from "./tools/sources.ts";
 import { EntityApiClient } from "./tools/api-client.ts";
 import { createEntityExtension } from "./tools/guard.ts";
 
@@ -46,13 +47,7 @@ const FALLBACK_MODEL_ID = "deepseek-flash";
 const PROVIDER_ID = "deepseek";
 
 function entryText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => (part && typeof part === "object" && "text" in part ? String(part.text) : ""))
-      .join("");
-  }
-  return "";
+  return contentText(content);
 }
 
 function isAssistantEntry(entry: EntryRecord): boolean {
@@ -139,7 +134,18 @@ export class PiChatRuntime implements ChatRuntime {
 
   async wait(messageId: string): Promise<WaitResult> {
     const result = await this.harness.wait(messageId);
-    return { status: result.status, text: result.text, reason: result.reason };
+    if (result.status !== "done") {
+      return { status: result.status, text: result.text, reason: result.reason };
+    }
+    // Пул источников — из tool-result записей транскрипта (S2.1): к финалу
+    // ответа все вызовы инструментов уже в истории. Пустой пул не отправляем.
+    const sources = collectSources(await this.harness.messages());
+    return {
+      status: result.status,
+      text: result.text,
+      reason: result.reason,
+      ...(sources.length > 0 ? { sources } : {}),
+    };
   }
 
   async pending() {
@@ -154,7 +160,14 @@ export class PiChatRuntime implements ChatRuntime {
     const views: ChatMessageView[] = [];
     for (const entry of entries) {
       const view = foldEntry(entry);
-      if (view !== null) views.push(view);
+      if (view === null) continue;
+      if (isAssistantEntry(entry)) {
+        // Источники ответа — tool-result записи до него включительно: снапшот
+        // после переподключения несёт те же ссылки, что и живой ответ.
+        const sources = sourcesForEntry(entries, entry.id);
+        if (sources.length > 0) view.sources = sources;
+      }
+      views.push(view);
     }
     return views;
   }

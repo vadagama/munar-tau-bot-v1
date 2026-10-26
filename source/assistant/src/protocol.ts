@@ -14,6 +14,14 @@ export interface ChatMessageView {
   text: string;
   status: ChatMessageStatus;
   error?: string;
+  /** Пул карточек-ссылок из read-only инструментов (S2.1) — для ответов ассистента. */
+  sources?: ChatSource[];
+}
+
+/** Ссылка на сущность из вывода инструментов (заголовок + абсолютный путь). */
+export interface ChatSource {
+  title: string;
+  href: string;
 }
 
 /** Решение гейта (gate.ts): JWT + enabled + сверка профиля/эпохи. */
@@ -92,6 +100,7 @@ export interface DoneMessage {
   status: "done" | "unanswered";
   text?: string;
   error?: string;
+  sources?: ChatSource[];
 }
 
 /** Полная запись транскрипта (после обрыва/пробуждения DO): заменить или добавить. */
