@@ -7,6 +7,7 @@ import type { Route } from "./handlers.ts";
 import {
   assistantSettingsView,
   assistantUsage,
+  assistantUsageHistory,
   clearAssistantSession,
   issueRuntimeToken,
   myAssistantAccess,
@@ -58,6 +59,21 @@ export const ASSISTANT_ROUTES: Route[] = [
         c.deps,
         c.actor,
         c.url.searchParams.get("profile_id") ?? undefined,
+      ),
+    }),
+  },
+  {
+    method: "GET",
+    path: "/v1/assistant/usage/history",
+    action: usageRead,
+    evaluateAs: "effective",
+    resource: (c) => ({ profileId: c.url.searchParams.get("profile_id") ?? c.actor.profile.id }),
+    handler: async (c) => ({
+      body: await assistantUsageHistory(
+        c.deps,
+        c.actor,
+        c.url.searchParams.get("profile_id") ?? undefined,
+        c.url.searchParams.get("granularity") ?? undefined,
       ),
     }),
   },

@@ -69,6 +69,18 @@ export interface AssistantUsageSummary {
   monthTokens: number;
 }
 
+/** Разрез истории расхода: день (usage_day) или месяц (usage_month). */
+export type AssistantUsageGranularity = "day" | "month";
+
+/** Строка истории расхода: период, токены промпта и ответа. */
+export interface AssistantUsageHistoryRow {
+  /** YYYY-MM-DD для дня, YYYY-MM для месяца. */
+  period: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
 /** Строка ledger (assistant_usage_ledger, append-only). */
 export interface AssistantUsageInput {
   profileId: string;
@@ -114,4 +126,11 @@ export interface AssistantRepo {
   insertUsage(exec: DbExecutor, input: AssistantUsageInput): Promise<boolean>;
   /** Суммарный расход за текущие день/месяц по Asia/Almaty. */
   sumUsage(exec: DbExecutor, profileId: string): Promise<AssistantUsageSummary>;
+  /** История расхода: последние `limit` периодов, свежие первыми. */
+  listUsageHistory(
+    exec: DbExecutor,
+    profileId: string,
+    granularity: AssistantUsageGranularity,
+    limit: number,
+  ): Promise<AssistantUsageHistoryRow[]>;
 }

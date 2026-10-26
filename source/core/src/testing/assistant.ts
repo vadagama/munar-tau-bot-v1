@@ -8,6 +8,8 @@ import type {
   AssistantSettingsPatch,
   AssistantSettingsRecord,
   AssistantStaffConfigRow,
+  AssistantUsageGranularity,
+  AssistantUsageHistoryRow,
   AssistantUsageInput,
   AssistantUsageSummary,
   AssistantUserConfigInput,
@@ -152,5 +154,32 @@ export class MemoryAssistantRepo implements AssistantRepo {
         .filter((row) => row.day.startsWith(month))
         .reduce((sum, row) => sum + row.promptTokens + row.completionTokens, 0),
     };
+  }
+
+  public async listUsageHistory(
+    _exec: DbExecutor,
+    profileId: string,
+    granularity: AssistantUsageGranularity,
+    limit: number,
+  ): Promise<AssistantUsageHistoryRow[]> {
+    // Свёртка по колонке ledger: день — usage_day, месяц — префикс YYYY-MM.
+    const sums = new Map<string, { promptTokens: number; completionTokens: number }>();
+    for (const row of this.usage) {
+      if (row.profileId !== profileId) continue;
+      const period = granularity === "month" ? row.month : row.day;
+      const bucket = sums.get(period) ?? { promptTokens: 0, completionTokens: 0 };
+      bucket.promptTokens += row.promptTokens;
+      bucket.completionTokens += row.completionTokens;
+      sums.set(period, bucket);
+    }
+    return [...sums.entries()]
+      .sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0))
+      .slice(0, limit)
+      .map(([period, bucket]) => ({
+        period,
+        promptTokens: bucket.promptTokens,
+        completionTokens: bucket.completionTokens,
+        totalTokens: bucket.promptTokens + bucket.completionTokens,
+      }));
   }
 }

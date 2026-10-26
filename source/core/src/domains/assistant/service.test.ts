@@ -9,6 +9,7 @@ import { buildActorForProfile } from "../admin/actor-service.ts";
 import type { ProfileRecord } from "../admin/port.ts";
 import {
   assistantUsage,
+  assistantUsageHistory,
   clearAssistantSession,
   issueRuntimeToken,
   myAssistantAccess,
@@ -444,6 +445,43 @@ describe("сервис assistant: runtime-token и расход", () => {
     await expect(assistantUsage(deps, admin, "profile-staff")).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
+  });
+
+  it("история расхода: по дням и месяцам, свежие первыми; чужой — только техадмину", async () => {
+    const { deps } = await setup();
+    await recordAssistantUsage(deps, {
+      profile_id: "profile-staff",
+      operation_id: "h-1",
+      prompt_tokens: 100,
+      completion_tokens: 50,
+    });
+    await recordAssistantUsage(deps, {
+      profile_id: "profile-staff",
+      operation_id: "h-2",
+      prompt_tokens: 20,
+      completion_tokens: 30,
+    });
+    // Своему — свой расход (дефолт profile_id = актор).
+    const staff = makeTestActor("administrator", []);
+    (staff as { profile: { id: string } }).profile.id = "profile-staff";
+    const own = await assistantUsageHistory(deps, staff, undefined, "day");
+    expect(own.granularity).toBe("day");
+    expect(own.rows).toHaveLength(1);
+    expect(own.rows[0]).toMatchObject({ prompt_tokens: 120, completion_tokens: 80, total_tokens: 200 });
+    expect(own.rows[0].period).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    // Чужой расход (history) администратору не виден — то же право, что у usage.
+    await expect(assistantUsageHistory(deps, staff, "profile-chair", "day")).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    const tech = makeTestActor("tech_admin", []);
+    const byMonth = await assistantUsageHistory(deps, tech, "profile-staff", "month");
+    expect(byMonth.granularity).toBe("month");
+    expect(byMonth.rows[0].period).toMatch(/^\d{4}-\d{2}$/);
+    expect(byMonth.rows[0].total_tokens).toBe(200);
+    // Неизвестный разрез — день (дефолт), лимит окна — 14 дней.
+    const byDay = await assistantUsageHistory(deps, tech, "profile-staff", "week");
+    expect(byDay.granularity).toBe("day");
   });
 });
 

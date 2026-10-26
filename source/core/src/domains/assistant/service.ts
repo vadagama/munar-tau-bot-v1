@@ -23,6 +23,7 @@ import type {
   AssistantRepo,
   AssistantSettingsPatch,
   AssistantStaffConfigRow,
+  AssistantUsageGranularity,
   AssistantUserConfigInput,
 } from "./port.ts";
 
@@ -341,6 +342,45 @@ export async function assistantUsage(
   }
   // profile_id уже в accessView (S1.3) — не дублируем.
   return accessView(deps, deps.db, target);
+}
+
+/** Разрез и глубина истории расхода (S3.2): 14 дней / 12 месяцев. */
+const USAGE_HISTORY_LIMITS: Record<AssistantUsageGranularity, number> = { day: 14, month: 12 };
+
+/** История расхода одного профиля — контракт GET /v1/assistant/usage/history. */
+export interface AssistantUsageHistoryView {
+  profile_id: string;
+  granularity: AssistantUsageGranularity;
+  rows: Array<{ period: string; prompt_tokens: number; completion_tokens: number; total_tokens: number }>;
+}
+
+/**
+ * GET /v1/assistant/usage/history: таблица по дням/месяцам, свежие первыми.
+ * Право как у access: свой расход (allowOwn) или чужой — председатель/техадмин.
+ * Неизвестный разрез — день (дефолт); вне лимита истории — пусто, не ошибка.
+ */
+export async function assistantUsageHistory(
+  deps: AssistantDeps,
+  actor: Actor,
+  profileId: string | undefined,
+  granularity: string | undefined,
+): Promise<AssistantUsageHistoryView> {
+  const target = profileId ?? actor.profile.id;
+  if (!can(actor, "assistant.usage.read", { profileId: target }).allow) {
+    throw new ApiError("FORBIDDEN");
+  }
+  const kind: AssistantUsageGranularity = granularity === "month" ? "month" : "day";
+  const rows = await deps.assistant.listUsageHistory(deps.db, target, kind, USAGE_HISTORY_LIMITS[kind]);
+  return {
+    profile_id: target,
+    granularity: kind,
+    rows: rows.map((row) => ({
+      period: row.period,
+      prompt_tokens: row.promptTokens,
+      completion_tokens: row.completionTokens,
+      total_tokens: row.totalTokens,
+    })),
+  };
 }
 
 /**
