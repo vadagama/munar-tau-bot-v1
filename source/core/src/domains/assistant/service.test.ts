@@ -467,8 +467,9 @@ describe("сервис assistant: runtime-token и расход", () => {
     const own = await assistantUsageHistory(deps, staff, undefined, "day");
     expect(own.granularity).toBe("day");
     expect(own.rows).toHaveLength(1);
-    expect(own.rows[0]).toMatchObject({ prompt_tokens: 120, completion_tokens: 80, total_tokens: 200 });
-    expect(own.rows[0].period).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const dayRow = own.rows[0]!;
+    expect(dayRow).toMatchObject({ prompt_tokens: 120, completion_tokens: 80, total_tokens: 200 });
+    expect(dayRow.period).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 
     // Чужой расход (history) администратору не виден — то же право, что у usage.
     await expect(assistantUsageHistory(deps, staff, "profile-chair", "day")).rejects.toMatchObject({
@@ -477,8 +478,9 @@ describe("сервис assistant: runtime-token и расход", () => {
     const tech = makeTestActor("tech_admin", []);
     const byMonth = await assistantUsageHistory(deps, tech, "profile-staff", "month");
     expect(byMonth.granularity).toBe("month");
-    expect(byMonth.rows[0].period).toMatch(/^\d{4}-\d{2}$/);
-    expect(byMonth.rows[0].total_tokens).toBe(200);
+    const monthRow = byMonth.rows[0]!;
+    expect(monthRow.period).toMatch(/^\d{4}-\d{2}$/);
+    expect(monthRow.total_tokens).toBe(200);
     // Неизвестный разрез — день (дефолт), лимит окна — 14 дней.
     const byDay = await assistantUsageHistory(deps, tech, "profile-staff", "week");
     expect(byDay.granularity).toBe("day");
