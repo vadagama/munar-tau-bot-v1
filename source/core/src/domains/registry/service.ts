@@ -47,7 +47,8 @@ export async function recordAudit(
   actor: Actor,
   action: string,
   entityType: string,
-  id: string,
+  /** UUID сущности или null (singleton без UUID, например настройки ассистента). */
+  id: string | null,
   buildingIds: string[],
   before: unknown,
   after: unknown,

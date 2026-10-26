@@ -45,7 +45,8 @@ export interface AuditEntryInput {
 export interface AuditActionInput {
   action: string;
   entityType: string;
-  entityId?: string;
+  /** UUID сущности; undefined/null — у singleton-сущностей без UUID. */
+  entityId?: string | null;
   before?: unknown;
   after?: unknown;
   reason?: string;

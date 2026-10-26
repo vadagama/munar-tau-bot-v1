@@ -172,6 +172,30 @@ it("включение без лимитов блокируется на кли�
   ).toBe(false);
 });
 
+it("ответ PUT без users (старый сервер) не крашит страницу и не затирает таблицу", async () => {
+  // Расхождение версий клиент/сервер: PUT отвечает {settings, users_saved}
+  // без users. Раньше setUsers(undefined) ронял рендер — белый экран.
+  mockApi((path, options) => {
+    if (path === "/v1/assistant/settings" && options?.method === "PUT") {
+      return { settings: view.settings, users_saved: 1 };
+    }
+    return view;
+  });
+  render(<AssistantSettingsPage />);
+  fireEvent.change(await screen.findByLabelText("Дневной лимит Сотрудник Один"), {
+    target: { value: "5000" },
+  });
+  fireEvent.change(screen.getByLabelText("Месячный лимит Сотрудник Один"), {
+    target: { value: "50000" },
+  });
+  // onBlur сохраняет лимиты (ответ без users), затем тумблер включает сотрудника.
+  fireEvent.blur(screen.getByLabelText("Месячный лимит Сотрудник Один"));
+  fireEvent.click(await screen.findByRole("switch", { name: "Включён Сотрудник Один" }));
+  expect(await screen.findByText("Сохранено")).toBeInTheDocument();
+  // Таблица жива: строка сотрудника и тумблер на месте.
+  expect(screen.getByRole("switch", { name: "Включён Сотрудник Один" })).toBeInTheDocument();
+});
+
 it("в эмуляции форма недоступна; без роли страница не загружает данные", async () => {
   identityState.emulation = true;
   mockApi();

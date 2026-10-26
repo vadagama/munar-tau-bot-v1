@@ -157,6 +157,9 @@ describe("сервис assistant: настройки", () => {
       api_key_mask: "••••9876",
       version: 2,
     });
+    // Контракт PUT = GET: сотрудники возвращаются полным видом, иначе кабинет
+    // после сохранения теряет таблицу (белый экран, см. PR-фикс 26.10.2026).
+    expect(Array.isArray(result.users)).toBe(true);
     const stored = assistant.settings!.apiKeyEncrypted!;
     expect(stored.startsWith("v1:")).toBe(true);
     expect(stored.includes("sk-provider-token-9876")).toBe(false);
@@ -165,6 +168,9 @@ describe("сервис assistant: настройки", () => {
     );
     const entry = audit.entries.find((e) => e.action === "assistant.settings.changed");
     expect(entry).toBeDefined();
+    // Singleton настроек не имеет UUID: entity_id в журнале — null (колонка
+    // audit_log.entity_id типа uuid — "1" в неё не вставится, сырой 500).
+    expect(entry?.entityId).toBeNull();
     expect(JSON.stringify(entry)).not.toContain("sk-provider-token-9876");
   });
 
@@ -241,6 +247,8 @@ describe("сервис assistant: per-user конфиги", () => {
       "u-1",
     );
     expect(result.users_saved).toBe(1);
+    // Ответ PUT содержит полный список сотрудников (как GET), со свежим конфигом.
+    expect(Array.isArray(result.users)).toBe(true);
     const config = assistant.configs.get(staffProfile.id);
     expect(config).toMatchObject({
       enabled: true,
