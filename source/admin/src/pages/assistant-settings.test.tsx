@@ -1,6 +1,7 @@
 // Сценарии страницы «Настройки AI-ассистента» (план S0.4): сохранение
-// с причиной и Idempotency-Key, 409 сохраняет ввод, токен только маской,
-// эмуляция запрещает запись; в эмуляции пункт меню скрыт (app-layout.test).
+// с автоматической причиной и Idempotency-Key, 409 сохраняет ввод,
+// токен только маской, поле токена не приглашает менеджер паролей;
+// в эмуляции запись запрещена, пункт меню скрыт (app-layout.test).
 
 import {
   cleanup,
@@ -66,14 +67,11 @@ function mockApi(implementation?: (path: string, options?: { method?: string; qu
   );
 }
 
-it("сохраняет настройки с причиной, Idempotency-Key и без значения токена", async () => {
+it("сохраняет настройки без поля причины: причина автоматическая, Idempotency-Key есть", async () => {
   mockApi();
   render(<AssistantSettingsPage />);
   fireEvent.change(await screen.findByLabelText(/Токен/), {
     target: { value: "sk-new-provider-token-4321" },
-  });
-  fireEvent.change(screen.getByLabelText("Причина изменения"), {
-    target: { value: "первичный токен пилота" },
   });
   fireEvent.click(screen.getByText("Сохранить настройки"));
   await waitFor(() =>
@@ -90,7 +88,7 @@ it("сохраняет настройки с причиной, Idempotency-Key �
     body: {
       api_key: "sk-new-provider-token-4321",
       expected_version: 2,
-      reason: "первичный токен пилота",
+      reason: "Изменение настроек AI-ассистента",
     },
     idempotencyKey: expect.any(String),
   });
@@ -112,9 +110,6 @@ it("при 409 сохраняет ввод; повтор после перечи
   fireEvent.change(await screen.findByLabelText("Модель"), {
     target: { value: "deepseek-reasoner" },
   });
-  fireEvent.change(screen.getByLabelText("Причина изменения"), {
-    target: { value: "смена модели" },
-  });
   fireEvent.click(screen.getByText("Сохранить настройки"));
   // 409: страница перечитала актуальную версию (GET после PUT), ошибки показаны.
   await waitFor(() =>
@@ -127,9 +122,9 @@ it("при 409 сохраняет ввод; повтор после перечи
       vi.mocked(apiFetch).mock.calls.filter(([path, options]) => path === "/v1/assistant/settings" && options?.method === undefined).length,
     ).toBeGreaterThanOrEqual(2),
   );
-  // Ввод не сброшен.
+  // Ввод не сброшен; поле «Причина» в форме больше не показывается.
   expect(screen.getByLabelText("Модель")).toHaveValue("deepseek-reasoner");
-  expect(screen.getByLabelText("Причина изменения")).toHaveValue("смена модели");
+  expect(screen.queryByLabelText("Причина изменения")).not.toBeInTheDocument();
   // Повторный клик — осознанный повтор с новым Idempotency-Key.
   fireEvent.click(screen.getByText("Сохранить настройки"));
   await waitFor(() => expect(writes).toBe(2));
@@ -159,6 +154,12 @@ it("включение сотрудника отправляет его конф
       vi.mocked(apiFetch).mock.calls.some(([, options]) => options?.method === "PUT"),
     ).toBe(true),
   );
+  const userSave = vi.mocked(apiFetch).mock.calls.find(
+    ([, options]) => options?.method === "PUT" && (options as { body?: { users?: unknown[] } }).body?.users,
+  );
+  expect(userSave?.[1]).toMatchObject({
+    body: { reason: "Изменение доступа сотрудника" },
+  });
 });
 
 it("включение без лимитов блокируется на клиенте", async () => {
@@ -197,6 +198,23 @@ it("токен нигде не отображается — только мас�
   const label = await screen.findByText(/задан: ••••9876/);
   expect(label).toBeInTheDocument();
   expect(document.body.textContent).not.toContain("sk-");
+});
+
+it("поле токена — текстовое с маскировкой: менеджер паролей не приглашается, глаз переключает", async () => {
+  mockApi();
+  render(<AssistantSettingsPage />);
+  const token = await screen.findByLabelText(/Токен/);
+  // Не type="password" и не autocomplete="new-password" — иначе Chrome PM
+  // показывает подсказку «создать надёжный пароль».
+  expect(token).toHaveAttribute("type", "text");
+  expect(token).toHaveAttribute("autocomplete", "off");
+  // Маскирование через CSS на обёртке (класс с suffix не попадает на input).
+  const wrapper = () => token.closest(".ant-input-affix-wrapper");
+  expect(wrapper()).toHaveClass("assistant-secret-masked");
+  fireEvent.click(screen.getByRole("button", { name: "Показать токен" }));
+  expect(wrapper()).not.toHaveClass("assistant-secret-masked");
+  fireEvent.click(screen.getByRole("button", { name: "Скрыть токен" }));
+  expect(wrapper()).toHaveClass("assistant-secret-masked");
 });
 
 it("блок расхода: история запрашивается после выбора сотрудника, разрез переключается", async () => {

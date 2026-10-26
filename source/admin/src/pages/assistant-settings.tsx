@@ -1,9 +1,13 @@
 // Настройки AI-ассистента (ADR-021, план S0.4): единый токен провайдера
 // (write-only, в ответах только маска) и per-user kill switch с лимитами.
-// Сохранение — PUT /v1/assistant/settings с причиной и Idempotency-Key;
-// 409 сохраняет ввод — версия перечитывается, поля не сбрасываются.
-// Раздел недоступен в эмуляции: assistant.* — privileged-действия.
+// Сохранение — PUT /v1/assistant/settings с Idempotency-Key; причина для
+// аудита формируется автоматически (поле в форме убрано как лишнее). 409
+// сохраняет ввод — версия перечитывается, поля не сбрасываются.
+// Поле токена — текстовое с CSS-маскировкой: менеджеры паролей не считают
+// его паролем и не предлагают сгенерировать пароль (Chrome PM,
+// autocomplete="new-password" на Input.Password вызывал подсказку).
 
+import { EyeInvisibleOutlined, EyeOutlined } from "@ant-design/icons";
 import { PageLayout } from "../components/page-layout";
 import { ConfigurableTable } from "../components/configurable-table";
 import { usePageRefresh } from "../lib/use-page-refresh";
@@ -35,7 +39,7 @@ function AssistantSettingsPage() {
   const [baseUrl, setBaseUrl] = useState("");
   const [modelId, setModelId] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [reason, setReason] = useState("");
+  const [apiKeyVisible, setApiKeyVisible] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -146,17 +150,13 @@ function AssistantSettingsPage() {
   }
 
   async function saveSettings() {
-    if (!reason.trim()) {
-      setError("Укажите причину изменения");
-      return;
-    }
     await put({
       ...(provider.trim() !== "" && provider.trim() !== (settings?.provider ?? "") ? { provider: provider.trim() } : {}),
       ...(baseUrl.trim() !== "" && baseUrl.trim() !== (settings?.base_url ?? "") ? { base_url: baseUrl.trim() } : {}),
       ...(modelId.trim() !== "" && modelId.trim() !== (settings?.model_id ?? "") ? { model_id: modelId.trim() } : {}),
       ...(apiKey.trim() !== "" ? { api_key: apiKey.trim() } : {}),
       ...(settings ? { expected_version: settings.version } : {}),
-      reason: reason.trim(),
+      reason: "Изменение настроек AI-ассистента",
     });
   }
 
@@ -169,7 +169,7 @@ function AssistantSettingsPage() {
       setError("Для включённого сотрудника задайте дневной и месячный лимиты больше нуля");
       return;
     }
-    await put({ users: [{ ...row, expected_version: row.version }], reason: reason.trim() || "Изменение доступа сотрудника" });
+    await put({ users: [{ ...row, expected_version: row.version }], reason: "Изменение доступа сотрудника" });
   }
 
   if (!allowed) {
@@ -309,22 +309,28 @@ function AssistantSettingsPage() {
         <label htmlFor="assistant-api-key">
           Токен {settings?.api_key_mask ? `(задан: ${settings.api_key_mask})` : "(не задан)"}
         </label>
-        <Input.Password
+        <Input
           id="assistant-api-key"
+          type="text"
+          className={apiKeyVisible ? undefined : "assistant-secret-masked"}
           value={apiKey}
           maxLength={1000}
           disabled={busy || !editable}
           placeholder={settings?.api_key_mask ? "Заменить токен" : "Вставить токен провайдера"}
-          autoComplete="new-password"
+          autoComplete="off"
+          spellCheck={false}
+          suffix={
+            <Button
+              type="text"
+              size="small"
+              aria-label={apiKeyVisible ? "Скрыть токен" : "Показать токен"}
+              icon={apiKeyVisible ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+              disabled={busy || !editable}
+              onClick={() => setApiKeyVisible((visible) => !visible)}
+              style={{ marginRight: -7 }}
+            />
+          }
           onChange={(e) => setApiKey(e.target.value)}
-        />
-        <label htmlFor="assistant-reason">Причина изменения</label>
-        <Input.TextArea
-          id="assistant-reason"
-          value={reason}
-          rows={2}
-          disabled={busy || !editable}
-          onChange={(e) => setReason(e.target.value)}
         />
         <Button
           type="primary"
@@ -338,9 +344,9 @@ function AssistantSettingsPage() {
 
       <Typography.Title level={4}>Доступ сотрудников</Typography.Title>
       <Typography.Paragraph type="secondary">
-        Переключатель и лимиты сохраняются сразу, с указанной причиной.
-        Отключённый сотрудник теряет доступ на следующем сообщении ассистенту;
-        расход не обнуляется.
+        Переключатель и лимиты сохраняются сразу; причина изменения фиксируется
+        в журнале автоматически. Отключённый сотрудник теряет доступ на
+        следующем сообщении ассистенту; расход не обнуляется.
       </Typography.Paragraph>
       <ConfigurableTable
         storageKey="columns.assistant-settings"
