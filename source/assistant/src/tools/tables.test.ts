@@ -129,7 +129,9 @@ describe("collectTables", () => {
     expect(collectTables(entries)).toHaveLength(1);
   });
 
-  it("tablesForEntry берёт только записи до ответа включительно", () => {
+  it("tablesForEntry берёт только таблицы операции ответа: после предыдущего ответа и до него включительно", () => {
+    // Инцидент 26.10.2026: таблица отчёта из первой операции прилипала ко всем
+    // последующим ответам сессии — панель рисовала таблицу на каждый вопрос.
     const entries = [
       toolResultEntry(workloadTable, 1),
       assistantEntry(2),
@@ -137,6 +139,15 @@ describe("collectTables", () => {
       assistantEntry(4),
     ];
     expect(tablesForEntry(entries, 2).map((t) => t.id)).toEqual(["workload_by_assignee"]);
-    expect(tablesForEntry(entries, 4).map((t) => t.id)).toEqual(["workload_by_assignee", "late"]);
+    expect(tablesForEntry(entries, 4).map((t) => t.id)).toEqual(["late"]);
+  });
+
+  it("несколько таблиц одной операции собираются вместе", () => {
+    const entries = [
+      toolResultEntry(workloadTable, 1),
+      toolResultEntry({ table: { id: "overdue_by_building", title: "Просрочка", columns: [{ key: "b", title: "Б" }], rows: [] } }, 2),
+      assistantEntry(3),
+    ];
+    expect(tablesForEntry(entries, 3).map((t) => t.id)).toEqual(["workload_by_assignee", "overdue_by_building"]);
   });
 });

@@ -78,7 +78,23 @@ export function collectTables(entries: readonly EntryRecord[]): ChatTable[] {
   return [...byId.values()];
 }
 
-/** Таблицы, предшествующие записи ответа (id включительно) — для снапшота. */
+/**
+ * Таблицы операции ответа (id включительно): tool-результаты после предыдущего
+ * ответа ассистента и до него включительно — Pi исполняет операции последовательно.
+ * Таблицы прошлых операций к новым ответам не прилипают (инцидент 26.10.2026:
+ * таблица первого отчёта прилипала ко всем последующим ответам сессии).
+ */
 export function tablesForEntry(entries: readonly EntryRecord[], entryId: number): ChatTable[] {
-  return collectTables(entries.filter((entry) => entry.id <= entryId));
+  let previousAssistantId = -1;
+  for (const entry of entries) {
+    const id = Number(entry.id);
+    if (id >= entryId) break;
+    if (entry.kind === "pi.assistant") previousAssistantId = id;
+  }
+  return collectTables(
+    entries.filter((entry) => {
+      const id = Number(entry.id);
+      return id > previousAssistantId && id <= entryId;
+    }),
+  );
 }

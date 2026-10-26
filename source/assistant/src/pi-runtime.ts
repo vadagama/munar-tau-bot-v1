@@ -19,7 +19,7 @@ import type { ChatRuntime, OperationUsage, RuntimeListener, RuntimeUpdate, Submi
 import type { ChatMessageView } from "./protocol.ts";
 import { describeFailure } from "./failure-text.ts";
 import { contentText, collectSources, sourcesForEntry } from "./tools/sources.ts";
-import { collectTables, tablesForEntry } from "./tools/tables.ts";
+import { tablesForEntry } from "./tools/tables.ts";
 import { EntityApiClient } from "./tools/api-client.ts";
 import { createEntityExtension } from "./tools/guard.ts";
 
@@ -158,11 +158,14 @@ export class PiChatRuntime implements ChatRuntime {
         reason: describeFailure({ apiKeyPresent: this.apiKey !== null, reason: result.reason }),
       };
     }
-    // Пул источников — из tool-result записей транскрипта (S2.1), таблицы
-    // агрегатов — из тех же выводов (S4a.2). Пустые пулы не отправляем.
+    // Пул источников — из tool-result записей транскрипта (S2.1), таблицы —
+    // только из операции этого ответа: tool-результаты после предыдущего ответа
+    // ассистента (S4a.2; инцидент 26.10.2026: таблица старого отчёта прилипала
+    // ко всем последующим ответам сессии). Пустые пулы не отправляем.
     const entries = await this.harness.messages();
     const sources = collectSources(entries);
-    const tables = collectTables(entries);
+    const lastAssistant = [...entries].reverse().find(isAssistantEntry);
+    const tables = lastAssistant === undefined ? [] : tablesForEntry(entries, Number(lastAssistant.id));
     // Расход ответа (S3.1): undefined уходит из JSON — POST usage не вызывается.
     const usage = await this.operationUsage(messageId);
     return {
@@ -189,7 +192,8 @@ export class PiChatRuntime implements ChatRuntime {
       const view = foldEntry(entry);
       if (view === null) continue;
       if (isAssistantEntry(entry)) {
-        // Источники и таблицы ответа — tool-result записи до него включительно:
+        // Источники — накопленный пул до ответа (S2.1), таблицы — только из
+        // операции этого ответа (tablesForEntry отсекает прошлые операции):
         // снапшот после переподключения несёт то же, что и живой ответ.
         const sources = sourcesForEntry(entries, entry.id);
         if (sources.length > 0) view.sources = sources;
