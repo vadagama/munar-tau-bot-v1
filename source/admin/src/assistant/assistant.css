@@ -66,6 +66,12 @@
 .assistant-table-scroll th, .assistant-table-scroll td { text-align: left; padding: 10px 12px; border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent); overflow-wrap: anywhere; }
 .assistant-table-scroll th { font-weight: 600; }
 
+/* Таблица агрегата из инструмента (S4a.2). */
+.assistant-table { margin-top: 12px; max-width: 100%; overflow-x: auto; }
+.assistant-table-title { display: block; margin-bottom: 4px; font-size: 12px; }
+.assistant-table .ant-table { font-size: 12px; font-variant-numeric: tabular-nums; background: transparent; }
+.assistant-table .ant-table-cell { overflow-wrap: anywhere; }
+
 @media (max-width: 767px) {
   .assistant-panel { margin-bottom: 16px; }
   .assistant-panel .ant-card .ant-card-head-wrapper { align-items: flex-start; flex-direction: column; gap: 4px; }
