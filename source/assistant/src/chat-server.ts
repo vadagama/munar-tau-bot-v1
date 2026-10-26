@@ -104,11 +104,29 @@ export class ChatServer {
       socket.close(WS_CLOSE_POLICY, "auth failed");
       return null;
     }
+    // Эпоха проверяется сразу после auth (S6.1): DO прошлой эпохи — после
+    // «Очистить» или границы суток 05:00 — не отдаёт историю даже с валидным
+    // JWT того же профиля. Клиент на epoch_stale переподключается к новой эпохе.
+    if ((await this.deps.checkEpoch()) === "stale") {
+      this.send(socket, {
+        type: "error",
+        code: "epoch_stale",
+        message: "Сессия очищена или начался новый день — подключитесь заново",
+      });
+      socket.close(WS_CLOSE_POLICY, "epoch stale");
+      return null;
+    }
     const session: SocketSession = { profileId: decision.profileId, epoch: decision.epoch };
     this.sockets.set(socket, session);
     this.attachRuntimeListener();
     this.send(socket, { type: "auth_ok", profileId: session.profileId, epoch: session.epoch });
     await this.sendSnapshot(socket);
+    // Статусы незавершённых операций (S6.1): снапшот помечает пользовательские
+    // записи «done», без этого parked/queued после переподключения не видны и
+    // кнопка «Повторить» недоступна.
+    for (const operation of await this.deps.runtime.pending()) {
+      this.send(socket, { type: "status", messageId: operation.messageId, status: operation.status });
+    }
     return session;
   }
 

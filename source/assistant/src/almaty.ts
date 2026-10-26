@@ -18,6 +18,15 @@ export function effectiveEpoch(configEpoch: number, now: Date): number {
   return Math.max(configEpoch, assistantDay(now));
 }
 
+/**
+ * Момент, когда историю старой эпохи можно стирать (S6.1): следующая граница
+ * суток (05:00 Алматы = полночь UTC) плюс retention суток хранения.
+ * DO прошлой эпохи планирует на это время teardown-задачу Lifecycle.
+ */
+export function nextEpochBoundary(now: Date, retentionDays: number): number {
+  return (assistantDay(now) + 1) * MS_PER_DAY + retentionDays * MS_PER_DAY;
+}
+
 /** Имя DO: один изолят на сотрудника и эпоху (план S1.1). */
 export function assistantDoName(profileId: string, epoch: number): string {
   return `assistant:${profileId}:${epoch}`;

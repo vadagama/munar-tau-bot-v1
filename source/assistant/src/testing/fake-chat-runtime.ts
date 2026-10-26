@@ -21,6 +21,7 @@ export class FakeChatRuntime implements ChatRuntime {
   readonly retried: string[] = [];
   readonly awaited: string[] = [];
   resets = 0;
+  disposes = 0;
   /** Результат следующего submit: false имитирует дубликат operationId. */
   nextSubmitAccepted = true;
   /** Расход операций (S3.1): выдаётся в WaitResult при finishReply. */
@@ -79,6 +80,10 @@ export class FakeChatRuntime implements ChatRuntime {
   async reset(): Promise<void> {
     this.resets += 1;
     this.messages.clear();
+  }
+
+  async dispose(): Promise<void> {
+    this.disposes += 1;
   }
 
   // — ручное управление из тестов —

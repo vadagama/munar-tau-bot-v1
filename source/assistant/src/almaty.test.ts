@@ -2,7 +2,7 @@
 // полночь UTC (UTC+5 без DST), поэтому ассистентский день = номер суток UTC.
 
 import { describe, expect, it } from "vitest";
-import { assistantDay, assistantDoName, effectiveEpoch, parseAssistantDoName } from "./almaty.ts";
+import { assistantDay, assistantDoName, effectiveEpoch, nextEpochBoundary, parseAssistantDoName } from "./almaty.ts";
 
 // 26.10.2026 06:00 UTC = 11:00 Алматы; 26.10.2026 19:59:59.999 UTC = 00:59:59.999 Алматы 27-го,
 // граница ещё не пройдена; 27.10.2026 00:00 UTC = 05:00 Алматы 27-го — новый день.
@@ -20,6 +20,22 @@ describe("assistantDay", () => {
 
   it("01:00 по Алматы (20:00 UTC предыдущих суток) — ещё предыдущий день", () => {
     expect(assistantDay(new Date("2026-10-26T20:00:00Z"))).toBe(DAY_20687);
+  });
+});
+
+describe("nextEpochBoundary", () => {
+  it("следующая граница суток 05:00 Алматы плюс retention", () => {
+    // 26.10 11:00 Алматы: следующая граница — 27.10 05:00 (полночь UTC),
+    // плюс 7 суток хранения — 03.11 00:00 UTC.
+    expect(nextEpochBoundary(new Date("2026-10-26T06:00:00Z"), 7)).toBe((DAY_20687 + 1 + 7) * 86_400_000);
+  });
+
+  it("границу можно переехать: сразу после 05:00 Алматы — следующая граница уже 28-го", () => {
+    expect(nextEpochBoundary(new Date("2026-10-27T00:00:00.500Z"), 7)).toBe((DAY_20687 + 2 + 7) * 86_400_000);
+  });
+
+  it("retention 1 сутки — стирание на следующей границе", () => {
+    expect(nextEpochBoundary(new Date("2026-10-26T06:00:00Z"), 1)).toBe((DAY_20687 + 2) * 86_400_000);
   });
 });
 

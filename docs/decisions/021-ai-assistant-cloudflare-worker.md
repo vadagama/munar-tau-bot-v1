@@ -62,4 +62,4 @@
 - [Cloudflare Agents: Pi harness](https://developers.cloudflare.com/agents/harnesses/pi/) — `PiHarness`, таблицы `pi_*`, alarm, восстановление, ограничения beta.
 - [Earendil: Pi Durable](https://earendil.com/posts/pi-durable/) — замысел долгоживущих агентов, пакеты `agents`, `@earendil-works/pi-durable`, `pi-ai`, `chord`.
 
-Смежные: [ADR-002](002-admin-cloudflare-pages.md) (статика кабинета без Functions), [ADR-003](003-edge-functions-and-environments.md) (серверный код и среды), [`docs/ideas/ai-assistant.md`](../ideas/ai-assistant.md) (продуктовые решения и метрика пилота).
+Смежные: [ADR-002](002-admin-cloudflare-pages.md) (статика кабинета без Functions), [ADR-003](003-edge-functions-and-environments.md) (серверный код и среды), [`docs/ideas/ai-assistant.md`](../ideas/ai-assistant.md) (продуктовые решения и метрика пилота), [`docs/assistant-security-checklist.md`](../assistant-security-checklist.md) (ИБ-чеклист до реальных данных — условие 2).

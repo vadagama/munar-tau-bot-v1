@@ -494,3 +494,57 @@ describe("отказы сервиса", () => {
     expect(out).toEqual({ error: "Не удалось получить данные" });
   });
 });
+
+describe("kk-эталон (S6.2)", () => {
+  it("состояния аварий на казахском — выверенный эталон (recovery_check исправлен)", async () => {
+    const { byName } = makeApi(
+      [
+        {
+          path: "/v1/incidents",
+          body: {
+            items: [
+              { id: INCIDENT_ID, number: "А-01", state: "recovery_check", title: "Сеть", public_text: null },
+              { id: PERSON_ID, number: "А-02", state: "confirmed", title: "Отопление", public_text: null },
+            ],
+          },
+        },
+      ],
+      "kk",
+    );
+    const out = await run(byName("list_incidents"), {});
+    expect((out.items as Array<{ state: string }>).map((i) => i.state)).toEqual([
+      "Қалпына келтіруді тексеру",
+      "Расталды",
+    ]);
+  });
+
+  it("отказ инструмента — на языке профиля kk", async () => {
+    const { byName } = makeApi([{ path: "/v1/requests", body: {}, status: 403 }], "kk");
+    const out = await run(byName("search_requests"), {});
+    expect(out).toEqual({ error: "Бұл деректерге рұқсат жоқ" });
+  });
+
+  it("отказ без ответа API — на казахском", async () => {
+    const { byName } = makeApi([{ path: "/v1/requests", body: null, fail: true }], "kk");
+    const out = await run(byName("search_requests"), {});
+    expect(out).toEqual({ error: "Деректер қызметі қолжетімсіз" });
+  });
+
+  it("задание без названия — fallback «Тапсырма» на казахском", async () => {
+    const { byName } = makeApi(
+      [
+        {
+          path: "/v1/tasks",
+          body: {
+            items: [
+              { id: TASK_ID, number: "З-1", state: "created", title: null, instruction: null, assignee_name: null, created_at: null, linked_request: null },
+            ],
+          },
+        },
+      ],
+      "kk",
+    );
+    const out = await run(byName("search_tasks"), {});
+    expect((out.items as Array<{ label: string }>)[0]!.label).toBe("№З-1 · Тапсырма");
+  });
+});
