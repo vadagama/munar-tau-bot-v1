@@ -18,11 +18,28 @@ read-only на вымышленных данных; реальные данны�
 - `src/chat-runtime.ts` — интерфейс `ChatRuntime`: Pi изолирован за ним
 - `src/pi-runtime.ts` — `PiChatRuntime`: PiHarness (корневая сессия), DeepSeek
   через `deepseekProvider` (pi-ai), ключ по `POST /v1/assistant/runtime-token`
-  с JWT пользователя, `settings.retry` + `afterFailedRun: "keep"`
+  с JWT пользователя, `settings.retry` + `afterFailedRun: "keep"`;
+  устанавливает в реестр read-only реестр инструментов + guard (S2.1),
+  прикладывает пул источников из tool-result записей к `WaitResult` и
+  снапшоту
+- `src/tools/api-client.ts` — клиент GET `/v1` с JWT пользователя (ADR-021:
+  PDP на стороне API), язык профиля `/v1/meta/me` с кэшем на изолят
+- `src/tools/entity-tools.ts` — десять read-only инструментов сущностей
+  (обращения, задания, аварии, жители, связи, сотрудники): контракт
+  `{items, total, page, has_more}`, `page_size` ≤ 20, абсолютные deep links
+  кабинета (ADR-021), подписи состояний по языку профиля ru/kk, дружелюбные
+  отказы вместо ошибок (403 → «нет доступа», пусто → пустой конверт)
+- `src/tools/guard.ts` — расширение `assistant-entities`: инструменты + хук
+  `hook(ToolTask, beforeTool)` — всё вне белого списка read-only реестра
+  блокируется, решение только по имени вызова (инъекция в данных не
+  выводит за контур)
+- `src/tools/sources.ts` — пул карточек-ссылок `{title, href}` из JSON-выводов
+  инструментов (`pi.tool-result`) для панели; не-абсолютные пути отбрасываются
 - `src/gate.ts` — JWT Supabase (ES256 по JWKS, реюз `core/src/auth/jwt.ts`) +
   enabled через `GET /v1/assistant/settings/me` с кэшем ≤ 60 с
 - `src/almaty.ts` — сутки «05:00 → 05:00» Asia/Almaty (UTC-полночь) и эпохи DO
-- `src/protocol.ts` — WS-протокол панели ↔ DO
+- `src/protocol.ts` — WS-протокол панели ↔ DO (включая `sources` у сообщений
+  ассистента)
 
 ## Память 05:00→05:00 и «Очистить»
 

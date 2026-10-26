@@ -154,12 +154,13 @@ PR на согласование, мерж — только после одоб�
 
 ### S2.1. Инструменты сущностей, виджеты и deep links
 
-- [ ] Инструменты: `search_requests`/`get_request`, `search_tasks`/`get_task`,
+- [x] Инструменты: `search_requests`/`get_request`, `search_tasks`/`get_task`,
   `list_incidents`/`get_incident`, `search_residents`, `list_connections`,
   `list_staff`/`get_staff` — по JWT пользователя, `replay: "safe"`
-- [ ] `beforeTool` — белый список read-only реестра
-- [ ] Контракт `{items, total, page}`, `page_size` ≤ 20, абсолютные `link`
-- [ ] Виджеты-карточки со ссылками; чтение `?id=<uuid>` в drawer'ах
+- [x] `beforeTool` — белый список read-only реестра
+- [x] Контракт `{items, total, page}` (плюс `has_more`), `page_size` ≤ 20,
+  абсолютные `link`
+- [x] Виджеты-карточки со ссылками; чтение `?id=<uuid>` в drawer'ах
   обращений/заданий; язык профиля ru/kk
 - Зависимости: S1. (Больше 5 файлов — разделить на «инструменты» и «UI».)
 - Приёмка: «покажи новые обращения» → карточки-ссылки, переход по `?id=`;
@@ -167,15 +168,26 @@ PR на согласование, мерж — только после одоб�
 - Проверка: `npm test -w assistant`; `npm test -w admin`.
 - Файлы: `source/assistant/tools/*`, `admin/src/pages/requests.tsx`,
   `admin/src/pages/tasks.tsx` + тесты.
+- Отклонения (реализация): инструменты в `source/assistant/src/tools/*` (не
+  `source/assistant/tools/*`) — под include tsconfig/vitest воркспейса; deep
+  links уже реализованы в кабинетных страницах (ADR-021, главная/доски:
+  `?request=`, `?task=`, `?incident=`, `?entity=` + `entity_page=1`), поэтому
+  чтение `?id=` не делалось — инструменты отдают готовые абсолютные ссылки
+  существующего формата, allow-list AssistantMarkdown расширен на
+  `/users/residents` (карточка жителя реестра); источники — из JSON-выводов
+  инструментов (записи `pi.tool-result`): `WaitResult.sources` → `done` и
+  снапшот, upsert-путь S1 не менялся; kk-подписи состояний аварий —
+  предварительные, выверка в S6.2.
 
 ### S2.2. Тесты на инъекцию
 
-- [ ] Инъекция инструкций из данных не выводит за реестр и PDP
-- [ ] `beforeTool` отсекает не-whitelisted вызовы при инъекции; гейты не зависят
+- [x] Инъекция инструкций из данных не выводит за реестр и PDP
+- [x] `beforeTool` отсекает не-whitelisted вызовы при инъекции; гейты не зависят
   от содержимого сообщения
 - Зависимости: S2.1.
 - Проверка: `npm test -w assistant`.
-- Файлы: `source/assistant/tools/*.test.ts`, fixtures.
+- Файлы: `source/assistant/src/tools/guard.test.ts`,
+  `source/assistant/src/tools/injection.test.ts` (фикстуры — в самих тестах).
 
 ## S3. Расход и лимиты
 
