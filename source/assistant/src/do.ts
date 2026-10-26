@@ -213,6 +213,10 @@ export class AssistantDO extends DurableObject<AssistantEnv> {
     }
     this.server = new ChatServer({
       runtime: this.runtime,
+      // Фоновые вейтеры done живут в waitUntil (инцидент 26.10.2026: вейтер в
+      // обработчике WS-сообщения умирал вместе с сокетом/изолятом — панель
+      // оставалась в busy навсегда).
+      defer: (promise) => this.ctx.waitUntil(promise),
       // JWT сеанса сохраняется в памяти изолята только после успешного гейта:
       // runtime-token и инструменты сущностей берут его через getAccessToken.
       authenticate: async (jwt) => {
