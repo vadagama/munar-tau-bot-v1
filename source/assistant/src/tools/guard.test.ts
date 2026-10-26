@@ -80,9 +80,9 @@ describe("languageSection (S6.2)", () => {
           : new Response(null, { status: 404 }),
     });
 
-  it("расширение несёт одну секцию языка", () => {
+  it("расширение несёт секции языка и формата ответа", () => {
     const extension = createEntityExtension(makeClient("ru"));
-    expect(extension.sections?.map((s) => s.key)).toEqual(["assistant-language"]);
+    expect(extension.sections?.map((s) => s.key)).toEqual(["assistant-language", "assistant-answer-format"]);
   });
 
   it("ru-профиль — русская инструкция: язык всего ответа", async () => {
@@ -96,5 +96,20 @@ describe("languageSection (S6.2)", () => {
     const text = await sec?.render(undefined as never, undefined as never);
     expect(text).toContain("қазақ тілінде");
     expect(text).not.toContain("на русском");
+  });
+
+  it("ru-профиль — формат: таблица в тексте только по необходимости, по умолчанию аккуратный текст", async () => {
+    const sec = createEntityExtension(makeClient("ru")).sections?.[1];
+    const text = await sec?.render(undefined as never, undefined as never);
+    expect(text).toContain("По умолчанию");
+    expect(text).toContain("только когда данные по сути табличные");
+    expect(text).toContain("панель рисует сама");
+  });
+
+  it("kk-профиль — формат: казахская инструкция, русская не уходит", async () => {
+    const sec = createEntityExtension(makeClient("kk")).sections?.[1];
+    const text = await sec?.render(undefined as never, undefined as never);
+    expect(text).toContain("кестені");
+    expect(text).not.toContain("по умолчанию");
   });
 });

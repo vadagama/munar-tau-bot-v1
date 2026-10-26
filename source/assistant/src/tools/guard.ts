@@ -46,6 +46,36 @@ export function languageSection(client: EntityApiClient): PromptSection<EntityTo
   });
 }
 
+// Формат ответа (обратная связь владельца 26.10.2026: таблица на каждый
+// вопрос): по умолчанию — аккуратный текст, таблицы — только по необходимости.
+const RU_ANSWER_FORMAT_PROMPT =
+  "По умолчанию отвечай аккуратным текстом: короткий вывод, абзацы, а при перечислении — " +
+  "маркированный список, где каждый пункт — markdown-ссылка из данных инструмента. " +
+  "Markdown-таблицу в тексте рисуй только когда данные по сути табличные (сравнение по " +
+  "нескольким показателям, динамика по дням) и без неё ответ теряет наглядность; для одного " +
+  "числа, статуса или короткого перечня таблица не нужна. Инструменты отчётов " +
+  "(workload_by_assignee, created_closed_by_day, overdue_by_building) вызывай только когда " +
+  "пользователю действительно нужна сводка по группам или динамике: их таблицу панель рисует " +
+  "сама — не дублируй её содержимое текстом, дай короткий вывод с главными числами.";
+
+const KK_ANSWER_FORMAT_PROMPT =
+  "Әдетте жауабын таза мәтінмен бер: қысқа түйін, абзацтар, ал тізім керек болса — " +
+  "маркерленген тізім, онда әр пункт — құрал-деректерден келген markdown-сілтеме. " +
+  "Мәтінде markdown-кестені тек деректер шынымен кестелік болғанда (бірнеше көрсеткіш " +
+  "бойынша салыстыру, күндер бойынша динамика) және онсыз жауап түсініксіз болғанда ғана сыз; " +
+  "бір сан, күй немесе қысқа тізім үшін кесте қажет емес. Есеп құралдарын " +
+  "(workload_by_assignee, created_closed_by_day, overdue_by_building) тек пайдаланушыға " +
+  "топтар бойынша жиынтық немесе динамика шынымен керек болғанда ғана шақыр: олардың кестесін " +
+  "панель өзі сызады — мазмұнын мәтінмен қайталама, басты сандармен қысқа түйін бер.";
+
+/** Секция формата ответа по языку профиля: таблицы — только по необходимости (S4a.2). */
+export function answerFormatSection(client: EntityApiClient): PromptSection<EntityTool> {
+  return section<EntityTool>("assistant-answer-format", async () => {
+    const lang = await client.language();
+    return lang === "kk" ? KK_ANSWER_FORMAT_PROMPT : RU_ANSWER_FORMAT_PROMPT;
+  });
+}
+
 /**
  * Расширение read-only реестра: инструменты сущностей и агрегатов + guard-хук.
  * Устанавливается в реестр изолята один раз (PiChatRuntime).
@@ -60,7 +90,7 @@ export function createEntityExtension(client: EntityApiClient) {
   return defineExtension({
     name: "assistant-entities",
     tools,
-    sections: [languageSection(client)],
+    sections: [languageSection(client), answerFormatSection(client)],
     hooks: [
       hook(ToolTask, {
         beforeTool(call) {
