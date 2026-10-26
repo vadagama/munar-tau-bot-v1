@@ -217,13 +217,15 @@ export async function saveAssistantSettings(
         if (!updated) throw new ApiError("CONCURRENT_MODIFICATION");
         settings = updated;
         // Токен в аудит не попадает: только маска и состав изменённых полей.
+        // Singleton настроек не имеет UUID — entity_id остаётся null (колонка
+        // audit_log.entity_id типа uuid: любое не-UUID значение даёт сырой 500).
         await recordAudit(
           deps,
           exec,
           fresh,
           "assistant.settings.changed",
           "assistant_settings",
-          "1",
+          null,
           [],
           before,
           maskedView(settings),
@@ -274,8 +276,12 @@ export async function saveAssistantSettings(
         );
       }
       const view = settings ? maskedView(settings) : null;
+      // Полный вид списка сотрудников, как в GET: кабинет после сохранения
+      // обновляет таблицу и версии строк из этого же ответа.
+      const staff = (await deps.assistant.listStaffConfigs(exec, fresh.person.isTest)).map(userView);
       return {
         settings: view,
+        users: staff,
         users_saved: users.length,
       };
     });

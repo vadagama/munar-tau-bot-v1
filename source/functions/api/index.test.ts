@@ -884,6 +884,8 @@ Deno.test("assistant: председатель задаёт токен — PUT 2
   assertEquals(put.status, 200);
   const body = await put.json();
   assertEquals(body.settings.api_key_mask, "••••4321");
+  // Контракт PUT = GET: сотрудники в ответе полным видом.
+  assertEquals(Array.isArray(body.users), true);
   assertEquals(JSON.stringify(body).includes("sk-secret-provider-value-4321"), false);
 
   // Чтение: ключ представлен маской, не значением.

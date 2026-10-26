@@ -74,10 +74,13 @@ function AssistantSettingsPage() {
     }
   }
 
-  /** После 409 черновик сохраняется: обновляются только версия и таблица. */
+  /** После 409 черновик сохраняется: обновляются только версия и таблица.
+   * Ответ без users (расхождение версий клиент/сервер) не затирает таблицу:
+   * держим текущие строки вместо пустоты — белый экран и потеря данных
+   * хуже лёгкой рассинхронизации. */
   function apply(data: AssistantSettingsJson, fillDraft: boolean) {
-    setSettings(data.settings);
-    setUsers(data.users);
+    setSettings(data.settings ?? null);
+    setUsers((current) => data.users ?? current);
     if (fillDraft) {
       setProvider(data.settings?.provider ?? "");
       setBaseUrl(data.settings?.base_url ?? "");
