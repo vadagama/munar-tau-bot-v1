@@ -107,9 +107,35 @@ export class AssistantGate {
     return effectiveEpoch(configEpoch, this.now()) === expectedEpoch ? "ok" : "stale";
   }
 
+  /**
+   * Гейт лимитов до submit (S3.1): расход против дневного/месячного лимита.
+   * Вид access берётся из кэша (обновлён checkEpoch этим же сообщением и
+   * инвалидацией после каждого POST usage); null-кэш сюда не доходит —
+   * checkEpoch уже закрыл сокет. null-лимит — без ограничения.
+   */
+  async checkLimits(): Promise<"ok" | "day" | "month"> {
+    const view = this.cached?.view;
+    if (view === undefined) return "ok";
+    if (view.daily_token_limit !== null && view.day_used >= view.daily_token_limit) return "day";
+    if (view.monthly_token_limit !== null && view.month_used >= view.monthly_token_limit) return "month";
+    return "ok";
+  }
+
   /** Сброс кэша: при 401/403 от API или принудительном перепросмотре. */
   invalidate(): void {
     this.cached = null;
+  }
+
+  /**
+   * Свежий расход в кэш (S3.1): ответ POST usage несёт актуальные суммы дня и
+   * месяца — следующий submit гейтит по ним без похода в API. Периоды не
+   * совпали (наступил день/месяц) — кэш ждёт обычного протухания (≤ 60 с).
+   */
+  updateUsage(summary: { day: string; month: string; day_tokens: number; month_tokens: number }): void {
+    const cached = this.cached;
+    if (cached === null) return;
+    if (cached.view.day === summary.day) cached.view.day_used = summary.day_tokens;
+    if (cached.view.month === summary.month) cached.view.month_used = summary.month_tokens;
   }
 
   private async getKeys(): Promise<JwtVerifyKey[]> {

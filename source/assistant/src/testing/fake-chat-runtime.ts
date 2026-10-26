@@ -23,6 +23,8 @@ export class FakeChatRuntime implements ChatRuntime {
   resets = 0;
   /** Результат следующего submit: false имитирует дубликат operationId. */
   nextSubmitAccepted = true;
+  /** Расход операций (S3.1): выдаётся в WaitResult при finishReply. */
+  readonly usageByOperation = new Map<string, { promptTokens: number; completionTokens: number }>();
 
   private readonly listeners = new Set<RuntimeListener>();
   private readonly waits = new Map<string, FakeWait>();
@@ -121,7 +123,11 @@ export class FakeChatRuntime implements ChatRuntime {
     }
     // Статус операции живёт на пользовательском сообщении — его смотрит панель.
     this.setStatus(messageId, finalStatus, result.reason);
-    this.waits.get(messageId)?.resolve(result);
+    const usage = this.usageByOperation.get(messageId);
+    this.waits.get(messageId)?.resolve({
+      ...result,
+      ...(usage !== undefined && result.status === "done" ? { usage } : {}),
+    });
     this.waits.delete(messageId);
   }
 

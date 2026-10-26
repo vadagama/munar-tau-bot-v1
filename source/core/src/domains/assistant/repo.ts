@@ -9,6 +9,8 @@ import type {
   AssistantSettingsPatch,
   AssistantSettingsRecord,
   AssistantStaffConfigRow,
+  AssistantUsageGranularity,
+  AssistantUsageHistoryRow,
   AssistantUsageInput,
   AssistantUsageSummary,
   AssistantUserConfigInput,
@@ -232,5 +234,37 @@ export class SqlAssistantRepo implements AssistantRepo {
       dayTokens: row?.day_tokens ?? 0,
       monthTokens: row?.month_tokens ?? 0,
     };
+  }
+
+  public async listUsageHistory(
+    exec: DbExecutor,
+    profileId: string,
+    granularity: AssistantUsageGranularity,
+    limit: number,
+  ): Promise<AssistantUsageHistoryRow[]> {
+    // Разрез по готовым колонкам ledger (usage_day/usage_month) — границы
+    // Алматы уже зафиксированы при записи.
+    const period = granularity === "month" ? "usage_month, 'YYYY-MM'" : "usage_day, 'YYYY-MM-DD'";
+    const rows = await exec.query<{
+      period: string;
+      prompt_tokens: number;
+      completion_tokens: number;
+    }>(
+      `select to_char(${period}) as period,
+        coalesce(sum(prompt_tokens), 0)::int as prompt_tokens,
+        coalesce(sum(completion_tokens), 0)::int as completion_tokens
+      from assistant_usage_ledger
+      where profile_id = $1
+      group by 1
+      order by 1 desc
+      limit $2`,
+      [profileId, limit],
+    );
+    return rows.map((row) => ({
+      period: row.period,
+      promptTokens: row.prompt_tokens,
+      completionTokens: row.completion_tokens,
+      totalTokens: row.prompt_tokens + row.completion_tokens,
+    }));
   }
 }

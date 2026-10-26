@@ -14,14 +14,16 @@ read-only на вымышленных данных; реальные данны�
   serializeAttachment), `Lifecycle` + `PiHarness`, ключ провайдера — в памяти
   изолята
 - `src/chat-server.ts` — логика WS-сессии: auth, снапшот + дельты fan-out,
-  идемпотентный submit, retry, resync; тестируется на фейках
+  идемпотентный submit, retry, resync; гейт лимитов до submit, отчёт расхода
+  после ответа (`onUsage`, S3.1); тестируется на фейках
 - `src/chat-runtime.ts` — интерфейс `ChatRuntime`: Pi изолирован за ним
 - `src/pi-runtime.ts` — `PiChatRuntime`: PiHarness (корневая сессия), DeepSeek
   через `deepseekProvider` (pi-ai), ключ по `POST /v1/assistant/runtime-token`
   с JWT пользователя, `settings.retry` + `afterFailedRun: "keep"`;
   устанавливает в реестр read-only реестр инструментов + guard (S2.1),
   прикладывает пул источников из tool-result записей к `WaitResult` и
-  снапшоту
+  снапшоту, считает расход операции по usage assistant-записей между
+  границами submit (S3.1)
 - `src/tools/api-client.ts` — клиент GET `/v1` с JWT пользователя (ADR-021:
   PDP на стороне API), язык профиля `/v1/meta/me` с кэшем на изолят
 - `src/tools/entity-tools.ts` — десять read-only инструментов сущностей
@@ -36,10 +38,12 @@ read-only на вымышленных данных; реальные данны�
 - `src/tools/sources.ts` — пул карточек-ссылок `{title, href}` из JSON-выводов
   инструментов (`pi.tool-result`) для панели; не-абсолютные пути отбрасываются
 - `src/gate.ts` — JWT Supabase (ES256 по JWKS, реюз `core/src/auth/jwt.ts`) +
-  enabled через `GET /v1/assistant/settings/me` с кэшем ≤ 60 с
+  enabled через `GET /v1/assistant/settings/me` с кэшем ≤ 60 с; гейт лимитов
+  до submit (`checkLimits`: день 05:00→05:00 / месяц против лимитов, S3.1) и
+  обновление расхода в кэше из ответа POST usage (`updateUsage`)
 - `src/almaty.ts` — сутки «05:00 → 05:00» Asia/Almaty (UTC-полночь) и эпохи DO
 - `src/protocol.ts` — WS-протокол панели ↔ DO (включая `sources` у сообщений
-  ассистента)
+  ассистента и отказ `limit_exceeded`)
 
 ## Память 05:00→05:00 и «Очистить»
 
@@ -58,6 +62,7 @@ DO адресуется именем `assistant:<profile_id>:<epoch>`. Новы�
 | `SUPABASE_URL` | Адрес Supabase стенда — вызовы `/v1` от DO с JWT пользователя |
 | `SUPABASE_JWKS` | Публичные ключи ES256 для проверки JWT (тот же формат, что инжектируется в Edge Functions) |
 | `CABINET_ORIGIN` | Разрешённый Origin кабинета для WebSocket |
+| `X_ASSISTANT_SECRET` | Сервисный секрет учёта расхода: DO шлёт `POST /v1/assistant/usage` после каждого ответа (S3.1) |
 
 Установка: `npx wrangler secret put SUPABASE_URL` (и аналогично остальные) из
 этого каталога. Ключ провайдера модели в Worker не хранится: DO получает его

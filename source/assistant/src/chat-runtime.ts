@@ -18,6 +18,12 @@ export interface SubmitResult {
   accepted: boolean;
 }
 
+/** Расход провайдера одной операцией — строка ledger (S3.1). */
+export interface OperationUsage {
+  promptTokens: number;
+  completionTokens: number;
+}
+
 export interface WaitResult {
   status: "done" | "unanswered";
   /** Полный текст ответа при done — эталон для панели вместо накопленных дельт. */
@@ -25,6 +31,8 @@ export interface WaitResult {
   reason?: string;
   /** Пул карточек-ссылок из вызовов инструментов этого ответа (S2.1). */
   sources?: ChatSource[];
+  /** Расход токенов ответа (S3.1): undefined — модель не отвечала. */
+  usage?: OperationUsage;
 }
 
 export interface PendingOperation {

@@ -174,3 +174,45 @@ describe("AssistantGate — кэш и эпоха", () => {
     expect(harness.calls).toHaveLength(2);
   });
 });
+
+describe("AssistantGate.checkLimits — гейт лимитов до submit (S3.1)", () => {
+  it("в пределах лимитов — ok без похода в API (кэш access уже прогрет)", async () => {
+    await harness.gate.authenticate(await validJwt(), PROFILE, DAY);
+    const calls = harness.calls.length;
+    await expect(harness.gate.checkLimits()).resolves.toBe("ok");
+    expect(harness.calls).toHaveLength(calls);
+  });
+
+  it("дневной расход догнал лимит — day", async () => {
+    harness.setView(accessView({ day_used: 50_000 }));
+    await harness.gate.authenticate(await validJwt(), PROFILE, DAY);
+    await expect(harness.gate.checkLimits()).resolves.toBe("day");
+  });
+
+  it("месячный расход догнал лимит — month", async () => {
+    harness.setView(accessView({ month_used: 1_000_000 }));
+    await harness.gate.authenticate(await validJwt(), PROFILE, DAY);
+    await expect(harness.gate.checkLimits()).resolves.toBe("month");
+  });
+
+  it("null-лимит — без ограничения", async () => {
+    harness.setView(accessView({ daily_token_limit: null, monthly_token_limit: null, day_used: 999_999 }));
+    await harness.gate.authenticate(await validJwt(), PROFILE, DAY);
+    await expect(harness.gate.checkLimits()).resolves.toBe("ok");
+  });
+
+  it("updateUsage кладёт свежий расход в кэш — следующий submit гейтится по нему", async () => {
+    await harness.gate.authenticate(await validJwt(), PROFILE, DAY);
+    expect(await harness.gate.checkLimits()).toBe("ok");
+    // Ответ POST usage после ответа модели: 50 000 из 50 000 дневных.
+    harness.gate.updateUsage({ day: "2026-10-26", month: "2026-10", day_tokens: 50_000, month_tokens: 50_000 });
+    await expect(harness.gate.checkLimits()).resolves.toBe("day");
+    // Период из ответа не совпал с кэшем — цифры не применяются.
+    harness.gate.updateUsage({ day: "2026-10-27", month: "2026-11", day_tokens: 0, month_tokens: 0 });
+    await expect(harness.gate.checkLimits()).resolves.toBe("day");
+  });
+
+  it("без аутентификации — ok (сокет закрыт checkEpoch раньше)", async () => {
+    await expect(harness.gate.checkLimits()).resolves.toBe("ok");
+  });
+});

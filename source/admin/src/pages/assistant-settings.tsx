@@ -8,10 +8,10 @@ import { PageLayout } from "../components/page-layout";
 import { ConfigurableTable } from "../components/configurable-table";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Input, InputNumber, Space, Switch, Tag, Typography } from "antd";
+import { Alert, Button, Input, InputNumber, Segmented, Select, Space, Switch, Tag, Typography } from "antd";
 import { apiFetch } from "../lib/api";
 import { canSeeAssistantSettings, useCabinetIdentity } from "../lib/identity";
-import type { AssistantSettingsJson, AssistantUserRowJson } from "../lib/types";
+import type { AssistantSettingsJson, AssistantUsageHistoryJson, AssistantUserRowJson } from "../lib/types";
 
 /** Тело PUT: изменённые поля настроек и/или конфиг одного сотрудника. */
 interface SaveBody {
@@ -40,6 +40,13 @@ function AssistantSettingsPage() {
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
   const request = useRef(0);
+  // Расход (S3.2): выбор сотрудника, разрез день/месяц, история из ledger.
+  const [usageProfileId, setUsageProfileId] = useState<string | undefined>();
+  const [usageGranularity, setUsageGranularity] = useState<"day" | "month">("day");
+  const [usageHistory, setUsageHistory] = useState<AssistantUsageHistoryJson | null>(null);
+  const [usageError, setUsageError] = useState<string>();
+  const [usageBusy, setUsageBusy] = useState(false);
+  const usageRequest = useRef(0);
   // Ключ идемпотентности регенерируется при изменении тела: 409 сохраняет
   // ввод, повтор осознанный (образец templates.tsx).
   const operation = useRef({ body: "", key: crypto.randomUUID() });
@@ -82,6 +89,34 @@ function AssistantSettingsPage() {
       request.current += 1;
     };
   }, [allowed]);
+
+  // История расхода выбранного сотрудника (GET /v1/assistant/usage/history).
+  // Запоздалый ответ предыдущего выбора отбрасывается по поколению запроса.
+  useEffect(() => {
+    if (usageProfileId === undefined) return;
+    const seq = ++usageRequest.current;
+    setUsageBusy(true);
+    setUsageError(undefined);
+    apiFetch<AssistantUsageHistoryJson>("/v1/assistant/usage/history", {
+      query: { profile_id: usageProfileId, granularity: usageGranularity },
+    })
+      .then((data) => {
+        if (seq !== usageRequest.current) return;
+        setUsageHistory(data);
+        setUsageError(undefined);
+      })
+      .catch((e: unknown) => {
+        if (seq !== usageRequest.current) return;
+        setUsageHistory(null);
+        setUsageError(e instanceof Error ? e.message : "Не удалось загрузить расход");
+      })
+      .finally(() => {
+        if (seq === usageRequest.current) setUsageBusy(false);
+      });
+    return () => {
+      usageRequest.current += 1;
+    };
+  }, [usageProfileId, usageGranularity]);
 
   async function put(body: SaveBody) {
     if (!editable) return;
@@ -317,6 +352,59 @@ function AssistantSettingsPage() {
         dataSource={users}
         columns={columns}
       />
+
+      <Typography.Title level={4}>Расход</Typography.Title>
+      <Typography.Paragraph type="secondary">
+        Токены по дням (05:00→05:00 Алматы) и месяцам, свежие периоды первыми.
+        Свой расход видит каждый сотрудник в панели ассистента; здесь — все сотрудники.
+      </Typography.Paragraph>
+      <Space wrap style={{ marginBottom: 12 }}>
+        <Select
+          aria-label="Сотрудник"
+          style={{ minWidth: 260 }}
+          placeholder="Выберите сотрудника"
+          allowClear
+          value={usageProfileId}
+          options={users
+            .filter((row) => row.profile_id !== null)
+            .map((row) => ({ value: row.profile_id!, label: row.full_name }))}
+          onChange={(value) => {
+            setUsageProfileId(value ?? undefined);
+            setUsageHistory(null);
+          }}
+        />
+        <Segmented
+          aria-label="Разрез расхода"
+          value={usageGranularity}
+          onChange={(value) => setUsageGranularity(value as "day" | "month")}
+          options={[
+            { label: "По дням", value: "day" },
+            { label: "По месяцам", value: "month" },
+          ]}
+        />
+      </Space>
+      {usageError && <Alert type="error" message={usageError} showIcon style={{ marginBottom: 12 }} />}
+      {usageProfileId === undefined ? (
+        <Typography.Text type="secondary">Выберите сотрудника, чтобы увидеть его расход.</Typography.Text>
+      ) : (
+        <ConfigurableTable
+          storageKey="columns.assistant-usage-history"
+          settingsPlacement="inline"
+          mobileSortPlacement="none"
+          size="small"
+          pagination={false}
+          rowKey="period"
+          loading={usageBusy}
+          locale={{ emptyText: "Расхода за выбранный период нет" }}
+          dataSource={usageHistory !== null && usageHistory.granularity === usageGranularity ? usageHistory.rows : []}
+          columns={[
+            { title: "Период", dataIndex: "period" },
+            { title: "Входные токены", dataIndex: "prompt_tokens", align: "right" },
+            { title: "Выходные токены", dataIndex: "completion_tokens", align: "right" },
+            { title: "Всего токенов", dataIndex: "total_tokens", align: "right" },
+          ]}
+        />
+      )}
     </PageLayout>
   );
 }

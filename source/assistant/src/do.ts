@@ -11,6 +11,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { Lifecycle } from "agents/lifecycle";
 import { ChatServer, type ChatSocket } from "./chat-server.ts";
+import type { OperationUsage } from "./chat-runtime.ts";
 import { AssistantGate } from "./gate.ts";
 import { parseAssistantDoName } from "./almaty.ts";
 import { PiChatRuntime, type RuntimeTokenResponse } from "./pi-runtime.ts";
@@ -23,6 +24,8 @@ export interface AssistantEnv {
   SUPABASE_URL?: string;
   SUPABASE_JWKS?: string;
   CABINET_ORIGIN?: string;
+  /** Сервисный секрет учёта расхода (S3.1): POST /v1/assistant/usage. */
+  X_ASSISTANT_SECRET?: string;
 }
 
 const WS_CLOSE_UNAUTHORIZED = 1008;
@@ -129,8 +132,52 @@ export class AssistantDO extends DurableObject<AssistantEnv> {
       runtime: this.runtime,
       authenticate: (jwt) => this.gate.authenticate(jwt, this.profileId, this.epoch),
       checkEpoch: () => this.gate.checkEpoch(this.profileId, this.epoch),
+      checkLimits: () => this.gate.checkLimits(),
+      onUsage: (operationId, usage) => this.reportUsage(operationId, usage),
       now: () => new Date(),
     });
+  }
+
+  /**
+   * Учёт расхода после ответа (S3.1): POST /v1/assistant/usage с сервисным
+   * секретом, идемпотентность по operation_id — повтор не удваивает. Свежие
+   * суммы из ответа попадают в кэш гейта: следующий submit гейтит по ним.
+   * waitUntil держит изолят живым до конца POST (ChatServer не ждёт).
+   */
+  private reportUsage(operationId: string, usage: OperationUsage): void {
+    const baseUrl = this.env.SUPABASE_URL;
+    const secret = this.env.X_ASSISTANT_SECRET;
+    if (baseUrl === undefined || baseUrl === "" || secret === undefined || secret === "") {
+      return;
+    }
+    const posted = fetch(`${baseUrl.replace(/\/$/, "")}/functions/v1/api/v1/assistant/usage`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-assistant-secret": secret },
+      body: JSON.stringify({
+        profile_id: this.profileId,
+        operation_id: operationId,
+        prompt_tokens: usage.promptTokens,
+        completion_tokens: usage.completionTokens,
+      }),
+    })
+      .then(async (response) => {
+        if (!response.ok) return;
+        try {
+          this.gate.updateUsage((await response.json()) as {
+            day: string;
+            month: string;
+            day_tokens: number;
+            month_tokens: number;
+          });
+        } catch {
+          // Ответ не разобрался — гейт остаётся на кэше ≤ 60 с.
+        }
+      })
+      .catch(() => {
+        // Учёт best-effort: потерянная запись занижает расход, лимиты при этом
+        // по-прежнему гейтятся по данным settings/me.
+      });
+    this.ctx.waitUntil(posted);
   }
 
   /** Ключ провайдера — только в памяти изолята (ADR-021), вызов из pi-runtime. */

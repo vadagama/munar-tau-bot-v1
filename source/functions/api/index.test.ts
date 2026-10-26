@@ -1018,6 +1018,92 @@ Deno.test("assistant: POST /v1/assistant/usage — секрет, идемпот�
   assertEquals((await me.json()).day_used, 30);
 });
 
+Deno.test("assistant: GET /v1/assistant/usage — свой расход виден, чужой только chairman/tech_admin", async () => {
+  const { deps, admin } = makeDeps();
+  const staff = makeTestActor("administrator", [], { personId: "p-usage-staff" });
+  const chair = makeTestActor("chairman", [], { personId: "p-usage-chair" });
+  seedIdentity(admin, { sub: "sub-usage-staff", sessionId: "s-usage-staff", personId: staff.person.id, profileId: staff.profile.id, actor: staff });
+  seedIdentity(admin, { sub: "sub-usage-chair", sessionId: "s-usage-chair", personId: chair.person.id, profileId: chair.profile.id, actor: chair });
+
+  // Ledger: расход сотрудника (сервисный учёт от Worker).
+  const posted = await call(deps, "/v1/assistant/usage", {
+    method: "POST",
+    body: { profile_id: staff.profile.id, operation_id: "op-u1", prompt_tokens: 10, completion_tokens: 20 },
+    headers: { "x-assistant-secret": "test-assistant-secret" },
+  });
+  assertEquals(posted.status, 200);
+
+  const staffJwt = await token({ sub: "sub-usage-staff", sessionId: "s-usage-staff" });
+  const chairJwt = await token({ sub: "sub-usage-chair", sessionId: "s-usage-chair" });
+
+  // Свой расход — включённому сотруднику (allowOwn).
+  const own = await call(deps, "/v1/assistant/usage", { token: staffJwt });
+  assertEquals(own.status, 200);
+  assertEquals((await own.json()).day_used, 30);
+
+  // Чужой расход обычному сотруднику — FORBIDDEN (тест PDP, S3.2).
+  const foreign = await call(deps, `/v1/assistant/usage?profile_id=${chair.profile.id}`, { token: staffJwt });
+  assertEquals(foreign.status, 403);
+  assertEquals((await foreign.json()).error.code, "FORBIDDEN");
+
+  // Чужой расход председателю — 200.
+  const asChair = await call(deps, `/v1/assistant/usage?profile_id=${staff.profile.id}`, { token: chairJwt });
+  assertEquals(asChair.status, 200);
+  assertEquals((await asChair.json()).profile_id, staff.profile.id);
+
+  // Без токена — 401.
+  const anonymous = await call(deps, "/v1/assistant/usage");
+  assertEquals(anonymous.status, 401);
+});
+
+Deno.test("assistant: GET /v1/assistant/usage/history — день/месяц, чужой только chairman/tech_admin", async () => {
+  const { deps, admin } = makeDeps();
+  const staff = makeTestActor("administrator", [], { personId: "p-hist-staff" });
+  const chair = makeTestActor("chairman", [], { personId: "p-hist-chair" });
+  seedIdentity(admin, { sub: "sub-hist-staff", sessionId: "s-hist-staff", personId: staff.person.id, profileId: staff.profile.id, actor: staff });
+  seedIdentity(admin, { sub: "sub-hist-chair", sessionId: "s-hist-chair", personId: chair.person.id, profileId: chair.profile.id, actor: chair });
+
+  const secret = { "x-assistant-secret": "test-assistant-secret" };
+  const post = (operationId: string, prompt: number, completion: number) =>
+    call(deps, "/v1/assistant/usage", {
+      method: "POST",
+      body: { profile_id: staff.profile.id, operation_id: operationId, prompt_tokens: prompt, completion_tokens: completion },
+      headers: secret,
+    });
+  assertEquals((await post("op-h1", 10, 20)).status, 200);
+  assertEquals((await post("op-h2", 5, 7)).status, 200);
+
+  const staffJwt = await token({ sub: "sub-hist-staff", sessionId: "s-hist-staff" });
+  const chairJwt = await token({ sub: "sub-hist-chair", sessionId: "s-hist-chair" });
+
+  // Своя история по дням: обе записи одного дня, свежие первыми.
+  const ownDay = await call(deps, "/v1/assistant/usage/history", { token: staffJwt });
+  assertEquals(ownDay.status, 200);
+  const dayBody = await ownDay.json();
+  assertEquals(dayBody.profile_id, staff.profile.id);
+  assertEquals(dayBody.granularity, "day");
+  assertEquals(dayBody.rows.length, 1);
+  assertEquals(dayBody.rows[0].prompt_tokens, 15);
+  assertEquals(dayBody.rows[0].completion_tokens, 27);
+  assertEquals(dayBody.rows[0].total_tokens, 42);
+
+  // Чужая история обычному сотруднику — FORBIDDEN (тест PDP, S3.2).
+  const foreign = await call(deps, `/v1/assistant/usage/history?profile_id=${chair.profile.id}`, { token: staffJwt });
+  assertEquals(foreign.status, 403);
+  assertEquals((await foreign.json()).error.code, "FORBIDDEN");
+
+  // Председатель читает чужую историю по месяцам; неизвестный разрез — день.
+  const month = await call(deps, `/v1/assistant/usage/history?profile_id=${staff.profile.id}&granularity=month`, { token: chairJwt });
+  assertEquals(month.status, 200);
+  const monthBody = await month.json();
+  assertEquals(monthBody.granularity, "month");
+  assertEquals(monthBody.rows.length, 1);
+  assertEquals(monthBody.rows[0].total_tokens, 42);
+  const fallback = await call(deps, `/v1/assistant/usage/history?profile_id=${staff.profile.id}&granularity=nonsense`, { token: chairJwt });
+  assertEquals(fallback.status, 200);
+  assertEquals((await fallback.json()).granularity, "day");
+});
+
 Deno.test("исполнитель не управляет чужой анкетой через прямой API", async () => {
   const { deps, admin } = makeDeps();
   const executor = makeTestActor("executor", [], { personId: "p-executor" });

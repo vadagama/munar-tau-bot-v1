@@ -3,6 +3,17 @@
 
 .assistant-panel { margin-bottom: 24px; }
 
+.assistant-usage {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.assistant-usage .ant-progress {
+  flex: 0 0 120px;
+  margin: 0;
+}
+
 .assistant-thread {
   display: flex;
   flex-direction: column;

@@ -15,7 +15,7 @@ import { createModels, type Provider } from "@earendil-works/pi-ai/models";
 import type { Model } from "@earendil-works/pi-ai";
 import { createRegistry, Harness, type EntryRecord, type Registry } from "@earendil-works/pi-durable";
 import { PiHarness, type PiPendingOperation } from "agents/harness/pi";
-import type { ChatRuntime, RuntimeListener, RuntimeUpdate, SubmitResult, WaitResult } from "./chat-runtime.ts";
+import type { ChatRuntime, OperationUsage, RuntimeListener, RuntimeUpdate, SubmitResult, WaitResult } from "./chat-runtime.ts";
 import type { ChatMessageView } from "./protocol.ts";
 import { contentText, collectSources, sourcesForEntry } from "./tools/sources.ts";
 import { EntityApiClient } from "./tools/api-client.ts";
@@ -89,6 +89,12 @@ export class PiChatRuntime implements ChatRuntime {
   private eventStreamStarted = false;
   /** operationId последнего submit — атрибуция дельт стриминга (один пользователь на DO). */
   private liveOperationId: string | null = null;
+  /**
+   * Границы операций (S3.1): operationId → id последней записи транскрипта на
+   * момент submit. Расход операции — assistant-записи между её границей и
+   * границей следующей операции (Pi исполняет операции последовательно).
+   */
+  private readonly marks = new Map<string, number | null>();
 
   constructor(private readonly deps: PiRuntimeDeps) {
     this.registry = createRegistry();
@@ -129,6 +135,12 @@ export class PiChatRuntime implements ChatRuntime {
     await this.ensureModel();
     this.liveOperationId = input.messageId;
     const receipt = await this.harness.submit(input.text, { operationId: input.messageId });
+    if (receipt.accepted) {
+      // Граница расхода операции: записи, появившиеся после этого момента,
+      // принадлежат ей (следующая операция отсекает окно).
+      const entries = await this.harness.messages();
+      this.marks.set(input.messageId, entries.length > 0 ? Number(entries.at(-1)!.id) : null);
+    }
     return { accepted: receipt.accepted };
   }
 
@@ -140,11 +152,14 @@ export class PiChatRuntime implements ChatRuntime {
     // Пул источников — из tool-result записей транскрипта (S2.1): к финалу
     // ответа все вызовы инструментов уже в истории. Пустой пул не отправляем.
     const sources = collectSources(await this.harness.messages());
+    // Расход ответа (S3.1): undefined уходит из JSON — POST usage не вызывается.
+    const usage = await this.operationUsage(messageId);
     return {
       status: result.status,
       text: result.text,
       reason: result.reason,
       ...(sources.length > 0 ? { sources } : {}),
+      ...(usage !== undefined ? { usage } : {}),
     };
   }
 
@@ -188,6 +203,39 @@ export class PiChatRuntime implements ChatRuntime {
 
   async reset(): Promise<void> {
     await this.harness.session().reset();
+  }
+
+  /**
+   * Расход операции (S3.1): сумма usage assistant-записей между границей
+   * submit и границей следующей операции. prompt = input + cacheRead +
+   * cacheWrite (семантика prompt_tokens провайдера), completion = output.
+   * undefined — операция без принятого submit (границы нет).
+   */
+  private async operationUsage(operationId: string): Promise<OperationUsage | undefined> {
+    const mark = this.marks.get(operationId);
+    if (mark === undefined) return undefined;
+    const markNum = mark ?? -1;
+    let nextMark: number | null = null;
+    for (const [op, boundary] of this.marks) {
+      const boundaryNum = boundary ?? -1;
+      if (op !== operationId && boundaryNum > markNum && (nextMark === null || boundaryNum < nextMark)) {
+        nextMark = boundaryNum;
+      }
+    }
+    const entries = await this.harness.messages();
+    let promptTokens = 0;
+    let completionTokens = 0;
+    for (const entry of entries) {
+      if (!isAssistantEntry(entry)) continue;
+      const id = Number(entry.id);
+      if (id <= markNum || (nextMark !== null && id >= nextMark)) continue;
+      const message = entry.model?.[0];
+      if (message?.role === "assistant" && message.usage) {
+        promptTokens += message.usage.input + message.usage.cacheRead + message.usage.cacheWrite;
+        completionTokens += message.usage.output;
+      }
+    }
+    return { promptTokens, completionTokens };
   }
 
   /** Модель сессии: model_id из настроек, при отсутствии в каталоге — дефолт. */
