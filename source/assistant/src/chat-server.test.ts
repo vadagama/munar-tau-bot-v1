@@ -29,16 +29,26 @@ interface Harness {
   server: ChatServer;
   runtime: FakeChatRuntime;
   setEpoch(state: "ok" | "stale"): void;
+  setLimits(state: "ok" | "day" | "month"): void;
+  usageReports: Array<{ operationId: string; promptTokens: number; completionTokens: number }>;
 }
 
-function makeServer(deps: Partial<{ decision: AuthDecision; epoch: "ok" | "stale" }> = {}): Harness {
+function makeServer(
+  deps: Partial<{ decision: AuthDecision; epoch: "ok" | "stale"; limits: "ok" | "day" | "month" }> = {},
+): Harness {
   const runtime = new FakeChatRuntime();
   const decision: AuthDecision = deps.decision ?? { ok: true, profileId: "profile-1", epoch: 100 };
   let epochState: "ok" | "stale" = deps.epoch ?? "ok";
+  let limitsState: "ok" | "day" | "month" = deps.limits ?? "ok";
+  const usageReports: Array<{ operationId: string; promptTokens: number; completionTokens: number }> = [];
   const server = new ChatServer({
     runtime,
     authenticate: async () => decision,
     checkEpoch: async () => epochState,
+    checkLimits: async () => limitsState,
+    onUsage: (operationId, usage) => {
+      usageReports.push({ operationId, ...usage });
+    },
     now: () => new Date("2026-10-26T06:00:00Z"),
   });
   return {
@@ -47,6 +57,10 @@ function makeServer(deps: Partial<{ decision: AuthDecision; epoch: "ok" | "stale
     setEpoch(state: "ok" | "stale") {
       epochState = state;
     },
+    setLimits(state: "ok" | "day" | "month") {
+      limitsState = state;
+    },
+    usageReports,
   };
 }
 
@@ -255,5 +269,100 @@ describe("ChatServer — сообщения", () => {
     expect(harness.runtime.submitted).toHaveLength(0);
     expect(socket.parsed().at(-1)).toMatchObject({ type: "error", code: "epoch_stale" });
     expect(socket.closed).not.toBeNull();
+  });
+});
+
+describe("ChatServer — гейт лимитов и учёт расхода (S3.1)", () => {
+  let harness: Harness;
+  let socket: FakeSocket;
+
+  beforeEach(async () => {
+    harness = makeServer();
+    socket = await connect(harness.server);
+    socket.sent.length = 0;
+  });
+
+  it("исчерпанный дневной лимит — отказ limit_exceeded до submit, модель не вызывается", async () => {
+    harness.setLimits("day");
+    await harness.server.onMessage(
+      socket,
+      encodeClientMessage({ type: "message", messageId: "op-l1", text: "вопрос" }),
+      { profileId: "profile-1", epoch: 100 },
+    );
+    expect(harness.runtime.submitted).toHaveLength(0);
+    expect(harness.usageReports).toHaveLength(0);
+    expect(socket.parsed().at(-1)).toMatchObject({
+      type: "error",
+      code: "limit_exceeded",
+      messageId: "op-l1",
+    });
+    expect(socket.closed).toBeNull();
+  });
+
+  it("исчерпанный месячный лимит — отказ limit_exceeded до submit", async () => {
+    harness.setLimits("month");
+    await harness.server.onMessage(
+      socket,
+      encodeClientMessage({ type: "message", messageId: "op-l2", text: "вопрос" }),
+      { profileId: "profile-1", epoch: 100 },
+    );
+    expect(harness.runtime.submitted).toHaveLength(0);
+    expect(socket.parsed().at(-1)).toMatchObject({ type: "error", code: "limit_exceeded" });
+  });
+
+  it("после ответа расход операции уходит в onUsage (идемпотентность — на стороне POST)", async () => {
+    harness.runtime.usageByOperation.set("op-u1", { promptTokens: 120, completionTokens: 30 });
+    const pending = harness.server.onMessage(
+      socket,
+      encodeClientMessage({ type: "message", messageId: "op-u1", text: "вопрос" }),
+      { profileId: "profile-1", epoch: 100 },
+    );
+    await harness.runtime.untilAwaited("op-u1");
+    harness.runtime.finishReply("op-u1", "ответ", { status: "done", text: "ответ" });
+    await pending;
+    expect(harness.usageReports).toEqual([
+      { operationId: "op-u1", promptTokens: 120, completionTokens: 30 },
+    ]);
+    // done ушёл независимо от учёта.
+    expect(socket.parsed().at(-1)).toMatchObject({ type: "done", messageId: "op-u1", status: "done" });
+  });
+
+  it("без ответа модели (unanswered) учёт расхода не вызывается", async () => {
+    const pending = harness.server.onMessage(
+      socket,
+      encodeClientMessage({ type: "message", messageId: "op-u2", text: "вопрос" }),
+      { profileId: "profile-1", epoch: 100 },
+    );
+    await harness.runtime.untilAwaited("op-u2");
+    harness.runtime.usageByOperation.set("op-u2", { promptTokens: 10, completionTokens: 5 });
+    harness.runtime.failRun("op-u2", "провайдер недоступен");
+    await pending;
+    expect(harness.usageReports).toHaveLength(0);
+  });
+
+  it("ошибка onUsage не ломает done", async () => {
+    const local = makeServer();
+    local.server = new ChatServer({
+      runtime: local.runtime,
+      authenticate: async () => ({ ok: true, profileId: "profile-1", epoch: 100 }),
+      checkEpoch: async () => "ok",
+      checkLimits: async () => "ok",
+      onUsage: () => {
+        throw new Error("POST упал");
+      },
+      now: () => new Date("2026-10-26T06:00:00Z"),
+    });
+    const sock = await connect(local.server);
+    sock.sent.length = 0;
+    local.runtime.usageByOperation.set("op-u3", { promptTokens: 1, completionTokens: 1 });
+    const pending = local.server.onMessage(
+      sock,
+      encodeClientMessage({ type: "message", messageId: "op-u3", text: "вопрос" }),
+      { profileId: "profile-1", epoch: 100 },
+    );
+    await local.runtime.untilAwaited("op-u3");
+    local.runtime.finishReply("op-u3", "ответ", { status: "done", text: "ответ" });
+    await pending;
+    expect(sock.parsed().at(-1)).toMatchObject({ type: "done", messageId: "op-u3", status: "done" });
   });
 });

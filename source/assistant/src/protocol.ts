@@ -111,7 +111,8 @@ export interface UpsertMessage {
 
 export interface ErrorMessage {
   type: "error";
-  code: "epoch_stale" | "rejected" | "internal";
+  /** limit_exceeded — гейт лимитов до submit (S3.1): модель не вызывалась. */
+  code: "epoch_stale" | "rejected" | "internal" | "limit_exceeded";
   message: string;
   messageId?: string;
 }

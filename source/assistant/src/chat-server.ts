@@ -3,7 +3,7 @@
 // Не знает ни о Workers API, ни о Pi: сокеты — интерфейс ChatSocket, рантайм —
 // ChatRuntime. Тестируется на фейках (S1.1), DO (do.ts) только склеивает.
 
-import type { ChatRuntime, RuntimeUpdate } from "./chat-runtime.ts";
+import type { ChatRuntime, OperationUsage, RuntimeUpdate } from "./chat-runtime.ts";
 import {
   encodeServerMessage,
   parseClientMessage,
@@ -25,6 +25,13 @@ export interface ChatServerDeps {
   authenticate(jwt: string): Promise<AuthDecision>;
   /** Актуальна ли эпоха DO: "stale" — клиент должен переподключиться. */
   checkEpoch(): Promise<"ok" | "stale">;
+  /** Гейт лимитов до submit (S3.1): "day"/"month" — отказ без вызова модели. */
+  checkLimits(): Promise<"ok" | "day" | "month">;
+  /**
+   * Учёт расхода после ответа (S3.1): POST /v1/assistant/usage (идемпотентно
+   * по operation_id). Fire-and-forget: ошибка учёта не ломает done.
+   */
+  onUsage(operationId: string, usage: OperationUsage): void;
   now(): Date;
 }
 
@@ -128,6 +135,20 @@ export class ChatServer {
   }
 
   private async handleSubmit(socket: ChatSocket, messageId: string, text: string): Promise<void> {
+    // Гейт лимитов до submit (S3.1): превышение — отказ в панели без вызова
+    // модели и без записи расхода.
+    const limits = await this.deps.checkLimits();
+    if (limits !== "ok") {
+      this.send(socket, {
+        type: "error",
+        code: "limit_exceeded",
+        messageId,
+        message: limits === "day"
+          ? "Дневной лимит токенов исчерпан — попробуйте после 05:00 или попросите повысить лимит в настройках"
+          : "Месячный лимит токенов исчерпан — доступ возобновится в следующем месяце или после повышения лимита",
+      });
+      return;
+    }
     const { accepted } = await this.deps.runtime.submit({ messageId, text });
     if (!accepted) {
       // Дубликат operationId: новых сообщений не создаём, возвращаем состояние.
@@ -150,6 +171,15 @@ export class ChatServer {
       // Пул карточек-ссылок из инструментов (S2.1); undefined уходит из JSON.
       sources: result.sources,
     });
+    // Учёт расхода после ответа (S3.1): POST идемпотентен по operation_id.
+    // done уже ушёл — сбой учёта клиенту не виден.
+    if (result.usage !== undefined) {
+      try {
+        this.deps.onUsage(messageId, result.usage);
+      } catch {
+        // Учёт не должен ломать сессию.
+      }
+    }
   }
 
   private async sendSnapshot(socket: ChatSocket): Promise<void> {
