@@ -284,6 +284,7 @@ describe("сервис assistant: per-user конфиги", () => {
       enabled: false,
       dailyTokenLimit: 0,
       monthlyTokenLimit: 0,
+      epoch: 1,
       version: 3,
       updatedAt: new Date().toISOString(),
     });
