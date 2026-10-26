@@ -2,3 +2,11 @@
 body {
   margin: 0;
 }
+
+/* Поле токена провайдера: маскировка CSS вместо type="password". Менеджеры
+   паролей не считают такое поле паролем и не предлагают сгенерировать пароль.
+   Класс вешается на обёртку AntD Input (с suffix он не попадает на сам input),
+   поэтому маскируем вложенный input. */
+.assistant-secret-masked input {
+  -webkit-text-security: disc;
+}
