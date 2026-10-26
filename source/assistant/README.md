@@ -1,23 +1,38 @@
 # AI-ассистент кабинета — Worker + Durable Objects (ADR-021)
 
 Отдельный деплой вне Cloudflare Pages: WebSocket-гейт, Durable Object на
-сотрудника с Pi Durable (`PiHarness`) и провайдером DeepSeek. Пилот —
+сотрудника и эпоху с Pi Durable (`PiHarness`) и провайдером DeepSeek. Пилот —
 read-only на вымышленных данных; реальные данные — только после ИБ-анализа
 и отдельного ADR.
 
 ## Структура
 
-- `src/index.ts` — Worker: точка входа, проверка Origin кабинета, передача
-  upgrade-запроса WebSocket в DO
-- `src/do.ts` — `AssistantDO`: hibernatable WebSocket, гейт JWT/enabled,
-  `PiHarness` в Lifecycle, память диалога в SQLite DO (`pi_*`)
-- `src/chat-runtime.ts` — интерфейс `ChatRuntime`: Pi изолирован за ним,
-  тесты идут на фейке
-- `src/pi-runtime.ts` — реализация `ChatRuntime` на PiHarness
-- `src/gate.ts` — проверка JWT Supabase (ES256 по JWKS, реюз
-  `core/src/auth/jwt.ts`) и enabled-флага с кэшем ≤ 60 с
-- `src/almaty.ts` — граница суток «05:00 → 05:00» Asia/Almaty (UTC-полночь)
+- `src/index.ts` — Worker: только upgrade `/ws` с Origin кабинета
+  (`CABINET_ORIGIN`), адресация DO `assistant:<profile_id>:<epoch>`; гейт JWT
+  выполняет сам DO первым сообщением, JWT не в URL
+- `src/do.ts` — `AssistantDO`: hibernatable WebSocket (состояние в
+  serializeAttachment), `Lifecycle` + `PiHarness`, ключ провайдера — в памяти
+  изолята
+- `src/chat-server.ts` — логика WS-сессии: auth, снапшот + дельты fan-out,
+  идемпотентный submit, retry, resync; тестируется на фейках
+- `src/chat-runtime.ts` — интерфейс `ChatRuntime`: Pi изолирован за ним
+- `src/pi-runtime.ts` — `PiChatRuntime`: PiHarness (корневая сессия), DeepSeek
+  через `deepseekProvider` (pi-ai), ключ по `POST /v1/assistant/runtime-token`
+  с JWT пользователя, `settings.retry` + `afterFailedRun: "keep"`
+- `src/gate.ts` — JWT Supabase (ES256 по JWKS, реюз `core/src/auth/jwt.ts`) +
+  enabled через `GET /v1/assistant/settings/me` с кэшем ≤ 60 с
+- `src/almaty.ts` — сутки «05:00 → 05:00» Asia/Almaty (UTC-полночь) и эпохи DO
 - `src/protocol.ts` — WS-протокол панели ↔ DO
+
+## Память 05:00→05:00 и «Очистить»
+
+Lifecycle монополизирует `alarm()` изолята, поэтому сброс контекста сделан
+эпохами (отклонение от ранней идеи с будильником): сутки 05:00→05:00 — это
+номер UTC-суток, эффективная эпоха = `max(конфиг-эпоха, сегодняшний день)`,
+DO адресуется именем `assistant:<profile_id>:<epoch>`. Новый день или
+«Очистить» (REST `POST /v1/assistant/clear`, поднимает конфиг-эпоху) дают
+новый DO с пустой историей; DO старой эпохи при сообщении отвечает
+`epoch_stale`, и панель переподключается.
 
 ## Секреты Worker (не в коде и не в сборке)
 
@@ -30,7 +45,17 @@ read-only на вымышленных данных; реальные данны�
 Установка: `npx wrangler secret put SUPABASE_URL` (и аналогично остальные) из
 этого каталога. Ключ провайдера модели в Worker не хранится: DO получает его
 по `POST /v1/assistant/runtime-token` с JWT пользователя на старте сессии и
-держит только в памяти изолята (не в `pi_*`, не в логах).
+держит только в памяти изолята (не в `pi_*`, не в логах). JWT пользователя
+также живёт только в памяти изолята.
+
+Модель берётся из настроек (`model_id` в runtime-token): идентификатор ищется
+в каталоге pi-ai провайдера DeepSeek; неизвестный идентификатор замещается
+каталожным дефолтом (`deepseek-flash` в `agents` 0.30.x ↔ Pi 1.4).
+
+Ограничение холодного подъёма: изолят, разбуженный задачей Pi до auth
+пользователя, ещё не имеет JWT — модель уйдёт unanswered (`no_model`), очередь
+сохранится (`afterFailedRun: keep`), ответ появится после переподключения
+панели и «Повторить».
 
 ## Локальный запуск
 

@@ -94,6 +94,12 @@ export interface DoneMessage {
   error?: string;
 }
 
+/** Полная запись транскрипта (после обрыва/пробуждения DO): заменить или добавить. */
+export interface UpsertMessage {
+  type: "upsert";
+  message: ChatMessageView;
+}
+
 export interface ErrorMessage {
   type: "error";
   code: "epoch_stale" | "rejected" | "internal";
@@ -108,6 +114,7 @@ export type ServerMessage =
   | DeltaMessage
   | StatusMessage
   | DoneMessage
+  | UpsertMessage
   | ErrorMessage;
 
 export function encodeServerMessage(message: ServerMessage): string {

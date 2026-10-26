@@ -160,6 +160,25 @@ describe("ChatServer — сообщения", () => {
     expect(socket.parsed()).toContainEqual({ type: "delta", messageId: "op-1:reply", text: "ответ" });
   });
 
+  it("апсет полной записи рассылается аутентифицированным сокетам", async () => {
+    const second = await connect(harness.server);
+    second.sent.length = 0;
+    socket.sent.length = 0;
+
+    harness.runtime.upsert({
+      messageId: "pi-entry-1",
+      role: "assistant",
+      text: "полный ответ после обрыва",
+      status: "done",
+    });
+
+    expect(socket.parsed()).toContainEqual({
+      type: "upsert",
+      message: { messageId: "pi-entry-1", role: "assistant", text: "полный ответ после обрыва", status: "done" },
+    });
+    expect(second.parsed()).toHaveLength(1);
+  });
+
   it("сбой провайдера завершает операцию unanswered с причиной", async () => {
     const pending = harness.server.onMessage(
       socket,

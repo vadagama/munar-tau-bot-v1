@@ -159,6 +159,8 @@ export class ChatServer {
       if (session === null) continue;
       if (update.kind === "delta") {
         this.send(socket, { type: "delta", messageId: update.messageId, text: update.text });
+      } else if (update.kind === "upsert") {
+        this.send(socket, { type: "upsert", message: update.message });
       } else {
         this.send(socket, {
           type: "status",

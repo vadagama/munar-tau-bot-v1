@@ -7,7 +7,9 @@ import type { ChatMessageStatus, ChatMessageView } from "./protocol.ts";
 /** Обновление транскрипта, которое рантайм доставляет подписчикам. */
 export type RuntimeUpdate =
   | { kind: "delta"; messageId: string; text: string }
-  | { kind: "status"; messageId: string; status: ChatMessageStatus; error?: string };
+  | { kind: "status"; messageId: string; status: ChatMessageStatus; error?: string }
+  /** Полная запись (например, финальная запись Pi после обрыва соединения). */
+  | { kind: "upsert"; message: ChatMessageView };
 
 export type RuntimeListener = (update: RuntimeUpdate) => void;
 

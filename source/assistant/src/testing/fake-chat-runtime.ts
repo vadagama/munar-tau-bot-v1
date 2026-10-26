@@ -104,6 +104,12 @@ export class FakeChatRuntime implements ChatRuntime {
     this.emit({ kind: "delta", messageId, text });
   }
 
+  /** Доставляет подписчикам полную запись (как финальная запись Pi). */
+  upsert(message: ChatMessageView) {
+    this.messages.set(message.messageId, message);
+    this.emit({ kind: "upsert", message });
+  }
+
   finishReply(messageId: string, text: string, result: WaitResult) {
     const replyId = `${messageId}:reply`;
     const finalStatus = result.status === "done" ? "done" : "unanswered";
