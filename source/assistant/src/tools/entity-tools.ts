@@ -96,12 +96,6 @@ function pageOf<T>(rows: T[], page: number, size: number): Page<T> {
   };
 }
 
-/** Строковое поле строки реестра. */
-function text(row: Record<string, unknown>, key: string): string | undefined {
-  const value = row[key];
-  return value === null || value === undefined ? undefined : String(value);
-}
-
 // — Описание ошибок для модели: без стеков и кодов, дружелюбно и честно —
 
 function failure(error: unknown, kind: "single" | "list") {
