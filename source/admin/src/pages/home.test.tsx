@@ -30,8 +30,17 @@ describe("HomePage", () => {
   it("hides a widget through settings and persists the choice", () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "Настроить виджеты" }));
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("checkbox", { name: "Требуют вашего действия" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("switch", { name: "Показывать: Требуют вашего действия" }));
     expect(screen.queryByRole("link", { name: "Обращение 0" })).not.toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("dashboard:v1:p:p:false")!).hidden).toEqual(["action"]);
+  });
+  it("shows a hidden widget again through settings", () => {
+    localStorage.setItem("dashboard:v1:p:p:false", JSON.stringify({ order: ["action"], hidden: ["action"], limits: {} }));
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+    expect(screen.queryByRole("link", { name: "Обращение 0" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Настроить виджеты" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("switch", { name: "Показывать: Требуют вашего действия" }));
+    expect(screen.getByRole("link", { name: "Обращение 0" })).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("dashboard:v1:p:p:false")!).hidden).toEqual([]);
   });
 });

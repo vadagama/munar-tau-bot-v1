@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Badge, Button, Card, Checkbox, Descriptions, Empty, List, Modal, Select, Skeleton, Space, Tag, Typography, theme } from "antd";
+import { Alert, Badge, Button, Card, Descriptions, Empty, List, Modal, Select, Skeleton, Space, Switch, Tag, Typography, theme } from "antd";
 import { SettingOutlined, HolderOutlined, ArrowUpOutlined, ArrowDownOutlined } from "@ant-design/icons";
 import { Link } from "react-router-dom";
 import { PageLayout } from "../components/page-layout";
@@ -94,10 +94,13 @@ function Dashboard({ storageKey }: { storageKey: string }) {
       { key: "idle", label: "Бездействие до завершения", children: `${Math.round(session.idle_limit_seconds / 60)} мин` },
     ]} /></details>}
     <Modal title="Настройки главной" open={settings} onCancel={() => setSettings(false)} footer={<Button type="primary" onClick={() => setSettings(false)}>Готово</Button>}>
-      <Typography.Paragraph type="secondary">Изменения сохраняются автоматически в этом браузере. Доступные виджеты определяются вашими полномочиями. Порядок можно менять перетаскиванием или стрелками.</Typography.Paragraph>
-      <List dataSource={available} renderItem={w => <List.Item>
-        <Checkbox checked={!preferences.hidden.includes(w.id)} onChange={e => save({ ...preferences, hidden: e.target.checked ? preferences.hidden.filter(id => id !== w.id) : [...preferences.hidden, w.id] })}>{w.title}</Checkbox>
-        {widgets.some(x => x.id === w.id) && <Select aria-label={`Количество записей: ${w.title}`} value={preferences.limits[w.id] ?? 5} options={[3, 5, 10, 20].map(value => ({ value, label: `${value} ${value === 3 ? "записи" : "записей"}` }))} onChange={n => save({ ...preferences, limits: { ...preferences.limits, [w.id]: n } })} />}
+      <Typography.Paragraph type="secondary">Изменения сохраняются автоматически в этом браузере. Доступные виджеты определяются вашими полномочиями. Переключатель показывает и скрывает виджет, порядок можно менять перетаскиванием или стрелками.</Typography.Paragraph>
+      <List dataSource={available} renderItem={w => <List.Item
+        actions={widgets.some(x => x.id === w.id) ? [<Select key="limit" aria-label={`Количество записей: ${w.title}`} value={preferences.limits[w.id] ?? 5} options={[3, 5, 10, 20].map(value => ({ value, label: `${value} ${value === 3 ? "записи" : "записей"}` }))} onChange={n => save({ ...preferences, limits: { ...preferences.limits, [w.id]: n } })} />] : undefined}>
+        <label className="home-toggle-row">
+          <Switch aria-label={`Показывать: ${w.title}`} checked={!preferences.hidden.includes(w.id)} onChange={checked => save({ ...preferences, hidden: checked ? preferences.hidden.filter(id => id !== w.id) : [...preferences.hidden, w.id] })} />
+          <span>{w.title}</span>
+        </label>
       </List.Item>} />
     </Modal>
   </PageLayout>;

@@ -18,3 +18,4 @@
 .home-session { margin-top: 24px; }
 .home-session summary { cursor: pointer; margin-bottom: 12px; }
 @media (max-width: 380px) { .home-chart .ant-segmented-item-label { padding-inline: 4px; font-size: 12px; } }
+.home-toggle-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
