@@ -25,7 +25,7 @@ it("нагрузка исполнителя: только свои задани�
  const h=fixture([{person_id:"e1",name:null,open:1,overdue:0,on_review:0,rework:0,total_open:1}]);
  const actor=makeTestActor("executor",[],{personId:"pers-9"});
  const result=await workloadByAssignee(h.deps,actor,{});
- expect(result.rows[0]).toMatchObject({person_id:"e1",name:null,open:1});
+ 	expect((result.rows as Row[])[0]).toMatchObject({person_id:"e1",name:null,open:1});
  const query=h.queries.find(q=>q.sql.includes("report.tasks"))!;
  expect(query.p[0]).toBe(false);expect(query.p[2]).toBe(false);
  await expect(workloadByAssignee(h.deps,actor,{assignee_id:"99999999-9999-4999-8999-999999999999"})).rejects.toMatchObject({code:"FORBIDDEN"});
