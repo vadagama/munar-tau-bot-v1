@@ -9,11 +9,11 @@
 // пробуждения (attachRuntimeListener), ключ провайдера перезапрашивается лениво.
 
 import { DurableObject } from "cloudflare:workers";
-import { Lifecycle } from "agents/lifecycle";
+import { Lifecycle, type LifecycleJobContext, type LifecycleJobOutcome } from "agents/lifecycle";
 import { ChatServer, type ChatSocket } from "./chat-server.ts";
 import type { OperationUsage } from "./chat-runtime.ts";
 import { AssistantGate } from "./gate.ts";
-import { parseAssistantDoName } from "./almaty.ts";
+import { assistantDay, nextEpochBoundary, parseAssistantDoName } from "./almaty.ts";
 import { PiChatRuntime, type RuntimeTokenResponse } from "./pi-runtime.ts";
 import type { SocketSession } from "./protocol.ts";
 
@@ -26,9 +26,16 @@ export interface AssistantEnv {
   CABINET_ORIGIN?: string;
   /** Сервисный секрет учёта расхода (S3.1): POST /v1/assistant/usage. */
   X_ASSISTANT_SECRET?: string;
+  /**
+   * Сколько суток хранить историю прошлой эпохи (S6.1); по умолчанию 7.
+   * Значение 7 — предложено, утвердить у владельца продукта.
+   */
+  ASSISTANT_RETENTION_DAYS?: string;
 }
 
 const WS_CLOSE_UNAUTHORIZED = 1008;
+const WS_CLOSE_TEARDOWN = 1008;
+const DEFAULT_RETENTION_DAYS = 7;
 
 /** Сокет DO поверх интерфейса ChatSocket (hibernatable send/close). */
 class DoSocket implements ChatSocket {
@@ -51,6 +58,10 @@ export class AssistantDO extends DurableObject<AssistantEnv> {
   private readonly runtime: PiChatRuntime;
   private server: ChatServer | null = null;
   private accessToken: string | undefined;
+  /** Teardown-задача уже запланирована в этой жизни изолята. */
+  private teardownScheduled = false;
+  /** Стирание начато — повторные вызовы идемпотентно пропускаются. */
+  private teardownStarted = false;
 
   constructor(ctx: DurableObjectState, env: AssistantEnv) {
     super(ctx, env);
@@ -75,6 +86,7 @@ export class AssistantDO extends DurableObject<AssistantEnv> {
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("WebSocket upgrade required", { status: 426 });
     }
+    this.maintainTeardown();
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1]);
     this.ensureChatServer();
@@ -86,6 +98,7 @@ export class AssistantDO extends DurableObject<AssistantEnv> {
 
   override async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     if (typeof message !== "string") return;
+    this.maintainTeardown();
     const session = this.readSession(ws);
     const socket = new DoSocket(ws);
     this.ensureChatServer();
@@ -105,6 +118,76 @@ export class AssistantDO extends DurableObject<AssistantEnv> {
   override async webSocketError(ws: WebSocket): Promise<void> {
     const socket = new DoSocket(ws);
     this.server?.onClose(socket);
+  }
+
+  /**
+   * Retention истории (S6.1): старая эпоха стирается teardown-задачей Lifecycle
+   * на следующей границе суток 05:00 плюс ASSISTANT_RETENTION_DAYS (по умолчанию
+   * 7); ленивый fallback страхует несработавшую задачу. История живёт в pi_*-
+   * таблицах SQLite DO, поэтому стирание = deleteAll после dispose рантайма.
+   */
+  private maintainTeardown(): void {
+    if (this.teardownStarted) return;
+    if (this.epoch < assistantDay(new Date())) {
+      // Эпоха уже прошла: Lifecycle-задача не успела (или не была запланирована).
+      this.ctx.waitUntil(this.teardown("lazy"));
+      return;
+    }
+    if (this.teardownScheduled) return;
+    this.teardownScheduled = true;
+    const time = nextEpochBoundary(new Date(), this.retentionDays());
+    const pushed = this.lifecycle.jobs
+      .push({ id: "teardown", fn: "teardownEpoch", time })
+      .then(() => undefined)
+      .catch(() => undefined);
+    this.ctx.waitUntil(pushed);
+  }
+
+  /** Host-задачи Lifecycle: dispatch по fn (S6.1 — только teardownEpoch). */
+  async onJob(context: LifecycleJobContext): Promise<LifecycleJobOutcome | void> {
+    if (context.job.fn !== "teardownEpoch") return;
+    const now = new Date();
+    if (this.epoch >= assistantDay(now)) {
+      // Эпоха ещё актуальна (например, конфиг-эпоха после «Очистить» далеко
+      // впереди) — перепланировать на следующую границу + retention.
+      return { rescheduleAt: nextEpochBoundary(now, this.retentionDays()) };
+    }
+    // Стирание — вне onJob: очередь задач пишет bookkeeping в тот же storage,
+    // который deleteAll сотрёт из-под неё (Lifecycle требует detach).
+    this.ctx.waitUntil(this.teardown("job"));
+  }
+
+  /**
+   * Стирание истории старой эпохи: alarms отключаются до dispose (Pi не будит
+   * изолят посреди стирания), затем storage deleteAll и закрытие сокетов.
+   * Ошибки глотаются с structured log — повторный вызов безопасен.
+   */
+  private async teardown(trigger: "job" | "lazy"): Promise<void> {
+    if (this.teardownStarted) return;
+    this.teardownStarted = true;
+    try {
+      await this.lifecycle.disableAlarms();
+      await this.runtime.dispose();
+      await this.ctx.storage.deleteAll();
+      for (const ws of this.ctx.getWebSockets()) {
+        try {
+          ws.close(WS_CLOSE_TEARDOWN, "assistant history expired");
+        } catch {
+          // Сокет уже закрыт клиентом.
+        }
+      }
+      console.log(JSON.stringify({ event: "assistant_teardown", profile: this.profileId, epoch: this.epoch, trigger }));
+    } catch (error) {
+      console.log(
+        JSON.stringify({ event: "assistant_teardown_failed", profile: this.profileId, epoch: this.epoch, trigger, error: String(error) }),
+      );
+    }
+  }
+
+  /** Сутки хранения прошлой эпохи; невалидный env — дефолт (7). */
+  private retentionDays(): number {
+    const parsed = Number(this.env.ASSISTANT_RETENTION_DAYS);
+    return Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : DEFAULT_RETENTION_DAYS;
   }
 
   /** Ждёт AUTH_TIMEOUT_MS и закрывает так и не аутентифицированный сокет. */

@@ -213,6 +213,14 @@ export class PiChatRuntime implements ChatRuntime {
   }
 
   /**
+   * Закрыть in-memory ресурсы Pi перед стиранием storage (retention S6.1);
+   * durable-состояние Pi не трогается — его стирает DO через deleteAll.
+   */
+  async dispose(): Promise<void> {
+    await this.harness.dispose();
+  }
+
+  /**
    * Расход операции (S3.1): сумма usage assistant-записей между границей
    * submit и границей следующей операции. prompt = input + cacheRead +
    * cacheWrite (семантика prompt_tokens провайдера), completion = output.

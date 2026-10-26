@@ -53,4 +53,9 @@ export interface ChatRuntime {
   retry(messageId: string): Promise<void>;
   /** Сброс контекста дня (05:00 → 05:00) — транскрипт очищается. */
   reset(): Promise<void>;
+  /**
+   * Освобождение in-memory ресурсов перед стиранием storage (retention S6.1):
+   * Pi закрывает свой рантайм, фейк — только помечает вызов в тестах.
+   */
+  dispose(): Promise<void>;
 }
