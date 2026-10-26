@@ -13,7 +13,7 @@ import { deepseekProvider } from "@earendil-works/pi-ai/providers/deepseek";
 import { getBuiltinModels } from "@earendil-works/pi-ai/providers/all";
 import { createModels, type Provider } from "@earendil-works/pi-ai/models";
 import type { Model } from "@earendil-works/pi-ai";
-import { createRegistry, Harness, type EntryRecord, type Registry } from "@earendil-works/pi-durable";
+import { createRegistry, Harness, type EntryRecord, type Registry, type ReportInfo } from "@earendil-works/pi-durable";
 import { PiHarness, type PiPendingOperation } from "agents/harness/pi";
 import type { ChatRuntime, OperationUsage, RuntimeListener, RuntimeUpdate, SubmitResult, WaitResult } from "./chat-runtime.ts";
 import type { ChatMessageView } from "./protocol.ts";
@@ -119,6 +119,7 @@ export class PiChatRuntime implements ChatRuntime {
           models,
           registry: this.registry,
           onWake,
+          onReport: (error, info) => this.onReport(error, info),
           settings: {
             retry: { enabled: true, maxRetries: 3, baseDelayMs: 1000 },
             afterFailedRun: "keep",
@@ -316,6 +317,21 @@ export class PiChatRuntime implements ChatRuntime {
     this.baseUrl = token.base_url ?? null;
     this.modelId = token.model_id ?? null;
     return token;
+  }
+
+  /**
+   * Отчёты Pi о нештатных состояниях задач (S6.1): parked доставляется
+   * пользователю как статус (кнопка «Повторить» уже в панели), сбои — только
+   * в structured log. Текст ошибки наружу не идёт — может содержать данные
+   * запроса; в лог идёт тип отчёта и kind задачи, без персональных данных.
+   */
+  private onReport(_error: unknown, info: ReportInfo): void {
+    const taskKind = "task" in info && info.task !== undefined ? info.task.kind : null;
+    console.log(JSON.stringify({ event: "assistant_pi_report", type: info.type, ...(taskKind !== null ? { task: taskKind } : {}) }));
+    if (info.type === "task_parked" && this.liveOperationId !== null) {
+      const update: RuntimeUpdate = { kind: "status", messageId: this.liveOperationId, status: "parked" };
+      for (const listener of this.listeners) listener(update);
+    }
   }
 
   /** Поток событий Pi: дельты живого ответа и апсеты записей транскрипта. */
