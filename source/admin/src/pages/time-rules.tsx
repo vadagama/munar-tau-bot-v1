@@ -127,11 +127,7 @@ export function TimeRulesPage() {
         </Space>;
   return (
     <PageLayout title="Регламенты">
-      <Alert className="cabinet-page__intro"
-        type="info"
-        showIcon
-        message="Новая версия действует для новых сроков. Уже запущенные таймеры сохраняют прежнюю версию. Изменения требуют права управления регламентами и записываются в журнал."
-      />
+
       {error && <Alert type="error" message={error} showIcon />}
       <ConfigurableTable storageKey="columns.time-rules" onMobileRowClick={r => setSelected(r)} settingsPlacement="page"
         rowKey="key"

@@ -1,6 +1,7 @@
+import { FilterDate } from "./filter-date";
 import { FilterOutlined } from "@ant-design/icons";
 import { type ReactNode } from "react";
-import { Button, Input, Select, Space } from "antd";
+import { Button, Select, Space } from "antd";
 import { useMobile } from "../lib/use-mobile";
 
 export type FilterValues = { state?: string; related?: string; from: string; to: string };
@@ -26,12 +27,8 @@ export function ListFilters({ search, values, onChange, stateLabel, stateOptions
       value={current.related} onChange={related => change({ related })} options={relatedOptions} style={{ width: 240 }} />
     <Select prefix={<FilterOutlined aria-hidden />} aria-label={stateLabel} placeholder={stateLabel} allowClear
       value={current.state} onChange={state => change({ state })} options={stateOptions} style={{ width: 230 }} />
-    <label className="list-filter-date">{dateCaption} с
-      <Input aria-label={dateLabels[0]} type="date" value={current.from} onChange={e => change({ from: e.target.value })} />
-    </label>
-    <label className="list-filter-date">{dateCaption} по
-      <Input aria-label={dateLabels[1]} type="date" value={current.to} onChange={e => change({ to: e.target.value })} />
-    </label>
+    <FilterDate label={`${dateCaption} с`} aria-label={dateLabels[0]} type="date" value={current.from} onChange={e => change({ from: e.target.value })} />
+    <FilterDate label={`${dateCaption} по`} aria-label={dateLabels[1]} type="date" value={current.to} onChange={e => change({ to: e.target.value })} />
   </>;
   if (!mobile) return <Space wrap>{search}{fields}</Space>;
   return <>

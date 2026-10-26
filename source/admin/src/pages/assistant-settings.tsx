@@ -265,11 +265,7 @@ function AssistantSettingsPage() {
 
   return (
     <PageLayout title="Настройки AI-ассистента">
-      <Typography.Paragraph className="cabinet-page__intro">
-        Единый токен провайдера и доступ сотрудников. Ассистент по умолчанию
-        выключен у всех — включайте точечно с дневным и месячным лимитом
-        токенов. Токен хранится зашифрованным и в кабинете отображается маской.
-      </Typography.Paragraph>
+
       {!editable && (
         <Alert
           type="warning"

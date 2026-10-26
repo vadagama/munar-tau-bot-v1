@@ -4,7 +4,7 @@ import { PageLayout } from "../components/page-layout";
 import { TelegramHandle } from "../components/telegram-handle";
 import { usePageRefresh } from "../lib/use-page-refresh";
 import { useEffect, useState } from "react";
-import { Alert, Space, Typography } from "antd";
+import { Alert, Space } from "antd";
 import { apiFetch } from "../lib/api";
 import { displayKind, displayRole } from "./registry";
 type Row = Record<string, unknown>;
@@ -49,12 +49,7 @@ export function InvitesPage() {
         <PageSearch aria-label="Поиск приглашений" placeholder="Кто пригласил, Telegram или помещение"
           value={search} onChange={e => setSearch(e.target.value)} style={{ width: 320 }} />
       </Space>}>
-      <Typography.Paragraph className="cabinet-page__intro" type="secondary">
-        Подтверждённый собственник создаёт приглашение в боте: жилец по ссылке
-        регистрируется, после чего собственник привязывает его к помещению и
-        выбирает роль. Приглашение действует 72 календарных часа по текущему
-        регламенту и не выдаёт статус собственника.
-      </Typography.Paragraph>
+
       {error && <Alert showIcon type="error" message={error} />}
       <ConfigurableTable storageKey="columns.invites" settingsPlacement="page"
         rowKey="id"

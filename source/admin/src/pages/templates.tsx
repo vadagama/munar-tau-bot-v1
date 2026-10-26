@@ -361,11 +361,7 @@ export function TemplatesPage() {
           ]} />}
       </Space>}>
 
-      <Typography.Paragraph className="cabinet-page__intro">
-        Выберите сценарий и шаг: редактируется целое сообщение с кнопками.
-        Справа показан ответ жителю на вымышленных данных. История изменений
-        сохраняется.
-      </Typography.Paragraph>
+
       {error && !selected && <Alert type="error" message={error} showIcon />}
 
       <Collapse

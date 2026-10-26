@@ -38,7 +38,7 @@ export function InitiativesPage(){
  <Tabs activeKey={tab} onChange={value=>{close();setTab(value);}} items={[{key:"initiatives",label:"Инициативы"},{key:"actions",label:"Модерация"},{key:"appeals",label:"Оспаривания"}]}/>
  {tab!=="initiatives"?<InitiativeModerationQueue key={`${identityKey}:${tab}`} mode={tab as "actions"|"appeals"}/>:<>
 
- <Alert className="cabinet-page__intro" type="info" message="Поддержка инициативы не является согласием на расходы или решением о реализации"/>
+
  {error&&<Alert role="alert" type="error" message={error}/>}
  {!loading&&!error&&!rows.length?<Empty description="Инициатив пока нет"/>:<ConfigurableTable storageKey="initiatives" onMobileRowClick={row => void open(row.id)} rowKey="id" loading={loading} dataSource={rows} pagination={false} scroll={{x:600}} columns={[
   {key:"title",title:"Инициатива",render:(_v:unknown,row:InitiativeView)=><Button type="link" onClick={()=>void open(row.id)}>{row.title}</Button>},

@@ -266,11 +266,7 @@ function IncidentPanel() {
           message={error}
         />
       )}
-      <Alert className="cabinet-page__intro"
-        type="info"
-        showIcon
-        message="Сигнал не означает подтверждения выезда. Частичное восстановление не завершает общую аварию."
-      />
+
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
