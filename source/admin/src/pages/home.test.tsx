@@ -8,6 +8,8 @@ vi.mock("../lib/dashboard", async importOriginal => ({
   useDashboardIdentity: () => ({ identity: { me: { profile: { id: harness.profile }, person: { id: harness.profile, is_test: false } } }, key: harness.profile }),
   useDashboardResource: () => ({ data: { widgets: harness.widgets, analytics: false, assistant: { state: "disabled" } }, loading: false }),
 }));
+// Панель ассистента — предмет assistant-panel.test.tsx; здесь она не рендерится.
+vi.mock("../assistant/assistant-panel", () => ({ AssistantPanel: () => null }));
 afterEach(() => { cleanup(); localStorage.clear(); harness.profile = "p"; });
 describe("HomePage", () => {
   it("uses complete count and real entity links, without a duplicate overdue widget or disabled AI", () => {

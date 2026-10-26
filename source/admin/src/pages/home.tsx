@@ -4,6 +4,7 @@ import { SettingOutlined, HolderOutlined, ArrowUpOutlined, ArrowDownOutlined } f
 import { Link } from "react-router-dom";
 import { PageLayout } from "../components/page-layout";
 import { useDashboardIdentity, useDashboardResource, parseDashboardPreferences, moveWidget, type DashboardPreferences, type DashboardResponse } from "../lib/dashboard";
+import { AssistantPanel } from "../assistant/assistant-panel";
 import { DashboardChart } from "./home-charts";
 import { formatDateTime } from "../lib/format-date";
 import "./home.css";
@@ -42,8 +43,7 @@ function Dashboard({ storageKey }: { storageKey: string }) {
     {result.error && <Alert type="error" showIcon message="Не удалось загрузить главную" description={result.error} action={<Button onClick={() => void result.reload()}>Повторить</Button>} />}
     {result.loading && <Skeleton active />}
     {storageError && <Alert type="warning" message="Настройки применены. Браузер не позволил сохранить их для следующего посещения." />}
-    {result.data?.assistant.state === "limit" && <Alert type="info" message="Лимит AI-ассистента исчерпан. Все доступные виджеты продолжают работать." />}
-    {result.data?.assistant.state === "unavailable" && <Alert type="info" message="AI-ассистент временно недоступен. Продолжайте работу в виджетах." />}
+    <AssistantPanel />
     <span className="home-sr-only" role="status">{announcement}</span>
     <div className="home-grid">
       {visible.map((id, index) => {
