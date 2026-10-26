@@ -225,6 +225,8 @@ export function useAssistantSocket() {
           };
           return next;
         });
+        // Свежий расход для мини-индикатора и гейта (S3.2): один GET на ответ.
+        void reloadAccess();
         return;
       }
       case "upsert": {
@@ -235,6 +237,25 @@ export function useAssistantSocket() {
       case "error": {
         if (envelope.code === "epoch_stale") {
           setGeneration((value) => value + 1);
+          void reloadAccess();
+          return;
+        }
+        // Отказ гейта лимитов до submit (S3.1): оптимистичное сообщение —
+        // сбойное с причиной, расход перечитан (day_used ≥ лимита → «лимит»).
+        if (envelope.code === "limit_exceeded") {
+          const messageId = typeof envelope.messageId === "string" ? envelope.messageId : null;
+          const reason = typeof envelope.message === "string" && envelope.message !== ""
+            ? envelope.message
+            : "Лимит токенов исчерпан — повторите позже или попросите повысить лимит";
+          if (messageId !== null) {
+            setMessages((current) => {
+              const at = current.findIndex((m) => m.messageId === messageId);
+              if (at < 0) return current;
+              const next = [...current];
+              next[at] = { ...next[at]!, status: "failed", error: reason };
+              return next;
+            });
+          }
           void reloadAccess();
           return;
         }
@@ -376,5 +397,5 @@ export function useAssistantSocket() {
     return connected ? { kind: "open" } : { kind: "connecting" };
   }, [me, access, accessError, emulation, testPerson, wsUrl, socketError, connected]);
 
-  return { status, messages, send, retry, clearSession, clearing, reloadAccess };
+  return { status, messages, send, retry, clearSession, clearing, reloadAccess, access };
 }

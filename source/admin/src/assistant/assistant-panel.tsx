@@ -5,7 +5,7 @@
 // примечание об AI-подсказке. Ответ — AssistantMarkdown (HTML не рендерится).
 
 import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Card, Input, Space, Spin, Typography } from "antd";
+import { Alert, Button, Card, Input, Progress, Space, Spin, Typography } from "antd";
 import { ClearOutlined, RedoOutlined, SendOutlined } from "@ant-design/icons";
 
 import { AssistantMarkdown } from "./assistant-markdown";
@@ -31,11 +31,15 @@ function messageBody(message: AssistantMessageView): string {
 }
 
 export function AssistantPanel() {
-  const { status, messages, send, retry, clearSession, clearing } = useAssistantSocket();
+  const { status, messages, send, retry, clearSession, clearing, access } = useAssistantSocket();
   const [open, setOpen] = useState(readOpen);
   const [question, setQuestion] = useState("");
   const threadRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Мини-индикатор дневного расхода (S3.2): только при заданном дневном лимите.
+  const dailyLimit = access?.daily_token_limit ?? null;
+  const dayUsed = access?.day_used ?? 0;
 
   useEffect(() => {
     try {
@@ -94,6 +98,19 @@ export function AssistantPanel() {
         )}
         {open && (status.kind === "open" || status.kind === "connecting") && (
           <>
+            {dailyLimit !== null && (
+              <div className="assistant-usage" title="Расход токенов за текущие сутки (05:00→05:00 Алматы)">
+                <Progress
+                  aria-label="Расход дневного лимита"
+                  percent={dailyLimit > 0 ? Math.min(100, Math.round((dayUsed / dailyLimit) * 100)) : 100}
+                  size="small"
+                  showInfo={false}
+                />
+                <Typography.Text type="secondary">
+                  {dayUsed.toLocaleString("ru-RU")} / {dailyLimit.toLocaleString("ru-RU")} токенов сегодня
+                </Typography.Text>
+              </div>
+            )}
             <div className="assistant-thread" ref={threadRef} aria-live="polite" aria-busy={busy}>
               {messages.length === 0 && (
                 <Typography.Paragraph type="secondary" className="assistant-empty">

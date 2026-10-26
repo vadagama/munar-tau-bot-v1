@@ -60,7 +60,7 @@ const view = {
   }],
 };
 
-function mockApi(implementation?: (path: string, options?: { method?: string }) => unknown) {
+function mockApi(implementation?: (path: string, options?: { method?: string; query?: Record<string, string | undefined> }) => unknown) {
   vi.mocked(apiFetch).mockImplementation(async (path, options) =>
     implementation?.(path, options) ?? view,
   );
@@ -197,4 +197,65 @@ it("токен нигде не отображается — только мас�
   const label = await screen.findByText(/задан: ••••9876/);
   expect(label).toBeInTheDocument();
   expect(document.body.textContent).not.toContain("sk-");
+});
+
+it("блок расхода: история запрашивается после выбора сотрудника, разрез переключается", async () => {
+  const historyCalls: Array<Record<string, string | undefined>> = [];
+  mockApi((path, options) => {
+    if (path === "/v1/assistant/usage/history") {
+      historyCalls.push(options?.query ?? {});
+      const month = options?.query?.granularity === "month";
+      return {
+        profile_id: options?.query?.profile_id,
+        granularity: options?.query?.granularity ?? "day",
+        rows: month
+          ? [{ period: "2026-10", prompt_tokens: 2100, completion_tokens: 550, total_tokens: 2650 }]
+          : [
+              { period: "2026-10-26", prompt_tokens: 1200, completion_tokens: 340, total_tokens: 1540 },
+              { period: "2026-10-25", prompt_tokens: 900, completion_tokens: 210, total_tokens: 1110 },
+            ],
+      };
+    }
+    return view;
+  });
+  render(<AssistantSettingsPage />);
+  await screen.findByText("Доступ сотрудников");
+  // До выбора сотрудника история не запрашивается.
+  expect(historyCalls).toHaveLength(0);
+  expect(screen.getByText("Выберите сотрудника, чтобы увидеть его расход.")).toBeInTheDocument();
+
+  // Выбор сотрудника — запрос истории по дням, свежие периоды первыми.
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "Сотрудник" }));
+  fireEvent.click(await screen.findByText("Сотрудник Один", { selector: ".ant-select-item-option-content" }));
+  await waitFor(() => expect(historyCalls).toEqual([{ profile_id: "prof-1", granularity: "day" }]));
+  expect(await screen.findByText("2026-10-26")).toBeInTheDocument();
+  expect(screen.getByText("1540")).toBeInTheDocument();
+  expect(screen.getByText("1110")).toBeInTheDocument();
+
+  // Переключение разреза — месячная история по тому же сотруднику.
+  fireEvent.click(screen.getByText("По месяцам"));
+  await waitFor(() => expect(historyCalls).toEqual([
+    { profile_id: "prof-1", granularity: "day" },
+    { profile_id: "prof-1", granularity: "month" },
+  ]));
+  expect(await screen.findByText("2026-10")).toBeInTheDocument();
+  expect(screen.getByText("2650")).toBeInTheDocument();
+  expect(screen.queryByText("2026-10-26")).not.toBeInTheDocument();
+});
+
+it("ошибка загрузки расхода показывается рядом с блоком и не ломает страницу", async () => {
+  mockApi((path, options) => {
+    if (path === "/v1/assistant/usage/history") {
+      throw Object.assign(new Error("FORBIDDEN"), { status: 403 });
+    }
+    void options;
+    return view;
+  });
+  render(<AssistantSettingsPage />);
+  await screen.findByText("Доступ сотрудников");
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "Сотрудник" }));
+  fireEvent.click(await screen.findByText("Сотрудник Один", { selector: ".ant-select-item-option-content" }));
+  expect(await screen.findByText("FORBIDDEN")).toBeInTheDocument();
+  // Таблица сотрудников остаётся на месте (имя и в таблице, и в выборе).
+  expect(screen.getAllByText("Сотрудник Один").length).toBeGreaterThan(0);
 });

@@ -359,3 +359,54 @@ it("повторная отправка того же messageId не созда�
     .map((m) => m.messageId);
   expect(new Set(ids).size).toBe(1);
 });
+
+it("ошибка limit_exceeded: сообщение сбойное с причиной и «Повторить», расход перечитан", async () => {
+  await renderPanel();
+  const socket = FakeWebSocket.last();
+  fireEvent.change(screen.getByLabelText("Вопрос ассистенту"), { target: { value: "вопрос при лимите" } });
+  fireEvent.click(screen.getByText("Спросить"));
+  await waitFor(() => expect(screen.getByText("Готовлю ответ")).toBeInTheDocument());
+  const sent = JSON.parse(socket.sent.at(-1)!) as { messageId: string };
+  const callsBefore = vi.mocked(apiFetch).mock.calls.filter(([path]) => path === "/v1/assistant/settings/me").length;
+  socket.receive({
+    type: "error",
+    code: "limit_exceeded",
+    messageId: sent.messageId,
+    message: "Дневной лимит токенов исчерпан — попробуйте после 05:00",
+  });
+  // Причина отказа — в сообщении, повтор доступен; расход перечитан (S3.2).
+  expect(await screen.findByText("Дневной лимит токенов исчерпан — попробуйте после 05:00")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Повторить/ })).toBeInTheDocument();
+  await waitFor(() => {
+    const calls = vi.mocked(apiFetch).mock.calls.filter(([path]) => path === "/v1/assistant/settings/me").length;
+    expect(calls).toBeGreaterThan(callsBefore);
+  });
+});
+
+it("исчерпанный по settings/me лимит после отказа гейта — эталонный Alert вместо панели", async () => {
+  await renderPanel();
+  const socket = FakeWebSocket.last();
+  fireEvent.change(screen.getByLabelText("Вопрос ассистенту"), { target: { value: "вопрос" } });
+  fireEvent.click(screen.getByText("Спросить"));
+  await waitFor(() => expect(screen.getByText("Готовлю ответ")).toBeInTheDocument());
+  const sent = JSON.parse(socket.sent.at(-1)!) as { messageId: string };
+  // Перечитанный settings/me подтверждает: дневной лимит исчерпан.
+  state.access = { ...accessEnabled, day_used: 1000 };
+  socket.receive({ type: "error", code: "limit_exceeded", messageId: sent.messageId, message: "Дневной лимит токенов исчерпан" });
+  expect(await screen.findByText(/Дневной лимит AI-ассистента исчерпан/)).toBeInTheDocument();
+  expect(screen.queryByLabelText("Вопрос ассистенту")).not.toBeInTheDocument();
+});
+
+it("мини-индикатор показывает расход дневного лимита и скрыт без лимита", async () => {
+  state.access = { ...accessEnabled, day_used: 250 };
+  await renderPanel();
+  expect(screen.getByLabelText("Расход дневного лимита")).toBeInTheDocument();
+  expect(screen.getByText(/250 \/ 1\s?000 токенов сегодня/)).toBeInTheDocument();
+
+  cleanup();
+  FakeWebSocket.instances = [];
+  state.access = { ...accessEnabled, daily_token_limit: null, day_used: 250 };
+  render(<MemoryRouter><AssistantPanel /></MemoryRouter>);
+  await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0));
+  expect(screen.queryByText(/токенов сегодня/)).not.toBeInTheDocument();
+});

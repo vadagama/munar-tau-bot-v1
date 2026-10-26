@@ -181,3 +181,15 @@ export interface AssistantAccessJson {
   day: string;
   month: string;
 }
+
+/** История расхода (GET /v1/assistant/usage/history): по дням или месяцам. */
+export interface AssistantUsageHistoryJson {
+  profile_id: string;
+  granularity: "day" | "month";
+  rows: Array<{
+    period: string;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  }>;
+}
