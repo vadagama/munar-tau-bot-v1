@@ -62,6 +62,7 @@ export class AssistantDO extends DurableObject<AssistantEnv> {
       ctx,
       getAccessToken: () => this.accessToken,
       fetchRuntimeToken: (jwt) => this.fetchRuntimeToken(jwt),
+      fetchApi: (path, jwt) => this.fetchApi(path, jwt),
     });
     this.lifecycle = Lifecycle.install(this).use(this.runtime.capability);
   }
@@ -146,5 +147,18 @@ export class AssistantDO extends DurableObject<AssistantEnv> {
     } catch {
       return null;
     }
+  }
+
+  /** GET /v1-ресурса с JWT пользователя — инструменты сущностей (S2.1).
+   *  Не настроенный SUPABASE_URL — синтетический 503: инструменты честно
+   *  ответят «сервис недоступен». */
+  private fetchApi(path: string, jwt: string): Promise<Response> {
+    const baseUrl = this.env.SUPABASE_URL;
+    if (baseUrl === undefined || baseUrl === "") {
+      return Promise.resolve(new Response(null, { status: 503 }));
+    }
+    return fetch(`${baseUrl.replace(/\/$/, "")}/functions/v1/api${path}`, {
+      headers: { authorization: `Bearer ${jwt}` },
+    });
   }
 }

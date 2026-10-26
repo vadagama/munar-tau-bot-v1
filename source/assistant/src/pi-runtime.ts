@@ -17,6 +17,8 @@ import { createRegistry, Harness, type EntryRecord, type Registry } from "@earen
 import { PiHarness, type PiPendingOperation } from "agents/harness/pi";
 import type { ChatRuntime, RuntimeListener, RuntimeUpdate, SubmitResult, WaitResult } from "./chat-runtime.ts";
 import type { ChatMessageView } from "./protocol.ts";
+import { EntityApiClient } from "./tools/api-client.ts";
+import { createEntityExtension } from "./tools/guard.ts";
 
 /** Ответ POST /v1/assistant/runtime-token (S0.3, core/src/domains/assistant). */
 export interface RuntimeTokenResponse {
@@ -32,6 +34,9 @@ export interface PiRuntimeDeps {
   getAccessToken: () => string | undefined;
   /** Вызов POST /v1/assistant/runtime-token с Bearer JWT (инъекция для тестов типа). */
   fetchRuntimeToken: (jwt: string) => Promise<RuntimeTokenResponse | null>;
+  /** GET /v1-ресурса с Bearer JWT (путь начинается с /v1/…) — инструменты
+   *  сущностей S2.1 (ADR-021: данные только через API под PDP). */
+  fetchApi: (path: string, jwt: string) => Promise<Response>;
   now?: () => Date;
 }
 
@@ -92,6 +97,16 @@ export class PiChatRuntime implements ChatRuntime {
 
   constructor(private readonly deps: PiRuntimeDeps) {
     this.registry = createRegistry();
+    // Read-only реестр инструментов сущностей + guard beforeTool (S2.1):
+    // модель видит только десять инструментов, всё прочее блокируется хуком.
+    this.registry.install(
+      createEntityExtension(
+        new EntityApiClient({
+          getAccessToken: deps.getAccessToken,
+          fetchApi: deps.fetchApi,
+        }),
+      ),
+    );
     this.harness = new PiHarness({
       harness: ({ storage, context, onWake }) => {
         const models = createModels();
