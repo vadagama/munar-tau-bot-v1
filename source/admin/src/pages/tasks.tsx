@@ -959,10 +959,13 @@ export function TasksPage() {
               {!!card?.is_required && (
                 <Form.Item
                   name="replacement_task_id"
-                  label="Обязательное заменяющее задание"
-                  rules={required}
+                  label={action === "replace_canceled" ? "Обязательное заменяющее задание" : "Заменяющее задание (необязательно)"}
+                  rules={action === "replace_canceled" ? required : []}
+                  extra={action === "cancel" ? "Без замены обязательный объём останется невыполненным и будет блокировать завершение обращения или общей работы. Замену можно оформить позже." : undefined}
                 >
                   <Select
+                    allowClear={action === "cancel"}
+                    notFoundContent="Подходящих заданий нет. Создайте замену позже."
                     options={replacements.map((t) => ({
                       value: t.id,
                       label: `${t.number} — ${t.title}`,
@@ -982,7 +985,7 @@ export function TasksPage() {
             <Form.Item
               name="reason"
               label="Причина / основание"
-              rules={required}
+              rules={[{required: true, whitespace: true, message: "Укажите причину / основание"}]}
             >
               <Input.TextArea />
             </Form.Item>

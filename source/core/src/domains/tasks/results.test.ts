@@ -2,6 +2,14 @@ import { expect, it } from "vitest";
 import { requestResultSnapshot } from "./results.ts";
 import type { DbExecutor } from "../../db/client.ts";
 
+it("отменённое обязательное задание без замены блокирует передачу результата", async () => {
+  const exec: DbExecutor = { async query<T>(sql: string) {
+    if (sql.includes("from task t")) return [{ id: "canceled-task", state: "canceled", report_id: null }] as T[];
+    return [];
+  } };
+  await expect(requestResultSnapshot(exec, "request", true)).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+});
+
 it("вопрос без заданий всё равно требует готового документального обязательства", async () => {
   const exec: DbExecutor = { async query<T>(sql: string) {
     if (sql.includes("for update of o")) return [{ id: "obligation", kind: "act", document_id: null }] as T[];
