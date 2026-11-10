@@ -37,7 +37,6 @@ export function staffFormFields(
     task_assign: ["assignee", "reason"],
     task_cancel: [
       "reason",
-      ...(task?.is_required ? ["replacement"] : []),
       "dependency_review",
     ],
     task_approve: ((task?.missing_evidence ?? []) as string[]).map((id) =>

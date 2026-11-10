@@ -20,6 +20,28 @@ function enabledButton(container: HTMLElement, name: string) {
  return buttons[0]!;
 }
 const task={id:"t",number:"ЗД-1",title:"Замена крана",instruction:"Проверить герметичность",due_at:"2026-12-01T12:00:00Z",state:"awaiting_acceptance",version:1,can_execute:true,can_manage:false,log:[]};
+it.each(["administrator", "chairman"])("%s отменяет обязательное задание при пустом списке замен", async role => {
+ roleHarness.roles = [role];
+ let card = {...task, is_required:true, can_manage:true, can_execute:false};
+ vi.mocked(apiFetch).mockImplementation(async (path, opts) => {
+   if (path === "/v1/tasks") return {items:[card]};
+   if (opts?.method === "POST") card = {...card,state:"canceled",version:2};
+   return card;
+ });
+ render(<MemoryRouter><TasksPage/></MemoryRouter>);
+ fireEvent.click(await screen.findByText("ЗД-1",{selector:"button > span"}));
+ fireEvent.click(await screen.findByText("Отменить",{selector:"button > span"}));
+ const reason = await screen.findByLabelText("Причина / основание");
+ fireEvent.change(reason,{target:{value:"Работа больше не требуется"}});
+ fireEvent.click(screen.getByLabelText("Остановка и влияние на зависимые работы проверены"));
+ const form = reason.closest("form")!;
+ fireEvent.click(enabledButton(form,"Отменить"));
+ await waitFor(()=>expect(apiFetch).toHaveBeenCalledWith("/v1/tasks/t/transitions",expect.objectContaining({
+   body:expect.objectContaining({action:"cancel",reason:"Работа больше не требуется",stop_checked:true,version:1}),
+ })));
+ const call = vi.mocked(apiFetch).mock.calls.find(([path])=>path.endsWith("/transitions"));
+ expect(call?.[1]?.body).not.toHaveProperty("replacement_task_id",expect.any(String));
+});
 it.each(["executor", "duty", "finance", "doc_reviewer", "tech_admin"])("назначенный %s принимает с версией и ключом; управление скрыто",async(role)=>{
   roleHarness.roles = [role];
   vi.mocked(apiFetch).mockImplementation(async (path,opts)=>{

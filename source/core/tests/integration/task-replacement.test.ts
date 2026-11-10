@@ -3,8 +3,9 @@ import { expect, it } from "vitest";
 import { describeWithDb } from "./with-db.ts";
 import { setupTasks } from "./tasks-helpers.ts";
 import { createTask, transitionTask } from "../../src/domains/tasks/service.ts";
+import { taskResultSnapshot } from "../../src/domains/tasks/results.ts";
 describeWithDb("VS-4 замена обязательного задания", (getDb) => {
-  it("без замены отмена запрещена; замена сохраняет историю и переносит неначатые зависимости", async () => {
+  it("отмена без замены сохраняет обязательный объём; поздняя замена переносит зависимости с историей", async () => {
     const { deps, admin, input, request } = await setupTasks(getDb());
     const original = await createTask(deps, admin, input, "original");
     const [replacement] = await getDb().query(
@@ -21,10 +22,15 @@ describeWithDb("VS-4 замена обязательного задания", (g
       reason: "Изменён способ ремонта",
       stop_checked: true,
     };
-    await expect(transitionTask(deps, admin, original.id, body, "missing"))
+    const deferred = await transitionTask(deps, admin, original.id, body, "deferred");
+    expect(deferred).toMatchObject({ state: "canceled", is_required: true });
+    expect((await getDb().query("select depends_on_task_id from task where id=$1", [dependent!.id]))[0]?.depends_on_task_id).toBe(original.id);
+    await expect(getDb().transaction(exec => taskResultSnapshot(exec, String(request.id))))
       .rejects.toMatchObject({ code: "VALIDATION_FAILED" });
     const canceled = await transitionTask(deps, admin, original.id, {
       ...body,
+      action: "replace_canceled",
+      version: deferred.version,
       replacement_task_id: replacement!.id,
     }, "cancel");
     expect(canceled.state).toBe("canceled");
@@ -35,7 +41,7 @@ describeWithDb("VS-4 замена обязательного задания", (g
       ]))[0]?.depends_on_task_id,
     ).toBe(replacement!.id);
     const [log] = await getDb().query(
-      "select meta from task_log where task_id=$1 and to_state='canceled'",
+      "select meta from task_log where task_id=$1 and meta->>'action'='replace_canceled'",
       [original.id],
     );
     expect(log!.meta).toMatchObject({

@@ -657,7 +657,7 @@ export async function transitionTask(
             "Подтвердите проверку остановки и влияния на зависимые работы",
           );
         }
-        if (row.is_required) {
+        if (row.is_required && (input.replacement_task_id != null || action === "replace_canceled")) {
           const replacement = await requireTask(
             exec,
             actor,
@@ -716,6 +716,17 @@ export async function transitionTask(
             was_required: true,
             dependency_review: input.dependency_review ?? null,
           };
+        } else if (row.is_required) {
+          // Отмена не погашает обязательный объём. Зависимости остаются на
+          // отменённом задании до явной замены и не разрешают старт работ.
+          const dependents = await exec.query<{ started_at: string | null }>(
+            "select started_at from task where depends_on_task_id=$1",
+            [id],
+          );
+          if (dependents.some(t => !!t.started_at)) {
+            content(input.dependency_review, "разбор начатых зависимых работ");
+          }
+          reviewMeta = { was_required: true, replacement_task_id: null, dependency_review: input.dependency_review ?? null };
         } else if (
           (await exec.query(
             "select id from task where depends_on_task_id=$1 and state not in ('canceled','accepted_admin')",
